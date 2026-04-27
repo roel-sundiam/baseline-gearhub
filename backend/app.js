@@ -19,7 +19,12 @@ const app = express();
 // Middleware
 app.use(
   cors({
-    origin: ["http://localhost:4200", "http://localhost:4201"],
+    origin: [
+      "http://localhost:4200",
+      "http://localhost:4201",
+      "https://baseline-gearhub.vercel.app",
+      /\.vercel\.app$/,
+    ],
     credentials: true,
   }),
 );
