@@ -1,0 +1,194 @@
+/* ===========================
+   PV Tennis Club — Global Styles
+   =========================== */
+
+:root {
+  --primary: #b88942;
+  --primary-light: #c9a15d;
+  --primary-dark: #9f7338;
+  --accent: #c9a15d;
+  --accent-light: #d6b777;
+  --bg: #f6efe4;
+  --surface: #ffffff;
+  --text: #f9fafb;
+  --text-muted: #9ca3af;
+  --text-secondary: #d1d5db;
+  --border: #374151;
+  --warm-bg: #efe2cf;
+  --panel: #e8d7bf;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --gold: #f59e0b;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;
+  color: var(--text);
+  background: #f6efe4;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Form elements ---- */
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  color: #111827;
+  background: white;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    background-color 0.2s;
+  font-family: inherit;
+}
+
+input::placeholder,
+select::placeholder,
+textarea::placeholder {
+  color: #9ca3af;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #c9a15d;
+  box-shadow: 0 0 0 3px rgba(201, 161, 93, 0.15);
+  background: white;
+}
+
+input[type='date'],
+input[type='time'] {
+  cursor: pointer;
+}
+
+/* ---- Buttons ---- */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #b88942;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  min-height: 44px;
+  transition:
+    background 0.2s,
+    box-shadow 0.2s,
+    transform 0.1s;
+  box-shadow: 0 4px 12px rgba(184, 137, 66, 0.35);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #9f7338;
+  box-shadow: 0 6px 16px rgba(184, 137, 66, 0.45);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  color: #b88942;
+  border: 1.5px solid #b88942;
+  border-radius: 10px;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  min-height: 44px;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #f8f1e4;
+  border-color: #9f7338;
+  color: #9f7338;
+}
+
+.btn-full {
+  width: 100%;
+}
+
+/* ---- Alerts ---- */
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin: 0.75rem 0;
+}
+
+.alert-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.alert-success {
+  background: #f8f1e4;
+  color: #7a5626;
+  border: 1px solid #e6d2ad;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #c9a15d;
+  border-radius: 3px;
+}
+
+/* ---- Utilities ---- */
+.text-muted {
+  color: var(--text-muted);
+}
+.text-primary {
+  color: var(--primary);
+}
+.text-secondary {
+  color: var(--text-secondary);
+}
+.full-bleed {
+  max-width: 100vw !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
