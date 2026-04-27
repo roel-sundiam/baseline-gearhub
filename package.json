@@ -2,10 +2,10 @@
   "name": "pv-tennis-club-backend",
   "version": "1.0.0",
   "description": "PV Tennis Club backend via Netlify Functions",
-  "main": "backend/app.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "netlify dev"
+    "dev": "netlify dev",
+    "build": "cd frontend && npm install && npm run build"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
