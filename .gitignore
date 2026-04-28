@@ -18,3 +18,4 @@ Thumbs.db
 # Sensitive files
 LOGINS.md
 .vercel
+.env*.local

@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 
+mongoose.set('strictQuery', true);
+
 const authRoutes = require("./routes/auth.routes");
 const usersRoutes = require("./routes/users.routes");
 const ratesRoutes = require("./routes/rates.routes");
@@ -24,39 +26,63 @@ app.use(
       "http://localhost:4201",
       "https://baseline-gearhub.vercel.app",
       /\.vercel\.app$/,
+      "https://baseline-gearhub.pages.dev",
+      /\.baseline-gearhub\.pages\.dev$/,
     ],
     credentials: true,
   }),
 );
 app.use(express.json());
 
+// In Vercel deployments, `/` can be routed to the API function.
+// Redirect to the SPA entry so the app still loads.
+app.get('/', (_req, res) => res.redirect(302, '/index.html'));
+
+// Health check should respond even when DB is unavailable.
+app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
 // DB connection (cached; one concurrent attempt at a time)
 let isConnected = false;
 let connectingPromise = null;
 
 async function connectDB() {
-  if (isConnected) return;
-  if (connectingPromise) return connectingPromise;
+  if (isConnected) {
+    console.log('=> using existing database connection');
+    return;
+  }
+
+  if (connectingPromise) {
+    console.log('=> waiting for existing connection promise');
+    return connectingPromise;
+  }
+
+  console.log('=> using new database connection');
   connectingPromise = mongoose
     .connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 10000,
-      socketTimeoutMS: 20000,
+      serverSelectionTimeoutMS: 3000,
+      connectTimeoutMS: 5000,
+      socketTimeoutMS: 10000,
     })
     .then(() => {
       isConnected = true;
       connectingPromise = null;
+      console.log('=> database connected');
     })
     .catch((err) => {
       connectingPromise = null;
+      console.error('=> database connection error:', err);
       throw err;
     });
   return connectingPromise;
 }
 
-mongoose.connection.on('disconnected', () => { isConnected = false; });
+mongoose.connection.on('disconnected', () => { 
+  console.log('=> database disconnected');
+  isConnected = false; 
+});
 
 app.use(async (req, res, next) => {
+  if (req.path === '/api/health') return next();
   try {
     await connectDB();
     next();
@@ -78,8 +104,5 @@ app.use("/api/app-service-payments", appServicePaymentsRoutes);
 app.use("/api/tournaments", tournamentsRoutes);
 app.use("/api/clubs", clubsRoutes);
 app.use("/api/coins", coinsRoutes);
-
-// Health check
-app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 
 module.exports = app;
