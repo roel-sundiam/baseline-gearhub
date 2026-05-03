@@ -19,6 +19,7 @@ export interface LoginRecord {
   username: string;
   role: string;
   loginTime: string;
+  clubName?: string | null;
 }
 
 export interface PageVisitRecord {
@@ -30,6 +31,7 @@ export interface PageVisitRecord {
   pageUrl: string;
   visitTime: string;
   timeSpent: number;
+  clubName?: string | null;
 }
 
 export interface MostVisitedPage {

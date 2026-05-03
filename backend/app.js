@@ -28,6 +28,8 @@ app.use(
       /\.vercel\.app$/,
       "https://baseline-gearhub.pages.dev",
       /\.baseline-gearhub\.pages\.dev$/,
+      "https://baseline-gearhub.netlify.app",
+      /\.baseline-gearhub\.netlify\.app$/,
     ],
     credentials: true,
   }),

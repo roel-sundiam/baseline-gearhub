@@ -15,14 +15,15 @@ export interface AppServicePayment {
 export class AppServicePaymentsService {
   constructor(private http: HttpClient) {}
 
-  getAll() {
-    return this.http.get<AppServicePayment[]>(`${environment.apiUrl}/app-service-payments`);
+  getAll(clubId?: string) {
+    const q = clubId ? `?clubId=${encodeURIComponent(clubId)}` : '';
+    return this.http.get<AppServicePayment[]>(`${environment.apiUrl}/app-service-payments${q}`);
   }
 
-  record(amount: number, paymentMethod: 'GCash' | 'Cash' | 'Bank Transfer', note?: string) {
+  record(amount: number, paymentMethod: 'GCash' | 'Cash' | 'Bank Transfer', note?: string, clubId?: string) {
     return this.http.post<{ message: string; payment: AppServicePayment }>(
       `${environment.apiUrl}/app-service-payments`,
-      { amount, paymentMethod, note }
+      { amount, paymentMethod, note, ...(clubId ? { clubId } : {}) }
     );
   }
 }

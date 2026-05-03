@@ -1,12 +1,7 @@
 import { Injectable } from '@angular/core';
 import { environment } from '../../../environments/environment';
 
-function resolveAppId(): string {
-  const host = window.location.hostname;
-  if (host.includes('tenisu')) return 'tenisuapp';
-  return 'pvtennisclub';
-}
-const APP_ID = resolveAppId();
+const APP_ID = 'baselinegearhubv2';
 
 @Injectable({ providedIn: 'root' })
 export class AnalyticsTrackService {

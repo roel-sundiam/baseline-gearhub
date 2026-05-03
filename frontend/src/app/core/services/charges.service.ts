@@ -57,18 +57,23 @@ export class ChargesService {
   }
 
   // Get charges pending admin approval
-  getPendingApprovals() {
-    return this.http.get<Charge[]>(`${environment.apiUrl}/charges/pending-approval`);
+  getPendingApprovals(clubId?: string) {
+    const q = clubId ? `?clubId=${encodeURIComponent(clubId)}` : '';
+    return this.http.get<Charge[]>(`${environment.apiUrl}/charges/pending-approval${q}`);
   }
 
   // Get all charges that have entered the approval workflow (pending + approved + rejected)
-  getAllApprovalCharges() {
-    return this.http.get<Charge[]>(`${environment.apiUrl}/charges/pending-approval?status=all`);
+  getAllApprovalCharges(clubId?: string) {
+    const p = new URLSearchParams({ status: 'all' });
+    if (clubId) p.set('clubId', clubId);
+    return this.http.get<Charge[]>(`${environment.apiUrl}/charges/pending-approval?${p}`);
   }
 
-  // Get all approved charges (for Finance page)
-  getApprovedCharges() {
-    return this.http.get<Charge[]>(`${environment.apiUrl}/charges/pending-approval?status=approved`);
+  // Get all approved charges (for Finance page or per-club app service fee)
+  getApprovedCharges(clubId?: string) {
+    const p = new URLSearchParams({ status: 'approved' });
+    if (clubId) p.set('clubId', clubId);
+    return this.http.get<Charge[]>(`${environment.apiUrl}/charges/pending-approval?${p}`);
   }
 
   // Admin: approve a payment

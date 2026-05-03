@@ -119,12 +119,14 @@ import { forkJoin, timeout } from 'rxjs';
           <div class="login-table">
             <div class="table-header">
               <div class="col-username">User</div>
+              <div class="col-club">Club</div>
               <div class="col-role">Role</div>
               <div class="col-time">Login Time</div>
             </div>
             @for (login of logins; track login._id) {
               <div class="table-row">
                 <div class="col-username">{{ login.username }}</div>
+                <div class="col-club">{{ login.clubName ?? '—' }}</div>
                 <div class="col-role">
                   <span class="role-badge" [class]="'role-' + login.role">{{ login.role }}</span>
                 </div>
@@ -170,6 +172,7 @@ import { forkJoin, timeout } from 'rxjs';
           <div class="visits-table">
             <div class="table-header">
               <div class="col-user">User</div>
+              <div class="col-club">Club</div>
               <div class="col-page">Page</div>
               <div class="col-duration">Duration</div>
               <div class="col-time">Time</div>
@@ -177,6 +180,7 @@ import { forkJoin, timeout } from 'rxjs';
             @for (visit of recentPageVisits; track visit._id) {
               <div class="table-row">
                 <div class="col-user">{{ visit.username }}</div>
+                <div class="col-club">{{ visit.clubName ?? '—' }}</div>
                 <div class="col-page">{{ visit.pageName }}</div>
                 <div class="col-duration">{{ formatTime(visit.timeSpent) }}</div>
                 <div class="col-time">{{ visit.visitTime | date: 'short' }}</div>
@@ -349,7 +353,7 @@ import { forkJoin, timeout } from 'rxjs';
       .table-header {
         background: #f9fafb;
         display: grid;
-        grid-template-columns: 1fr 0.8fr 1.2fr;
+        grid-template-columns: 1fr 1fr 0.8fr 1.2fr;
         gap: 1rem;
         padding: 1rem;
         font-size: 0.9rem;
@@ -360,7 +364,7 @@ import { forkJoin, timeout } from 'rxjs';
 
       .table-row {
         display: grid;
-        grid-template-columns: 1fr 0.8fr 1.2fr;
+        grid-template-columns: 1fr 1fr 0.8fr 1.2fr;
         gap: 1rem;
         padding: 1rem;
         border-bottom: 1px solid #eee;
@@ -379,6 +383,12 @@ import { forkJoin, timeout } from 'rxjs';
       .col-username {
         font-weight: 600;
         color: #1a1a1a;
+      }
+
+      .col-club {
+        color: #0f7481;
+        font-size: 0.85rem;
+        font-weight: 600;
       }
 
       .role-badge {
@@ -478,7 +488,7 @@ import { forkJoin, timeout } from 'rxjs';
       .visits-table .table-header {
         background: #f9fafb;
         display: grid;
-        grid-template-columns: 0.8fr 1fr 0.7fr 1fr;
+        grid-template-columns: 0.8fr 0.9fr 1fr 0.7fr 1fr;
         gap: 1rem;
         padding: 1rem;
         font-size: 0.9rem;
@@ -488,12 +498,17 @@ import { forkJoin, timeout } from 'rxjs';
       }
       .visits-table .table-row {
         display: grid;
-        grid-template-columns: 0.8fr 1fr 0.7fr 1fr;
+        grid-template-columns: 0.8fr 0.9fr 1fr 0.7fr 1fr;
         gap: 1rem;
         padding: 1rem;
         border-bottom: 1px solid #eee;
         align-items: center;
         font-size: 0.9rem;
+      }
+      .visits-table .col-club {
+        color: #0f7481;
+        font-size: 0.85rem;
+        font-weight: 600;
       }
       .visits-table .table-row:last-child {
         border-bottom: none;
@@ -525,9 +540,10 @@ import { forkJoin, timeout } from 'rxjs';
         }
         .table-header,
         .table-row {
-          grid-template-columns: 1fr 0.6fr;
+          grid-template-columns: 1fr 0.8fr;
           gap: 0.75rem;
         }
+        .col-club,
         .col-time {
           display: none;
         }
@@ -536,6 +552,7 @@ import { forkJoin, timeout } from 'rxjs';
           grid-template-columns: 1fr 1fr;
           gap: 0.75rem;
         }
+        .visits-table .col-club,
         .visits-table .col-duration,
         .visits-table .col-time {
           display: none;

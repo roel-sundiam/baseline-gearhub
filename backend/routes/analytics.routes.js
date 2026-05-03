@@ -67,9 +67,16 @@ router.get("/login-history", auth, superadminMiddleware, async (req, res) => {
     const limit = req.query.limit || 50;
     const logins = await LoginHistory.find()
       .sort({ loginTime: -1 })
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .populate({ path: "userId", select: "clubId", populate: { path: "clubId", select: "name" } })
+      .lean();
 
-    res.json({ logins });
+    const result = logins.map((l) => ({
+      ...l,
+      clubName: l.userId?.clubId?.name ?? null,
+    }));
+
+    res.json({ logins: result });
   } catch (err) {
     console.error("Analytics /login-history error:", err);
     res.status(500).json({ error: "Server error", details: err.message });
@@ -160,9 +167,16 @@ router.get(
       const limit = req.query.limit || 100;
       const pageVisits = await PageVisit.find()
         .sort({ visitTime: -1 })
-        .limit(parseInt(limit));
+        .limit(parseInt(limit))
+        .populate({ path: "userId", select: "clubId", populate: { path: "clubId", select: "name" } })
+        .lean();
 
-      res.json({ pageVisits });
+      const result = pageVisits.map((v) => ({
+        ...v,
+        clubName: v.userId?.clubId?.name ?? null,
+      }));
+
+      res.json({ pageVisits: result });
     } catch (err) {
       console.error("Analytics /recent-page-visits error:", err);
       res.status(500).json({ error: "Server error", details: err.message });

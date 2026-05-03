@@ -1,15 +1,10 @@
-const serverless = require('serverless-http');
+import serverless from 'serverless-http';
+import app from '../../backend/app.js';
 
-let handler = null;
+const handler = serverless(app);
 
 export async function onRequest({ request, env, ctx }) {
   if (env.MONGODB_URI) process.env.MONGODB_URI = env.MONGODB_URI;
-  if (env.JWT_SECRET)  process.env.JWT_SECRET  = env.JWT_SECRET;
-
-  if (!handler) {
-    const app = require('../../backend/app');
-    handler = serverless(app);
-  }
-
+  if (env.JWT_SECRET) process.env.JWT_SECRET = env.JWT_SECRET;
   return handler(request, env, ctx);
 }
