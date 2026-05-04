@@ -27,3 +27,7 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+[build.environment]
+  # Skip Angular runtime plugin
+  NETLIFY_USE_ANGULAR_RUNTIME = "false"
