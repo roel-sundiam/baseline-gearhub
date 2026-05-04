@@ -1,4 +1,6 @@
 [build]
+  # Explicitly set base to repo root
+  base = "."
   # Build from repo root, run build in frontend directory
   command = "cd frontend && npm ci && npm run build"
   publish = "frontend/dist/frontend/browser"
