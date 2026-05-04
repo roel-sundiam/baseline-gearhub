@@ -1,9 +1,8 @@
 [build]
-  # Build from the frontend base so the command runs inside `frontend`.
-  base = "frontend"
-  command = "npm ci && npm run build"
-  publish = "dist/frontend/browser"
-  # Functions live at the repository `netlify/functions` directory.
+  # Build from repo root, run build in frontend directory
+  command = "cd frontend && npm ci && npm run build"
+  publish = "frontend/dist/frontend/browser"
+  # Functions at repo root level
   functions = "netlify/functions"
 
 [dev]
