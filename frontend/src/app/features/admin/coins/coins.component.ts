@@ -12,10 +12,9 @@ import { forkJoin } from 'rxjs';
   imports: [CommonModule, FormsModule],
   template: `
     <div class="page-wrap">
-      <div class="court-bg"><div class="court-overlay"></div></div>
       <div class="page-card">
         <div class="card-header">
-          <button class="back-btn" (click)="goBack()">← Back</button>
+          <button class="back-btn" (click)="goBack()"><i class="fas fa-arrow-left"></i></button>
           <h2><i class="fas fa-coins"></i> Coins</h2>
           <div class="balance-pill">
             <i class="fas fa-coins coin-icon"></i>
@@ -230,45 +229,43 @@ import { forkJoin } from 'rxjs';
     }
   `,
   styles: [`
-    .page-wrap {
-      position: relative; min-height: 100vh; padding: 20px;
-      background: linear-gradient(135deg, #9f7338 0%, #c9a15d 100%);
-    }
-    .court-bg {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: url('/tennis-court-surface.png') center/cover no-repeat; z-index: 0;
-    }
-    .court-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.3); }
+    :host { display: block; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .page-wrap { display: block; }
     .page-card {
-      position: relative; z-index: 1; background: white; border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.1); max-width: 900px; margin: 0 auto; overflow: hidden;
+      background: white; border-radius: 14px; border: 1px solid rgba(184,137,66,0.15);
+      box-shadow: 0 4px 16px rgba(159,115,56,0.1); max-width: 900px; margin: 0 auto; overflow: hidden;
     }
     .card-header {
       display: flex; align-items: center; gap: 16px;
-      padding: 20px 24px; border-bottom: 1px solid #eee;
+      padding: 18px 24px; border-bottom: 1px solid rgba(184,137,66,0.15);
+      background: linear-gradient(135deg, #f6efe4 0%, #efe2cf 100%);
     }
-    .card-header h2 { margin: 0; font-size: 22px; color: #333; flex: 1; display: flex; align-items: center; gap: 8px; }
-    .card-header h2 i { color: #f59e0b; }
-    .back-btn { background: none; border: none; font-size: 15px; cursor: pointer; padding: 8px 12px; border-radius: 4px; }
-    .back-btn:hover { background: #f0f0f0; }
+    .card-header h2 { margin: 0; font-size: 1.3rem; font-weight: 800; color: #111827; flex: 1; display: flex; align-items: center; gap: 8px; }
+    .card-header h2 i { color: #b88942; }
+    .back-btn {
+      background: rgba(184,137,66,0.12); border: 1px solid rgba(184,137,66,0.25);
+      color: #b88942; font-size: 0.9rem; cursor: pointer; padding: 7px 12px;
+      border-radius: 8px; transition: background 0.15s; font-family: inherit;
+    }
+    .back-btn:hover { background: rgba(184,137,66,0.22); }
     .balance-pill {
       display: flex; align-items: center; gap: 6px;
-      background: #1d4ed8; color: white; border-radius: 20px; padding: 6px 16px;
+      background: #b88942; color: white; border-radius: 20px; padding: 6px 16px;
       font-weight: 700;
     }
     .coin-icon { color: #fcd34d; }
     .balance-val { font-size: 1.1rem; }
     .balance-lbl { font-size: 0.75rem; opacity: 0.85; }
 
-    .tab-bar { display: flex; border-bottom: 2px solid #e9ecef; padding: 0 24px; }
+    .tab-bar { display: flex; border-bottom: 2px solid rgba(184,137,66,0.15); padding: 0 24px; background: #faf7f2; }
     .tab-btn {
       background: none; border: none; padding: 14px 20px;
-      font-size: 0.9rem; font-weight: 600; color: #888; cursor: pointer;
+      font-size: 0.875rem; font-weight: 600; color: #888; cursor: pointer;
       border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.15s;
-      display: flex; align-items: center; gap: 6px;
+      display: flex; align-items: center; gap: 6px; font-family: inherit;
     }
-    .tab-btn:hover { color: #9f7338; }
-    .tab-btn.active { color: #9f7338; border-bottom-color: #9f7338; }
+    .tab-btn:hover { color: #b88942; }
+    .tab-btn.active { color: #b88942; border-bottom-color: #b88942; }
     .tab-btn-super { color: #7c3aed; }
     .tab-btn-super:hover { color: #7c3aed; }
     .tab-btn-super.active { color: #7c3aed; border-bottom-color: #7c3aed; }
@@ -313,13 +310,13 @@ import { forkJoin } from 'rxjs';
 
     .transactions-summary {
       display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
-      padding: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+      padding: 16px; background: #f6efe4; border: 1px solid rgba(184,137,66,0.2); border-radius: 10px;
     }
     .summary-item { flex: 1; min-width: 100px; text-align: center; padding: 8px 12px; border-radius: 8px; }
-    .summary-item.highlight-blue { background: #1d4ed8; }
+    .summary-item.highlight-blue { background: #b88942; }
     .summary-item.highlight-blue .summary-value { color: #fff; font-size: 1.3rem; }
     .summary-item.highlight-blue .summary-label { color: rgba(255,255,255,0.8); }
-    .summary-value { font-size: 1.1rem; font-weight: 700; color: #1a1a1a; }
+    .summary-value { font-size: 1.1rem; font-weight: 700; color: #111827; }
     .summary-label { font-size: 0.72rem; color: #666; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
 
     .requests-list { display: flex; flex-direction: column; gap: 10px; }
@@ -378,7 +375,7 @@ import { forkJoin } from 'rxjs';
     .col-amount { text-align: right; font-weight: 700; }
     .col-date { color: #555; font-size: 0.82rem; white-space: nowrap; }
     .col-member { font-weight: 600; color: #1a1a1a; }
-    .col-balance { color: #1d4ed8; }
+    .col-balance { color: #b88942; }
     .debit-val { color: #dc2626; }
     .credit-val { color: #15803d; }
 

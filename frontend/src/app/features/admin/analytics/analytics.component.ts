@@ -197,13 +197,13 @@ import { forkJoin, timeout } from 'rxjs';
         margin-bottom: 2rem;
       }
       .page-header h2 {
-        color: var(--primary);
+        color: var(--dm-accent);
         font-size: 1.8rem;
-        font-weight: 700;
+        font-weight: 800;
       }
 
       .loading {
-        color: #666;
+        color: rgba(255,255,255,0.62);
         padding: 2rem 0;
         text-align: center;
       }
@@ -214,9 +214,9 @@ import { forkJoin, timeout } from 'rxjs';
         margin-bottom: 1.5rem;
       }
       .alert-error {
-        background: #fee;
-        color: #c33;
-        border: 1px solid #fcc;
+        background: rgba(239,68,68,0.12);
+        color: #fca5a5;
+        border: 1px solid rgba(239,68,68,0.2);
       }
 
       /* Stats Grid */
@@ -228,58 +228,58 @@ import { forkJoin, timeout } from 'rxjs';
       }
 
       .stat-card {
-        background: white;
+        background: var(--dm-surface);
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.24);
         border-left: 4px solid transparent;
         transition: all 0.2s;
       }
 
       .stat-card:hover {
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.32);
         transform: translateY(-2px);
       }
 
       .stat-users {
-        border-left-color: #3b82f6;
+        border-left-color: #93c5fd;
       }
       .stat-admins {
-        border-left-color: #8b5cf6;
+        border-left-color: #c4b5fd;
       }
       .stat-sessions {
-        border-left-color: #b88942;
+        border-left-color: var(--dm-accent);
       }
       .stat-revenue {
-        border-left-color: #f59e0b;
+        border-left-color: #fcd34d;
       }
       .stat-collected {
-        border-left-color: #06b6d4;
+        border-left-color: #67e8f9;
       }
       .stat-outstanding {
-        border-left-color: #ef4444;
+        border-left-color: #fca5a5;
       }
       .stat-pending {
-        border-left-color: #ec4899;
+        border-left-color: #f472b6;
       }
       .stat-conversion {
-        border-left-color: #14b8a6;
+        border-left-color: #5eead4;
       }
 
       .stat-value {
         font-size: 2rem;
         font-weight: 700;
-        color: #1a1a1a;
+        color: #ffffff;
         margin-bottom: 0.25rem;
       }
       .stat-label {
-        color: #666;
+        color: rgba(255,255,255,0.72);
         font-size: 0.9rem;
         font-weight: 600;
         margin-bottom: 0.5rem;
       }
       .stat-meta {
-        color: #999;
+        color: rgba(255,255,255,0.5);
         font-size: 0.8rem;
       }
 
@@ -288,9 +288,10 @@ import { forkJoin, timeout } from 'rxjs';
         margin-bottom: 2rem;
       }
       .insights-section h3 {
-        color: var(--primary);
+        color: var(--dm-accent);
         margin-bottom: 1rem;
         font-size: 1.1rem;
+        font-weight: 700;
       }
       .insights-grid {
         display: grid;
@@ -298,12 +299,12 @@ import { forkJoin, timeout } from 'rxjs';
         gap: 1rem;
       }
       .insight-card {
-        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        background: rgba(163,230,53,0.08);
         border-radius: 12px;
         padding: 1.5rem;
         display: flex;
         gap: 1rem;
-        border: 1px solid rgba(59, 130, 246, 0.2);
+        border: 1px solid rgba(163,230,53,0.12);
       }
       .insight-icon {
         font-size: 2rem;
@@ -314,52 +315,54 @@ import { forkJoin, timeout } from 'rxjs';
         flex: 1;
       }
       .insight-title {
-        color: #666;
+        color: rgba(255,255,255,0.72);
         font-size: 0.9rem;
         font-weight: 600;
         margin-bottom: 0.25rem;
       }
       .insight-value {
-        color: #1a1a1a;
+        color: #ffffff;
         font-size: 1.1rem;
         font-weight: 700;
       }
 
       /* Logins Section */
       .logins-section {
-        background: white;
+        background: var(--dm-surface);
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.24);
+        border: 1px solid rgba(163,230,53,0.12);
       }
       .logins-section h3 {
-        color: var(--primary);
+        color: var(--dm-accent);
         margin-bottom: 1rem;
         font-size: 1.1rem;
+        font-weight: 700;
       }
 
       .empty-state {
-        color: #999;
+        color: rgba(255,255,255,0.5);
         text-align: center;
         padding: 2rem;
       }
 
       .login-table {
-        border: 1px solid #eee;
+        border: 1px solid rgba(255,255,255,0.08);
         border-radius: 8px;
         overflow: hidden;
       }
 
       .table-header {
-        background: #f9fafb;
+        background: rgba(255,255,255,0.04);
         display: grid;
         grid-template-columns: 1fr 1fr 0.8fr 1.2fr;
         gap: 1rem;
         padding: 1rem;
         font-size: 0.9rem;
         font-weight: 600;
-        color: #666;
-        border-bottom: 2px solid #eee;
+        color: rgba(255,255,255,0.62);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
       }
 
       .table-row {
@@ -367,7 +370,7 @@ import { forkJoin, timeout } from 'rxjs';
         grid-template-columns: 1fr 1fr 0.8fr 1.2fr;
         gap: 1rem;
         padding: 1rem;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
         align-items: center;
         font-size: 0.9rem;
       }
@@ -377,16 +380,16 @@ import { forkJoin, timeout } from 'rxjs';
       }
 
       .table-row:hover {
-        background: #f9fafb;
+        background: rgba(255,255,255,0.02);
       }
 
       .col-username {
         font-weight: 600;
-        color: #1a1a1a;
+        color: #ffffff;
       }
 
       .col-club {
-        color: #0f7481;
+        color: var(--dm-accent);
         font-size: 0.85rem;
         font-weight: 600;
       }
@@ -402,34 +405,35 @@ import { forkJoin, timeout } from 'rxjs';
       }
 
       .role-player {
-        background: rgba(184, 137, 66, 0.1);
-        color: #059669;
+        background: rgba(163,230,53,0.12);
+        color: var(--dm-accent);
       }
 
       .role-admin {
-        background: rgba(139, 92, 246, 0.1);
-        color: #7c3aed;
+        background: rgba(139,92,246,0.14);
+        color: #c4b5fd;
       }
 
       .role-superadmin {
-        background: rgba(168, 85, 247, 0.1);
-        color: #a855f7;
+        background: rgba(168,85,247,0.14);
+        color: #d8b4fe;
       }
 
       .col-time {
-        color: #666;
+        color: rgba(255,255,255,0.62);
       }
 
       /* Pages Section */
       .pages-section {
-        background: white;
+        background: var(--dm-surface);
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.24);
         margin-bottom: 2rem;
+        border: 1px solid rgba(163,230,53,0.12);
       }
       .pages-section h3 {
-        color: var(--primary);
+        color: var(--dm-accent);
         margin-bottom: 1rem;
         font-size: 1.1rem;
       }
@@ -439,14 +443,14 @@ import { forkJoin, timeout } from 'rxjs';
         gap: 1rem;
       }
       .page-card {
-        background: linear-gradient(135deg, #f8f1e4 0%, #f2e4c9 100%);
+        background: rgba(163,230,53,0.08);
         border-radius: 10px;
         padding: 1.25rem;
-        border: 1px solid rgba(201, 161, 93, 0.2);
+        border: 1px solid rgba(163,230,53,0.12);
       }
       .page-name {
         font-weight: 600;
-        color: #1a1a1a;
+        color: #ffffff;
         margin-bottom: 0.75rem;
         font-size: 0.95rem;
       }
@@ -461,52 +465,53 @@ import { forkJoin, timeout } from 'rxjs';
         font-size: 0.85rem;
       }
       .page-stats .stat-label {
-        color: #666;
+        color: rgba(255,255,255,0.72);
       }
       .page-stats .stat-value {
         font-weight: 600;
-        color: #1a1a1a;
+        color: var(--dm-accent);
       }
 
       /* Page Visits Section */
       .page-visits-section {
-        background: white;
+        background: var(--dm-surface);
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.24);
+        border: 1px solid rgba(163,230,53,0.12);
       }
       .page-visits-section h3 {
-        color: var(--primary);
+        color: var(--dm-accent);
         margin-bottom: 1rem;
         font-size: 1.1rem;
       }
       .visits-table {
-        border: 1px solid #eee;
+        border: 1px solid rgba(255,255,255,0.08);
         border-radius: 8px;
         overflow: hidden;
       }
       .visits-table .table-header {
-        background: #f9fafb;
+        background: rgba(255,255,255,0.04);
         display: grid;
         grid-template-columns: 0.8fr 0.9fr 1fr 0.7fr 1fr;
         gap: 1rem;
         padding: 1rem;
         font-size: 0.9rem;
         font-weight: 600;
-        color: #666;
-        border-bottom: 2px solid #eee;
+        color: rgba(255,255,255,0.62);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
       }
       .visits-table .table-row {
         display: grid;
         grid-template-columns: 0.8fr 0.9fr 1fr 0.7fr 1fr;
         gap: 1rem;
         padding: 1rem;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
         align-items: center;
         font-size: 0.9rem;
       }
       .visits-table .col-club {
-        color: #0f7481;
+        color: var(--dm-accent);
         font-size: 0.85rem;
         font-weight: 600;
       }
@@ -514,21 +519,21 @@ import { forkJoin, timeout } from 'rxjs';
         border-bottom: none;
       }
       .visits-table .table-row:hover {
-        background: #f9fafb;
+        background: rgba(255,255,255,0.02);
       }
       .visits-table .col-user {
         font-weight: 600;
-        color: #1a1a1a;
+        color: #ffffff;
       }
       .visits-table .col-page {
-        color: #1a1a1a;
+        color: #ffffff;
       }
       .visits-table .col-duration {
-        color: #8b5cf6;
+        color: #c4b5fd;
         font-weight: 600;
       }
       .visits-table .col-time {
-        color: #666;
+        color: rgba(255,255,255,0.62);
       }
 
       @media (max-width: 768px) {

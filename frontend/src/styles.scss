@@ -175,6 +175,62 @@ input[type='time'] {
   border-radius: 3px;
 }
 
+/* ---- Page-level dark theme (player dashboard) ---- */
+html.dark-player-page,
+body.dark-player-page {
+  background: #0c1a11;
+
+  /* Hide the global court background image */
+  .court-bg {
+    display: none;
+  }
+
+  /* Fill the entire main content area dark */
+  .main-content {
+    background: #0c1a11;
+  }
+
+  /* Navbar */
+  .navbar {
+    background: #111f16;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.07), 0 2px 16px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Club badge */
+  .club-locked-badge {
+    background: rgba(163, 230, 53, 0.08);
+    border-color: rgba(163, 230, 53, 0.2);
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  /* Coin badge */
+  .coin-badge {
+    background: rgba(163, 230, 53, 0.1);
+    border-color: rgba(163, 230, 53, 0.2);
+  }
+  .coin-badge:hover {
+    background: rgba(163, 230, 53, 0.18);
+  }
+
+  /* Logout buttons */
+  .btn-logout,
+  .btn-logout-mobile-icon {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  .btn-logout:hover,
+  .btn-logout-mobile-icon:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Profile hover */
+  .profile-section:hover,
+  .profile-section-mobile:hover {
+    background: rgba(255, 255, 255, 0.07);
+  }
+}
+
 /* ---- Utilities ---- */
 .text-muted {
   color: var(--text-muted);
@@ -190,5 +246,81 @@ input[type='time'] {
   margin: 0 !important;
   padding: 0 !important;
 }
+
+/* -------------------------------
+   Shared Dashboard Tokens & Utils
+   Reusable by player and admin pages
+   ------------------------------- */
+:root {
+  --dm-bg: #0c1a11;
+  --dm-surface: #1b3028;
+  --dm-surface-hover: #213830;
+  --dm-header: #111f16;
+  --dm-accent: #a3e635;
+  --dm-accent-deep: #84cc16;
+  --dm-text: #ffffff;
+  --dm-muted: rgba(255,255,255,0.55);
+  --dm-soft: rgba(255,255,255,0.4);
+  --dm-border: rgba(255,255,255,0.08);
+}
+
+/* Dark card surface */
+.dm-card-dark {
+  background: var(--dm-surface);
+  color: var(--dm-text);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.36);
+  border: 1px solid var(--dm-border);
+}
+
+/* Hero card (shared) */
+.dm-hero {
+  background: var(--dm-surface);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  overflow: hidden;
+}
+
+/* Admin pill (matches player `.dm-admin-pill`) */
+.dm-admin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(163,230,53,0.15);
+  color: var(--dm-accent);
+  border: 1px solid rgba(163,230,53,0.3);
+  border-radius: 20px;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+/* Action card and icon tokens */
+.dm-action-card {
+  background: var(--dm-surface);
+  border-radius: 14px;
+  padding: 0.95rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  min-height: 100px;
+}
+.dm-ac-icon { width: 38px; height: 38px; border-radius: 10px; display:flex; align-items:center; justify-content:center; }
+.dm-ac-lime   { background: rgba(163,230,53,0.14);  color: #a3e635; }
+.dm-ac-teal   { background: rgba(20,184,166,0.14);  color: #14b8a6; }
+.dm-ac-amber  { background: rgba(245,158,11,0.14);  color: #f59e0b; }
+.dm-ac-blue   { background: rgba(59,130,246,0.14);  color: #60a5fa; }
+.dm-ac-yellow { background: rgba(234,179,8,0.14);   color: #eab308; }
+.dm-ac-purple { background: rgba(139,92,246,0.14);  color: #a78bfa; }
+.dm-ac-rose   { background: rgba(244,63,94,0.14);   color: #fb7185; }
+.dm-ac-orange { background: rgba(249,115,22,0.14);  color: #fb923c; }
+.dm-ac-sky    { background: rgba(14,165,233,0.14);  color: #38bdf8; }
+.dm-ac-green  { background: rgba(34,197,94,0.14);   color: #4ade80; }
+
+/* Utility: match dashboard text tokens */
+.dm-text-muted { color: var(--dm-muted); }
+.dm-text-soft { color: var(--dm-soft); }
+
 
 

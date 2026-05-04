@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, ElementRef, ViewChild, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, ElementRef, ViewChild, Renderer2 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -22,497 +22,847 @@ interface ActivePlayer { _id: string; name: string; email: string; }
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="page-wrap">
-      <div class="court-bg"><div class="court-overlay"></div></div>
-      <div class="page-card">
-        <div class="card-header">
-          <button class="back-btn" (click)="goBack()">← Back</button>
-          <h2>Reserve a Court</h2>
+    <div class="dm-shell">
+      <!-- Mobile header -->
+      <header class="dm-header">
+        <button class="dm-back-btn" (click)="navigateTo('/player/dashboard')">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <span class="dm-header-title">Reserve a Court</span>
+        <div style="width:34px"></div>
+      </header>
+
+      <div class="dm-body">
+        @if (successMsg) {
+          <div class="dm-alert dm-alert-success"><i class="fas fa-check-circle"></i> {{ successMsg }}</div>
+        }
+        @if (errorMsg) {
+          <div class="dm-alert dm-alert-error"><i class="fas fa-exclamation-triangle"></i> {{ errorMsg }}</div>
+        }
+
+        <!-- Date -->
+        <div class="dm-section">
+          <div class="dm-section-label">Date</div>
+          <input
+            type="date"
+            class="dm-input"
+            [(ngModel)]="selectedDate"
+            [min]="today"
+            (change)="onDateOrCourtChange()"
+          />
         </div>
 
-        <div class="card-body">
-          @if (successMsg) {
-            <div class="alert alert-success">{{ successMsg }}</div>
-          }
-          @if (errorMsg) {
-            <div class="alert alert-error">{{ errorMsg }}</div>
-          }
-
-          <!-- Date -->
-          <div class="form-group">
-            <label class="form-label">Date</label>
-            <input
-              type="date"
-              class="form-input"
-              [(ngModel)]="selectedDate"
-              [min]="today"
-              (change)="onDateOrCourtChange()"
-            />
+        <!-- Court -->
+        <div class="dm-section">
+          <div class="dm-section-label">Court</div>
+          <div class="dm-court-toggle">
+            <button class="dm-court-btn" [class.active]="selectedCourt === 1" (click)="selectCourt(1)">
+              <i class="fas fa-table-tennis"></i> Court 1
+            </button>
+            <button class="dm-court-btn" [class.active]="selectedCourt === 2" (click)="selectCourt(2)">
+              <i class="fas fa-table-tennis"></i> Court 2
+            </button>
           </div>
+        </div>
 
-          <!-- Court -->
-          <div class="form-group">
-            <label class="form-label">Court</label>
-            <div class="court-toggle">
-              <button class="court-btn" [class.active]="selectedCourt === 1" (click)="selectCourt(1)">Court 1</button>
-              <button class="court-btn" [class.active]="selectedCourt === 2" (click)="selectCourt(2)">Court 2</button>
+        <!-- Time Slot -->
+        @if (selectedDate && selectedCourt) {
+          <div class="dm-section">
+            <div class="dm-section-label">
+              Time Slot
+              <span class="dm-lights-legend"><span class="dm-lights-dot"></span> with lights</span>
             </div>
-          </div>
-
-          <!-- Time Slot -->
-          @if (selectedDate && selectedCourt) {
-            <div class="form-group">
-              <label class="form-label">
-                Time Slot
-                <span class="legend"><span class="legend-dot lights-dot"></span> with lights</span>
-              </label>
-              @if (loadingSlots) {
-                <div class="slot-loading">Checking availability...</div>
-              } @else {
-                <div class="slot-grid">
-                  @for (slot of allSlots; track slot) {
-                    <button
-                      class="slot-btn"
-                      [class.selected]="selectedSlot === slot"
-                      [class.booked]="bookedSlots.has(slot)"
-                      [class.has-lights]="lightSlots.has(slot)"
-                      [disabled]="bookedSlots.has(slot)"
-                      (click)="selectSlot(slot)"
-                    >
-                      {{ slot }}
-                      @if (lightSlots.has(slot)) { <span class="light-icon">💡</span> }
-                    </button>
-                  }
-                </div>
-              }
-            </div>
-          }
-
-          <!-- Playing With -->
-          <div class="form-group">
-            <label class="form-label">Playing With <span class="optional">(optional)</span></label>
-
-            <!-- Search input -->
-            <div class="search-wrap" #searchWrap>
-              <input
-                type="text"
-                class="form-input"
-                placeholder="Search member by name..."
-                [(ngModel)]="playerSearch"
-                (input)="onSearch()"
-                (focus)="onInputFocus()"
-                autocomplete="off"
-              />
-              @if (showDropdown && filteredPlayers.length > 0) {
-                <div class="dropdown">
-                  @for (p of filteredPlayers; track p._id) {
-                    <button class="dropdown-item" (click)="addPlayer(p)">
-                      <span class="drop-name">{{ p.name }}</span>
-                      <span class="drop-email">{{ p.email }}</span>
-                    </button>
-                  }
-                </div>
-              }
-            </div>
-
-            <!-- Selected players chips -->
-            @if (addedPlayers.length > 0) {
-              <div class="chips">
-                @for (p of addedPlayers; track p._id) {
-                  <span class="chip">
-                    {{ p.name }}
-                    <button class="chip-remove" (click)="removePlayer(p._id)">×</button>
-                  </span>
+            @if (loadingSlots) {
+              <div class="dm-slot-loading"><i class="fas fa-circle-notch fa-spin"></i> Checking availability…</div>
+            } @else {
+              <div class="dm-slot-grid">
+                @for (slot of allSlots; track slot) {
+                  <button
+                    class="dm-slot-btn"
+                    [class.selected]="selectedSlot === slot"
+                    [class.booked]="bookedSlots.has(slot)"
+                    [class.has-lights]="lightSlots.has(slot)"
+                    [disabled]="bookedSlots.has(slot)"
+                    (click)="selectSlot(slot)"
+                  >
+                    {{ slot }}
+                    @if (lightSlots.has(slot)) { <span class="dm-light-dot">💡</span> }
+                  </button>
                 }
               </div>
             }
           </div>
+        }
 
-          <!-- Lights -->
-          <div class="form-group">
-            <label class="form-label">Lights</label>
-            <label class="toggle-row">
-              <input type="checkbox" class="toggle-input" [(ngModel)]="lightsRequested" />
-              <span class="toggle-track">
-                <span class="toggle-thumb"></span>
-              </span>
-              <span class="toggle-label">{{ lightsRequested ? 'Lights on 💡' : 'No lights 🌙' }}</span>
-            </label>
+        <!-- Playing With -->
+        <div class="dm-section">
+          <div class="dm-section-label">Playing With <span class="dm-optional">optional</span></div>
+          <div class="dm-search-wrap" #searchWrap>
+            <i class="fas fa-search dm-search-icon"></i>
+            <input
+              type="text"
+              class="dm-input dm-search-input"
+              placeholder="Search member by name…"
+              [(ngModel)]="playerSearch"
+              (input)="onSearch()"
+              (focus)="onInputFocus()"
+              autocomplete="off"
+            />
+            @if (showDropdown && filteredPlayers.length > 0) {
+              <div class="dm-dropdown">
+                @for (p of filteredPlayers; track p._id) {
+                  <button class="dm-dropdown-item" (click)="addPlayer(p)">
+                    <span class="dm-drop-name">{{ p.name }}</span>
+                    <span class="dm-drop-email">{{ p.email }}</span>
+                  </button>
+                }
+              </div>
+            }
           </div>
-
-          <!-- Holiday -->
-          <div class="form-group">
-            <label class="form-label">Holiday <span class="optional">(optional)</span></label>
-            <label class="toggle-row">
-              <input type="checkbox" class="toggle-input" [(ngModel)]="isHoliday" />
-              <span class="toggle-track">
-                <span class="toggle-thumb"></span>
-              </span>
-              <span class="toggle-label">{{ isHoliday ? 'Yes — holiday rates apply' : 'No — regular rates apply' }}</span>
-            </label>
-          </div>
-
-          <!-- Ball Boy -->
-          <div class="form-group">
-            <label class="form-label">Ball Boy <span class="optional">(optional)</span></label>
-            <label class="toggle-row">
-              <input type="checkbox" class="toggle-input" [(ngModel)]="ballBoyRequested" />
-              <span class="toggle-track">
-                <span class="toggle-thumb"></span>
-              </span>
-              <span class="toggle-label">{{ ballBoyRequested ? 'Requested' : 'Not requested' }}</span>
-            </label>
-          </div>
-
-          <!-- Guests -->
-          <div class="form-group">
-            <label class="form-label">Guests <span class="optional">(non-members)</span></label>
-            <div class="guest-counter">
-              <button type="button" class="counter-btn" (click)="guestCount = guestCount > 0 ? guestCount - 1 : 0">−</button>
-              <span class="counter-value">{{ guestCount }}</span>
-              <button type="button" class="counter-btn" (click)="guestCount = guestCount + 1">+</button>
-              @if (guestCount > 0 && !loadingRates) {
-                <span class="counter-fee">{{ guestFeeRate | currency: 'PHP' : 'symbol' }} × {{ guestCount }} = {{ totalGuestFee | currency: 'PHP' : 'symbol' }}</span>
+          @if (addedPlayers.length > 0) {
+            <div class="dm-chips">
+              @for (p of addedPlayers; track p._id) {
+                <span class="dm-chip">
+                  {{ p.name }}
+                  <button class="dm-chip-remove" (click)="removePlayer(p._id)">×</button>
+                </span>
               }
             </div>
-          </div>
-
-          <!-- Rentals -->
-          <div class="form-group">
-            <label class="form-label">Rentals <span class="optional">(optional)</span></label>
-            <div class="rental-list">
-
-              <!-- Balls 50pcs -->
-              <div class="rental-row">
-                <span class="rental-name">🎾 Balls (50 pcs)</span>
-                <span class="rental-rate">{{ rentalBalls50Rate | currency: 'PHP' : 'symbol' }}/hr</span>
-                <div class="rental-counter">
-                  <button type="button" class="counter-btn sm" (click)="rentalBalls50 = rentalBalls50 > 0 ? rentalBalls50 - 1 : 0">−</button>
-                  <span class="counter-value sm">{{ rentalBalls50 }}</span>
-                  <button type="button" class="counter-btn sm" (click)="rentalBalls50 = rentalBalls50 + 1">+</button>
-                </div>
-              </div>
-
-              <!-- Balls 100pcs -->
-              <div class="rental-row">
-                <span class="rental-name">🎾 Balls (100 pcs)</span>
-                <span class="rental-rate">{{ rentalBalls100Rate | currency: 'PHP' : 'symbol' }}/hr</span>
-                <div class="rental-counter">
-                  <button type="button" class="counter-btn sm" (click)="rentalBalls100 = rentalBalls100 > 0 ? rentalBalls100 - 1 : 0">−</button>
-                  <span class="counter-value sm">{{ rentalBalls100 }}</span>
-                  <button type="button" class="counter-btn sm" (click)="rentalBalls100 = rentalBalls100 + 1">+</button>
-                </div>
-              </div>
-
-              <!-- Ball Machine -->
-              <div class="rental-row">
-                <span class="rental-name">🤖 Ball Machine</span>
-                <span class="rental-rate">{{ rentalBallMachineRate | currency: 'PHP' : 'symbol' }}/hr</span>
-                <label class="toggle-row" style="margin:0">
-                  <input type="checkbox" class="toggle-input" [(ngModel)]="rentalBallMachine" />
-                  <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                  <span class="toggle-label" style="font-size:.82rem">{{ rentalBallMachine ? 'Yes' : 'No' }}</span>
-                </label>
-              </div>
-
-              <!-- Racket -->
-              <div class="rental-row">
-                <span class="rental-name">🏓 Racket</span>
-                <span class="rental-rate">{{ rentalRacketRate | currency: 'PHP' : 'symbol' }}/hr each</span>
-                <div class="rental-counter">
-                  <button type="button" class="counter-btn sm" (click)="rentalRackets = rentalRackets > 0 ? rentalRackets - 1 : 0">−</button>
-                  <span class="counter-value sm">{{ rentalRackets }}</span>
-                  <button type="button" class="counter-btn sm" (click)="rentalRackets = rentalRackets + 1">+</button>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          <!-- Summary + Confirm -->
-          @if (selectedSlot) {
-            <div class="summary-box">
-              <div class="summary-row"><span>Court</span><strong>Court {{ selectedCourt }}</strong></div>
-              <div class="summary-row">
-                <span>Date</span>
-                <strong>{{ selectedDate | date: 'EEE, MMM d, y' : 'UTC' }}</strong>
-              </div>
-              <div class="summary-row"><span>Time</span><strong>{{ selectedSlot }}</strong></div>
-              <div class="summary-row">
-                <span>Lights</span>
-                <strong>{{ lightsRequested ? 'Yes 💡' : 'No 🌙' }}</strong>
-              </div>
-              <div class="summary-row">
-                <span>Day Type</span>
-                <strong>
-                  @if (dayType === 'holiday') { Holiday 🏖️ }
-                  @else if (dayType === 'weekend') { Weekend 🎉 }
-                  @else { Weekday 📅 }
-                </strong>
-              </div>
-              <div class="summary-row">
-                <span>Ball Boy</span>
-                <strong>{{ ballBoyRequested ? 'Yes 🎾' : 'No' }}</strong>
-              </div>
-              @if (addedPlayers.length > 0) {
-                <div class="summary-row">
-                  <span>Playing with</span>
-                  <strong>{{ addedPlayers.map(p => p.name).join(', ') }}</strong>
-                </div>
-              }
-              <div class="summary-divider"></div>
-              <div class="summary-row">
-                <span>Court Fee</span>
-                <strong>
-                  @if (loadingRates) { — }
-                  @else { {{ baseCourtFee | currency: 'PHP' : 'symbol' }} }
-                </strong>
-              </div>
-              @if (lightsRequested) {
-                <div class="summary-row">
-                  <span>Lights Fee</span>
-                  <strong>
-                    @if (loadingRates) { — }
-                    @else { {{ lightsRate | currency: 'PHP' : 'symbol' }} }
-                  </strong>
-                </div>
-              }
-              @if (ballBoyRequested) {
-                <div class="summary-row">
-                  <span>Ball Boy Fee</span>
-                  <strong>
-                    @if (loadingRates) { — }
-                    @else { {{ ballBoyRate | currency: 'PHP' : 'symbol' }} }
-                  </strong>
-                </div>
-              }
-              @if (totalRentalFee > 0) {
-                <div class="summary-row">
-                  <span>Rentals</span>
-                  <strong>
-                    @if (loadingRates) { — }
-                    @else { {{ totalRentalFee | currency: 'PHP' : 'symbol' }} }
-                  </strong>
-                </div>
-              }
-              @if (guestCount > 0) {
-                <div class="summary-row">
-                  <span>Guests <span class="summary-sub">({{ guestCount }} × {{ guestFeeRate | currency: 'PHP' : 'symbol' }})</span></span>
-                  <strong>
-                    @if (loadingRates) { — }
-                    @else { {{ totalGuestFee | currency: 'PHP' : 'symbol' }} }
-                  </strong>
-                </div>
-              }
-              <div class="summary-divider"></div>
-              <div class="summary-row fee-row">
-                <span>Total</span>
-                <strong class="fee-amount">
-                  @if (loadingRates) { — }
-                  @else { {{ computedFee | currency: 'PHP' : 'symbol' }} }
-                </strong>
-              </div>
-              <div class="summary-divider"></div>
-              <div class="summary-row coin-row">
-                <span><i class="fas fa-coins" style="color:#f59e0b;margin-right:4px"></i> Coin Cost</span>
-                <strong class="coin-cost">5 coins</strong>
-              </div>
-            </div>
-
-            <button class="confirm-btn" [disabled]="booking" (click)="confirm()">
-              {{ booking ? 'Booking...' : 'Confirm Reservation' }}
-            </button>
           }
         </div>
+
+        <!-- Lights -->
+        <div class="dm-section">
+          <div class="dm-section-label">Lights</div>
+          <label class="dm-toggle-row">
+            <input type="checkbox" class="dm-toggle-input" [(ngModel)]="lightsRequested" />
+            <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
+            <span class="dm-toggle-label">{{ lightsRequested ? '💡 Lights on' : '🌙 No lights' }}</span>
+          </label>
+        </div>
+
+        <!-- Holiday -->
+        <div class="dm-section">
+          <div class="dm-section-label">Holiday <span class="dm-optional">optional</span></div>
+          <label class="dm-toggle-row">
+            <input type="checkbox" class="dm-toggle-input" [(ngModel)]="isHoliday" />
+            <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
+            <span class="dm-toggle-label">{{ isHoliday ? 'Yes — holiday rates apply' : 'No — regular rates apply' }}</span>
+          </label>
+        </div>
+
+        <!-- Ball Boy -->
+        <div class="dm-section">
+          <div class="dm-section-label">Ball Boy <span class="dm-optional">optional</span></div>
+          <label class="dm-toggle-row">
+            <input type="checkbox" class="dm-toggle-input" [(ngModel)]="ballBoyRequested" />
+            <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
+            <span class="dm-toggle-label">{{ ballBoyRequested ? '🎾 Requested' : 'Not requested' }}</span>
+          </label>
+        </div>
+
+        <!-- Guests -->
+        <div class="dm-section">
+          <div class="dm-section-label">Guests <span class="dm-optional">non-members</span></div>
+          <div class="dm-counter-row">
+            <button type="button" class="dm-counter-btn" (click)="guestCount = guestCount > 0 ? guestCount - 1 : 0">−</button>
+            <span class="dm-counter-val">{{ guestCount }}</span>
+            <button type="button" class="dm-counter-btn" (click)="guestCount = guestCount + 1">+</button>
+            @if (guestCount > 0 && !loadingRates) {
+              <span class="dm-counter-fee">{{ guestFeeRate | currency: 'PHP' : 'symbol' }} × {{ guestCount }} = {{ totalGuestFee | currency: 'PHP' : 'symbol' }}</span>
+            }
+          </div>
+        </div>
+
+        <!-- Rentals -->
+        <div class="dm-section">
+          <div class="dm-section-label">Rentals <span class="dm-optional">optional</span></div>
+          <div class="dm-rentals-card">
+
+            <div class="dm-rental-row">
+              <span class="dm-rental-name">🎾 Balls (50 pcs)</span>
+              <span class="dm-rental-rate">{{ rentalBalls50Rate | currency: 'PHP' : 'symbol' }}/hr</span>
+              <div class="dm-rental-counter">
+                <button type="button" class="dm-counter-btn sm" (click)="rentalBalls50 = rentalBalls50 > 0 ? rentalBalls50 - 1 : 0">−</button>
+                <span class="dm-counter-val sm">{{ rentalBalls50 }}</span>
+                <button type="button" class="dm-counter-btn sm" (click)="rentalBalls50 = rentalBalls50 + 1">+</button>
+              </div>
+            </div>
+
+            <div class="dm-rental-divider"></div>
+
+            <div class="dm-rental-row">
+              <span class="dm-rental-name">🎾 Balls (100 pcs)</span>
+              <span class="dm-rental-rate">{{ rentalBalls100Rate | currency: 'PHP' : 'symbol' }}/hr</span>
+              <div class="dm-rental-counter">
+                <button type="button" class="dm-counter-btn sm" (click)="rentalBalls100 = rentalBalls100 > 0 ? rentalBalls100 - 1 : 0">−</button>
+                <span class="dm-counter-val sm">{{ rentalBalls100 }}</span>
+                <button type="button" class="dm-counter-btn sm" (click)="rentalBalls100 = rentalBalls100 + 1">+</button>
+              </div>
+            </div>
+
+            <div class="dm-rental-divider"></div>
+
+            <div class="dm-rental-row">
+              <span class="dm-rental-name">🤖 Ball Machine</span>
+              <span class="dm-rental-rate">{{ rentalBallMachineRate | currency: 'PHP' : 'symbol' }}/hr</span>
+              <label class="dm-toggle-row" style="margin:0">
+                <input type="checkbox" class="dm-toggle-input" [(ngModel)]="rentalBallMachine" />
+                <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
+                <span class="dm-toggle-label" style="font-size:.82rem">{{ rentalBallMachine ? 'Yes' : 'No' }}</span>
+              </label>
+            </div>
+
+            <div class="dm-rental-divider"></div>
+
+            <div class="dm-rental-row">
+              <span class="dm-rental-name">🏓 Racket</span>
+              <span class="dm-rental-rate">{{ rentalRacketRate | currency: 'PHP' : 'symbol' }}/hr each</span>
+              <div class="dm-rental-counter">
+                <button type="button" class="dm-counter-btn sm" (click)="rentalRackets = rentalRackets > 0 ? rentalRackets - 1 : 0">−</button>
+                <span class="dm-counter-val sm">{{ rentalRackets }}</span>
+                <button type="button" class="dm-counter-btn sm" (click)="rentalRackets = rentalRackets + 1">+</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Summary -->
+        @if (selectedSlot) {
+          <div class="dm-summary">
+            <div class="dm-summary-title"><i class="fas fa-clipboard-list"></i> Booking Summary</div>
+
+            <div class="dm-summary-row"><span>Court</span><strong>Court {{ selectedCourt }}</strong></div>
+            <div class="dm-summary-row">
+              <span>Date</span>
+              <strong>{{ selectedDate | date: 'EEE, MMM d, y' : 'UTC' }}</strong>
+            </div>
+            <div class="dm-summary-row"><span>Time</span><strong class="dm-summary-time">{{ selectedSlot }}</strong></div>
+            <div class="dm-summary-row">
+              <span>Lights</span>
+              <strong>{{ lightsRequested ? 'Yes 💡' : 'No 🌙' }}</strong>
+            </div>
+            <div class="dm-summary-row">
+              <span>Day Type</span>
+              <strong>
+                @if (dayType === 'holiday') { Holiday 🏖️ }
+                @else if (dayType === 'weekend') { Weekend 🎉 }
+                @else { Weekday 📅 }
+              </strong>
+            </div>
+            <div class="dm-summary-row"><span>Ball Boy</span><strong>{{ ballBoyRequested ? 'Yes 🎾' : 'No' }}</strong></div>
+            @if (addedPlayers.length > 0) {
+              <div class="dm-summary-row">
+                <span>Playing with</span>
+                <strong>{{ addedPlayers.map(p => p.name).join(', ') }}</strong>
+              </div>
+            }
+
+            <div class="dm-summary-divider"></div>
+
+            <div class="dm-summary-row">
+              <span>Court Fee</span>
+              <strong>@if (loadingRates) { — } @else { {{ baseCourtFee | currency: 'PHP' : 'symbol' }} }</strong>
+            </div>
+            @if (lightsRequested) {
+              <div class="dm-summary-row">
+                <span>Lights Fee</span>
+                <strong>@if (loadingRates) { — } @else { {{ lightsRate | currency: 'PHP' : 'symbol' }} }</strong>
+              </div>
+            }
+            @if (ballBoyRequested) {
+              <div class="dm-summary-row">
+                <span>Ball Boy Fee</span>
+                <strong>@if (loadingRates) { — } @else { {{ ballBoyRate | currency: 'PHP' : 'symbol' }} }</strong>
+              </div>
+            }
+            @if (totalRentalFee > 0) {
+              <div class="dm-summary-row">
+                <span>Rentals</span>
+                <strong>@if (loadingRates) { — } @else { {{ totalRentalFee | currency: 'PHP' : 'symbol' }} }</strong>
+              </div>
+            }
+            @if (guestCount > 0) {
+              <div class="dm-summary-row">
+                <span>Guests <span class="dm-summary-sub">({{ guestCount }} × {{ guestFeeRate | currency: 'PHP' : 'symbol' }})</span></span>
+                <strong>@if (loadingRates) { — } @else { {{ totalGuestFee | currency: 'PHP' : 'symbol' }} }</strong>
+              </div>
+            }
+
+            <div class="dm-summary-divider"></div>
+
+            <div class="dm-summary-row dm-summary-total">
+              <span>Total</span>
+              <strong class="dm-total-amount">
+                @if (loadingRates) { — } @else { {{ computedFee | currency: 'PHP' : 'symbol' }} }
+              </strong>
+            </div>
+
+            <div class="dm-summary-divider"></div>
+
+            <div class="dm-summary-row dm-coin-row">
+              <span><i class="fas fa-coins" style="color:#f59e0b;margin-right:4px"></i> Coin Cost</span>
+              <strong class="dm-coin-cost">5 coins</strong>
+            </div>
+          </div>
+
+          <button class="dm-confirm-btn" [disabled]="booking" (click)="confirm()">
+            @if (booking) { <i class="fas fa-circle-notch fa-spin"></i> Booking… }
+            @else { <i class="fas fa-calendar-check"></i> Confirm Reservation }
+          </button>
+        }
+
+        <div class="dm-bottom-spacer"></div>
       </div>
+
+      <!-- Bottom Nav -->
+      <nav class="dm-bottom-nav">
+        <button class="dm-nav-item" (click)="navigateTo('/player/dashboard')">
+          <i class="fas fa-home"></i><span>Home</span>
+        </button>
+        <button class="dm-nav-item dm-nav-active" (click)="navigateTo('/player/reserve')">
+          <i class="fas fa-table-tennis"></i><span>Courts</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/reservations')">
+          <i class="far fa-calendar-check"></i><span>Bookings</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/tournaments')">
+          <i class="fas fa-medal"></i><span>Rankings</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/profile/edit')">
+          <i class="far fa-user"></i><span>Profile</span>
+        </button>
+      </nav>
     </div>
   `,
   styles: [`
-    :host { display: block; width: 100%; }
-    .page-wrap {
-      position: relative; min-height: calc(100vh - 60px);
-      display: flex; align-items: flex-start; justify-content: center;
-      padding: 1.5rem;
-      background: linear-gradient(135deg, rgba(0,18,0,.15), rgba(0,18,0,.05));
+    :host {
+      display: block;
+      margin: -1.5rem;
+      width: calc(100% + 3rem);
     }
-    .court-bg {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: url('/tennis-court-surface.png') center/cover no-repeat; z-index: 0;
+    @media (min-width: 769px) {
+      :host { margin: 0; width: 100%; }
     }
-    .court-overlay { position: absolute; inset: 0; background: rgba(0,18,0,.35); z-index: 0; }
-    .page-card {
-      position: relative; z-index: 1; background: #fff; border-radius: 20px;
-      box-shadow: 0 8px 32px rgba(0,0,0,.45); width: 100%; max-width: 560px;
-    }
-    .card-header {
-      background: linear-gradient(135deg, #9f7338 0%, #c9a15d 100%);
-      padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 1rem;
-      border-radius: 20px 20px 0 0;
-    }
-    .back-btn {
-      background: rgba(255,255,255,.2); border: none; color: #fff;
-      padding: .4rem .9rem; border-radius: 8px; cursor: pointer; font-size: .85rem; transition: background .2s;
-    }
-    .back-btn:hover { background: rgba(255,255,255,.35); }
-    .card-header h2 { color: #fff; margin: 0; font-size: 1.3rem; }
-    .card-body { padding: 1.75rem; display: flex; flex-direction: column; gap: 1.25rem; }
 
-    .alert { padding: .75rem 1rem; border-radius: 8px; font-weight: 600; font-size: .9rem; }
-    .alert-success { background: #f4ead6; color: #7a5626; }
-    .alert-error { background: #fee2e2; color: #991b1b; }
+    .dm-shell {
+      background: #0c1a11;
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 60px);
+      max-width: 480px;
+      margin: 0 auto;
+      position: relative;
+    }
+    @media (min-width: 769px) {
+      .dm-shell {
+        max-width: 640px;
+        height: auto;
+        min-height: calc(100vh - 60px);
+      }
+    }
 
-    .form-group { display: flex; flex-direction: column; gap: .5rem; }
-    .form-label {
-      font-size: .85rem; font-weight: 700; color: #9f7338;
-      text-transform: uppercase; letter-spacing: .5px;
-      display: flex; align-items: center; gap: .75rem;
+    /* Header */
+    .dm-header {
+      background: #111f16;
+      padding: 1rem 1rem 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      flex-shrink: 0;
     }
-    .optional { font-size: .78rem; font-weight: 500; color: #9ca3af; text-transform: none; letter-spacing: 0; }
-    .legend { display: flex; align-items: center; gap: .3rem; font-weight: 500; color: #555; text-transform: none; letter-spacing: 0; font-size: .8rem; }
-    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .lights-dot { background: #f59e0b; }
-    .form-input {
-      width: 100%; box-sizing: border-box;
-      padding: .6rem .9rem; border: 2px solid #e5e7eb; border-radius: 8px;
-      font-size: .95rem; outline: none; transition: border-color .2s;
-    }
-    .form-input:focus { border-color: #9f7338; }
+    @media (min-width: 769px) { .dm-header { display: none; } }
 
-    .court-toggle { display: flex; gap: .75rem; }
-    .court-btn {
-      flex: 1; padding: .65rem; border: 2px solid #e5e7eb; border-radius: 10px;
-      background: #f9fafb; font-size: .95rem; font-weight: 700; cursor: pointer;
-      transition: all .2s; color: #374151;
+    .dm-back-btn {
+      background: rgba(255,255,255,0.08);
+      border: none;
+      color: rgba(255,255,255,0.7);
+      width: 34px; height: 34px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s;
     }
-    .court-btn.active { border-color: #9f7338; background: #9f7338; color: #fff; }
-    .court-btn:hover:not(.active) { border-color: #9f7338; background: #f8f1e4; }
+    .dm-back-btn:hover { background: rgba(255,255,255,0.14); }
 
-    .slot-loading { color: #666; font-size: .9rem; padding: .5rem 0; }
-    .slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: .5rem; }
-    .slot-btn {
-      position: relative; padding: .6rem .4rem; border: 2px solid #e5e7eb; border-radius: 8px;
-      background: #f9fafb; font-size: .88rem; font-weight: 600; cursor: pointer;
-      transition: all .2s; color: #374151; display: flex; flex-direction: column; align-items: center; gap: .1rem;
+    .dm-header-title {
+      flex: 1;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #ffffff;
     }
-    .slot-btn.has-lights { border-color: #fcd34d; background: #fffbeb; }
-    .slot-btn.selected { border-color: #9f7338; background: #9f7338; color: #fff; }
-    .slot-btn.selected.has-lights { background: #9f7338; }
-    .slot-btn.booked { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; border-color: #e5e7eb; text-decoration: line-through; }
-    .slot-btn:hover:not(.booked):not(.selected) { border-color: #9f7338; background: #f8f1e4; }
-    .light-icon { font-size: .75rem; }
+
+    /* Body */
+    .dm-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.1rem 1rem 0;
+      -webkit-overflow-scrolling: touch;
+    }
+    @media (min-width: 769px) {
+      .dm-body {
+        overflow-y: visible;
+        padding: 2rem 2.5rem 2rem;
+      }
+    }
+
+    /* Alerts */
+    .dm-alert {
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    .dm-alert i { margin-top: 1px; flex-shrink: 0; }
+    .dm-alert-success {
+      background: rgba(163,230,53,0.12);
+      border: 1px solid rgba(163,230,53,0.25);
+      color: #a3e635;
+    }
+    .dm-alert-error {
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.25);
+      color: #ef4444;
+    }
+
+    /* Sections */
+    .dm-section { margin-bottom: 1.1rem; }
+
+    .dm-section-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.40);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .dm-optional {
+      font-size: 0.65rem;
+      font-weight: 500;
+      color: rgba(255,255,255,0.28);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .dm-lights-legend {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: rgba(255,255,255,0.40);
+      text-transform: none;
+      letter-spacing: 0;
+      margin-left: auto;
+    }
+
+    .dm-lights-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #f59e0b;
+      flex-shrink: 0;
+    }
+
+    /* Input */
+    .dm-input {
+      width: 100%;
+      box-sizing: border-box;
+      background: #1b3028;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 0.7rem 0.9rem;
+      color: #ffffff;
+      font-size: 0.9rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .dm-input:focus { border-color: rgba(163,230,53,0.4); }
+    .dm-input::placeholder { color: rgba(255,255,255,0.25); }
+
+    /* Date input calendar icon color */
+    .dm-input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(0.7);
+      cursor: pointer;
+    }
+
+    /* Court toggle */
+    .dm-court-toggle { display: flex; gap: 0.6rem; }
+
+    .dm-court-btn {
+      flex: 1;
+      padding: 0.65rem;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      background: #1b3028;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: rgba(255,255,255,0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      font-family: inherit;
+    }
+    .dm-court-btn.active {
+      border-color: #a3e635;
+      background: rgba(163,230,53,0.12);
+      color: #a3e635;
+    }
+    .dm-court-btn:hover:not(.active) {
+      border-color: rgba(163,230,53,0.3);
+      color: rgba(255,255,255,0.8);
+    }
+
+    /* Slot grid */
+    .dm-slot-loading {
+      color: rgba(255,255,255,0.45);
+      font-size: 0.85rem;
+      padding: 0.5rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .dm-slot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+      gap: 0.45rem;
+    }
+
+    .dm-slot-btn {
+      position: relative;
+      padding: 0.55rem 0.35rem;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      background: #1b3028;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: rgba(255,255,255,0.7);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.1rem;
+      font-family: inherit;
+    }
+    .dm-slot-btn.has-lights { border-color: rgba(245,158,11,0.35); background: rgba(245,158,11,0.07); }
+    .dm-slot-btn.selected { border-color: #a3e635; background: rgba(163,230,53,0.15); color: #a3e635; }
+    .dm-slot-btn.booked {
+      background: rgba(255,255,255,0.03);
+      color: rgba(255,255,255,0.2);
+      cursor: not-allowed;
+      border-color: rgba(255,255,255,0.05);
+      text-decoration: line-through;
+    }
+    .dm-slot-btn:hover:not(.booked):not(.selected) {
+      border-color: rgba(163,230,53,0.35);
+      background: rgba(163,230,53,0.07);
+    }
+
+    .dm-light-dot { font-size: 0.7rem; }
 
     /* Player search */
-    .search-wrap { position: relative; }
-    .dropdown {
-      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 10;
-      background: #fff; border: 2px solid #e5e7eb; border-radius: 10px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.12); max-height: 220px; overflow-y: auto;
-    }
-    .dropdown-item {
-      width: 100%; display: flex; flex-direction: column; align-items: flex-start;
-      padding: .65rem 1rem; border: none; background: transparent;
-      cursor: pointer; transition: background .15s; text-align: left;
-    }
-    .dropdown-item:hover { background: #f8f1e4; }
-    .drop-name { font-weight: 600; color: #1a1a1a; font-size: .9rem; }
-    .drop-email { color: #6b7280; font-size: .8rem; }
+    .dm-search-wrap { position: relative; }
 
-    .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .25rem; }
-    .chip {
-      display: inline-flex; align-items: center; gap: .3rem;
-      background: #f4ead6; color: #7a5626; border-radius: 20px;
-      padding: .3rem .75rem; font-size: .85rem; font-weight: 600;
-    }
-    .chip-remove {
-      background: none; border: none; color: #7a5626; cursor: pointer;
-      font-size: 1.1rem; line-height: 1; padding: 0; font-weight: 700;
-      opacity: .7; transition: opacity .15s;
-    }
-    .chip-remove:hover { opacity: 1; }
-
-    .summary-box {
-      background: #f8f1e4; border: 1px solid #e6d2ad; border-radius: 12px;
-      padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: .5rem;
-    }
-    .summary-row { display: flex; justify-content: space-between; align-items: center; font-size: .9rem; color: #374151; }
-    .summary-row strong { color: #1a1a1a; }
-    .summary-divider { height: 1px; background: #e6d2ad; margin: .25rem 0; }
-    .fee-row { font-weight: 700; }
-    .fee-row span { display: flex; align-items: center; gap: .5rem; }
-    .fee-tag {
-      font-size: .72rem; font-weight: 700; padding: .15rem .45rem;
-      border-radius: 6px; background: #f3f4f6; color: #374151;
-    }
-    .fee-tag.lights { background: #fef9c3; color: #854d0e; }
-    .fee-amount { font-size: 1.1rem; color: #9f7338; }
-
-    .rental-list {
-      display: flex; flex-direction: column; gap: .5rem;
-      border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;
-    }
-    .rental-row {
-      display: flex; align-items: center; gap: .75rem;
-      padding: .6rem .9rem; background: #fafafa; border-bottom: 1px solid #f0f0f0;
-    }
-    .rental-row:last-child { border-bottom: none; }
-    .rental-name { flex: 1; font-size: .9rem; font-weight: 600; color: #374151; }
-    .rental-rate { font-size: .8rem; color: #9f7338; font-weight: 600; white-space: nowrap; }
-    .rental-counter { display: flex; align-items: center; gap: .4rem; }
-    .counter-btn.sm { width: 28px; height: 28px; font-size: 1rem; border-radius: 6px; }
-    .counter-value.sm { min-width: 24px; font-size: 1rem; }
-
-    .guest-counter {
-      display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
-    }
-    .counter-btn {
-      width: 36px; height: 36px; border-radius: 8px;
-      border: 2px solid #9f7338; background: #fff; color: #9f7338;
-      font-size: 1.2rem; font-weight: 700; cursor: pointer; line-height: 1;
-      transition: all .15s; display: flex; align-items: center; justify-content: center;
-    }
-    .counter-btn:hover { background: #9f7338; color: #fff; }
-    .counter-value {
-      min-width: 32px; text-align: center; font-size: 1.2rem;
-      font-weight: 700; color: #1a1a1a;
-    }
-    .counter-fee {
-      font-size: .85rem; color: #9f7338; font-weight: 600;
-    }
-    .summary-sub {
-      font-size: .78rem; font-weight: 400; color: #6b7280;
+    .dm-search-icon {
+      position: absolute;
+      left: 0.85rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255,255,255,0.35);
+      font-size: 0.8rem;
+      pointer-events: none;
     }
 
-    .toggle-row {
-      display: flex; align-items: center; gap: .75rem; cursor: pointer; user-select: none;
-    }
-    .toggle-input { display: none; }
-    .toggle-track {
-      position: relative; width: 44px; height: 24px; border-radius: 12px;
-      background: #d1d5db; transition: background .2s; flex-shrink: 0;
-    }
-    .toggle-input:checked + .toggle-track { background: #9f7338; }
-    .toggle-thumb {
-      position: absolute; top: 3px; left: 3px;
-      width: 18px; height: 18px; border-radius: 50%;
-      background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: left .2s;
-    }
-    .toggle-input:checked + .toggle-track .toggle-thumb { left: 23px; }
-    .toggle-label { font-size: .9rem; color: #374151; font-weight: 600; }
+    .dm-search-input { padding-left: 2.2rem !important; }
 
-    .confirm-btn {
-      width: 100%; padding: .85rem;
-      background: linear-gradient(135deg, #9f7338 0%, #c9a15d 100%);
-      color: #fff; border: none; border-radius: 10px;
-      font-size: 1rem; font-weight: 700; cursor: pointer; transition: opacity .2s;
+    .dm-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0; right: 0;
+      z-index: 100;
+      background: #1b3028;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      max-height: 200px;
+      overflow-y: auto;
     }
-    .confirm-btn:disabled { opacity: .6; cursor: not-allowed; }
-    .confirm-btn:not(:disabled):hover { opacity: .9; }
 
-    @media (max-width: 480px) {
-      .page-wrap { padding: 1rem; }
-      .card-body { padding: 1.25rem; }
-      .slot-grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+    .dm-dropdown-item {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 0.6rem 0.9rem;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      transition: background 0.15s;
+      text-align: left;
+      font-family: inherit;
     }
+    .dm-dropdown-item:hover { background: rgba(163,230,53,0.08); }
+
+    .dm-drop-name { font-weight: 700; color: #ffffff; font-size: 0.85rem; }
+    .dm-drop-email { color: rgba(255,255,255,0.42); font-size: 0.72rem; }
+
+    .dm-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+
+    .dm-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: rgba(163,230,53,0.15);
+      color: #a3e635;
+      border: 1px solid rgba(163,230,53,0.3);
+      border-radius: 20px;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .dm-chip-remove {
+      background: none;
+      border: none;
+      color: #a3e635;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0;
+      font-weight: 700;
+      opacity: 0.65;
+      transition: opacity 0.15s;
+      font-family: inherit;
+    }
+    .dm-chip-remove:hover { opacity: 1; }
+
+    /* Toggle */
+    .dm-toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .dm-toggle-input { display: none; }
+
+    .dm-toggle-track {
+      position: relative;
+      width: 42px; height: 22px;
+      border-radius: 11px;
+      background: rgba(255,255,255,0.15);
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .dm-toggle-input:checked + .dm-toggle-track { background: #a3e635; }
+
+    .dm-toggle-thumb {
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      transition: left 0.2s;
+    }
+    .dm-toggle-input:checked + .dm-toggle-track .dm-toggle-thumb { left: 23px; }
+
+    .dm-toggle-label {
+      font-size: 0.88rem;
+      color: rgba(255,255,255,0.75);
+      font-weight: 600;
+    }
+
+    /* Counter */
+    .dm-counter-row {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+    }
+
+    .dm-counter-btn {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      border: 1px solid rgba(163,230,53,0.35);
+      background: transparent;
+      color: #a3e635;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      line-height: 1;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: inherit;
+    }
+    .dm-counter-btn:hover { background: rgba(163,230,53,0.12); }
+    .dm-counter-btn.sm { width: 26px; height: 26px; font-size: 0.9rem; border-radius: 6px; }
+
+    .dm-counter-val {
+      min-width: 28px;
+      text-align: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    .dm-counter-val.sm { min-width: 22px; font-size: 0.9rem; }
+
+    .dm-counter-fee { font-size: 0.8rem; color: #a3e635; font-weight: 600; }
+
+    /* Rentals card */
+    .dm-rentals-card {
+      background: #1b3028;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .dm-rental-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.75rem 0.9rem;
+    }
+
+    .dm-rental-divider { height: 1px; background: rgba(255,255,255,0.06); }
+
+    .dm-rental-name { flex: 1; font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.75); }
+    .dm-rental-rate { font-size: 0.72rem; color: #a3e635; font-weight: 600; white-space: nowrap; }
+    .dm-rental-counter { display: flex; align-items: center; gap: 0.35rem; }
+
+    /* Summary */
+    .dm-summary {
+      background: #1b3028;
+      border-radius: 14px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .dm-summary-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.40);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .dm-summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.55);
+      padding: 0.3rem 0;
+    }
+
+    .dm-summary-row strong { color: #ffffff; }
+
+    .dm-summary-time { color: #a3e635; }
+
+    .dm-summary-sub { font-size: 0.72rem; font-weight: 400; color: rgba(255,255,255,0.35); }
+
+    .dm-summary-divider {
+      height: 1px;
+      background: rgba(255,255,255,0.08);
+      margin: 0.4rem 0;
+    }
+
+    .dm-summary-total {
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .dm-total-amount {
+      font-size: 1.1rem;
+      color: #a3e635 !important;
+    }
+
+    .dm-coin-row { color: rgba(255,255,255,0.55); }
+    .dm-coin-cost { color: #f59e0b !important; font-size: 0.9rem; }
+
+    /* Confirm button */
+    .dm-confirm-btn {
+      width: 100%;
+      padding: 0.9rem;
+      background: #a3e635;
+      color: #0a1f00;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      font-family: inherit;
+    }
+    .dm-confirm-btn:hover:not(:disabled) { background: #b8f040; }
+    .dm-confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .dm-bottom-spacer { height: 80px; }
+    @media (min-width: 769px) { .dm-bottom-spacer { display: none; } }
+
+    /* Bottom nav */
+    .dm-bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      background: #111f16;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      height: 62px;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+    }
+    @media (min-width: 769px) { .dm-bottom-nav { display: none; } }
+
+    .dm-nav-item {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.35);
+      font-size: 0.6rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.2rem;
+      padding: 0.4rem 0.75rem;
+      transition: color 0.2s;
+      font-family: inherit;
+    }
+    .dm-nav-item i { font-size: 1.1rem; }
+    .dm-nav-item.dm-nav-active { color: #a3e635; }
   `],
 })
 export class ReserveCourtComponent implements OnInit, OnDestroy {
@@ -557,11 +907,9 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   guestCount = 0;
   loadingRates = true;
 
-  private readonly WEEKEND_DAYS = new Set([0, 5, 6]); // Sun=0, Fri=5, Sat=6
+  private readonly WEEKEND_DAYS = new Set([0, 5, 6]);
 
-  get hasLights(): boolean {
-    return LIGHT_SLOTS.has(this.selectedSlot);
-  }
+  get hasLights(): boolean { return LIGHT_SLOTS.has(this.selectedSlot); }
 
   get dayType(): 'weekday' | 'weekend' | 'holiday' {
     if (this.isHoliday) return 'holiday';
@@ -579,13 +927,9 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     }
   }
 
-  get lightsFee(): number {
-    return this.lightsRequested ? this.lightsRate : 0;
-  }
+  get lightsFee(): number { return this.lightsRequested ? this.lightsRate : 0; }
 
-  get totalGuestFee(): number {
-    return this.guestCount * this.guestFeeRate;
-  }
+  get totalGuestFee(): number { return this.guestCount * this.guestFeeRate; }
 
   get totalRentalFee(): number {
     return (
@@ -608,9 +952,13 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     private coinsService: CoinsService,
     private router: Router,
     private cdr: ChangeDetectorRef,
+    private renderer: Renderer2,
   ) {}
 
   ngOnInit() {
+    this.renderer.addClass(document.documentElement, 'dark-player-page');
+    this.renderer.addClass(document.body, 'dark-player-page');
+
     this.usersService.getActivePlayers().subscribe({
       next: (players) => {
         const myId = this.auth.user()?.id;
@@ -641,12 +989,18 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.renderer.removeClass(document.documentElement, 'dark-player-page');
+    this.renderer.removeClass(document.body, 'dark-player-page');
     document.removeEventListener('click', this.onDocClick);
+  }
+
+  navigateTo(path: string) {
+    this.router.navigate([path]);
   }
 
   private onDocClick = (e: MouseEvent) => {
     const target = e.target as HTMLElement;
-    if (!target.closest('.search-wrap')) {
+    if (!target.closest('.dm-search-wrap')) {
       this.showDropdown = false;
       this.cdr.detectChanges();
     }
@@ -778,5 +1132,3 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     this.router.navigate(['/player/dashboard']);
   }
 }
-
-

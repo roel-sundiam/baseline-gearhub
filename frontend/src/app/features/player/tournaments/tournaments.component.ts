@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, Renderer2 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { TournamentService, Tournament, RankingEntry } from '../../../core/services/tournament.service';
@@ -9,344 +9,589 @@ import { CoinsService } from '../../../core/services/coins.service';
   standalone: true,
   imports: [CommonModule, RouterModule],
   template: `
-    <div class="page-wrap">
-      <div class="court-bg"><div class="court-overlay"></div></div>
-
-      <div class="page-card">
-
-        <!-- Header -->
-        <div class="card-header">
-          <button class="back-btn" (click)="goBack()">← Back</button>
-          <div class="header-center">
-            <h2><i class="fas fa-trophy"></i> Tournaments</h2>
-          </div>
-          <div class="header-pills">
-            <div class="stat-pill">
-              <span class="pill-num">{{ tournaments.length }}</span>
-              <span class="pill-lbl">Active</span>
-            </div>
-            <div class="stat-pill stat-pill-purple">
-              <span class="pill-num">{{ completedCount }}</span>
-              <span class="pill-lbl">Done</span>
-            </div>
-          </div>
+    <div class="dm-shell">
+      <!-- Mobile header -->
+      <header class="dm-header">
+        <button class="dm-back-btn" (click)="navigateTo('/player/dashboard')">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <span class="dm-header-title">Tournaments</span>
+        <div class="dm-header-pills">
+          <span class="dm-pill">{{ tournaments.length }} active</span>
         </div>
+      </header>
 
-        <!-- Tab bar -->
-        <div class="tab-bar">
-          <button class="tab-btn" [class.active]="activeTab === 'tournaments'" (click)="activeTab = 'tournaments'">
-            <i class="fas fa-sitemap"></i> Tournaments
-            @if (tournaments.length) { <span class="tab-badge">{{ tournaments.length }}</span> }
-          </button>
-          <button class="tab-btn" [class.active]="activeTab === 'rankings'" (click)="loadRankings()">
-            <i class="fas fa-medal"></i> Rankings
-          </button>
-        </div>
+      <!-- Tabs -->
+      <div class="dm-tabs">
+        <button class="dm-tab" [class.active]="activeTab === 'tournaments'" (click)="activeTab = 'tournaments'">
+          <i class="fas fa-sitemap"></i> Tournaments
+          @if (tournaments.length) { <span class="dm-tab-badge">{{ tournaments.length }}</span> }
+        </button>
+        <button class="dm-tab" [class.active]="activeTab === 'rankings'" (click)="loadRankings()">
+          <i class="fas fa-medal"></i> Rankings
+        </button>
+      </div>
 
-        <div class="card-body">
+      <div class="dm-body">
 
-          <!-- ── TOURNAMENTS TAB ── -->
-          @if (activeTab === 'tournaments') {
-            @if (loading) {
-              <div class="state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading tournaments…</div>
-            } @else if (tournaments.length === 0) {
-              <div class="empty-state">
-                <div class="empty-icon">🏆</div>
-                <h3>No tournaments yet</h3>
-                <p>Check back soon for upcoming tournaments.</p>
-              </div>
-            } @else {
-              <div class="tournament-list">
-                @for (t of tournaments; track t._id) {
-                  <div class="t-card" (click)="openTournament(t._id)">
-                    <div class="t-card-left">
-                      <div class="t-trophy-icon status-{{ t.status }}">
-                        <i class="fas fa-{{ t.status === 'completed' ? 'flag-checkered' : 'table-tennis' }}"></i>
-                      </div>
-                      <div class="t-info">
-                        <div class="t-name">{{ t.name }}</div>
-                        <div class="t-meta">
-                          <span class="t-badge type-{{ t.type }}">{{ t.type }}</span>
-                          <span class="t-dot">·</span>
-                          <span>{{ t.participants.length }} players</span>
-                          @if (t.status === 'active') {
-                            <span class="t-dot">·</span>
-                            <span class="t-progress">{{ completedMatches(t) }}/{{ t.matches.length }} matches</span>
-                          }
-                        </div>
-                        @if (t.status === 'completed') {
-                          <div class="t-champion">🥇 {{ getChampion(t) }}</div>
-                        }
-                      </div>
-                    </div>
-                    <div class="t-card-right">
-                      <span class="status-chip chip-{{ t.status }}">{{ t.status }}</span>
-                      <i class="fas fa-chevron-right t-arrow"></i>
-                    </div>
+        <!-- TOURNAMENTS TAB -->
+        @if (activeTab === 'tournaments') {
+          @if (loading) {
+            <div class="dm-state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading tournaments…</div>
+          } @else if (tournaments.length === 0) {
+            <div class="dm-empty">
+              <i class="fas fa-trophy"></i>
+              <p>No tournaments yet. Check back soon!</p>
+            </div>
+          } @else {
+            <div class="dm-section-label">{{ tournaments.length }} tournament{{ tournaments.length !== 1 ? 's' : '' }}</div>
+            <div class="dm-tournament-list">
+              @for (t of tournaments; track t._id) {
+                <div class="dm-t-card" (click)="openTournament(t._id)">
+                  <div class="dm-t-icon" [class.icon-active]="t.status === 'active'" [class.icon-done]="t.status === 'completed'" [class.icon-draft]="t.status === 'draft'">
+                    <i class="fas fa-{{ t.status === 'completed' ? 'flag-checkered' : 'table-tennis' }}"></i>
                   </div>
-                }
-              </div>
-            }
-          }
-
-          <!-- ── RANKINGS TAB ── -->
-          @if (activeTab === 'rankings') {
-            @if (rankingsLoading) {
-              <div class="state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading rankings…</div>
-            } @else if (rankings.length === 0) {
-              <div class="empty-state">
-                <div class="empty-icon">🏅</div>
-                <h3>No rankings yet</h3>
-                <p>Rankings appear once tournaments are completed.</p>
-              </div>
-            } @else {
-              <div class="rankings-header">
-                <span class="rankings-title"><i class="fas fa-medal"></i> Player Leaderboard</span>
-                <span class="rankings-sub">Points from completed tournaments</span>
-              </div>
-
-              <div class="gender-tabs">
-                <button class="gender-tab" [class.active]="genderFilter === 'all'"   (click)="genderFilter = 'all'">All</button>
-                <button class="gender-tab" [class.active]="genderFilter === 'men'"   (click)="genderFilter = 'men'">Men's</button>
-                <button class="gender-tab" [class.active]="genderFilter === 'women'" (click)="genderFilter = 'women'">Women's</button>
-              </div>
-
-              <div class="rankings-list">
-                @for (entry of filteredRankings; track entry.playerId; let i = $index) {
-                  <div class="rank-row" [class.rank-gold]="i === 0" [class.rank-silver]="i === 1" [class.rank-bronze]="i === 2">
-                    <div class="rank-pos">
-                      @if (i === 0) { <span>🥇</span> }
-                      @else if (i === 1) { <span>🥈</span> }
-                      @else if (i === 2) { <span>🥉</span> }
-                      @else { <span class="rank-num">{{ i + 1 }}</span> }
-                    </div>
-                    <div class="rank-avatar">
-                      @if (entry.profileImage) {
-                        <img [src]="entry.profileImage" [alt]="entry.name" />
-                      } @else {
-                        {{ initials(entry.name) }}
+                  <div class="dm-t-info">
+                    <div class="dm-t-name">{{ t.name }}</div>
+                    <div class="dm-t-meta">
+                      <span class="dm-t-type" [class.type-singles]="t.type === 'singles'" [class.type-doubles]="t.type === 'doubles'">{{ t.type }}</span>
+                      <span class="dm-t-dot">·</span>
+                      <span>{{ t.participants.length }} players</span>
+                      @if (t.status === 'active') {
+                        <span class="dm-t-dot">·</span>
+                        <span class="dm-t-progress">{{ completedMatches(t) }}/{{ t.matches.length }}</span>
                       }
                     </div>
-                    <div class="rank-info">
-                      <div class="rank-name">{{ entry.name }}</div>
-                      <div class="rank-meta">{{ entry.tournamentsPlayed }} tournament{{ entry.tournamentsPlayed !== 1 ? 's' : '' }}</div>
-                    </div>
-                    <div class="rank-points">
-                      <span class="pts-val">{{ entry.points }}</span>
-                      <span class="pts-lbl">pts</span>
-                    </div>
+                    @if (t.status === 'completed') {
+                      <div class="dm-t-champion">🥇 {{ getChampion(t) }}</div>
+                    }
                   </div>
-                }
-              </div>
-
-              <!-- Points guide -->
-              <div class="points-guide">
-                <div class="guide-header"><i class="fas fa-info-circle"></i> Points Guide</div>
-                <div class="guide-grid">
-                  <div class="guide-col">
-                    <div class="guide-title">Singles</div>
-                    <div class="guide-row"><span>Champion</span><span class="guide-pts">100</span></div>
-                    <div class="guide-row"><span>Runner-up</span><span class="guide-pts">70</span></div>
-                    <div class="guide-row"><span>Semi-finalist</span><span class="guide-pts">40</span></div>
-                    <div class="guide-row"><span>Quarter-finalist</span><span class="guide-pts">20</span></div>
-                    <div class="guide-row"><span>Participation</span><span class="guide-pts">10</span></div>
-                  </div>
-                  <div class="guide-col">
-                    <div class="guide-title">Doubles</div>
-                    <div class="guide-row"><span>Champion</span><span class="guide-pts">80</span></div>
-                    <div class="guide-row"><span>Runner-up</span><span class="guide-pts">50</span></div>
-                    <div class="guide-row"><span>Semi-finalist</span><span class="guide-pts">30</span></div>
-                    <div class="guide-row"><span>Quarter-finalist</span><span class="guide-pts">15</span></div>
-                    <div class="guide-row"><span>Participation</span><span class="guide-pts">5</span></div>
+                  <div class="dm-t-right">
+                    <span class="dm-status-chip" [class.chip-active]="t.status === 'active'" [class.chip-done]="t.status === 'completed'" [class.chip-draft]="t.status === 'draft'">{{ t.status }}</span>
+                    <i class="fas fa-chevron-right dm-t-arrow"></i>
                   </div>
                 </div>
-              </div>
-            }
+              }
+            </div>
           }
+        }
 
-        </div>
+        <!-- RANKINGS TAB -->
+        @if (activeTab === 'rankings') {
+          @if (rankingsLoading) {
+            <div class="dm-state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading rankings…</div>
+          } @else if (rankings.length === 0) {
+            <div class="dm-empty">
+              <i class="fas fa-medal"></i>
+              <p>No rankings yet. Rankings appear once tournaments are completed.</p>
+            </div>
+          } @else {
+            <div class="dm-section-label">Player Leaderboard</div>
+
+            <div class="dm-gender-tabs">
+              <button class="dm-gender-tab" [class.active]="genderFilter === 'all'" (click)="genderFilter = 'all'">All</button>
+              <button class="dm-gender-tab" [class.active]="genderFilter === 'men'" (click)="genderFilter = 'men'">Men's</button>
+              <button class="dm-gender-tab" [class.active]="genderFilter === 'women'" (click)="genderFilter = 'women'">Women's</button>
+            </div>
+
+            <div class="dm-rankings-list">
+              @for (entry of filteredRankings; track entry.playerId; let i = $index) {
+                <div class="dm-rank-row" [class.rank-gold]="i === 0" [class.rank-silver]="i === 1" [class.rank-bronze]="i === 2">
+                  <div class="dm-rank-pos">
+                    @if (i === 0) { <span>🥇</span> }
+                    @else if (i === 1) { <span>🥈</span> }
+                    @else if (i === 2) { <span>🥉</span> }
+                    @else { <span class="dm-rank-num">{{ i + 1 }}</span> }
+                  </div>
+                  <div class="dm-rank-avatar">
+                    @if (entry.profileImage) {
+                      <img [src]="entry.profileImage" [alt]="entry.name" />
+                    } @else {
+                      {{ initials(entry.name) }}
+                    }
+                  </div>
+                  <div class="dm-rank-info">
+                    <div class="dm-rank-name">{{ entry.name }}</div>
+                    <div class="dm-rank-meta">{{ entry.tournamentsPlayed }} tournament{{ entry.tournamentsPlayed !== 1 ? 's' : '' }}</div>
+                  </div>
+                  <div class="dm-rank-points">
+                    <span class="dm-pts-val">{{ entry.points }}</span>
+                    <span class="dm-pts-lbl">pts</span>
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- Points guide -->
+            <div class="dm-section-label" style="margin-top:1.25rem">Points Guide</div>
+            <div class="dm-points-guide">
+              <div class="dm-guide-col">
+                <div class="dm-guide-title">Singles</div>
+                <div class="dm-guide-row"><span>Champion</span><span class="dm-guide-pts">100</span></div>
+                <div class="dm-guide-row"><span>Runner-up</span><span class="dm-guide-pts">70</span></div>
+                <div class="dm-guide-row"><span>Semi-finalist</span><span class="dm-guide-pts">40</span></div>
+                <div class="dm-guide-row"><span>Quarter-finalist</span><span class="dm-guide-pts">20</span></div>
+                <div class="dm-guide-row"><span>Participation</span><span class="dm-guide-pts">10</span></div>
+              </div>
+              <div class="dm-guide-col">
+                <div class="dm-guide-title">Doubles</div>
+                <div class="dm-guide-row"><span>Champion</span><span class="dm-guide-pts">80</span></div>
+                <div class="dm-guide-row"><span>Runner-up</span><span class="dm-guide-pts">50</span></div>
+                <div class="dm-guide-row"><span>Semi-finalist</span><span class="dm-guide-pts">30</span></div>
+                <div class="dm-guide-row"><span>Quarter-finalist</span><span class="dm-guide-pts">15</span></div>
+                <div class="dm-guide-row"><span>Participation</span><span class="dm-guide-pts">5</span></div>
+              </div>
+            </div>
+          }
+        }
+
+        <div class="dm-bottom-spacer"></div>
       </div>
+
+      <!-- Bottom Nav -->
+      <nav class="dm-bottom-nav">
+        <button class="dm-nav-item" (click)="navigateTo('/player/dashboard')">
+          <i class="fas fa-home"></i><span>Home</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/reserve')">
+          <i class="fas fa-table-tennis"></i><span>Courts</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/reservations')">
+          <i class="far fa-calendar-check"></i><span>Bookings</span>
+        </button>
+        <button class="dm-nav-item dm-nav-active" (click)="navigateTo('/player/tournaments')">
+          <i class="fas fa-medal"></i><span>Rankings</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/profile/edit')">
+          <i class="far fa-user"></i><span>Profile</span>
+        </button>
+      </nav>
     </div>
   `,
   styles: [`
-    /* ── Layout ── */
-    .page-wrap {
-      position: relative; min-height: 100vh; padding: 20px;
-      background: linear-gradient(135deg, #9f7338 0%, #c9a15d 100%);
+    :host {
+      display: block;
+      margin: -1.5rem;
+      width: calc(100% + 3rem);
     }
-    .court-bg {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: url('/tennis-court-surface.png') center/cover no-repeat; z-index: 0;
-    }
-    .court-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.3); }
-    .page-card {
-      position: relative; z-index: 1; background: white; border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.1); max-width: 800px; margin: 0 auto; overflow: hidden;
+    @media (min-width: 769px) {
+      :host { margin: 0; width: 100%; }
     }
 
-    /* ── Header ── */
-    .card-header {
-      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-      padding: 20px 24px; border-bottom: 1px solid #eee;
+    .dm-shell {
+      background: #0c1a11;
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 60px);
+      max-width: 480px;
+      margin: 0 auto;
+      position: relative;
     }
-    .back-btn {
-      background: none; border: none; font-size: 15px; cursor: pointer;
-      padding: 8px 12px; border-radius: 4px; color: #555; white-space: nowrap;
-    }
-    .back-btn:hover { background: #f0f0f0; }
-    .header-center { flex: 1; }
-    .header-center h2 {
-      margin: 0; font-size: 1.2rem; font-weight: 800; color: #1a1a1a;
-      display: flex; align-items: center; gap: 8px;
-    }
-    .header-center h2 i { color: #9f7338; }
-    .header-pills { display: flex; gap: 8px; }
-    .stat-pill {
-      display: flex; flex-direction: column; align-items: center;
-      padding: 6px 14px; background: #f1f5f9; border-radius: 20px; min-width: 52px;
-    }
-    .stat-pill-purple { background: #ede9fe; }
-    .pill-num { font-size: 1rem; font-weight: 700; color: #1a1a1a; line-height: 1.2; }
-    .stat-pill-purple .pill-num { color: #5b21b6; }
-    .pill-lbl { font-size: 0.65rem; color: #888; text-transform: uppercase; letter-spacing: 0.4px; }
-
-    /* ── Tab bar ── */
-    .tab-bar {
-      display: flex; border-bottom: 2px solid #e9ecef; padding: 0 24px; gap: 2px;
-    }
-    .tab-btn {
-      background: none; border: none; padding: 14px 16px;
-      font-size: 0.875rem; font-weight: 600; color: #888; cursor: pointer;
-      border-bottom: 3px solid transparent; margin-bottom: -2px;
-      transition: all 0.15s; white-space: nowrap; display: flex; align-items: center; gap: 7px;
-    }
-    .tab-btn:hover { color: #9f7338; }
-    .tab-btn.active { color: #9f7338; border-bottom-color: #9f7338; }
-    .tab-badge {
-      background: #f4ead6; color: #7a5626; font-size: 0.7rem; font-weight: 700;
-      padding: 2px 7px; border-radius: 10px;
+    @media (min-width: 769px) {
+      .dm-shell {
+        max-width: 720px;
+        height: auto;
+        min-height: calc(100vh - 60px);
+      }
     }
 
-    /* ── Body ── */
-    .card-body { padding: 24px; }
-    .state-msg { text-align: center; padding: 40px; color: #94a3b8; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .empty-state { text-align: center; padding: 48px 20px; color: #94a3b8; }
-    .empty-icon { font-size: 2.8rem; margin-bottom: 12px; }
-    .empty-state h3 { margin: 0 0 6px; font-size: 1rem; color: #374151; }
-    .empty-state p { margin: 0; font-size: 0.875rem; }
+    /* Header */
+    .dm-header {
+      background: #111f16;
+      padding: 1rem 1rem 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      flex-shrink: 0;
+    }
+    @media (min-width: 769px) { .dm-header { display: none; } }
 
-    /* ── Tournament list ── */
-    .tournament-list { display: flex; flex-direction: column; gap: 10px; }
-    .t-card {
-      display: flex; align-items: center; justify-content: space-between; gap: 14px;
-      padding: 16px; border: 1px solid #e2e8f0; border-radius: 10px;
-      cursor: pointer; transition: all 0.15s; background: white;
-    }
-    .t-card:hover { border-color: #9f7338; background: #f8f1e4; box-shadow: 0 2px 8px rgba(159,115,56,0.1); }
-    .t-card-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
-    .t-trophy-icon {
-      width: 44px; height: 44px; border-radius: 10px; display: flex;
-      align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;
-    }
-    .t-trophy-icon.status-active { background: #f4ead6; color: #7a5626; }
-    .t-trophy-icon.status-completed { background: #ede9fe; color: #5b21b6; }
-    .t-trophy-icon.status-draft { background: #f1f5f9; color: #64748b; }
-    .t-info { min-width: 0; }
-    .t-name { font-size: 0.95rem; font-weight: 700; color: #1a1a1a; margin-bottom: 4px; }
-    .t-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.78rem; color: #64748b; }
-    .t-badge {
-      padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700; text-transform: capitalize;
-    }
-    .type-singles { background: #dbeafe; color: #1e40af; }
-    .type-doubles { background: #fef3c7; color: #92400e; }
-    .t-dot { color: #cbd5e1; }
-    .t-progress { color: #9f7338; font-weight: 600; }
-    .t-champion { margin-top: 4px; font-size: 0.78rem; font-weight: 700; color: #7c3aed; }
-    .t-card-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-    .t-arrow { color: #cbd5e1; font-size: 0.75rem; }
-    .status-chip {
-      padding: 3px 9px; border-radius: 12px; font-size: 0.7rem; font-weight: 700; text-transform: capitalize;
-    }
-    .chip-active { background: #f4ead6; color: #7a5626; }
-    .chip-completed { background: #ede9fe; color: #5b21b6; }
-    .chip-draft { background: #f1f5f9; color: #475569; }
-
-    /* ── Rankings ── */
-    .gender-tabs {
-      display: flex; gap: 6px; margin-bottom: 14px;
-    }
-    .gender-tab {
-      padding: 6px 16px; border-radius: 20px; border: 1.5px solid #e2e8f0;
-      background: white; font-size: 0.8rem; font-weight: 600; color: #64748b; cursor: pointer;
-      transition: all 0.15s;
-    }
-    .gender-tab:hover { border-color: #9f7338; color: #9f7338; }
-    .gender-tab.active { background: #9f7338; color: white; border-color: #9f7338; }
-
-    .rankings-header {
-      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
-      margin-bottom: 16px; gap: 8px;
-    }
-    .rankings-title { font-size: 0.9rem; font-weight: 700; color: #1a1a1a; display: flex; align-items: center; gap: 7px; }
-    .rankings-title i { color: #9f7338; }
-    .rankings-sub { font-size: 0.78rem; color: #94a3b8; }
-    .rankings-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
-    .rank-row {
-      display: flex; align-items: center; gap: 12px; padding: 12px 16px;
-      border: 1px solid #e2e8f0; border-radius: 10px; background: white; transition: box-shadow 0.12s;
-    }
-    .rank-row:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .rank-gold   { border-color: #fcd34d; background: linear-gradient(135deg, #fffbeb, #fef9e7); }
-    .rank-silver { border-color: #e2e8f0; background: linear-gradient(135deg, #f8fafc, #f1f5f9); }
-    .rank-bronze { border-color: #fed7aa; background: linear-gradient(135deg, #fff7ed, #fef3e8); }
-    .rank-pos { width: 32px; text-align: center; font-size: 1.3rem; flex-shrink: 0; }
-    .rank-num { font-size: 0.9rem; font-weight: 700; color: #94a3b8; }
-    .rank-avatar {
-      width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
-      background: linear-gradient(135deg, #9f7338, #c9a15d);
-      color: white; font-size: 0.7rem; font-weight: 700;
+    .dm-back-btn {
+      background: rgba(255,255,255,0.08);
+      border: none;
+      color: rgba(255,255,255,0.7);
+      width: 34px; height: 34px;
+      border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s;
     }
-    .rank-avatar img { width: 100%; height: 100%; object-fit: cover; }
-    .rank-info { flex: 1; min-width: 0; }
-    .rank-name { font-size: 0.9rem; font-weight: 700; color: #1a1a1a; }
-    .rank-meta { font-size: 0.75rem; color: #94a3b8; margin-top: 1px; }
-    .rank-points { display: flex; align-items: baseline; gap: 3px; flex-shrink: 0; }
-    .pts-val { font-size: 1.25rem; font-weight: 800; color: #9f7338; }
-    .pts-lbl { font-size: 0.7rem; color: #94a3b8; font-weight: 600; }
+    .dm-back-btn:hover { background: rgba(255,255,255,0.14); }
 
-    /* ── Points guide ── */
-    .points-guide {
-      border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;
+    .dm-header-title {
+      flex: 1;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #ffffff;
     }
-    .guide-header {
-      padding: 11px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
-      font-size: 0.82rem; font-weight: 700; color: #374151;
-      display: flex; align-items: center; gap: 7px;
-    }
-    .guide-header i { color: #9f7338; }
-    .guide-grid { display: grid; grid-template-columns: 1fr 1fr; }
-    .guide-col { padding: 14px 16px; }
-    .guide-col:first-child { border-right: 1px solid #f1f5f9; }
-    .guide-title {
-      font-size: 0.72rem; font-weight: 800; color: #9f7338; text-transform: uppercase;
-      letter-spacing: 0.5px; margin-bottom: 10px;
-    }
-    .guide-row {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 5px 0; border-bottom: 1px solid #f8fafc; font-size: 0.82rem; color: #374151;
-    }
-    .guide-row:last-child { border-bottom: none; }
-    .guide-pts { font-weight: 700; color: #9f7338; }
 
-    @media (max-width: 600px) {
-      .card-header { flex-direction: column; align-items: flex-start; }
-      .guide-grid { grid-template-columns: 1fr; }
-      .guide-col:first-child { border-right: none; border-bottom: 1px solid #f1f5f9; }
+    .dm-header-pills { display: flex; gap: 0.4rem; }
+
+    .dm-pill {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.45);
+      background: rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 2px 8px;
     }
+
+    /* Tabs */
+    .dm-tabs {
+      display: flex;
+      background: #111f16;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      flex-shrink: 0;
+    }
+
+    .dm-tab {
+      flex: 1;
+      padding: 0.75rem 0.5rem;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: rgba(255,255,255,0.40);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      font-family: inherit;
+    }
+    .dm-tab.active { color: #a3e635; border-bottom-color: #a3e635; }
+    .dm-tab i { font-size: 0.9rem; }
+
+    .dm-tab-badge {
+      background: rgba(163,230,53,0.15);
+      color: #a3e635;
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    /* Body */
+    .dm-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      -webkit-overflow-scrolling: touch;
+    }
+    @media (min-width: 769px) {
+      .dm-body {
+        overflow-y: visible;
+        padding: 2rem 2.5rem 2rem;
+      }
+    }
+
+    .dm-state-msg {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: rgba(255,255,255,0.40);
+      font-size: 0.88rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .dm-empty {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: rgba(255,255,255,0.35);
+    }
+    .dm-empty i { font-size: 2rem; display: block; margin-bottom: 0.75rem; opacity: 0.3; }
+    .dm-empty p { margin: 0; font-size: 0.88rem; }
+
+    .dm-section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.40);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 0.65rem;
+    }
+
+    /* Tournament list */
+    .dm-tournament-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      margin-bottom: 1.1rem;
+    }
+
+    .dm-t-card {
+      background: #1b3028;
+      border-radius: 12px;
+      padding: 0.85rem 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .dm-t-card:hover { background: #213830; transform: translateY(-1px); }
+
+    .dm-t-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+    .icon-active { background: rgba(163,230,53,0.14); color: #a3e635; }
+    .icon-done { background: rgba(139,92,246,0.14); color: #a78bfa; }
+    .icon-draft { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); }
+
+    .dm-t-info { flex: 1; min-width: 0; }
+
+    .dm-t-name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 0.25rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .dm-t-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.45);
+    }
+
+    .dm-t-type {
+      padding: 1px 7px;
+      border-radius: 8px;
+      font-size: 0.67rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+    .type-singles { background: rgba(59,130,246,0.2); color: #60a5fa; }
+    .type-doubles { background: rgba(245,158,11,0.2); color: #f59e0b; }
+
+    .dm-t-dot { color: rgba(255,255,255,0.2); }
+    .dm-t-progress { color: #a3e635; font-weight: 600; }
+    .dm-t-champion { font-size: 0.72rem; color: #a78bfa; font-weight: 700; margin-top: 0.2rem; }
+
+    .dm-t-right { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+
+    .dm-status-chip {
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: capitalize;
+    }
+    .chip-active { background: rgba(163,230,53,0.15); color: #a3e635; }
+    .chip-done { background: rgba(139,92,246,0.15); color: #a78bfa; }
+    .chip-draft { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.45); }
+
+    .dm-t-arrow { color: rgba(255,255,255,0.2); font-size: 0.7rem; }
+
+    /* Gender tabs */
+    .dm-gender-tabs {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .dm-gender-tab {
+      padding: 0.35rem 0.9rem;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: transparent;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.45);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .dm-gender-tab:hover { border-color: rgba(163,230,53,0.3); color: #a3e635; }
+    .dm-gender-tab.active { background: #a3e635; color: #0a1f00; border-color: #a3e635; }
+
+    /* Rankings list */
+    .dm-rankings-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .dm-rank-row {
+      background: #1b3028;
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: background 0.15s;
+    }
+    .dm-rank-row:hover { background: #213830; }
+
+    .rank-gold { border: 1px solid rgba(234,179,8,0.3); background: rgba(234,179,8,0.07); }
+    .rank-silver { border: 1px solid rgba(255,255,255,0.1); }
+    .rank-bronze { border: 1px solid rgba(249,115,22,0.2); background: rgba(249,115,22,0.05); }
+
+    .dm-rank-pos {
+      width: 28px;
+      text-align: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .dm-rank-num {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.35);
+    }
+
+    .dm-rank-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: rgba(163,230,53,0.15);
+      color: #a3e635;
+      font-size: 0.68rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .dm-rank-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+    .dm-rank-info { flex: 1; min-width: 0; }
+
+    .dm-rank-name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .dm-rank-meta {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.40);
+      margin-top: 1px;
+    }
+
+    .dm-rank-points {
+      display: flex;
+      align-items: baseline;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .dm-pts-val {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #a3e635;
+    }
+
+    .dm-pts-lbl {
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.40);
+      font-weight: 600;
+    }
+
+    /* Points guide */
+    .dm-points-guide {
+      background: #1b3028;
+      border-radius: 12px;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      margin-bottom: 1.25rem;
+    }
+
+    .dm-guide-col {
+      padding: 0.85rem 1rem;
+    }
+
+    .dm-guide-col:first-child {
+      border-right: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .dm-guide-title {
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: #a3e635;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.65rem;
+    }
+
+    .dm-guide-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.3rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.55);
+    }
+    .dm-guide-row:last-child { border-bottom: none; }
+
+    .dm-guide-pts {
+      font-weight: 700;
+      color: #a3e635;
+    }
+
+    .dm-bottom-spacer { height: 80px; }
+    @media (min-width: 769px) { .dm-bottom-spacer { display: none; } }
+
+    /* Bottom nav */
+    .dm-bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      background: #111f16;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      height: 62px;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+    }
+    @media (min-width: 769px) { .dm-bottom-nav { display: none; } }
+
+    .dm-nav-item {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.35);
+      font-size: 0.6rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.2rem;
+      padding: 0.4rem 0.75rem;
+      transition: color 0.2s;
+      font-family: inherit;
+    }
+    .dm-nav-item i { font-size: 1.1rem; }
+    .dm-nav-item.dm-nav-active { color: #a3e635; }
   `]
 })
-export class PlayerTournamentsComponent implements OnInit {
+export class PlayerTournamentsComponent implements OnInit, OnDestroy {
   activeTab: 'tournaments' | 'rankings' = 'tournaments';
   tournaments: Tournament[] = [];
   rankings: RankingEntry[] = [];
@@ -358,10 +603,13 @@ export class PlayerTournamentsComponent implements OnInit {
     private tournamentService: TournamentService,
     private coinsService: CoinsService,
     private router: Router,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private renderer: Renderer2,
   ) {}
 
   ngOnInit() {
+    this.renderer.addClass(document.documentElement, 'dark-player-page');
+    this.renderer.addClass(document.body, 'dark-player-page');
     this.coinsService.trackVisit('tournament-list').subscribe({ error: () => {} });
     this.tournamentService.getAll().subscribe({
       next: (data) => { this.tournaments = data.filter(t => t.published); this.loading = false; },
@@ -370,6 +618,15 @@ export class PlayerTournamentsComponent implements OnInit {
     this.route.queryParams.subscribe(p => {
       if (p['tab'] === 'rankings') this.loadRankings();
     });
+  }
+
+  ngOnDestroy() {
+    this.renderer.removeClass(document.documentElement, 'dark-player-page');
+    this.renderer.removeClass(document.body, 'dark-player-page');
+  }
+
+  navigateTo(path: string) {
+    this.router.navigate([path]);
   }
 
   get filteredRankings(): RankingEntry[] {
@@ -410,5 +667,3 @@ export class PlayerTournamentsComponent implements OnInit {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
 }
-
-

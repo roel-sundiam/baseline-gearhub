@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
@@ -11,198 +11,207 @@ type Tab = 'upcoming' | 'history' | 'all';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="page-wrap">
-      <div class="court-bg"><div class="court-overlay"></div></div>
-      <div class="page-card">
-        <div class="card-header">
-          <button class="back-btn" (click)="goBack()">← Back</button>
-          <h2>Reservations</h2>
-          <button class="new-btn" (click)="reserve()">+ Reserve</button>
-        </div>
+    <div class="dm-shell">
 
-        <!-- Tabs -->
-        <div class="tabs">
-          <button class="tab-btn" [class.active]="activeTab === 'upcoming'" (click)="setTab('upcoming')">
-            Upcoming
-            @if (upcoming.length > 0) { <span class="tab-badge">{{ upcoming.length }}</span> }
-          </button>
-          <button class="tab-btn" [class.active]="activeTab === 'history'" (click)="setTab('history')">
-            History
-          </button>
-          <button class="tab-btn" [class.active]="activeTab === 'all'" (click)="setTab('all')">
-            All Reservations
-          </button>
-        </div>
+      <!-- Header -->
+      <header class="dm-header">
+        <button class="dm-back-btn" (click)="goBack()" title="Back">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <span class="dm-header-title">My Reservations</span>
+        <button class="dm-reserve-btn" (click)="reserve()">
+          <i class="fas fa-plus"></i> Reserve
+        </button>
+      </header>
 
-        <div class="card-body">
-          @if (loading) {
-            <div class="loading">Loading reservations...</div>
-          } @else {
+      <!-- Tabs -->
+      <div class="dm-tabs">
+        <button class="dm-tab" [class.dm-tab-active]="activeTab === 'upcoming'" (click)="setTab('upcoming')">
+          Upcoming
+          @if (upcoming.length > 0) { <span class="dm-tab-badge">{{ upcoming.length }}</span> }
+        </button>
+        <button class="dm-tab" [class.dm-tab-active]="activeTab === 'history'" (click)="setTab('history')">
+          History
+        </button>
+        <button class="dm-tab" [class.dm-tab-active]="activeTab === 'all'" (click)="setTab('all')">
+          All
+        </button>
+      </div>
 
-            <!-- UPCOMING TAB -->
-            @if (activeTab === 'upcoming') {
-              @if (upcoming.length === 0) {
-                <div class="empty-state">
-                  <span>📅</span>
-                  <p>No upcoming reservations.</p>
-                  <button class="cta-btn" (click)="reserve()">Reserve a Court</button>
-                </div>
-              } @else {
-                <div class="res-list">
-                  @for (r of upcoming; track r._id) {
-                    <div class="res-card upcoming-card">
-                      <div class="res-left">
-                        <div class="res-court">Court {{ r.court }}</div>
-                        <div class="res-date">{{ r.date | date: 'EEE, MMM d, y' : 'UTC' }}</div>
-                        <div class="res-time">
-                          {{ formatSlot(r.timeSlot) }}
-                          @if (r.hasLights) { <span class="lights-tag">💡 Lights</span> }
-                        </div>
-                        @if (r.players && r.players.length > 0) {
-                          <div class="res-with">with {{ playerNames(r) }}</div>
-                        }
+      <!-- Scrollable body -->
+      <div class="dm-body">
+
+        @if (loading) {
+          <div class="dm-loading">
+            <i class="fas fa-circle-notch fa-spin"></i> Loading...
+          </div>
+        } @else {
+
+          <!-- UPCOMING -->
+          @if (activeTab === 'upcoming') {
+            @if (upcoming.length === 0) {
+              <div class="dm-empty">
+                <div class="dm-empty-icon"><i class="far fa-calendar-check"></i></div>
+                <p class="dm-empty-text">No upcoming reservations</p>
+                <button class="dm-cta-btn" (click)="reserve()">Book a Court</button>
+              </div>
+            } @else {
+              <div class="dm-res-list">
+                @for (r of upcoming; track r._id) {
+                  <div class="dm-res-card dm-res-upcoming">
+                    <div class="dm-res-accent"></div>
+                    <div class="dm-res-main">
+                      <div class="dm-res-top">
+                        <span class="dm-res-court">Court {{ r.court }}</span>
+                        <span class="dm-status dm-status-confirmed">confirmed</span>
                       </div>
-                      <div class="res-right">
-                        <span class="status-badge status-confirmed">confirmed</span>
-                        <button
-                          class="icon-cancel-btn"
-                          [class.spinning]="cancelling === r._id"
-                          [disabled]="cancelling === r._id"
-                          (click)="openCancelModal(r)"
-                          title="Cancel reservation"
-                        >
-                          @if (cancelling === r._id) {
-                            <i class="fas fa-circle-notch fa-spin"></i>
-                          } @else {
-                            <i class="fas fa-calendar-times"></i>
-                          }
-                        </button>
+                      <div class="dm-res-date">{{ r.date | date: 'EEE, MMM d, y' : 'UTC' }}</div>
+                      <div class="dm-res-time">
+                        <i class="far fa-clock"></i> {{ formatSlot(r.timeSlot) }}
+                        @if (r.hasLights) { <span class="dm-lights-tag"><i class="fas fa-lightbulb"></i> Lights</span> }
                       </div>
+                      @if (r.players && r.players.length > 0) {
+                        <div class="dm-res-with"><i class="fas fa-user-friends"></i> with {{ playerNames(r) }}</div>
+                      }
                     </div>
-                  }
-                </div>
-              }
+                    <button
+                      class="dm-cancel-btn"
+                      [class.spinning]="cancelling === r._id"
+                      [disabled]="cancelling === r._id"
+                      (click)="openCancelModal(r)"
+                      title="Cancel"
+                    >
+                      @if (cancelling === r._id) {
+                        <i class="fas fa-circle-notch fa-spin"></i>
+                      } @else {
+                        <i class="fas fa-calendar-times"></i>
+                      }
+                    </button>
+                  </div>
+                }
+              </div>
             }
+          }
 
-            <!-- HISTORY TAB -->
-            @if (activeTab === 'history') {
-              @if (history.length === 0) {
-                <div class="empty-state">
-                  <span>🎾</span>
-                  <p>No past reservations yet.</p>
-                </div>
-              } @else {
-                <div class="res-list">
-                  @for (r of history; track r._id) {
-                    <div class="res-card" [class.cancelled-card]="r.status === 'cancelled'">
-                      <div class="res-left">
-                        <div class="res-court">Court {{ r.court }}</div>
-                        <div class="res-date">{{ r.date | date: 'EEE, MMM d, y' : 'UTC' }}</div>
-                        <div class="res-time">
-                          {{ formatSlot(r.timeSlot) }}
-                          @if (r.hasLights) { <span class="lights-tag">💡 Lights</span> }
-                        </div>
-                        @if (r.players && r.players.length > 0) {
-                          <div class="res-with">with {{ playerNames(r) }}</div>
-                        }
+          <!-- HISTORY -->
+          @if (activeTab === 'history') {
+            @if (history.length === 0) {
+              <div class="dm-empty">
+                <div class="dm-empty-icon"><i class="fas fa-history"></i></div>
+                <p class="dm-empty-text">No past reservations yet</p>
+              </div>
+            } @else {
+              <div class="dm-res-list">
+                @for (r of history; track r._id) {
+                  <div class="dm-res-card" [class.dm-res-cancelled]="r.status === 'cancelled'">
+                    <div class="dm-res-accent"></div>
+                    <div class="dm-res-main">
+                      <div class="dm-res-top">
+                        <span class="dm-res-court">Court {{ r.court }}</span>
+                        <span class="dm-status" [class.dm-status-confirmed]="r.status === 'confirmed'" [class.dm-status-cancelled]="r.status === 'cancelled'">{{ r.status }}</span>
                       </div>
-                      <div class="res-right">
-                        <span class="status-badge status-{{ r.status }}">{{ r.status }}</span>
+                      <div class="dm-res-date">{{ r.date | date: 'EEE, MMM d, y' : 'UTC' }}</div>
+                      <div class="dm-res-time">
+                        <i class="far fa-clock"></i> {{ formatSlot(r.timeSlot) }}
+                        @if (r.hasLights) { <span class="dm-lights-tag"><i class="fas fa-lightbulb"></i> Lights</span> }
                       </div>
-                    </div>
-                  }
-                </div>
-              }
-            }
-
-            <!-- ALL RESERVATIONS TAB -->
-            @if (activeTab === 'all') {
-              @if (allReservations.length === 0) {
-                <div class="empty-state">
-                  <span>🗓️</span>
-                  <p>No reservations on the books.</p>
-                </div>
-              } @else {
-                @for (group of groupedAll; track group.date) {
-                  <div class="date-group">
-                    <div class="date-label">{{ group.date | date: 'EEEE, MMMM d, y' : 'UTC' }}</div>
-                    <div class="res-list">
-                      @for (r of group.items; track r._id) {
-                        <div class="res-card all-card" [class.mine]="isMine(r)">
-                          <div class="res-left">
-                            <div class="res-court">Court {{ r.court }}</div>
-                            <div class="res-time">
-                              {{ formatSlot(r.timeSlot) }}
-                              @if (r.hasLights) { <span class="lights-tag">💡</span> }
-                            </div>
-                            <div class="res-booker">
-                              {{ bookerName(r) }}
-                              @if (isMine(r)) { <span class="you-tag">you</span> }
-                              @if (r.players && r.players.length > 0) {
-                                + {{ playerNames(r) }}
-                              }
-                            </div>
-                          </div>
-                          <div class="res-right">
-                            <span class="status-badge status-confirmed">confirmed</span>
-                          </div>
-                        </div>
+                      @if (r.players && r.players.length > 0) {
+                        <div class="dm-res-with"><i class="fas fa-user-friends"></i> with {{ playerNames(r) }}</div>
                       }
                     </div>
                   </div>
                 }
+              </div>
+            }
+          }
+
+          <!-- ALL -->
+          @if (activeTab === 'all') {
+            @if (allReservations.length === 0) {
+              <div class="dm-empty">
+                <div class="dm-empty-icon"><i class="far fa-calendar"></i></div>
+                <p class="dm-empty-text">No reservations on the books</p>
+              </div>
+            } @else {
+              @for (group of groupedAll; track group.date) {
+                <div class="dm-date-group">
+                  <div class="dm-date-label">{{ group.date | date: 'EEEE, MMMM d' : 'UTC' }}</div>
+                  <div class="dm-res-list">
+                    @for (r of group.items; track r._id) {
+                      <div class="dm-res-card" [class.dm-res-mine]="isMine(r)">
+                        <div class="dm-res-accent"></div>
+                        <div class="dm-res-main">
+                          <div class="dm-res-top">
+                            <span class="dm-res-court">Court {{ r.court }}</span>
+                            <span class="dm-status dm-status-confirmed">confirmed</span>
+                          </div>
+                          <div class="dm-res-time">
+                            <i class="far fa-clock"></i> {{ formatSlot(r.timeSlot) }}
+                            @if (r.hasLights) { <span class="dm-lights-tag"><i class="fas fa-lightbulb"></i></span> }
+                          </div>
+                          <div class="dm-res-booker">
+                            <i class="far fa-user"></i> {{ bookerName(r) }}
+                            @if (isMine(r)) { <span class="dm-you-tag">you</span> }
+                            @if (r.players && r.players.length > 0) { · {{ playerNames(r) }} }
+                          </div>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
               }
             }
-
           }
-        </div>
+
+        }
+
+        <div class="dm-bottom-spacer"></div>
       </div>
+
+      <!-- Bottom navigation -->
+      <nav class="dm-bottom-nav">
+        <button class="dm-nav-item" (click)="navigateTo('/player/dashboard')">
+          <i class="fas fa-home"></i><span>Home</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/reserve')">
+          <i class="fas fa-table-tennis"></i><span>Courts</span>
+        </button>
+        <button class="dm-nav-item dm-nav-active">
+          <i class="far fa-calendar-check"></i><span>Bookings</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/tournaments?tab=rankings')">
+          <i class="fas fa-trophy"></i><span>Rankings</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/profile/edit')">
+          <i class="far fa-user"></i><span>Profile</span>
+        </button>
+      </nav>
     </div>
 
     <!-- Cancel Modal -->
     @if (modalReservation) {
-      <div class="modal-backdrop" (click)="closeCancelModal()">
-        <div class="modal" (click)="$event.stopPropagation()">
-          <div class="modal-icon-wrap">
-            <div class="modal-icon">
-              <i class="fas fa-calendar-times"></i>
-            </div>
+      <div class="dm-modal-backdrop" (click)="closeCancelModal()">
+        <div class="dm-modal" (click)="$event.stopPropagation()">
+          <div class="dm-modal-icon">
+            <i class="fas fa-calendar-times"></i>
           </div>
-          <h3 class="modal-title">Cancel Reservation?</h3>
-          <p class="modal-subtitle">This action cannot be undone.</p>
-          <div class="modal-details">
-            <div class="modal-detail-row">
-              <i class="fas fa-border-all"></i>
-              <span>Court {{ modalReservation.court }}</span>
-            </div>
-            <div class="modal-detail-row">
-              <i class="fas fa-calendar"></i>
-              <span>{{ modalReservation.date | date: 'EEEE, MMMM d, y' : 'UTC' }}</span>
-            </div>
-            <div class="modal-detail-row">
-              <i class="fas fa-clock"></i>
-              <span>{{ formatSlot(modalReservation.timeSlot) }}</span>
-            </div>
+          <h3 class="dm-modal-title">Cancel Reservation?</h3>
+          <p class="dm-modal-sub">This action cannot be undone.</p>
+          <div class="dm-modal-details">
+            <div class="dm-modal-row"><i class="fas fa-border-all"></i> Court {{ modalReservation.court }}</div>
+            <div class="dm-modal-row"><i class="fas fa-calendar"></i> {{ modalReservation.date | date: 'EEEE, MMMM d, y' : 'UTC' }}</div>
+            <div class="dm-modal-row"><i class="fas fa-clock"></i> {{ formatSlot(modalReservation.timeSlot) }}</div>
             @if (modalReservation.hasLights) {
-              <div class="modal-detail-row">
-                <i class="fas fa-lightbulb"></i>
-                <span>With Lights</span>
-              </div>
+              <div class="dm-modal-row"><i class="fas fa-lightbulb"></i> With Lights</div>
             }
           </div>
-          <div class="modal-actions">
-            <button class="modal-btn modal-btn-keep" (click)="closeCancelModal()">
-              Keep It
-            </button>
-            <button
-              class="modal-btn modal-btn-cancel"
-              [disabled]="cancelling !== ''"
-              (click)="confirmCancel()"
-            >
+          <div class="dm-modal-actions">
+            <button class="dm-modal-btn dm-modal-keep" (click)="closeCancelModal()">Keep It</button>
+            <button class="dm-modal-btn dm-modal-cancel" [disabled]="cancelling !== ''" (click)="confirmCancel()">
               @if (cancelling !== '') {
                 <i class="fas fa-circle-notch fa-spin"></i> Cancelling...
               } @else {
-                <i class="fas fa-times"></i> Cancel Reservation
+                <i class="fas fa-times"></i> Cancel It
               }
             </button>
           </div>
@@ -211,194 +220,453 @@ type Tab = 'upcoming' | 'history' | 'all';
     }
   `,
   styles: [`
-    :host { display: block; width: 100%; }
-    .page-wrap {
-      position: relative; min-height: calc(100vh - 60px);
-      display: flex; align-items: flex-start; justify-content: center;
-      padding: 1.5rem;
-      background: linear-gradient(135deg, rgba(0,18,0,.15), rgba(0,18,0,.05));
+    :host {
+      display: block;
+      margin: -1.5rem;
+      width: calc(100% + 3rem);
     }
-    .court-bg {
-      position: absolute; inset: 0;
-      background: url('/tennis-court-surface.png') center/cover no-repeat; z-index: 0;
-    }
-    .court-overlay { position: absolute; inset: 0; background: rgba(0,18,0,.35); z-index: 0; }
-    .page-card {
-      position: relative; z-index: 1; background: #fff;
-      border-radius: 20px; box-shadow: 0 8px 32px rgba(0,0,0,.45);
-      width: 100%; max-width: 680px; overflow: hidden;
-    }
-    .card-header {
-      background: linear-gradient(135deg, #9f7338 0%, #c9a15d 100%);
-      padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 1rem;
-    }
-    .back-btn {
-      background: rgba(255,255,255,.2); border: none; color: #fff;
-      padding: .4rem .9rem; border-radius: 8px; cursor: pointer; font-size: .85rem; transition: background .2s;
-    }
-    .back-btn:hover { background: rgba(255,255,255,.35); }
-    .card-header h2 { color: #fff; margin: 0; font-size: 1.3rem; flex: 1; }
-    .new-btn {
-      background: rgba(255,255,255,.2); border: none; color: #fff;
-      padding: .4rem .9rem; border-radius: 8px; cursor: pointer;
-      font-size: .85rem; font-weight: 700; transition: background .2s;
-    }
-    .new-btn:hover { background: rgba(255,255,255,.35); }
-
-    /* Tabs */
-    .tabs { display: flex; border-bottom: 2px solid #e5e7eb; background: #fafff8; }
-    .tab-btn {
-      flex: 1; padding: .85rem .5rem; border: none; background: transparent;
-      font-size: .88rem; font-weight: 600; color: #6b7280; cursor: pointer;
-      border-bottom: 3px solid transparent; margin-bottom: -2px;
-      transition: all .2s; display: flex; align-items: center; justify-content: center; gap: .4rem;
-    }
-    .tab-btn:hover { color: #9f7338; background: #f8f1e4; }
-    .tab-btn.active { color: #9f7338; border-bottom-color: #9f7338; background: #fff; }
-    .tab-badge {
-      background: #9f7338; color: #fff;
-      border-radius: 10px; padding: .1rem .45rem; font-size: .72rem; font-weight: 700;
+    @media (min-width: 769px) {
+      :host { margin: 0; width: 100%; }
     }
 
-    .card-body { padding: 1.5rem; }
-    .loading { color: #666; padding: 2rem 0; text-align: center; }
-
-    .empty-state { text-align: center; padding: 3rem 1rem; color: #666; }
-    .empty-state span { font-size: 3rem; display: block; margin-bottom: .5rem; }
-    .empty-state p { margin-bottom: 1.25rem; }
-    .cta-btn {
-      padding: .65rem 1.5rem;
-      background: linear-gradient(135deg, #9f7338 0%, #c9a15d 100%);
-      color: #fff; border: none; border-radius: 10px; font-size: .95rem; font-weight: 700; cursor: pointer;
+    /* ── Shell ── */
+    .dm-shell {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 60px);
+      max-width: 480px;
+      margin: 0 auto;
+      background: #0c1a11;
+      font-family: inherit;
     }
 
-    /* Reservation cards */
-    .res-list { display: flex; flex-direction: column; gap: .65rem; }
-    .res-card {
-      background: #fafafa; border-radius: 12px;
-      padding: .9rem 1.1rem; border-left: 4px solid #e5e7eb;
-      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    /* ── Header ── */
+    .dm-header {
+      background: #0c1a11;
+      padding: 1rem 1.1rem 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-shrink: 0;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
     }
-    .upcoming-card { border-left-color: #9f7338; }
-    .cancelled-card { border-left-color: #9ca3af; opacity: .7; }
-    .all-card { border-left-color: #d1d5db; }
-    .all-card.mine { border-left-color: #9f7338; background: #f8f1e4; }
+    .dm-back-btn {
+      background: rgba(255,255,255,0.08);
+      border: none;
+      color: #a3e635;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    .dm-back-btn:hover { background: rgba(255,255,255,0.14); }
+    .dm-header-title {
+      color: #ffffff;
+      font-size: 1.05rem;
+      font-weight: 800;
+      flex: 1;
+      letter-spacing: -0.2px;
+    }
+    .dm-reserve-btn {
+      background: #a3e635;
+      color: #0a1f00;
+      border: none;
+      border-radius: 20px;
+      padding: 0.35rem 0.9rem;
+      font-size: 0.78rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .dm-reserve-btn:hover { background: #b8f040; }
 
-    .res-court { font-weight: 800; color: #9f7338; font-size: .95rem; }
-    .res-date { font-size: .85rem; color: #374151; margin-top: .15rem; }
-    .res-time {
-      font-size: .88rem; font-weight: 600; color: #1a1a1a;
-      margin-top: .1rem; display: flex; align-items: center; gap: .35rem; flex-wrap: wrap;
+    /* ── Tabs ── */
+    .dm-tabs {
+      display: flex;
+      background: #0c1a11;
+      padding: 0.75rem 1rem 0;
+      gap: 0.5rem;
+      flex-shrink: 0;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
     }
-    .res-booker { font-size: .8rem; color: #6b7280; margin-top: .15rem; }
-    .res-with { font-size: .8rem; color: #6b7280; margin-top: .1rem; font-style: italic; }
-    .lights-tag { font-size: .78rem; color: #92400e; background: #fef3c7; border-radius: 4px; padding: .1rem .35rem; }
-    .you-tag {
-      display: inline-block; background: #f4ead6; color: #7a5626;
-      border-radius: 4px; padding: .05rem .35rem; font-size: .72rem; font-weight: 700;
-      margin-left: .25rem; vertical-align: middle;
+    .dm-tab {
+      flex: 1;
+      padding: 0.5rem 0.4rem;
+      background: rgba(255,255,255,0.05);
+      border: none;
+      border-radius: 8px 8px 0 0;
+      color: rgba(255,255,255,0.45);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      font-family: inherit;
     }
-
-    .res-right { display: flex; flex-direction: column; align-items: flex-end; gap: .45rem; flex-shrink: 0; }
-    .status-badge {
-      padding: .2rem .6rem; border-radius: 10px; font-size: .76rem; font-weight: 700; text-transform: capitalize;
+    .dm-tab:hover { color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.08); }
+    .dm-tab-active {
+      background: rgba(163,230,53,0.12);
+      color: #a3e635;
+      border-bottom: 2px solid #a3e635;
     }
-    .status-confirmed { background: #f4ead6; color: #7a5626; }
-    .status-cancelled { background: #f3f4f6; color: #6b7280; }
-
-    /* Icon cancel button */
-    .icon-cancel-btn {
-      width: 34px; height: 34px; border-radius: 50%;
-      border: none; background: #fff0f0; color: #ef4444;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; font-size: .95rem;
-      box-shadow: 0 1px 4px rgba(239,68,68,.2);
-      transition: all .22s;
-    }
-    .icon-cancel-btn:hover:not(:disabled) {
-      background: #ef4444; color: #fff;
-      box-shadow: 0 4px 12px rgba(239,68,68,.35);
-      transform: scale(1.1);
-    }
-    .icon-cancel-btn:disabled { opacity: .45; cursor: not-allowed; }
-
-    /* Date groups */
-    .date-group { margin-bottom: 1.5rem; }
-    .date-label {
-      font-size: .8rem; font-weight: 700; color: #9f7338;
-      text-transform: uppercase; letter-spacing: .6px;
-      padding: .3rem 0 .6rem; border-bottom: 1px solid #e5e7eb; margin-bottom: .65rem;
+    .dm-tab-badge {
+      background: #a3e635;
+      color: #0a1f00;
+      border-radius: 10px;
+      padding: 0.05rem 0.4rem;
+      font-size: 0.65rem;
+      font-weight: 800;
     }
 
-    /* Cancel Modal */
-    .modal-backdrop {
-      position: fixed; inset: 0; z-index: 1000;
-      background: rgba(0,0,0,.55); backdrop-filter: blur(4px);
-      display: flex; align-items: center; justify-content: center;
+    /* ── Scrollable body ── */
+    .dm-body {
+      flex: 1;
+      overflow-y: auto;
       padding: 1rem;
-      animation: fadeIn .18s ease;
+      -webkit-overflow-scrolling: touch;
+      background: #0c1a11;
+    }
+    .dm-bottom-spacer { height: 80px; }
+
+    /* ── Loading / Empty ── */
+    .dm-loading {
+      text-align: center;
+      color: rgba(255,255,255,0.35);
+      padding: 3rem 1rem;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .dm-empty {
+      text-align: center;
+      padding: 3rem 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .dm-empty-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(163,230,53,0.1);
+      color: #a3e635;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+    }
+    .dm-empty-text { color: rgba(255,255,255,0.4); font-size: 0.88rem; margin: 0; }
+    .dm-cta-btn {
+      background: #a3e635;
+      color: #0a1f00;
+      border: none;
+      border-radius: 20px;
+      padding: 0.5rem 1.25rem;
+      font-size: 0.85rem;
+      font-weight: 800;
+      cursor: pointer;
+      margin-top: 0.25rem;
+      transition: background 0.2s;
+    }
+    .dm-cta-btn:hover { background: #b8f040; }
+
+    /* ── Reservation cards ── */
+    .dm-res-list { display: flex; flex-direction: column; gap: 0.65rem; }
+    .dm-res-card {
+      background: #1b3028;
+      border-radius: 12px;
+      display: flex;
+      align-items: stretch;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      transition: transform 0.15s;
+    }
+    .dm-res-card:hover { transform: translateY(-1px); }
+    .dm-res-accent {
+      width: 4px;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.12);
+    }
+    .dm-res-upcoming .dm-res-accent { background: #a3e635; }
+    .dm-res-mine .dm-res-accent { background: #a3e635; }
+    .dm-res-cancelled { opacity: 0.6; }
+    .dm-res-cancelled .dm-res-accent { background: rgba(255,255,255,0.15); }
+
+    .dm-res-main {
+      flex: 1;
+      padding: 0.85rem 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      min-width: 0;
+    }
+    .dm-res-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.1rem;
+    }
+    .dm-res-court {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: #a3e635;
+    }
+    .dm-res-date {
+      font-size: 0.82rem;
+      color: rgba(255,255,255,0.75);
+      font-weight: 600;
+    }
+    .dm-res-time {
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.55);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }
+    .dm-res-time i { color: rgba(255,255,255,0.3); font-size: 0.72rem; }
+    .dm-res-with, .dm-res-booker {
+      font-size: 0.74rem;
+      color: rgba(255,255,255,0.38);
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      margin-top: 0.05rem;
+    }
+    .dm-res-with i, .dm-res-booker i { font-size: 0.68rem; }
+    .dm-lights-tag {
+      background: rgba(245,158,11,0.14);
+      color: #f59e0b;
+      border-radius: 4px;
+      padding: 0.1rem 0.35rem;
+      font-size: 0.68rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
+    .dm-you-tag {
+      background: rgba(163,230,53,0.14);
+      color: #a3e635;
+      border-radius: 4px;
+      padding: 0.05rem 0.35rem;
+      font-size: 0.65rem;
+      font-weight: 700;
+    }
+
+    /* Status badges */
+    .dm-status {
+      font-size: 0.68rem;
+      font-weight: 700;
+      border-radius: 8px;
+      padding: 0.18rem 0.5rem;
+      text-transform: capitalize;
+    }
+    .dm-status-confirmed { background: rgba(163,230,53,0.14); color: #a3e635; }
+    .dm-status-cancelled { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.35); }
+
+    /* Cancel button */
+    .dm-cancel-btn {
+      width: 44px;
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.25);
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      border-left: 1px solid rgba(255,255,255,0.06);
+    }
+    .dm-cancel-btn:hover:not(:disabled) { color: #ef4444; background: rgba(239,68,68,0.08); }
+    .dm-cancel-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Date groups (All tab) */
+    .dm-date-group { margin-bottom: 1.25rem; }
+    .dm-date-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding-bottom: 0.5rem;
+      margin-bottom: 0.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+
+    /* ── Bottom Navigation ── */
+    .dm-bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      background: #111f16;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      align-items: stretch;
+      height: 62px;
+      z-index: 200;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+    }
+    .dm-nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.18rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: rgba(255,255,255,0.35);
+      font-size: 0.6rem;
+      font-weight: 600;
+      transition: color 0.2s;
+      padding: 0;
+      font-family: inherit;
+    }
+    .dm-nav-item i { font-size: 1.1rem; }
+    .dm-nav-item.dm-nav-active { color: #a3e635; }
+
+    /* ── Cancel Modal ── */
+    .dm-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      animation: fadeIn 0.18s ease;
     }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-    .modal {
-      background: #fff; border-radius: 20px;
-      padding: 2rem 1.75rem; width: 100%; max-width: 380px;
-      box-shadow: 0 24px 60px rgba(0,0,0,.3);
-      display: flex; flex-direction: column; align-items: center; text-align: center;
-      animation: slideUp .22s cubic-bezier(.34,1.56,.64,1);
+    .dm-modal {
+      background: #1b3028;
+      border-radius: 20px;
+      padding: 2rem 1.75rem;
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      animation: slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1);
+      border: 1px solid rgba(255,255,255,0.08);
     }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(24px) scale(.96); } to { opacity: 1; transform: none; } }
-
-    .modal-icon-wrap { margin-bottom: 1rem; }
-    .modal-icon {
-      width: 60px; height: 60px; border-radius: 50%;
-      background: #fff0f0; color: #ef4444;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.6rem;
-      box-shadow: 0 0 0 8px rgba(239,68,68,.08);
+    @keyframes slideUp { from { opacity: 0; transform: translateY(24px) scale(0.96); } to { opacity: 1; transform: none; } }
+    .dm-modal-icon {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: rgba(239,68,68,0.12);
+      color: #ef4444;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 0 0 8px rgba(239,68,68,0.06);
     }
-    .modal-title { font-size: 1.2rem; font-weight: 800; color: #111; margin: 0 0 .35rem; }
-    .modal-subtitle { font-size: .88rem; color: #6b7280; margin: 0 0 1.25rem; }
-
-    .modal-details {
-      width: 100%; background: #f9fafb; border-radius: 12px;
-      padding: .85rem 1rem; margin-bottom: 1.5rem;
-      display: flex; flex-direction: column; gap: .5rem;
+    .dm-modal-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin: 0 0 0.3rem;
     }
-    .modal-detail-row {
-      display: flex; align-items: center; gap: .65rem;
-      font-size: .88rem; color: #374151; text-align: left;
+    .dm-modal-sub {
+      font-size: 0.82rem;
+      color: rgba(255,255,255,0.4);
+      margin: 0 0 1.25rem;
     }
-    .modal-detail-row i { color: #9f7338; width: 16px; text-align: center; flex-shrink: 0; }
-
-    .modal-actions { display: flex; gap: .75rem; width: 100%; }
-    .modal-btn {
-      flex: 1; padding: .75rem; border-radius: 10px; border: none;
-      font-size: .92rem; font-weight: 700; cursor: pointer; transition: all .2s;
-      display: flex; align-items: center; justify-content: center; gap: .4rem;
+    .dm-modal-details {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
     }
-    .modal-btn-keep {
-      background: #f3f4f6; color: #374151;
+    .dm-modal-row {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.75);
+      text-align: left;
     }
-    .modal-btn-keep:hover { background: #e5e7eb; }
-    .modal-btn-cancel {
+    .dm-modal-row i { color: #a3e635; width: 14px; text-align: center; flex-shrink: 0; }
+    .dm-modal-actions { display: flex; gap: 0.75rem; width: 100%; }
+    .dm-modal-btn {
+      flex: 1;
+      padding: 0.75rem;
+      border-radius: 10px;
+      border: none;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      font-family: inherit;
+    }
+    .dm-modal-keep {
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.7);
+    }
+    .dm-modal-keep:hover { background: rgba(255,255,255,0.13); }
+    .dm-modal-cancel {
       background: linear-gradient(135deg, #dc2626, #ef4444);
-      color: #fff; box-shadow: 0 4px 12px rgba(239,68,68,.3);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(239,68,68,0.3);
     }
-    .modal-btn-cancel:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
-    .modal-btn-cancel:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+    .dm-modal-cancel:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .dm-modal-cancel:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 
-    @media (max-width: 480px) {
-      .page-wrap { padding: 1rem; }
-      .card-body { padding: 1rem; }
-      .tab-btn { font-size: .8rem; padding: .75rem .25rem; }
-      .modal { padding: 1.5rem 1.25rem; }
-      .modal-actions { flex-direction: column-reverse; }
+    /* ── Desktop ── */
+    @media (min-width: 769px) {
+      .dm-shell {
+        max-width: 720px;
+        height: auto;
+        min-height: calc(100vh - 60px);
+      }
+      .dm-body {
+        overflow-y: visible;
+        padding: 1.5rem 2rem 2rem;
+      }
+      .dm-bottom-nav { display: none; }
+      .dm-bottom-spacer { display: none; }
+      .dm-tabs { padding: 0.85rem 2rem 0; }
     }
   `],
 })
-export class MyReservationsComponent implements OnInit {
+export class MyReservationsComponent implements OnInit, OnDestroy {
   activeTab: Tab = 'upcoming';
   loading = true;
   cancelling = '';
@@ -435,9 +703,19 @@ export class MyReservationsComponent implements OnInit {
     private reservationService: ReservationService,
     private router: Router,
     private cdr: ChangeDetectorRef,
+    private renderer: Renderer2,
   ) {}
 
-  ngOnInit() { this.load(); }
+  ngOnInit() {
+    this.renderer.addClass(document.documentElement, 'dark-player-page');
+    this.renderer.addClass(document.body, 'dark-player-page');
+    this.load();
+  }
+
+  ngOnDestroy() {
+    this.renderer.removeClass(document.documentElement, 'dark-player-page');
+    this.renderer.removeClass(document.body, 'dark-player-page');
+  }
 
   load() {
     this.loading = true;
@@ -517,8 +795,16 @@ export class MyReservationsComponent implements OnInit {
     });
   }
 
+  navigateTo(route: string) {
+    const [path, query] = route.split('?');
+    if (query) {
+      const queryParams = Object.fromEntries(new URLSearchParams(query));
+      this.router.navigate([path], { queryParams });
+    } else {
+      this.router.navigate([path]);
+    }
+  }
+
   goBack() { this.router.navigate(['/player/dashboard']); }
   reserve() { this.router.navigate(['/player/reserve']); }
 }
-
-

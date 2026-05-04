@@ -162,31 +162,32 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
   styles: [
     `
       :host {
-        --ink: #11242a;
-        --teal-700: #11616b;
-        --teal-600: #1b7682;
-        --teal-100: #dcf3f6;
-        --sand: #f8f2e7;
-        --line: rgba(17, 36, 42, 0.13);
-        --danger: #b73131;
-        --card-bg: rgba(255, 255, 255, 0.95);
+        --ink: #ffffff;
+        --gold: var(--dm-accent);
+        --gold-dark: rgba(163,230,53,0.9);
+        --gold-light: rgba(163,230,53,0.08);
+        --warm-bg: var(--dm-surface);
+        --line: rgba(163,230,53,0.12);
+        --danger: #fca5a5;
+        --card-bg: var(--dm-surface);
         display: block;
-        font-family: 'Manrope', 'Segoe UI', 'Helvetica Neue', sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        background: var(--dm-bg);
       }
 
       .dashboard-shell {
         display: grid;
         gap: 1rem;
+        padding: 1.5rem;
+        min-height: calc(100vh - 60px);
       }
 
       .hero-panel {
-        background:
-          radial-gradient(circle at top right, rgba(242, 183, 75, 0.3), transparent 45%),
-          linear-gradient(145deg, var(--sand), #ffffff);
-        border: 1px solid var(--line);
+        background: var(--dm-header);
+        border: 1px solid rgba(163,230,53,0.12);
         border-radius: 18px;
         padding: 1rem 1.2rem;
-        box-shadow: 0 10px 28px rgba(7, 25, 29, 0.12);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.32);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -199,19 +200,22 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         letter-spacing: 0.12em;
         text-transform: uppercase;
         font-weight: 800;
-        color: var(--teal-700);
+        color: var(--gold);
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
       }
 
       .hero-panel h2 {
         margin: 0;
         font-size: 1.42rem;
-        color: var(--ink);
+        color: #ffffff;
         letter-spacing: -0.02em;
       }
 
       .hero-subtitle {
         margin: 0.38rem 0 0;
-        color: rgba(17, 36, 42, 0.72);
+        color: rgba(255,255,255,0.7);
         font-size: 0.91rem;
       }
 
@@ -237,27 +241,33 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         border: 1px solid transparent;
         transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
         white-space: nowrap;
+        cursor: pointer;
+        font-family: inherit;
       }
 
       .btn-primary {
-        background: linear-gradient(145deg, var(--teal-600), #165a63);
-        color: #ffffff;
-        box-shadow: 0 8px 16px rgba(22, 90, 99, 0.25);
+        background: var(--gold);
+        color: #111827;
+        border-color: var(--gold);
+        box-shadow: 0 2px 8px rgba(163,230,53,0.24);
       }
 
       .btn-primary:hover {
+        background: var(--gold-dark);
+        border-color: var(--gold-dark);
         transform: translateY(-1px);
-        box-shadow: 0 10px 18px rgba(22, 90, 99, 0.32);
+        box-shadow: 0 4px 12px rgba(163,230,53,0.32);
       }
 
       .btn-secondary {
-        background: #ffffff;
-        border-color: rgba(17, 36, 42, 0.18);
-        color: var(--ink);
+        background: rgba(255,255,255,0.08);
+        border-color: rgba(163,230,53,0.24);
+        color: var(--gold);
       }
 
       .btn-secondary:hover {
-        background: #f3f8f9;
+        background: rgba(255,255,255,0.12);
+        border-color: rgba(163,230,53,0.4);
         transform: translateY(-1px);
       }
 
@@ -266,11 +276,11 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         border: 1px solid var(--line);
         border-radius: 16px;
         padding: 1rem;
-        box-shadow: 0 8px 24px rgba(12, 23, 27, 0.1);
+        box-shadow: 0 2px 12px rgba(0,0,0,0.24);
       }
 
       .state-error {
-        color: var(--danger);
+        color: #fca5a5;
         display: grid;
         justify-items: center;
         gap: 0.55rem;
@@ -294,10 +304,10 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
       .skeleton-card {
         height: 135px;
         border-radius: 14px;
-        background: linear-gradient(110deg, #eaf1f3 8%, #f8fbfc 18%, #eaf1f3 33%);
+        background: linear-gradient(110deg, rgba(255,255,255,0.06) 8%, rgba(255,255,255,0.1) 18%, rgba(255,255,255,0.06) 33%);
         background-size: 200% 100%;
         animation: shimmer 1.1s linear infinite;
-        border: 1px solid rgba(17, 36, 42, 0.07);
+        border: 1px solid rgba(163,230,53,0.08);
       }
 
       .stats-grid {
@@ -311,7 +321,7 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         border: 1px solid var(--line);
         border-radius: 14px;
         padding: 0.95rem;
-        box-shadow: 0 8px 20px rgba(10, 20, 23, 0.1);
+        box-shadow: 0 2px 12px rgba(0,0,0,0.24);
         display: grid;
         gap: 0.55rem;
       }
@@ -334,13 +344,13 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
 
       .stat-label {
         font-size: 0.84rem;
-        color: rgba(17, 36, 42, 0.78);
+        color: rgba(255,255,255,0.72);
         font-weight: 700;
       }
 
       .stat-value {
         margin: 0;
-        color: var(--ink);
+        color: #ffffff;
         font-size: 1.45rem;
         font-weight: 800;
         line-height: 1.15;
@@ -348,7 +358,7 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
       }
 
       .stat-link {
-        color: var(--teal-700);
+        color: var(--gold);
         font-size: 0.83rem;
         font-weight: 700;
         text-decoration: none;
@@ -360,21 +370,21 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
 
       .stat-pending .stat-icon,
       .stat-approvals .stat-icon {
-        background: #fff4da;
-        border-color: rgba(245, 158, 11, 0.32);
-        color: #9f5f06;
+        background: rgba(245,158,11,0.12);
+        border-color: rgba(245,158,11,0.2);
+        color: #fcd34d;
       }
 
       .stat-sessions .stat-icon {
-        background: #def3f6;
-        border-color: rgba(27, 118, 130, 0.33);
-        color: #15646e;
+        background: rgba(163,230,53,0.12);
+        border-color: rgba(163,230,53,0.2);
+        color: var(--gold);
       }
 
       .stat-unpaid .stat-icon {
-        background: #ffecec;
-        border-color: rgba(183, 49, 49, 0.34);
-        color: #ab2828;
+        background: rgba(239,68,68,0.12);
+        border-color: rgba(239,68,68,0.2);
+        color: #fca5a5;
       }
 
       .approvals-section,
@@ -383,7 +393,7 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         border: 1px solid var(--line);
         border-radius: 16px;
         padding: 0.95rem;
-        box-shadow: 0 8px 22px rgba(10, 20, 23, 0.1);
+        box-shadow: 0 8px 22px rgba(0,0,0,0.32);
       }
 
       .section-header {
@@ -399,18 +409,18 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         font-size: 0.72rem;
         text-transform: uppercase;
         letter-spacing: 0.1em;
-        color: var(--teal-700);
+        color: var(--gold);
         font-weight: 800;
       }
 
       .section-header h3 {
         margin: 0.1rem 0 0;
         font-size: 1rem;
-        color: var(--ink);
+        color: #ffffff;
       }
 
       .section-link {
-        color: var(--teal-700);
+        color: var(--gold);
         font-size: 0.82rem;
         font-weight: 700;
         text-decoration: none;
@@ -426,8 +436,8 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
       }
 
       .approval-row {
-        background: #fffbef;
-        border: 1px solid #f7d995;
+        background: rgba(163,230,53,0.06);
+        border: 1px solid rgba(163,230,53,0.12);
         border-radius: 10px;
         padding: 0.62rem 0.7rem;
         display: flex;
@@ -445,14 +455,14 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
       .approval-player {
         margin: 0;
         font-size: 0.9rem;
-        color: var(--ink);
+        color: #ffffff;
         font-weight: 800;
       }
 
       .approval-detail {
         margin: 0.2rem 0 0;
         font-size: 0.78rem;
-        color: rgba(17, 36, 42, 0.7);
+        color: rgba(255,255,255,0.7);
       }
 
       .approval-actions {
@@ -464,7 +474,7 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
       }
 
       .approval-amt {
-        color: var(--teal-700);
+        color: var(--gold);
         font-size: 0.93rem;
         font-weight: 800;
       }
@@ -478,14 +488,14 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
       }
 
       .btn-approve-sm {
-        border: 1px solid rgba(20, 117, 52, 0.35);
-        background: #1d8f44;
-        color: #ffffff;
+        border: 1px solid rgba(163,230,53,0.28);
+        background: rgba(163,230,53,0.16);
+        color: var(--gold);
         cursor: pointer;
       }
 
       .btn-approve-sm:hover:not(:disabled) {
-        background: #18793a;
+        background: rgba(163,230,53,0.24);
       }
 
       .btn-approve-sm:disabled {
@@ -494,22 +504,22 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
       }
 
       .btn-review-sm {
-        background: #ffffff;
-        color: var(--ink);
-        border: 1px solid rgba(17, 36, 42, 0.22);
+        background: rgba(255,255,255,0.06);
+        color: var(--gold);
+        border: 1px solid rgba(163,230,53,0.24);
         text-decoration: none;
       }
 
       .btn-review-sm:hover {
-        background: #eff6f8;
+        background: rgba(255,255,255,0.1);
       }
 
       .approvals-empty {
-        background: #f3f7f8;
-        border: 1px dashed rgba(17, 36, 42, 0.2);
+        background: rgba(255,255,255,0.03);
+        border: 1px dashed rgba(255,255,255,0.1);
         border-radius: 10px;
         padding: 0.8rem;
-        color: rgba(17, 36, 42, 0.74);
+        color: rgba(255,255,255,0.6);
         font-size: 0.88rem;
       }
 
@@ -517,11 +527,11 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         margin-top: 0.45rem;
         text-align: center;
         font-size: 0.8rem;
-        color: rgba(17, 36, 42, 0.74);
+        color: rgba(255,255,255,0.6);
       }
 
       .approvals-overflow a {
-        color: var(--teal-700);
+        color: var(--gold);
         text-decoration: none;
         font-weight: 700;
       }
@@ -537,30 +547,30 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
       }
 
       .action-card {
-        background: #ffffff;
-        border: 1px solid rgba(17, 36, 42, 0.13);
+        background: var(--dm-surface);
+        border: 1px solid rgba(163,230,53,0.12);
         border-radius: 12px;
         padding: 0.8rem;
         text-decoration: none;
-        color: var(--ink);
+        color: #ffffff;
         display: grid;
         gap: 0.34rem;
-        box-shadow: 0 6px 16px rgba(12, 20, 24, 0.09);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.24);
         transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
       }
 
       .action-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 10px 22px rgba(12, 20, 24, 0.15);
-        border-color: rgba(27, 118, 130, 0.4);
+        box-shadow: 0 10px 22px rgba(163,230,53,0.12);
+        border-color: rgba(163,230,53,0.28);
       }
 
       .action-icon {
         width: 32px;
         height: 32px;
         border-radius: 8px;
-        background: #e6f4f7;
-        color: #125e68;
+        background: rgba(163,230,53,0.12);
+        color: var(--gold);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -574,7 +584,7 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
 
       .action-sub {
         font-size: 0.78rem;
-        color: rgba(17, 36, 42, 0.72);
+        color: rgba(255,255,255,0.72);
       }
 
       @keyframes shimmer {

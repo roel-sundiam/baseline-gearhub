@@ -25,63 +25,72 @@ interface AdminUser {
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
-    <section class="clubs-page">
+    <div class="clubs-page">
+
+      <!-- ── Hero ── -->
       <header class="hero-panel">
-        <div>
-          <p class="hero-kicker">Superadmin Workspace</p>
-          <h2>Club Portfolio</h2>
-          <p class="hero-subtitle">Manage clubs, update details, and keep your network organized.</p>
+        <div class="hero-left">
+          <p class="hero-kicker"><i class="fas fa-shield-alt"></i> Superadmin Workspace</p>
+          <h2 class="hero-title">Club Portfolio</h2>
+          <p class="hero-sub">Manage clubs, admins, payments, and app service fees.</p>
         </div>
         <div class="hero-actions">
           <span class="count-chip">
             <i class="fas fa-shield-alt"></i>
             {{ clubs.length }} {{ clubs.length === 1 ? 'Club' : 'Clubs' }}
           </span>
-          <a routerLink="/player/dashboard" class="btn-player">
-            <i class="fas fa-user"></i>
-            Player Dashboard
+          <a routerLink="/player/dashboard" class="btn btn-purple">
+            <i class="fas fa-user"></i> Player Dashboard
           </a>
-          <a routerLink="/admin/clubs/new" class="btn-create">
-            <i class="fas fa-plus"></i>
-            New Club
+          <a routerLink="/admin/clubs/new" class="btn btn-primary">
+            <i class="fas fa-plus"></i> New Club
           </a>
         </div>
       </header>
 
+      <!-- ── Loading skeleton ── -->
       @if (loading) {
-        <section class="state-card">
-          <div class="skeleton-grid">
-            @for (item of [1, 2, 3]; track item) {
-              <div class="skeleton-item"></div>
-            }
-          </div>
-        </section>
-      } @else if (error) {
-        <section class="state-card state-error">
+        <div class="skeleton-grid">
+          @for (i of [1,2,3]; track i) {
+            <div class="skeleton-card"></div>
+          }
+        </div>
+      }
+
+      <!-- ── Error ── -->
+      @else if (error) {
+        <div class="state-card state-error">
           <i class="fas fa-triangle-exclamation"></i>
           <p>{{ error }}</p>
-          <button type="button" class="btn-outline" (click)="loadClubs()">Try Again</button>
-        </section>
-      } @else if (clubs.length === 0) {
-        <section class="state-card state-empty">
+          <button type="button" class="btn btn-outline" (click)="loadClubs()">Try Again</button>
+        </div>
+      }
+
+      <!-- ── Empty ── -->
+      @else if (clubs.length === 0) {
+        <div class="state-card state-empty">
           <i class="fas fa-shield-alt"></i>
           <h3>No clubs yet</h3>
           <p>Create your first club to get started.</p>
-          <a routerLink="/admin/clubs/new" class="btn-create">Create Club</a>
-        </section>
-      } @else {
-        <section class="clubs-grid">
+          <a routerLink="/admin/clubs/new" class="btn btn-primary">Create Club</a>
+        </div>
+      }
+
+      <!-- ── Club grid ── -->
+      @else {
+        <div class="clubs-grid">
           @for (club of clubs; track club._id) {
             <article
               class="club-card"
-              [class.active]="selectedClub?._id === club._id"
+              [class.selected]="selectedClub?._id === club._id"
               (click)="selectClub(club)"
               role="button"
               tabindex="0"
               (keydown.enter)="selectClub(club)"
               (keydown.space)="selectClub(club); $event.preventDefault()"
             >
-              <div class="card-topline"></div>
+              <div class="card-accent"></div>
+
               <div class="club-head">
                 @if (club.logo) {
                   <img [src]="club.logo" [alt]="club.name" class="club-logo" />
@@ -90,71 +99,70 @@ interface AdminUser {
                 }
                 <div class="club-identity">
                   <h3>{{ club.name }}</h3>
-                  <p>Club ID: {{ club._id }}</p>
+                  <p class="club-id">{{ club._id }}</p>
                 </div>
               </div>
 
-              <div class="club-meta">
-                <span class="meta-pill">
-                  <i class="fas fa-location-dot"></i>
-                  {{ club.location || 'Location not set' }}
-                </span>
-                @if (club.createdAt) {
-                  <span class="meta-pill">
-                    <i class="fas fa-calendar-days"></i>
-                    Added {{ formatDate(club.createdAt) }}
+              <div class="club-pills">
+                @if (club.location) {
+                  <span class="pill pill-default">
+                    <i class="fas fa-location-dot"></i> {{ club.location }}
                   </span>
                 }
-                <span class="meta-pill coin-pill">
-                  <i class="fas fa-coins"></i>
-                  {{ club.coinBalance ?? 0 }} coins
+                @if (club.createdAt) {
+                  <span class="pill pill-default">
+                    <i class="fas fa-calendar-days"></i> {{ formatDate(club.createdAt) }}
+                  </span>
+                }
+                <span class="pill pill-coin">
+                  <i class="fas fa-coins"></i> {{ club.coinBalance ?? 0 }} coins
                 </span>
                 @if (auth.isSuperAdmin() && (pendingCounts[club._id] ?? 0) > 0) {
-                  <span class="meta-pill pending-pill">
-                    <i class="fas fa-clock"></i>
-                    {{ pendingCounts[club._id] }} pending
+                  <span class="pill pill-pending">
+                    <i class="fas fa-clock"></i> {{ pendingCounts[club._id] }} pending
                   </span>
                 }
               </div>
 
               <div class="club-actions">
-                <button type="button" class="btn-admin" (click)="$event.stopPropagation(); selectClub(club)">
+                <button type="button" class="btn btn-sm btn-primary" (click)="$event.stopPropagation(); selectClub(club)">
                   <i class="fas fa-user-cog"></i> Admins
                 </button>
-                <a [routerLink]="['/admin/clubs', club._id, 'edit']" class="btn-outline" (click)="$event.stopPropagation()">
+                <a [routerLink]="['/admin/clubs', club._id, 'edit']" class="btn btn-sm btn-outline" (click)="$event.stopPropagation()">
                   <i class="fas fa-pen"></i> Edit
                 </a>
-                <button type="button" class="btn-danger" (click)="$event.stopPropagation(); deleteClub(club)">
+                <button type="button" class="btn btn-sm btn-danger" (click)="$event.stopPropagation(); deleteClub(club)">
                   <i class="fas fa-trash"></i> Delete
                 </button>
               </div>
             </article>
           }
-        </section>
+        </div>
 
+        <!-- ── Detail module ── -->
         @if (selectedClub) {
-          <section class="admin-module">
-            <header class="admin-module-header">
+          <section class="detail-panel">
+
+            <div class="detail-header">
               <div>
-                <p class="hero-kicker">Club Module</p>
-                <h3>{{ selectedClub.name }}</h3>
-                <p>Manage admins, payments, and app service fees for this club.</p>
+                <p class="hero-kicker" style="margin:0 0 0.15rem"><i class="fas fa-shield-alt"></i> {{ selectedClub.name }}</p>
+                <p class="detail-sub">Manage admins, payments, and app service fees for this club.</p>
               </div>
               @if (activeTab === 'admins') {
-                <button type="button" class="btn-create" (click)="showAdminForm = !showAdminForm">
+                <button type="button" class="btn btn-primary" (click)="showAdminForm = !showAdminForm">
                   <i class="fas" [class.fa-plus]="!showAdminForm" [class.fa-times]="showAdminForm"></i>
-                  {{ showAdminForm ? 'Close Form' : 'Add Club Admin' }}
+                  {{ showAdminForm ? 'Close Form' : 'Add Admin' }}
                 </button>
               }
               @if (activeTab === 'appfees' && aspBalance > 0 && !aspLoading) {
-                <button type="button" class="btn-create" (click)="openAspModal()">
+                <button type="button" class="btn btn-primary" (click)="openAspModal()">
                   <i class="fas fa-paper-plane"></i> Record Payment
                 </button>
               }
-            </header>
+            </div>
 
-            <!-- Tabs -->
-            <div class="module-tabs">
+            <!-- Menu Bar -->
+            <div class="tabs-bar clubs-menu-bar">
               <button type="button" class="tab-btn" [class.tab-active]="activeTab === 'admins'" (click)="setTab('admins')">
                 <i class="fas fa-user-cog"></i> Admins
               </button>
@@ -180,253 +188,241 @@ interface AdminUser {
             <!-- ── ADMINS TAB ── -->
             @if (activeTab === 'admins') {
               @if (showAdminForm) {
-                <section class="admin-form-card">
-                  @if (adminFormError) { <div class="form-alert error">{{ adminFormError }}</div> }
-                  @if (adminFormSuccess) { <div class="form-alert success">{{ adminFormSuccess }}</div> }
+                <div class="form-card">
+                  @if (adminFormError) { <div class="form-alert form-alert-error">{{ adminFormError }}</div> }
+                  @if (adminFormSuccess) { <div class="form-alert form-alert-success"><i class="fas fa-check-circle"></i> {{ adminFormSuccess }}</div> }
                   <form (ngSubmit)="createClubAdmin()" #adminFormRef="ngForm">
-                    <div class="admin-form-grid">
-                      <label>Full Name
-                        <input type="text" [(ngModel)]="adminForm.name" name="name" required (ngModelChange)="onAdminNameChange($event)" />
+                    <div class="form-grid">
+                      <label class="form-label">Full Name
+                        <input class="form-input" type="text" [(ngModel)]="adminForm.name" name="name" required (ngModelChange)="onAdminNameChange($event)" placeholder="Admin full name" />
                       </label>
-                      <label>Username
-                        <input type="text" [(ngModel)]="adminForm.username" name="username" required (ngModelChange)="onAdminUsernameChange()" />
+                      <label class="form-label">Username
+                        <input class="form-input" type="text" [(ngModel)]="adminForm.username" name="username" required (ngModelChange)="onAdminUsernameChange()" placeholder="login-username" />
                       </label>
-                      <label>Password
-                        <input type="password" [(ngModel)]="adminForm.password" name="password" required minlength="6" />
+                      <label class="form-label">Password
+                        <input class="form-input" type="password" [(ngModel)]="adminForm.password" name="password" required minlength="6" />
                       </label>
-                      <label>Email (optional)
-                        <input type="email" [(ngModel)]="adminForm.email" name="email" />
+                      <label class="form-label">Email <span class="form-hint">optional</span>
+                        <input class="form-input" type="email" [(ngModel)]="adminForm.email" name="email" placeholder="admin@email.com" />
                       </label>
                     </div>
-                    <div class="admin-form-actions">
-                      <button type="submit" class="btn-create" [disabled]="creatingAdmin || adminFormRef.invalid">
-                        {{ creatingAdmin ? 'Creating...' : 'Create Admin' }}
+                    <div class="form-actions">
+                      <button type="submit" class="btn btn-primary" [disabled]="creatingAdmin || adminFormRef.invalid">
+                        <i class="fas fa-user-plus"></i> {{ creatingAdmin ? 'Creating…' : 'Create Admin' }}
                       </button>
-                      <button type="button" class="btn-outline" (click)="resetAdminForm()">Reset</button>
+                      <button type="button" class="btn btn-outline" (click)="resetAdminForm()">Reset</button>
                     </div>
                   </form>
-                </section>
+                </div>
               }
-              <section class="admin-list-card">
+
+              <div class="list-card">
                 @if (adminsLoading) {
-                  <p class="admins-state">Loading club admins...</p>
+                  <p class="state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading admins…</p>
                 } @else if (adminsError) {
-                  <div class="admins-state admins-error">{{ adminsError }}</div>
+                  <p class="state-msg state-msg-error">{{ adminsError }}</p>
                 } @else if (clubAdmins.length === 0) {
-                  <p class="admins-state">No admins yet for this club.</p>
+                  <p class="state-msg">No admins yet for this club.</p>
                 } @else {
-                  <div class="admin-list-grid">
+                  <div class="admin-grid">
                     @for (admin of clubAdmins; track admin._id) {
-                      <article class="admin-user-card">
+                      <div class="admin-card">
                         <div class="admin-avatar">{{ getInitials(admin.name) }}</div>
-                        <div class="admin-user-info">
-                          <h4>{{ admin.name }}</h4>
-                          <p>&#64;{{ admin.username }}</p>
-                          @if (admin.email) { <p>{{ admin.email }}</p> }
+                        <div class="admin-info">
+                          <div class="admin-name">{{ admin.name }}</div>
+                          <div class="admin-username">&#64;{{ admin.username }}</div>
+                          @if (admin.email) { <div class="admin-email">{{ admin.email }}</div> }
                         </div>
-                        <div class="admin-user-meta">
-                          <span class="meta-pill">{{ admin.role }}</span>
-                          <span class="meta-pill">{{ admin.status }}</span>
+                        <div class="admin-badges">
+                          <span class="badge badge-role">{{ admin.role }}</span>
+                          <span class="badge" [class.badge-active]="admin.status === 'active'" [class.badge-inactive]="admin.status !== 'active'">{{ admin.status }}</span>
                         </div>
-                      </article>
+                      </div>
                     }
                   </div>
                 }
-              </section>
+              </div>
             }
 
             <!-- ── COIN REQUESTS TAB ── -->
             @if (activeTab === 'coins' && auth.isSuperAdmin()) {
-              <section class="module-card">
+              <div class="list-card">
                 <div class="filter-row">
                   @for (f of coinFilterOptions; track f) {
                     <button type="button" class="filter-btn" [class.filter-active]="coinReqFilter === f" (click)="setCoinFilter(f)">
                       {{ f | titlecase }}
                       @if (coinReqCountByStatus(f) > 0) {
-                        <span class="filter-count" [class.filter-count-amber]="f === 'approved'" [class.filter-count-red]="f === 'rejected'">
-                          {{ coinReqCountByStatus(f) }}
-                        </span>
+                        <span class="filter-count" [class.count-green]="f === 'approved'" [class.count-red]="f === 'rejected'">{{ coinReqCountByStatus(f) }}</span>
                       }
                     </button>
                   }
                 </div>
+
                 @if (coinReqLoading) {
-                  <p class="req-state">Loading requests...</p>
+                  <p class="state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading requests…</p>
                 } @else if (coinReqError) {
-                  <p class="req-state req-error">{{ coinReqError }}</p>
+                  <p class="state-msg state-msg-error">{{ coinReqError }}</p>
                 } @else if (filteredCoinRequests.length === 0) {
-                  <p class="req-state">No {{ coinReqFilter }} coin requests.</p>
+                  <p class="state-msg">No {{ coinReqFilter }} coin requests.</p>
                 } @else {
                   <div class="item-list">
                     @for (req of filteredCoinRequests; track req._id) {
-                      <article class="item-card">
-                        <div class="item-main">
-                          <span class="coins-amount"><i class="fas fa-coins"></i> {{ req.coinsRequested }} coins</span>
-                          <span class="badge-purple">{{ req.paymentMethod }}</span>
-                        </div>
-                        <div class="item-meta">
-                          <span>by {{ req.requestedBy?.name ?? '—' }}</span>
-                          <span>{{ formatDate(req.createdAt) }}</span>
+                      <div class="item-card" [class.item-approved]="req.status === 'approved'" [class.item-rejected]="req.status === 'rejected'">
+                        <div class="item-top">
+                          <span class="coin-amount"><i class="fas fa-coins"></i> {{ req.coinsRequested }} coins</span>
+                          <span class="badge badge-purple">{{ req.paymentMethod }}</span>
+                          <span class="item-meta">by {{ req.requestedBy?.name ?? '—' }}</span>
+                          <span class="item-meta">{{ formatDate(req.createdAt) }}</span>
                         </div>
                         @if (req.note) { <p class="item-note">"{{ req.note }}"</p> }
                         @if (req.status === 'rejected' && req.rejectedNote) {
                           <p class="item-reject-note"><i class="fas fa-ban"></i> {{ req.rejectedNote }}</p>
                         }
                         @if (req.status !== 'pending') {
-                          <p class="item-resolved" [class.item-resolved-ok]="req.status === 'approved'">
+                          <p class="item-resolved" [class.resolved-ok]="req.status === 'approved'">
                             <i class="fas" [class.fa-check-circle]="req.status === 'approved'" [class.fa-times-circle]="req.status === 'rejected'"></i>
                             {{ req.status === 'approved' ? 'Approved' : 'Rejected' }} by {{ req.approvedBy?.name ?? '—' }}
                           </p>
                         }
                         @if (req.status === 'pending') {
                           <div class="item-actions">
-                            <button type="button" class="btn-approve" (click)="approveRequest(req)" [disabled]="processingReq.has(req._id)">
-                              <i class="fas fa-check"></i> {{ processingReq.has(req._id) ? 'Approving...' : 'Approve' }}
+                            <button type="button" class="btn btn-sm btn-approve" (click)="approveRequest(req)" [disabled]="processingReq.has(req._id)">
+                              <i class="fas fa-check"></i> {{ processingReq.has(req._id) ? 'Approving…' : 'Approve' }}
                             </button>
-                            <button type="button" class="btn-reject-sm" (click)="openRejectModal(req)" [disabled]="processingReq.has(req._id)">
+                            <button type="button" class="btn btn-sm btn-reject" (click)="openRejectModal(req)" [disabled]="processingReq.has(req._id)">
                               <i class="fas fa-times"></i> Reject
                             </button>
                           </div>
                         }
-                      </article>
+                      </div>
                     }
                   </div>
                 }
-              </section>
+              </div>
             }
 
             <!-- ── PAYMENT APPROVALS TAB ── -->
             @if (activeTab === 'payments' && auth.isSuperAdmin()) {
-              <section class="module-card">
+              <div class="list-card">
                 <div class="filter-row">
                   @for (f of paymentFilterOptions; track f) {
-                    <button type="button" class="filter-btn" [class.filter-active]="chargeFilter === f" (click)="setChargeFilter(f)">
-                      {{ f | titlecase }}
-                    </button>
+                    <button type="button" class="filter-btn" [class.filter-active]="chargeFilter === f" (click)="setChargeFilter(f)">{{ f | titlecase }}</button>
                   }
                 </div>
+
                 @if (chargesLoading) {
-                  <p class="req-state">Loading payment approvals...</p>
+                  <p class="state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading approvals…</p>
                 } @else if (chargesError) {
-                  <p class="req-state req-error">{{ chargesError }}</p>
+                  <p class="state-msg state-msg-error">{{ chargesError }}</p>
                 } @else if (filteredCharges.length === 0) {
-                  <p class="req-state">No {{ chargeFilter }} payment approvals.</p>
+                  <p class="state-msg">No {{ chargeFilter }} payment approvals.</p>
                 } @else {
                   <div class="item-list">
                     @for (charge of filteredCharges; track charge._id) {
-                      <article class="item-card">
-                        <div class="item-main">
+                      <div class="item-card" [class.item-approved]="charge.approvalStatus === 'approved'" [class.item-rejected]="charge.approvalStatus === 'rejected'">
+                        <div class="item-top">
                           <span class="charge-amount">₱{{ charge.amount | number:'1.2-2' }}</span>
-                          <span class="badge-type" [class.badge-res]="charge.chargeType === 'reservation'" [class.badge-ses]="charge.chargeType === 'session'">
-                            {{ charge.chargeType }}
-                          </span>
-                          @if (charge.paymentMethod) {
-                            <span class="badge-purple">{{ charge.paymentMethod }}</span>
-                          }
-                        </div>
-                        <div class="item-meta">
-                          <span>{{ getPlayerName(charge) }}</span>
-                          @if (charge.paidAt) { <span>{{ formatDate(charge.paidAt) }}</span> }
+                          <span class="badge" [class.badge-res]="charge.chargeType === 'reservation'" [class.badge-ses]="charge.chargeType === 'session'">{{ charge.chargeType }}</span>
+                          @if (charge.paymentMethod) { <span class="badge badge-purple">{{ charge.paymentMethod }}</span> }
+                          <span class="item-meta">{{ getPlayerName(charge) }}</span>
+                          @if (charge.paidAt) { <span class="item-meta">{{ formatDate(charge.paidAt) }}</span> }
                         </div>
                         @if (charge.approvalStatus === 'rejected' && charge.adminNote) {
                           <p class="item-reject-note"><i class="fas fa-ban"></i> {{ charge.adminNote }}</p>
                         }
                         @if (charge.approvalStatus !== 'pending') {
-                          <p class="item-resolved" [class.item-resolved-ok]="charge.approvalStatus === 'approved'">
+                          <p class="item-resolved" [class.resolved-ok]="charge.approvalStatus === 'approved'">
                             <i class="fas" [class.fa-check-circle]="charge.approvalStatus === 'approved'" [class.fa-times-circle]="charge.approvalStatus === 'rejected'"></i>
                             {{ charge.approvalStatus === 'approved' ? 'Approved' : 'Rejected' }}
                           </p>
                         }
                         @if (charge.approvalStatus === 'pending') {
                           <div class="item-actions">
-                            <button type="button" class="btn-approve" (click)="approveCharge(charge)" [disabled]="processingCharge.has(charge._id)">
-                              <i class="fas fa-check"></i> {{ processingCharge.has(charge._id) ? 'Approving...' : 'Approve' }}
+                            <button type="button" class="btn btn-sm btn-approve" (click)="approveCharge(charge)" [disabled]="processingCharge.has(charge._id)">
+                              <i class="fas fa-check"></i> {{ processingCharge.has(charge._id) ? 'Approving…' : 'Approve' }}
                             </button>
-                            <button type="button" class="btn-reject-sm" (click)="openRejectChargeModal(charge)" [disabled]="processingCharge.has(charge._id)">
+                            <button type="button" class="btn btn-sm btn-reject" (click)="openRejectChargeModal(charge)" [disabled]="processingCharge.has(charge._id)">
                               <i class="fas fa-times"></i> Reject
                             </button>
                           </div>
                         }
-                      </article>
+                      </div>
                     }
                   </div>
                 }
-              </section>
+              </div>
             }
 
             <!-- ── APP SERVICE FEES TAB ── -->
             @if (activeTab === 'appfees' && auth.isSuperAdmin()) {
-              <section class="module-card">
+              <div class="list-card">
                 @if (aspLoading) {
-                  <p class="req-state">Loading app service data...</p>
+                  <p class="state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading data…</p>
                 } @else if (aspError) {
-                  <p class="req-state req-error">{{ aspError }}</p>
+                  <p class="state-msg state-msg-error">{{ aspError }}</p>
                 } @else {
-                  <!-- Summary row -->
+
+                  <!-- Summary -->
                   <div class="asp-summary">
                     <div class="asp-stat">
-                      <span class="asp-label">Court Charges</span>
+                      <span class="asp-lbl">Court Charges</span>
                       <span class="asp-val">₱{{ reservationTotal | number:'1.2-2' }}</span>
                     </div>
                     <div class="asp-stat asp-stat-due">
-                      <span class="asp-label">10% Due to Dev</span>
+                      <span class="asp-lbl">10% Due to Dev</span>
                       <span class="asp-val">₱{{ appServiceDue | number:'1.2-2' }}</span>
                     </div>
                     <div class="asp-stat asp-stat-paid">
-                      <span class="asp-label">Paid to Dev</span>
+                      <span class="asp-lbl">Paid to Dev</span>
                       <span class="asp-val">₱{{ aspTotalPaid | number:'1.2-2' }}</span>
                     </div>
                     <div class="asp-stat" [class.asp-stat-outstanding]="aspBalance > 0">
-                      <span class="asp-label">Outstanding</span>
+                      <span class="asp-lbl">Outstanding</span>
                       <span class="asp-val">₱{{ aspBalance | number:'1.2-2' }}</span>
                     </div>
                   </div>
 
                   <!-- Court charges breakdown -->
-                  @if (reservationCharges.length > 0) {
-                    <div class="asp-subsection">
-                      <h5 class="asp-sub-title">
-                        <i class="fas fa-tennis-ball"></i>
-                        Court Reservation Charges
-                        <span class="asp-sub-count">{{ reservationCharges.length }}</span>
-                      </h5>
+                  <div class="asp-section">
+                    <div class="asp-section-title">
+                      <i class="fas fa-table-tennis"></i> Court Reservation Charges
+                      @if (reservationCharges.length > 0) { <span class="asp-count">{{ reservationCharges.length }}</span> }
+                    </div>
+                    @if (reservationCharges.length === 0) {
+                      <p class="state-msg">No approved reservation charges yet.</p>
+                    } @else {
                       <div class="asp-charge-list">
                         @for (c of reservationCharges; track c._id) {
                           <div class="asp-charge-row">
                             <span class="asp-player">{{ getPlayerName(c) }}</span>
                             <span class="asp-date">{{ formatDate(c.createdAt) }}</span>
-                            <span class="asp-court-fee">₱{{ c.amount | number:'1.2-2' }}</span>
+                            <span class="asp-amount-val">₱{{ c.amount | number:'1.2-2' }}</span>
                             <span class="asp-fee-chip">10% = ₱{{ (c.amount * 0.10) | number:'1.2-2' }}</span>
                           </div>
                         }
                       </div>
-                    </div>
-                  } @else {
-                    <p class="req-state">No approved reservation charges yet.</p>
-                  }
+                    }
+                  </div>
 
                   <!-- Payments to developer -->
-                  <div class="asp-subsection">
-                    <h5 class="asp-sub-title">
-                      <i class="fas fa-paper-plane"></i>
-                      Payments to Developer
-                      @if (aspPayments.length > 0) {
-                        <span class="asp-sub-count">{{ aspPayments.length }}</span>
-                      }
-                    </h5>
+                  <div class="asp-section">
+                    <div class="asp-section-title">
+                      <i class="fas fa-paper-plane"></i> Payments to Developer
+                      @if (aspPayments.length > 0) { <span class="asp-count">{{ aspPayments.length }}</span> }
+                    </div>
                     @if (aspPayments.length === 0) {
-                      <p class="req-state">No payments recorded yet.</p>
+                      <p class="state-msg">No payments recorded yet.</p>
                     } @else {
-                      <div class="asp-payment-list">
+                      <div class="asp-pay-list">
                         @for (p of aspPayments; track p._id) {
-                          <div class="asp-payment-row">
-                            <div class="asp-payment-left">
-                              <span class="asp-payment-amount">₱{{ p.amount | number:'1.2-2' }}</span>
-                              <span class="badge-purple">{{ p.paymentMethod }}</span>
+                          <div class="asp-pay-row">
+                            <div class="asp-pay-left">
+                              <span class="asp-pay-amount">₱{{ p.amount | number:'1.2-2' }}</span>
+                              <span class="badge badge-purple">{{ p.paymentMethod }}</span>
                               @if (p.note) { <span class="asp-note">{{ p.note }}</span> }
                             </div>
-                            <div class="asp-payment-right">
-                              <span>by {{ p.paidBy?.name ?? '—' }}</span>
+                            <div class="asp-pay-right">
+                              <span>{{ p.paidBy?.name ?? '—' }}</span>
                               <span>{{ formatDate(p.createdAt) }}</span>
                             </div>
                           </div>
@@ -434,26 +430,31 @@ interface AdminUser {
                       </div>
                     }
                   </div>
+
                 }
-              </section>
+              </div>
             }
+
           </section>
         }
       }
-    </section>
+    </div>
 
     <!-- ── Reject coin request modal ── -->
     @if (rejectModal.show) {
       <div class="modal-backdrop" (click)="closeRejectModal()">
         <div class="modal-card" (click)="$event.stopPropagation()">
-          <h4><i class="fas fa-times-circle"></i> Reject Coin Request</h4>
-          <p>Optionally add a reason:</p>
-          <textarea [(ngModel)]="rejectModal.note" name="rejectNote" rows="3" placeholder="Rejection reason (optional)"></textarea>
+          <div class="modal-header">
+            <span class="modal-title modal-title-danger"><i class="fas fa-times-circle"></i> Reject Coin Request</span>
+            <button type="button" class="modal-close" (click)="closeRejectModal()"><i class="fas fa-times"></i></button>
+          </div>
+          <p class="modal-desc">Optionally add a reason:</p>
+          <textarea class="modal-textarea" [(ngModel)]="rejectModal.note" name="rejectNote" rows="3" placeholder="Rejection reason (optional)"></textarea>
           <div class="modal-actions">
-            <button type="button" class="btn-danger" (click)="confirmReject()" [disabled]="rejectModal.submitting">
-              {{ rejectModal.submitting ? 'Rejecting...' : 'Confirm Reject' }}
+            <button type="button" class="btn btn-danger" (click)="confirmReject()" [disabled]="rejectModal.submitting">
+              {{ rejectModal.submitting ? 'Rejecting…' : 'Confirm Reject' }}
             </button>
-            <button type="button" class="btn-outline" (click)="closeRejectModal()">Cancel</button>
+            <button type="button" class="btn btn-outline" (click)="closeRejectModal()">Cancel</button>
           </div>
         </div>
       </div>
@@ -463,14 +464,17 @@ interface AdminUser {
     @if (rejectChargeModal.show) {
       <div class="modal-backdrop" (click)="closeRejectChargeModal()">
         <div class="modal-card" (click)="$event.stopPropagation()">
-          <h4><i class="fas fa-times-circle"></i> Reject Payment</h4>
-          <p>Optionally add a reason for rejection:</p>
-          <textarea [(ngModel)]="rejectChargeModal.note" name="rejectChargeNote" rows="3" placeholder="Rejection reason (optional)"></textarea>
+          <div class="modal-header">
+            <span class="modal-title modal-title-danger"><i class="fas fa-times-circle"></i> Reject Payment</span>
+            <button type="button" class="modal-close" (click)="closeRejectChargeModal()"><i class="fas fa-times"></i></button>
+          </div>
+          <p class="modal-desc">Optionally add a reason for rejection:</p>
+          <textarea class="modal-textarea" [(ngModel)]="rejectChargeModal.note" name="rejectChargeNote" rows="3" placeholder="Rejection reason (optional)"></textarea>
           <div class="modal-actions">
-            <button type="button" class="btn-danger" (click)="confirmRejectCharge()" [disabled]="rejectChargeModal.submitting">
-              {{ rejectChargeModal.submitting ? 'Rejecting...' : 'Confirm Reject' }}
+            <button type="button" class="btn btn-danger" (click)="confirmRejectCharge()" [disabled]="rejectChargeModal.submitting">
+              {{ rejectChargeModal.submitting ? 'Rejecting…' : 'Confirm Reject' }}
             </button>
-            <button type="button" class="btn-outline" (click)="closeRejectChargeModal()">Cancel</button>
+            <button type="button" class="btn btn-outline" (click)="closeRejectChargeModal()">Cancel</button>
           </div>
         </div>
       </div>
@@ -480,29 +484,32 @@ interface AdminUser {
     @if (aspModal.show) {
       <div class="modal-backdrop" (click)="closeAspModal()">
         <div class="modal-card" (click)="$event.stopPropagation()">
-          <h4><i class="fas fa-paper-plane"></i> Record Payment to Developer</h4>
-          <p>Outstanding balance: <strong>₱{{ aspBalance | number:'1.2-2' }}</strong></p>
-          @if (aspModal.error) { <div class="form-alert error">{{ aspModal.error }}</div> }
-          <div class="asp-modal-form">
-            <label>Amount (PHP)
-              <input type="number" [(ngModel)]="aspModal.amount" name="aspAmount" min="0.01" step="0.01" />
+          <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-paper-plane"></i> Record Payment to Developer</span>
+            <button type="button" class="modal-close" (click)="closeAspModal()"><i class="fas fa-times"></i></button>
+          </div>
+          <p class="modal-desc">Outstanding balance: <strong>₱{{ aspBalance | number:'1.2-2' }}</strong></p>
+          @if (aspModal.error) { <div class="form-alert form-alert-error">{{ aspModal.error }}</div> }
+          <div class="modal-form">
+            <label class="form-label">Amount (PHP)
+              <input class="form-input" type="number" [(ngModel)]="aspModal.amount" name="aspAmount" min="0.01" step="0.01" />
             </label>
-            <label>Payment Method
-              <select [(ngModel)]="aspModal.method" name="aspMethod">
+            <label class="form-label">Payment Method
+              <select class="form-input" [(ngModel)]="aspModal.method" name="aspMethod">
                 <option value="GCash">GCash</option>
                 <option value="Cash">Cash</option>
                 <option value="Bank Transfer">Bank Transfer</option>
               </select>
             </label>
-            <label>Note (optional)
-              <input type="text" [(ngModel)]="aspModal.note" name="aspNote" placeholder="e.g. April 2025 app service" />
+            <label class="form-label">Note <span class="form-hint">optional</span>
+              <input class="form-input" type="text" [(ngModel)]="aspModal.note" name="aspNote" placeholder="e.g. April 2025 app service" />
             </label>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn-create" (click)="confirmAspPayment()" [disabled]="aspModal.submitting || aspModal.amount <= 0">
-              {{ aspModal.submitting ? 'Saving...' : 'Record Payment' }}
+            <button type="button" class="btn btn-primary" (click)="confirmAspPayment()" [disabled]="aspModal.submitting || aspModal.amount <= 0">
+              <i class="fas fa-check"></i> {{ aspModal.submitting ? 'Saving…' : 'Record Payment' }}
             </button>
-            <button type="button" class="btn-outline" (click)="closeAspModal()">Cancel</button>
+            <button type="button" class="btn btn-outline" (click)="closeAspModal()">Cancel</button>
           </div>
         </div>
       </div>
@@ -510,239 +517,1151 @@ interface AdminUser {
   `,
   styles: [`
     :host {
-      --ink: #102226;
-      --teal-700: #16636f;
-      --teal-600: #1d7b87;
-      --teal-100: #dcf3f6;
-      --sand: #f6f2e8;
-      --card-bg: rgba(255,255,255,0.94);
-      --line: rgba(16,34,38,0.11);
-      --danger: #b22e2e;
       display: block;
-      font-family: 'Manrope','Segoe UI','Helvetica Neue',sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }
 
-    .clubs-page { display: grid; gap: 1rem; }
+    /* ── Page ── */
+    .clubs-page {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
 
     /* ── Hero ── */
     .hero-panel {
-      background: radial-gradient(circle at top right, rgba(242,183,75,0.34), transparent 42%),
-                  linear-gradient(140deg, var(--sand), #fff);
-      border: 1px solid var(--line); border-radius: 18px;
-      padding: 1rem 1.25rem;
-      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-      box-shadow: 0 10px 30px rgba(7,24,28,0.12);
+      background: linear-gradient(135deg, #f6efe4 0%, #efe2cf 100%);
+      border: 1px solid rgba(184,137,66,0.2);
+      border-radius: 16px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      box-shadow: 0 4px 16px rgba(159,115,56,0.12);
     }
-    .hero-kicker { margin: 0 0 0.2rem; color: var(--teal-700); text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.74rem; font-weight: 800; }
-    .hero-panel h2 { margin: 0; color: var(--ink); font-size: 1.45rem; letter-spacing: -0.02em; }
-    .hero-subtitle { margin: 0.35rem 0 0; color: rgba(16,34,38,0.72); font-size: 0.92rem; }
-    .hero-actions { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; justify-content: flex-end; }
-    .count-chip { background: var(--teal-100); color: var(--teal-700); border: 1px solid rgba(22,99,111,0.18); border-radius: 999px; padding: 0.42rem 0.78rem; font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+
+    @media (max-width: 768px) {
+      .hero-panel { flex-direction: column; align-items: stretch; }
+    }
+
+    .hero-kicker {
+      margin: 0 0 0.2rem;
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #b88942;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .hero-title {
+      margin: 0 0 0.25rem;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #111827;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-sub {
+      margin: 0;
+      font-size: 0.88rem;
+      color: rgba(17,24,39,0.6);
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .count-chip {
+      background: rgba(184,137,66,0.12);
+      color: #b88942;
+      border: 1px solid rgba(184,137,66,0.25);
+      border-radius: 999px;
+      padding: 0.4rem 0.85rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      white-space: nowrap;
+    }
 
     /* ── Buttons ── */
-    .btn-create, .btn-outline, .btn-danger, .btn-player {
-      border-radius: 10px; padding: 0.56rem 0.9rem; text-decoration: none;
-      font-weight: 700; font-size: 0.86rem; cursor: pointer;
-      display: inline-flex; align-items: center; justify-content: center; gap: 0.38rem;
-      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-      border: 1px solid transparent; white-space: nowrap; font-family: inherit;
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.55rem 1rem;
+      border-radius: 8px;
+      font-size: 0.86rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid transparent;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      font-family: inherit;
     }
-    .btn-create { background: linear-gradient(145deg, var(--teal-600), #155860); color: #fff; box-shadow: 0 8px 16px rgba(21,88,96,0.26); }
-    .btn-create:hover { transform: translateY(-1px); box-shadow: 0 10px 18px rgba(21,88,96,0.32); }
-    .btn-player { background: linear-gradient(145deg, #7c3aed, #5b21b6); color: #fff; box-shadow: 0 8px 16px rgba(91,33,182,0.26); }
-    .btn-player:hover { transform: translateY(-1px); box-shadow: 0 10px 18px rgba(91,33,182,0.32); }
-    .btn-outline { background: #fff; border-color: rgba(16,34,38,0.2); color: var(--ink); }
-    .btn-outline:hover { background: #f2f8f9; transform: translateY(-1px); }
-    .btn-danger { background: #fff3f3; border-color: rgba(178,46,46,0.35); color: var(--danger); }
-    .btn-danger:hover:not(:disabled) { background: #ffe8e8; transform: translateY(-1px); }
-    .btn-danger:disabled { opacity: 0.55; cursor: not-allowed; }
 
-    /* ── State cards ── */
-    .state-card { background: var(--card-bg); border: 1px solid var(--line); border-radius: 16px; padding: 1rem; box-shadow: 0 8px 24px rgba(12,22,25,0.1); }
-    .state-empty, .state-error { text-align: center; padding: 2rem 1rem; display: grid; justify-items: center; gap: 0.55rem; color: var(--ink); }
-    .state-empty i, .state-error i { font-size: 1.6rem; }
-    .state-empty h3 { margin: 0; font-size: 1.16rem; }
-    .state-empty p, .state-error p { margin: 0; color: rgba(16,34,38,0.74); }
-    .state-error i, .state-error p { color: var(--danger); }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important; }
+
+    .btn-primary {
+      background: #b88942;
+      color: #ffffff;
+      border-color: #b88942;
+      box-shadow: 0 2px 8px rgba(184,137,66,0.3);
+    }
+    .btn-primary:hover:not(:disabled) { background: #9f7338; border-color: #9f7338; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(184,137,66,0.35); }
+
+    .btn-purple {
+      background: #7c3aed;
+      color: #ffffff;
+      border-color: #7c3aed;
+      box-shadow: 0 2px 8px rgba(124,58,237,0.25);
+    }
+    .btn-purple:hover:not(:disabled) { background: #6d28d9; transform: translateY(-1px); }
+
+    .btn-outline {
+      background: #ffffff;
+      color: #374151;
+      border-color: rgba(55,65,81,0.25);
+    }
+    .btn-outline:hover:not(:disabled) { background: #f9fafb; border-color: rgba(55,65,81,0.4); transform: translateY(-1px); }
+
+    .btn-teal {
+      background: rgba(20,184,166,0.1);
+      color: #0f766e;
+      border-color: rgba(20,184,166,0.3);
+    }
+    .btn-teal:hover:not(:disabled) { background: rgba(20,184,166,0.18); transform: translateY(-1px); }
+
+    .btn-danger {
+      background: #fff3f3;
+      color: #dc2626;
+      border-color: rgba(220,38,38,0.3);
+    }
+    .btn-danger:hover:not(:disabled) { background: #fee2e2; transform: translateY(-1px); }
+
+    .btn-approve {
+      background: #f0fdf4;
+      color: #166534;
+      border-color: rgba(22,163,74,0.3);
+    }
+    .btn-approve:hover:not(:disabled) { background: #dcfce7; }
+
+    .btn-reject {
+      background: #fff3f3;
+      color: #dc2626;
+      border-color: rgba(220,38,38,0.25);
+    }
+    .btn-reject:hover:not(:disabled) { background: #fee2e2; }
+
+    .btn-sm {
+      padding: 0.38rem 0.75rem;
+      font-size: 0.8rem;
+      border-radius: 7px;
+    }
 
     /* ── Skeleton ── */
-    .skeleton-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 0.8rem; }
-    .skeleton-item { height: 145px; border-radius: 14px; background: linear-gradient(110deg,#ecf2f4 8%,#f7fbfc 18%,#ecf2f4 33%); background-size: 200% 100%; animation: shimmer 1.1s linear infinite; border: 1px solid rgba(16,34,38,0.06); }
+    .skeleton-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    .skeleton-card {
+      height: 180px;
+      border-radius: 14px;
+      background: linear-gradient(110deg, #ece8e0 8%, #f6f2ea 18%, #ece8e0 33%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s linear infinite;
+      border: 1px solid rgba(184,137,66,0.1);
+    }
+
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* ── State cards ── */
+    .state-card {
+      background: #ffffff;
+      border: 1px solid rgba(184,137,66,0.15);
+      border-radius: 14px;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .state-card i { font-size: 2rem; color: #b88942; }
+    .state-card h3 { margin: 0; font-size: 1.1rem; color: #111827; }
+    .state-card p { margin: 0; color: rgba(17,24,39,0.55); font-size: 0.88rem; }
+
+    .state-error i, .state-error p { color: #dc2626; }
 
     /* ── Club grid ── */
-    .clubs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap: 0.9rem; }
+    .clubs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
 
     .club-card {
-      background: var(--card-bg); border: 1px solid var(--line); border-radius: 16px;
-      overflow: hidden; display: grid; gap: 0.9rem; padding: 0 0.95rem 0.95rem;
-      box-shadow: 0 8px 20px rgba(9,19,22,0.1);
-      transition: transform 0.18s ease, box-shadow 0.18s ease; cursor: pointer;
+      background: #ffffff;
+      border: 1.5px solid rgba(184,137,66,0.15);
+      border-radius: 14px;
+      overflow: hidden;
+      padding: 0 1rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      box-shadow: 0 2px 12px rgba(159,115,56,0.08);
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     }
-    .club-card:focus-visible { outline: 2px solid #0f7481; outline-offset: 2px; }
-    .club-card.active { border-color: rgba(15,116,129,0.5); box-shadow: 0 12px 30px rgba(15,116,129,0.18); }
-    .club-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(9,19,22,0.14); }
 
-    .card-topline { height: 5px; margin: 0 -0.95rem; background: linear-gradient(90deg,#0f7481,#f2b74b); }
+    .club-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(159,115,56,0.14); border-color: rgba(184,137,66,0.35); }
+    .club-card.selected { border-color: #b88942; box-shadow: 0 4px 20px rgba(184,137,66,0.22); }
+    .club-card:focus-visible { outline: 2px solid #b88942; outline-offset: 2px; }
 
-    .club-head { display: flex; gap: 0.72rem; align-items: center; }
-    .club-logo, .club-logo-placeholder { width: 54px; height: 54px; border-radius: 12px; object-fit: cover; flex-shrink: 0; }
-    .club-logo { border: 1px solid rgba(16,34,38,0.14); background: #fff; }
-    .club-logo-placeholder { display: grid; place-items: center; background: linear-gradient(145deg,#def4f7,#c0e4ea); color: #18545d; font-weight: 800; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.03em; }
-    .club-identity h3 { margin: 0; color: var(--ink); font-size: 1.05rem; line-height: 1.2; }
-    .club-identity p { margin: 0.2rem 0 0; font-size: 0.73rem; color: rgba(16,34,38,0.56); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+    .card-accent {
+      height: 4px;
+      margin: 0 -1rem;
+      background: linear-gradient(90deg, #b88942, #c9a15d, #f59e0b);
+    }
 
-    .club-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-    .meta-pill { background: #f5f9fa; border: 1px solid rgba(16,34,38,0.11); color: rgba(16,34,38,0.8); border-radius: 999px; padding: 0.35rem 0.62rem; font-size: 0.76rem; display: inline-flex; align-items: center; gap: 0.35rem; }
-    .coin-pill { background: #fffbeb; border-color: rgba(245,158,11,0.3); color: #92400e; font-weight: 700; }
-    .coin-pill i { color: #f59e0b; }
-    .pending-pill { background: #fff7ed; border-color: rgba(234,88,12,0.3); color: #c2410c; font-weight: 700; animation: pulse-pill 2s ease-in-out infinite; }
-    .pending-pill i { color: #ea580c; }
-    @keyframes pulse-pill { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 0 3px rgba(234,88,12,0.15)} }
+    .club-head {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
 
-    .club-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.55rem; }
-    .btn-admin { background: #e9f7fa; border: 1px solid rgba(15,116,129,0.35); color: #0f5f69; border-radius: 10px; padding: 0.56rem 0.9rem; font-weight: 700; font-size: 0.86rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 0.38rem; transition: transform 0.15s, box-shadow 0.15s, background 0.15s; font-family: inherit; white-space: nowrap; }
-    .btn-admin:hover { background: #dff3f7; transform: translateY(-1px); box-shadow: 0 8px 16px rgba(15,116,129,0.18); }
+    .club-logo {
+      width: 52px;
+      height: 52px;
+      border-radius: 10px;
+      object-fit: cover;
+      border: 1px solid rgba(184,137,66,0.2);
+      flex-shrink: 0;
+    }
 
-    /* ── Admin module ── */
-    .admin-module { background: var(--card-bg); border: 1px solid var(--line); border-radius: 16px; padding: 0.9rem; box-shadow: 0 10px 28px rgba(9,19,22,0.12); display: grid; gap: 0.8rem; }
-    .admin-module-header { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; flex-wrap: wrap; }
-    .admin-module-header h3 { margin: 0; color: var(--ink); font-size: 1.05rem; }
-    .admin-module-header p { margin: 0.25rem 0 0; color: rgba(16,34,38,0.72); font-size: 0.85rem; }
+    .club-logo-placeholder {
+      width: 52px;
+      height: 52px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #f6efe4, #e8d7bf);
+      color: #b88942;
+      font-weight: 800;
+      font-size: 1rem;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
 
-    /* ── Tabs ── */
-    .module-tabs { display: flex; gap: 0.45rem; border-bottom: 1px solid var(--line); padding-bottom: 0.65rem; flex-wrap: wrap; }
-    .tab-btn { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 0.42rem 0.78rem; font-size: 0.83rem; font-weight: 700; cursor: pointer; font-family: inherit; color: rgba(16,34,38,0.6); display: inline-flex; align-items: center; gap: 0.38rem; transition: background 0.15s, color 0.15s, border-color 0.15s; }
-    .tab-btn:hover { background: #f0f7f9; color: var(--teal-700); }
-    .tab-active { background: var(--teal-100); color: var(--teal-700); border-color: rgba(22,99,111,0.22); }
-    .tab-badge { background: #f97316; color: #fff; border-radius: 999px; padding: 0.08rem 0.44rem; font-size: 0.72rem; font-weight: 800; line-height: 1.4; }
+    .club-identity h3 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #111827;
+      line-height: 1.2;
+    }
+
+    .club-id {
+      margin: 0.15rem 0 0;
+      font-size: 0.7rem;
+      color: rgba(17,24,39,0.4);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+      font-family: monospace;
+    }
+
+    /* Pills */
+    .club-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+    .pill {
+      border-radius: 999px;
+      padding: 0.28rem 0.65rem;
+      font-size: 0.73rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .pill-default { background: #f6f5f0; border: 1px solid rgba(17,24,39,0.1); color: rgba(17,24,39,0.65); }
+
+    .pill-coin {
+      background: #fffbeb;
+      border: 1px solid rgba(245,158,11,0.3);
+      color: #92400e;
+      font-weight: 700;
+    }
+    .pill-coin i { color: #f59e0b; }
+
+    .pill-pending {
+      background: #fff7ed;
+      border: 1px solid rgba(234,88,12,0.3);
+      color: #c2410c;
+      font-weight: 700;
+      animation: pulse-ring 2s ease-in-out infinite;
+    }
+    .pill-pending i { color: #ea580c; }
+    @keyframes pulse-ring { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 0 3px rgba(234,88,12,0.12)} }
+
+    /* Club actions */
+    .club-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.5rem;
+    }
+
+    /* ── Detail panel ── */
+    .detail-panel {
+      background: #ffffff;
+      border: 1px solid rgba(184,137,66,0.15);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(159,115,56,0.1);
+    }
+
+    .detail-header {
+      padding: 1.1rem 1.25rem;
+      border-bottom: 1px solid rgba(184,137,66,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      background: linear-gradient(135deg, #faf7f2, #ffffff);
+    }
+
+    .detail-sub {
+      margin: 0.2rem 0 0;
+      font-size: 0.82rem;
+      color: rgba(17,24,39,0.55);
+    }
+
+    /* Tabs */
+    .tabs-bar {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid rgba(184,137,66,0.12);
+      padding: 0 1rem;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 0.75rem 0.85rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: rgba(17,24,39,0.5);
+      cursor: pointer;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover { color: #b88942; }
+
+    .tab-active {
+      color: #b88942;
+      border-bottom-color: #b88942;
+    }
+
+    .tab-badge {
+      background: #f97316;
+      color: #fff;
+      border-radius: 999px;
+      padding: 0.06rem 0.42rem;
+      font-size: 0.68rem;
+      font-weight: 800;
+      line-height: 1.4;
+    }
+
     .tab-badge-amber { background: #d97706; }
 
-    /* ── Module card (shared tab content wrapper) ── */
-    .module-card { border: 1px solid var(--line); border-radius: 12px; padding: 0.75rem; background: rgba(255,255,255,0.92); display: grid; gap: 0.55rem; }
-
-    /* ── Admin form / list ── */
-    .admin-form-card, .admin-list-card { border: 1px solid var(--line); border-radius: 12px; padding: 0.75rem; background: rgba(255,255,255,0.92); }
-    .admin-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 0.7rem; }
-    .admin-form-grid label { display: grid; gap: 0.3rem; color: var(--ink); font-size: 0.82rem; font-weight: 700; }
-    .admin-form-grid input { border: 1px solid rgba(16,34,38,0.22); border-radius: 8px; padding: 0.5rem 0.6rem; font-size: 0.9rem; font-family: inherit; }
-    .admin-form-grid input:focus { outline: 2px solid rgba(15,116,129,0.2); border-color: #0f7481; }
-    .admin-form-actions { margin-top: 0.75rem; display: flex; gap: 0.55rem; flex-wrap: wrap; }
-    .form-alert { border-radius: 8px; padding: 0.55rem 0.65rem; font-size: 0.82rem; margin-bottom: 0.55rem; }
-    .form-alert.error { color: #b22e2e; background: #fff1f1; border: 1px solid rgba(178,46,46,0.25); }
-    .form-alert.success { color: #136b2e; background: #f1fdf5; border: 1px solid rgba(19,107,46,0.25); }
-    .admins-state { margin: 0; color: rgba(16,34,38,0.72); font-size: 0.9rem; }
-    .admins-error { color: var(--danger); }
-    .admin-list-grid { display: grid; gap: 0.6rem; }
-    .admin-user-card { border: 1px solid rgba(16,34,38,0.14); border-radius: 10px; padding: 0.6rem; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.6rem; background: #fff; }
-    .admin-avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg,#d6edf1,#b2dce2); color: #18545d; display: grid; place-items: center; font-weight: 800; font-size: 0.8rem; text-transform: uppercase; }
-    .admin-user-info h4 { margin: 0; font-size: 0.9rem; color: var(--ink); }
-    .admin-user-info p { margin: 0.1rem 0 0; font-size: 0.78rem; color: rgba(16,34,38,0.66); word-break: break-word; }
-    .admin-user-meta { display: flex; flex-direction: column; gap: 0.3rem; align-items: flex-end; }
-
-    /* ── Shared item list (coins + payments) ── */
-    .filter-row { display: flex; gap: 0.42rem; flex-wrap: wrap; }
-    .filter-btn { background: #f5f9fa; border: 1px solid var(--line); border-radius: 999px; padding: 0.34rem 0.72rem; font-size: 0.79rem; font-weight: 700; cursor: pointer; font-family: inherit; color: rgba(16,34,38,0.7); display: inline-flex; align-items: center; gap: 0.32rem; transition: background 0.15s, color 0.15s, border-color 0.15s; }
-    .filter-btn:hover { background: #eef5f7; color: var(--teal-700); }
-    .filter-active { background: var(--teal-100); color: var(--teal-700); border-color: rgba(22,99,111,0.25); }
-    .filter-count { background: #f97316; color: #fff; border-radius: 999px; padding: 0.08rem 0.38rem; font-size: 0.7rem; font-weight: 800; line-height: 1.4; }
-    .filter-count-amber { background: #16a34a; }
-    .filter-count-red { background: #b91c1c; }
-
-    .req-state { color: rgba(16,34,38,0.6); font-size: 0.86rem; margin: 0; padding: 0.5rem 0; }
-    .req-error { color: var(--danger); }
-
-    .item-list { display: grid; gap: 0.5rem; }
-    .item-card { border: 1px solid rgba(16,34,38,0.12); border-radius: 10px; padding: 0.65rem 0.75rem; background: #fff; display: grid; gap: 0.35rem; }
-    .item-main { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
-    .item-meta { display: flex; gap: 0.55rem; font-size: 0.77rem; color: rgba(16,34,38,0.58); flex-wrap: wrap; }
-    .item-note { margin: 0; font-size: 0.8rem; color: rgba(16,34,38,0.68); font-style: italic; }
-    .item-reject-note { margin: 0; font-size: 0.79rem; color: #b22e2e; display: flex; align-items: center; gap: 0.3rem; }
-    .item-resolved { margin: 0; font-size: 0.79rem; color: #b22e2e; display: flex; align-items: center; gap: 0.3rem; }
-    .item-resolved-ok { color: #166534; }
-    .item-actions { display: flex; gap: 0.48rem; flex-wrap: wrap; margin-top: 0.1rem; }
-
-    /* Badges */
-    .coins-amount { font-weight: 800; font-size: 0.95rem; color: #92400e; display: inline-flex; align-items: center; gap: 0.3rem; }
-    .coins-amount i { color: #f59e0b; }
-    .charge-amount { font-weight: 800; font-size: 0.95rem; color: var(--ink); }
-    .badge-purple { background: #ede9fe; color: #5b21b6; border-radius: 999px; padding: 0.18rem 0.54rem; font-size: 0.75rem; font-weight: 700; }
-    .badge-type { border-radius: 999px; padding: 0.18rem 0.54rem; font-size: 0.75rem; font-weight: 700; text-transform: capitalize; }
-    .badge-res { background: #dcf3f6; color: #16636f; }
-    .badge-ses { background: #eff6ff; color: #1d4ed8; }
-
-    /* Action buttons */
-    .btn-approve { background: #f0fdf4; border: 1px solid rgba(22,163,74,0.35); color: #166534; border-radius: 8px; padding: 0.36rem 0.72rem; font-size: 0.8rem; font-weight: 700; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 0.32rem; transition: background 0.15s; }
-    .btn-approve:hover:not(:disabled) { background: #dcfce7; }
-    .btn-approve:disabled { opacity: 0.55; cursor: not-allowed; }
-    .btn-reject-sm { background: #fff3f3; border: 1px solid rgba(178,46,46,0.3); color: var(--danger); border-radius: 8px; padding: 0.36rem 0.72rem; font-size: 0.8rem; font-weight: 700; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 0.32rem; transition: background 0.15s; }
-    .btn-reject-sm:hover:not(:disabled) { background: #ffe8e8; }
-    .btn-reject-sm:disabled { opacity: 0.55; cursor: not-allowed; }
-
-    /* ── App Service Fees ── */
-    .asp-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.55rem; }
-    .asp-stat { background: #f8fafc; border: 1px solid var(--line); border-radius: 10px; padding: 0.65rem 0.75rem; display: grid; gap: 0.15rem; }
-    .asp-stat-due { background: #fff7ed; border-color: rgba(234,88,12,0.22); }
-    .asp-stat-paid { background: #f0fdf4; border-color: rgba(22,163,74,0.22); }
-    .asp-stat-outstanding { background: #fff1f0; border-color: rgba(178,46,46,0.25); }
-    .asp-label { font-size: 0.73rem; font-weight: 700; color: rgba(16,34,38,0.58); text-transform: uppercase; letter-spacing: 0.06em; }
-    .asp-val { font-size: 1rem; font-weight: 800; color: var(--ink); }
-
-    .asp-subsection { display: grid; gap: 0.45rem; }
-    .asp-sub-title { margin: 0; font-size: 0.83rem; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 0.4rem; border-bottom: 1px solid var(--line); padding-bottom: 0.4rem; }
-    .asp-sub-count { background: var(--teal-100); color: var(--teal-700); border-radius: 999px; padding: 0.08rem 0.44rem; font-size: 0.72rem; font-weight: 800; }
-
-    .asp-charge-list { display: grid; gap: 0.35rem; }
-    .asp-charge-row { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; padding: 0.45rem 0.55rem; background: #fff; border: 1px solid rgba(16,34,38,0.1); border-radius: 8px; font-size: 0.82rem; }
-    .asp-player { flex: 1; min-width: 100px; font-weight: 600; color: var(--ink); }
-    .asp-date { color: rgba(16,34,38,0.55); font-size: 0.76rem; }
-    .asp-court-fee { font-weight: 700; color: var(--ink); }
-    .asp-fee-chip { background: #fff7ed; color: #c2410c; border: 1px solid rgba(234,88,12,0.25); border-radius: 999px; padding: 0.12rem 0.5rem; font-size: 0.74rem; font-weight: 800; }
-
-    .asp-payment-list { display: grid; gap: 0.35rem; }
-    .asp-payment-row { display: flex; align-items: center; justify-content: space-between; gap: 0.55rem; flex-wrap: wrap; padding: 0.45rem 0.55rem; background: #fff; border: 1px solid rgba(16,34,38,0.1); border-radius: 8px; }
-    .asp-payment-left { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
-    .asp-payment-amount { font-weight: 800; font-size: 0.95rem; color: #166534; }
-    .asp-note { font-size: 0.78rem; color: rgba(16,34,38,0.6); font-style: italic; }
-    .asp-payment-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem; font-size: 0.76rem; color: rgba(16,34,38,0.58); }
-
-    /* ── Modal ── */
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(10,20,23,0.52); display: grid; place-items: center; z-index: 50; padding: 1rem; }
-    .modal-card { background: #fff; border-radius: 16px; padding: 1.25rem; width: 100%; max-width: 400px; box-shadow: 0 20px 50px rgba(10,20,23,0.22); display: grid; gap: 0.65rem; }
-    .modal-card h4 { margin: 0; font-size: 1rem; color: var(--danger); display: flex; align-items: center; gap: 0.4rem; }
-    .modal-card p { margin: 0; font-size: 0.86rem; color: rgba(16,34,38,0.72); }
-    .modal-card textarea { border: 1px solid rgba(16,34,38,0.22); border-radius: 8px; padding: 0.5rem 0.65rem; font-size: 0.9rem; font-family: inherit; resize: vertical; width: 100%; box-sizing: border-box; }
-    .modal-card textarea:focus, .modal-card input:focus, .modal-card select:focus { outline: 2px solid rgba(15,116,129,0.2); border-color: #0f7481; }
-    .modal-actions { display: flex; gap: 0.55rem; flex-wrap: wrap; }
-
-    .asp-modal-form { display: grid; gap: 0.55rem; }
-    .asp-modal-form label { display: grid; gap: 0.25rem; font-size: 0.82rem; font-weight: 700; color: var(--ink); }
-    .asp-modal-form input, .asp-modal-form select { border: 1px solid rgba(16,34,38,0.22); border-radius: 8px; padding: 0.5rem 0.6rem; font-size: 0.9rem; font-family: inherit; width: 100%; box-sizing: border-box; }
-
-    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-
-    @media (max-width: 860px) {
-      .hero-panel { flex-direction: column; align-items: stretch; }
-      .hero-actions { justify-content: flex-start; }
-      .asp-summary { grid-template-columns: repeat(2, 1fr); }
+    /* ── Form card ── */
+    .form-card {
+      margin: 1rem 1.25rem 0;
+      background: #faf7f2;
+      border: 1px solid rgba(184,137,66,0.18);
+      border-radius: 12px;
+      padding: 1rem;
     }
 
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+    }
+
+    @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+
+    .form-label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #374151;
+    }
+
+    .form-hint {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: rgba(55,65,81,0.5);
+      text-transform: none;
+    }
+
+    .form-input {
+      padding: 0.55rem 0.75rem;
+      border: 1px solid rgba(55,65,81,0.2);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+      background: #ffffff;
+      color: #111827;
+    }
+
+    .form-input:focus { border-color: #b88942; box-shadow: 0 0 0 3px rgba(184,137,66,0.12); }
+
+    .form-actions {
+      display: flex;
+      gap: 0.6rem;
+      margin-top: 0.85rem;
+      flex-wrap: wrap;
+    }
+
+    .form-alert {
+      border-radius: 8px;
+      padding: 0.6rem 0.8rem;
+      font-size: 0.82rem;
+      margin-bottom: 0.65rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .form-alert-error { background: #fef2f2; border: 1px solid rgba(220,38,38,0.2); color: #dc2626; }
+    .form-alert-success { background: #f0fdf4; border: 1px solid rgba(22,163,74,0.2); color: #166534; }
+
+    /* ── List card ── */
+    .list-card {
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .state-msg {
+      color: rgba(17,24,39,0.5);
+      font-size: 0.86rem;
+      margin: 0;
+      padding: 0.5rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .state-msg-error { color: #dc2626; }
+
+    /* Admin grid */
+    .admin-grid { display: flex; flex-direction: column; gap: 0.6rem; }
+
+    .admin-card {
+      border: 1px solid rgba(184,137,66,0.15);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: #faf7f2;
+    }
+
+    .admin-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #f6efe4, #e8d7bf);
+      color: #b88942;
+      font-weight: 800;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .admin-info { flex: 1; min-width: 0; }
+    .admin-name { font-size: 0.9rem; font-weight: 700; color: #111827; }
+    .admin-username { font-size: 0.78rem; color: rgba(17,24,39,0.55); }
+    .admin-email { font-size: 0.75rem; color: rgba(17,24,39,0.45); }
+
+    .admin-badges { display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end; }
+
+    .badge {
+      border-radius: 999px;
+      padding: 0.15rem 0.55rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+
+    .badge-role { background: rgba(184,137,66,0.12); color: #b88942; }
+    .badge-active { background: #f0fdf4; color: #166534; }
+    .badge-inactive { background: #f1f5f9; color: #475569; }
+    .badge-purple { background: #ede9fe; color: #5b21b6; }
+    .badge-res { background: rgba(20,184,166,0.12); color: #0f766e; }
+    .badge-ses { background: #eff6ff; color: #1d4ed8; }
+
+    /* Filter row */
+    .filter-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+    .filter-btn {
+      background: #f6f5f0;
+      border: 1px solid rgba(17,24,39,0.12);
+      border-radius: 999px;
+      padding: 0.32rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      color: rgba(17,24,39,0.6);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: all 0.15s;
+    }
+    .filter-btn:hover { background: #efe2cf; color: #b88942; border-color: rgba(184,137,66,0.3); }
+    .filter-active { background: rgba(184,137,66,0.12); color: #b88942; border-color: rgba(184,137,66,0.3); }
+
+    .filter-count { background: #f97316; color: #fff; border-radius: 999px; padding: 0.04rem 0.38rem; font-size: 0.68rem; font-weight: 800; }
+    .count-green { background: #16a34a; }
+    .count-red { background: #b91c1c; }
+
+    /* Item list */
+    .item-list { display: flex; flex-direction: column; gap: 0.55rem; }
+
+    .item-card {
+      border: 1px solid rgba(17,24,39,0.1);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .item-approved { border-color: rgba(22,163,74,0.2); background: #fafffe; }
+    .item-rejected { border-color: rgba(220,38,38,0.15); background: #fffafa; }
+
+    .item-top { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
+
+    .item-meta { font-size: 0.75rem; color: rgba(17,24,39,0.5); }
+
+    .item-note { margin: 0; font-size: 0.8rem; color: rgba(17,24,39,0.6); font-style: italic; }
+
+    .item-reject-note { margin: 0; font-size: 0.78rem; color: #dc2626; display: flex; align-items: center; gap: 0.3rem; }
+
+    .item-resolved { margin: 0; font-size: 0.78rem; color: #dc2626; display: flex; align-items: center; gap: 0.3rem; }
+    .resolved-ok { color: #166534; }
+
+    .item-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+
+    .coin-amount { font-weight: 800; font-size: 0.92rem; color: #92400e; display: inline-flex; align-items: center; gap: 0.3rem; }
+    .coin-amount i { color: #f59e0b; }
+
+    .charge-amount { font-weight: 800; font-size: 0.92rem; color: #111827; }
+
+    /* App service fees */
+    .asp-summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.6rem;
+    }
+    @media (max-width: 768px) { .asp-summary { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .asp-summary { grid-template-columns: 1fr 1fr; } }
+
+    .asp-stat {
+      background: #f6f5f0;
+      border: 1px solid rgba(17,24,39,0.1);
+      border-radius: 10px;
+      padding: 0.75rem;
+    }
+    .asp-stat-due { background: #fff7ed; border-color: rgba(234,88,12,0.2); }
+    .asp-stat-paid { background: #f0fdf4; border-color: rgba(22,163,74,0.2); }
+    .asp-stat-outstanding { background: #fef2f2; border-color: rgba(220,38,38,0.2); }
+
+    .asp-lbl { display: block; font-size: 0.7rem; font-weight: 700; color: rgba(17,24,39,0.5); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+    .asp-val { display: block; font-size: 1.05rem; font-weight: 800; color: #111827; }
+
+    .asp-section { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .asp-section-title {
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: #374151;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      border-bottom: 1px solid rgba(184,137,66,0.12);
+      padding-bottom: 0.5rem;
+    }
+
+    .asp-count {
+      background: rgba(184,137,66,0.12);
+      color: #b88942;
+      border-radius: 999px;
+      padding: 0.06rem 0.44rem;
+      font-size: 0.7rem;
+      font-weight: 800;
+    }
+
+    .asp-charge-list { display: flex; flex-direction: column; gap: 0.4rem; }
+
+    .asp-charge-row {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+      padding: 0.5rem 0.65rem;
+      background: #ffffff;
+      border: 1px solid rgba(17,24,39,0.08);
+      border-radius: 8px;
+      font-size: 0.82rem;
+    }
+
+    .asp-player { flex: 1; min-width: 80px; font-weight: 600; color: #111827; }
+    .asp-date { color: rgba(17,24,39,0.48); font-size: 0.75rem; }
+    .asp-amount-val { font-weight: 700; color: #111827; }
+    .asp-fee-chip { background: #fff7ed; color: #c2410c; border: 1px solid rgba(234,88,12,0.22); border-radius: 999px; padding: 0.1rem 0.5rem; font-size: 0.72rem; font-weight: 800; }
+
+    .asp-pay-list { display: flex; flex-direction: column; gap: 0.4rem; }
+
+    .asp-pay-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      padding: 0.5rem 0.65rem;
+      background: #ffffff;
+      border: 1px solid rgba(17,24,39,0.08);
+      border-radius: 8px;
+    }
+
+    .asp-pay-left { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+    .asp-pay-amount { font-weight: 800; font-size: 0.92rem; color: #166534; }
+    .asp-note { font-size: 0.78rem; color: rgba(17,24,39,0.55); font-style: italic; }
+    .asp-pay-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem; font-size: 0.75rem; color: rgba(17,24,39,0.5); }
+
+    /* ── Modal ── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(10,18,22,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+      padding: 1rem;
+    }
+
+    .modal-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 20px 50px rgba(10,18,22,0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      animation: modalIn 0.2s ease-out;
+    }
+
+    @keyframes modalIn { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: none; } }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .modal-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #111827;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .modal-title-danger { color: #dc2626; }
+
+    .modal-close {
+      background: #f3f4f6;
+      border: none;
+      color: #6b7280;
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+    .modal-close:hover { background: #e5e7eb; }
+
+    .modal-desc { margin: 0; font-size: 0.86rem; color: rgba(17,24,39,0.65); }
+
+    .modal-textarea {
+      border: 1px solid rgba(55,65,81,0.2);
+      border-radius: 8px;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+      resize: vertical;
+      width: 100%;
+      box-sizing: border-box;
+      outline: none;
+    }
+    .modal-textarea:focus { border-color: #b88942; box-shadow: 0 0 0 3px rgba(184,137,66,0.12); }
+
+    .modal-form { display: flex; flex-direction: column; gap: 0.6rem; }
+
+    .modal-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+    /* ── Responsive ── */
     @media (max-width: 640px) {
-      .clubs-page { gap: 0.85rem; }
-      .hero-panel { padding: 0.85rem; }
-      .hero-panel h2 { font-size: 1.2rem; }
-      .hero-subtitle { font-size: 0.84rem; }
-      .hero-actions { width: 100%; gap: 0.5rem; }
-      .count-chip, .btn-create, .btn-player { width: 100%; justify-content: center; }
       .clubs-grid { grid-template-columns: 1fr; }
-      .club-card { padding: 0 0.8rem 0.8rem; }
-      .card-topline { margin: 0 -0.8rem; }
       .club-actions { grid-template-columns: 1fr; }
-      .btn-outline, .btn-danger, .btn-admin { width: 100%; }
-      .admin-form-grid { grid-template-columns: 1fr; }
-      .admin-user-card { grid-template-columns: 1fr; justify-items: start; }
-      .admin-user-meta { flex-direction: row; align-items: center; }
-      .asp-summary { grid-template-columns: repeat(2, 1fr); }
+      .btn-outline, .btn-danger, .btn-teal { width: 100%; }
+      .hero-actions { width: 100%; }
+      .count-chip, .btn-purple, .btn-primary { justify-content: center; width: 100%; }
       .asp-charge-row { flex-direction: column; align-items: flex-start; }
+    }
+
+    /* Dashboard theme overrides: align /admin/clubs with /player/dashboard */
+    :host {
+      display: block;
+      margin: -1.5rem;
+      width: calc(100% + 3rem);
+      font-family: inherit;
+      --dm-bg: #0c1a11;
+      --dm-surface: #1b3028;
+      --dm-surface-hover: #213830;
+      --dm-text: #ffffff;
+      --dm-muted: rgba(255,255,255,0.62);
+      --dm-soft: rgba(255,255,255,0.42);
+      --dm-border: rgba(255,255,255,0.1);
+      --dm-accent: #a3e635;
+      --dm-accent-deep: #84cc16;
+      --dm-danger: #fb7185;
+      --dm-warning: #f59e0b;
+      --dm-shadow: 0 8px 24px rgba(0,0,0,0.34);
+    }
+
+    @media (min-width: 769px) {
+      :host { margin: 0; width: 100%; }
+    }
+
+    .clubs-page {
+      max-width: 980px;
+      margin: 0 auto;
+      min-height: calc(100vh - 60px);
+      padding: 1.25rem 1rem 2rem;
+      background: var(--dm-bg);
+      color: var(--dm-text);
+      gap: 1.1rem;
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+    }
+
+    .clubs-page::before { content: none; }
+
+    .hero-panel,
+    .detail-panel,
+    .club-card,
+    .state-card,
+    .list-card,
+    .form-card,
+    .modal-card {
+      background: var(--dm-surface);
+      border-color: var(--dm-border);
+      box-shadow: var(--dm-shadow);
+      color: var(--dm-text);
+    }
+
+    .hero-panel {
+      border-radius: 16px;
+      padding: 1.1rem 1.15rem;
+      background: var(--dm-surface);
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .hero-kicker,
+    .count-chip,
+    .tab-active,
+    .tab-btn:hover,
+    .coin-amount,
+    .asp-pay-amount {
+      color: var(--dm-accent);
+    }
+
+    .hero-title,
+    .club-identity h3,
+    .admin-name,
+    .charge-amount,
+    .state-card h3,
+    .modal-title {
+      color: var(--dm-text);
+    }
+
+    .hero-sub,
+    .detail-sub,
+    .item-meta,
+    .state-card p,
+    .state-msg,
+    .admin-username,
+    .admin-email,
+    .modal-desc,
+    .asp-date,
+    .asp-note,
+    .asp-pay-right,
+    .asp-lbl {
+      color: var(--dm-muted);
+    }
+
+    .count-chip {
+      background: rgba(163,230,53,0.14);
+      border-color: rgba(163,230,53,0.28);
+    }
+
+    .btn {
+      border-radius: 10px;
+      transition: background 0.2s, transform 0.15s, border-color 0.2s;
+    }
+
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+
+    .btn-primary,
+    .btn-purple,
+    .btn-approve {
+      background: rgba(163,230,53,0.16);
+      border-color: rgba(163,230,53,0.34);
+      color: var(--dm-accent);
+      box-shadow: none;
+    }
+
+    .btn-primary:hover:not(:disabled),
+    .btn-purple:hover:not(:disabled),
+    .btn-approve:hover:not(:disabled) {
+      background: rgba(163,230,53,0.24);
+      border-color: rgba(163,230,53,0.48);
+      color: #d9f99d;
+    }
+
+    .btn-outline,
+    .btn-teal {
+      background: rgba(255,255,255,0.04);
+      border-color: rgba(255,255,255,0.18);
+      color: var(--dm-text);
+    }
+
+    .btn-outline:hover:not(:disabled),
+    .btn-teal:hover:not(:disabled) {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.3);
+    }
+
+    .btn-danger,
+    .btn-reject {
+      background: rgba(244,63,94,0.15);
+      border-color: rgba(244,63,94,0.38);
+      color: #fecdd3;
+    }
+
+    .btn-danger:hover:not(:disabled),
+    .btn-reject:hover:not(:disabled) {
+      background: rgba(244,63,94,0.22);
+      border-color: rgba(244,63,94,0.5);
+    }
+
+    .skeleton-card {
+      background: linear-gradient(110deg, #1a2f27 8%, #213830 18%, #1a2f27 33%);
+      border-color: var(--dm-border);
+    }
+
+    .club-card {
+      border-width: 1px;
+      border-radius: 14px;
+      background: var(--dm-surface);
+    }
+
+    .club-card:hover {
+      border-color: rgba(163,230,53,0.4);
+      box-shadow: 0 14px 30px rgba(0,0,0,0.36);
+      transform: translateY(-3px);
+    }
+
+    .club-card.selected {
+      border-color: rgba(163,230,53,0.62);
+      box-shadow: 0 0 0 1px rgba(163,230,53,0.18), 0 16px 32px rgba(0,0,0,0.38);
+    }
+
+    .club-card:focus-visible {
+      outline-color: var(--dm-accent);
+    }
+
+    .card-accent {
+      background: linear-gradient(90deg, #a3e635, #14b8a6, #60a5fa);
+    }
+
+    .club-logo,
+    .club-logo-placeholder,
+    .admin-avatar {
+      border-color: rgba(163,230,53,0.28);
+    }
+
+    .club-logo-placeholder,
+    .admin-avatar {
+      background: rgba(163,230,53,0.16);
+      color: var(--dm-accent);
+    }
+
+    .club-id {
+      color: var(--dm-soft);
+    }
+
+    .pill-default,
+    .badge,
+    .filter-btn,
+    .asp-stat,
+    .asp-charge-row,
+    .asp-pay-row,
+    .item-card,
+    .admin-card,
+    .form-card,
+    .form-input,
+    .modal-textarea {
+      background: rgba(255,255,255,0.04);
+      border-color: rgba(255,255,255,0.14);
+      color: var(--dm-text);
+    }
+
+    .pill-coin {
+      background: rgba(245,158,11,0.15);
+      border-color: rgba(245,158,11,0.38);
+      color: #fcd34d;
+    }
+
+    .pill-pending,
+    .tab-badge,
+    .filter-count {
+      background: rgba(249,115,22,0.2);
+      color: #fdba74;
+      border: 1px solid rgba(249,115,22,0.34);
+    }
+
+    .tabs-bar {
+      border-bottom: none;
+      background: transparent;
+    }
+
+    .clubs-menu-bar {
+      position: sticky;
+      top: 0.7rem;
+      z-index: 5;
+      margin: 0.45rem 0.85rem 0.2rem;
+      padding: 0.5rem;
+      border: 1px solid rgba(163,230,53,0.08);
+      border-radius: 12px;
+      background: var(--dm-surface);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.36);
+      gap: 0.35rem;
+      display: flex;
+      align-items: center;
+    }
+
+    .tab-btn {
+      color: rgba(255,255,255,0.55);
+      border-bottom-width: 0;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      padding: 0.56rem 0.9rem;
+      margin-right: 0.4rem;
+      transition: color 0.12s, border-color 0.16s, background 0.16s, transform 0.12s;
+      background: transparent;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .clubs-menu-bar .tab-btn {
+      border-bottom-color: transparent;
+    }
+
+    /* Strong override to exactly match the player dashboard pill */
+    .clubs-page .clubs-menu-bar .tab-btn {
+      background: rgba(163,230,53,0.15) !important;
+      color: #a3e635 !important;
+      border: 1px solid rgba(163,230,53,0.30) !important;
+      border-radius: 20px !important;
+      padding: 0.32rem 0.9rem !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.3px !important;
+    }
+
+    .clubs-page .clubs-menu-bar .tab-btn:hover {
+      background: rgba(163,230,53,0.25) !important;
+      color: #eaffb8 !important;
+    }
+
+    .clubs-page .clubs-menu-bar .tab-btn.tab-active {
+      background: rgba(163,230,53,0.22) !important;
+      border-color: rgba(163,230,53,0.38) !important;
+      color: var(--dm-accent-deep) !important;
+      transform: translateY(-1px) !important;
+    }
+
+    .tab-active {
+      background: linear-gradient(180deg, rgba(163,230,53,0.12), rgba(163,230,53,0.08));
+      border-color: rgba(163,230,53,0.36);
+      color: var(--dm-accent-deep);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.36) inset;
+      transform: translateY(-1px);
+    }
+
+    .clubs-menu-bar .tab-btn:hover {
+      background: rgba(255,255,255,0.07);
+      color: var(--dm-text);
+    }
+
+    .form-label,
+    .asp-section-title,
+    .asp-player,
+    .item-note {
+      color: var(--dm-text);
+    }
+
+    .form-input::placeholder,
+    .modal-textarea::placeholder {
+      color: rgba(255,255,255,0.4);
+    }
+
+    .form-input:focus,
+    .modal-textarea:focus {
+      border-color: rgba(163,230,53,0.54);
+      box-shadow: 0 0 0 3px rgba(163,230,53,0.18);
+    }
+
+    .state-error i,
+    .state-msg-error,
+    .item-reject-note,
+    .item-resolved,
+    .modal-title-danger {
+      color: var(--dm-danger);
+    }
+
+    .resolved-ok,
+    .badge-active {
+      color: #86efac;
+      background: rgba(34,197,94,0.14);
+      border-color: rgba(34,197,94,0.3);
+    }
+
+    .badge-role,
+    .badge-purple,
+    .badge-res,
+    .badge-ses,
+    .filter-active,
+    .asp-count,
+    .asp-fee-chip {
+      background: rgba(163,230,53,0.14);
+      border: 1px solid rgba(163,230,53,0.28);
+      color: var(--dm-accent);
+    }
+
+    .asp-stat-due {
+      background: rgba(245,158,11,0.11);
+      border-color: rgba(245,158,11,0.28);
+    }
+
+    .asp-stat-paid {
+      background: rgba(34,197,94,0.11);
+      border-color: rgba(34,197,94,0.28);
+    }
+
+    .asp-stat-outstanding {
+      background: rgba(244,63,94,0.1);
+      border-color: rgba(244,63,94,0.24);
+    }
+
+    .detail-header {
+      border-bottom-color: var(--dm-border);
+      background: linear-gradient(160deg, #1e352d 0%, #1a2f27 100%);
+    }
+
+    .modal-backdrop {
+      background: rgba(5, 14, 10, 0.7);
+      backdrop-filter: blur(2px);
+    }
+
+    .modal-close {
+      background: rgba(255,255,255,0.08);
+      color: var(--dm-muted);
+    }
+
+    .modal-close:hover {
+      background: rgba(255,255,255,0.15);
+    }
+
+    @media (min-width: 769px) {
+      .clubs-page {
+        padding: 2rem 2.5rem 2.3rem;
+      }
+
+      .clubs-menu-bar {
+        top: 1rem;
+        margin: 0.6rem 1.15rem 0.3rem;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .clubs-menu-bar {
+        margin: 0.4rem 0.6rem 0.15rem;
+        padding: 0.35rem;
+        top: 0.5rem;
+      }
+
+      .clubs-menu-bar .tab-btn {
+        padding: 0.56rem 0.7rem;
+        font-size: 0.78rem;
+      }
     }
   `],
 })

@@ -262,21 +262,22 @@ import { ClubService, Club } from '../../../core/services/club.service';
         padding: 1rem;
         margin: 0;
         overflow: hidden;
+        background: var(--dm-bg);
       }
       .court-bg {
         position: absolute;
         inset: 0;
-        background: url('/tennis-court-surface.png') center center / cover no-repeat;
+        background: none;
       }
       .court-overlay {
         position: absolute;
         inset: 0;
-        background: rgba(0, 18, 0, 0.35);
+        background: none;
       }
       .auth-card {
         position: relative;
         z-index: 1;
-        background: #ffffff;
+        background: var(--dm-surface);
         border-radius: 20px;
         padding: 0;
         width: 100%;
@@ -284,7 +285,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
         box-shadow:
           0 8px 32px rgba(0, 0, 0, 0.55),
           0 0 1px rgba(0, 0, 0, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(163,230,53,0.12);
         overflow: hidden;
       }
       .auth-header {
@@ -292,7 +293,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
         margin-bottom: 0;
       }
       .header-banner {
-        background: linear-gradient(135deg, #9f7338 0%, #c9a15d 100%);
+        background: var(--dm-header);
         padding: 2rem 2rem 1.5rem;
         display: flex;
         flex-direction: column;
@@ -307,14 +308,14 @@ import { ClubService, Club } from '../../../core/services/club.service';
         text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
       }
       .header-sub {
-        color: #b88942;
+        color: var(--dm-accent);
         font-size: 0.9rem;
         font-weight: 600;
         font-style: italic;
         margin: 0.85rem 0 0 0;
         padding: 0.4rem 1.25rem;
-        background: #f8f1e4;
-        border-top: 3px solid #c9a15d;
+        background: rgba(163,230,53,0.08);
+        border-top: 3px solid var(--dm-accent);
         width: 100%;
         box-sizing: border-box;
       }
@@ -329,26 +330,26 @@ import { ClubService, Club } from '../../../core/services/club.service';
       }
       .form-group label {
         font-size: 0.875rem;
-        color: #111827;
+        color: rgba(255,255,255,0.8);
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
       }
       .optional {
-        color: #999;
+        color: rgba(255,255,255,0.5);
         font-size: 0.8rem;
         font-weight: 400;
         text-transform: none;
       }
       .field-error {
         font-size: 0.78rem;
-        color: #dc2626;
+        color: #fca5a5;
         font-weight: 500;
         margin-top: 0.15rem;
       }
       .input-invalid {
-        border-color: #dc2626 !important;
-        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12) !important;
+        border-color: rgba(239,68,68,0.28) !important;
+        box-shadow: 0 0 0 3px rgba(239,68,68,0.12) !important;
       }
       .gender-group {
         display: flex;
@@ -360,13 +361,13 @@ import { ClubService, Club } from '../../../core/services/club.service';
         gap: 0.5rem;
         cursor: pointer;
         font-size: 0.95rem;
-        color: #111827;
+        color: rgba(255,255,255,0.8);
         font-weight: 500;
         text-transform: none;
         letter-spacing: 0;
       }
       .gender-option input[type='radio'] {
-        accent-color: #b88942;
+        accent-color: var(--dm-accent);
         width: 1rem;
         height: 1rem;
         cursor: pointer;
@@ -383,16 +384,16 @@ import { ClubService, Club } from '../../../core/services/club.service';
         cursor: pointer;
       }
       .image-placeholder {
-        border: 2px dashed #c9a15d;
+        border: 2px dashed rgba(163,230,53,0.28);
         border-radius: 10px;
         padding: 2rem;
         text-align: center;
-        background: #f9faf9;
+        background: rgba(163,230,53,0.04);
         transition: all 0.3s;
       }
       .image-input-label:hover .image-placeholder {
-        background: #f8f1e4;
-        border-color: #9f7338;
+        background: rgba(163,230,53,0.08);
+        border-color: rgba(163,230,53,0.4);
       }
       .image-placeholder span {
         font-size: 2.5rem;
@@ -400,13 +401,13 @@ import { ClubService, Club } from '../../../core/services/club.service';
         margin-bottom: 0.5rem;
       }
       .image-placeholder p {
-        color: #111827;
+        color: rgba(255,255,255,0.8);
         font-weight: 600;
         margin: 0.5rem 0;
         font-size: 0.95rem;
       }
       .image-placeholder small {
-        color: #6b7280;
+        color: rgba(255,255,255,0.55);
         font-size: 0.8rem;
         display: block;
         margin-top: 0.35rem;
@@ -420,8 +421,8 @@ import { ClubService, Club } from '../../../core/services/club.service';
         height: 120px;
         border-radius: 10px;
         object-fit: cover;
-        border: 3px solid #c9a15d;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border: 3px solid var(--dm-accent);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
       }
       .btn-remove-image {
         position: absolute;
@@ -430,7 +431,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
         width: 30px;
         height: 30px;
         border-radius: 50%;
-        background: #dc2626;
+        background: rgba(239,68,68,0.8);
         color: white;
         border: none;
         font-weight: bold;
@@ -439,24 +440,36 @@ import { ClubService, Club } from '../../../core/services/club.service';
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         transition: all 0.2s;
       }
       .btn-remove-image:hover {
-        background: #b91c1c;
+        background: #dc2626;
         transform: scale(1.1);
       }
       .field-info {
         font-size: 0.78rem;
-        color: #059669;
+        color: rgba(163,230,53,0.8);
         font-weight: 500;
         margin-top: 0.35rem;
         display: block;
       }
+      input {
+        padding: 0.75rem 1rem;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: rgba(255,255,255,0.04);
+        color: #ffffff;
+        font-family: inherit;
+      }
+      input::placeholder {
+        color: rgba(255,255,255,0.4);
+      }
       input:focus {
         outline: none;
-        border-color: #c9a15d !important;
-        box-shadow: 0 0 0 3px rgba(201, 161, 93, 0.15) !important;
+        border-color: rgba(163,230,53,0.28) !important;
+        box-shadow: 0 0 0 3px rgba(163,230,53,0.12) !important;
       }
       .btn-primary {
         margin-top: 0.75rem;
@@ -464,46 +477,53 @@ import { ClubService, Club } from '../../../core/services/club.service';
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        background: #b88942;
-        border-color: #b88942;
-        box-shadow: 0 4px 12px rgba(184, 137, 66, 0.35);
+        background: rgba(163,230,53,0.16);
+        color: var(--dm-accent);
+        border: 1px solid rgba(163,230,53,0.28);
+        box-shadow: 0 4px 12px rgba(163,230,53,0.12);
+        cursor: pointer;
+        padding: 0.75rem 1.5rem;
+        font-size: 0.95rem;
       }
       .btn-primary:hover:not(:disabled) {
-        background: #9f7338;
-        border-color: #9f7338;
-        box-shadow: 0 6px 16px rgba(184, 137, 66, 0.45);
+        background: rgba(163,230,53,0.24);
+        border-color: rgba(163,230,53,0.4);
+        box-shadow: 0 6px 16px rgba(163,230,53,0.2);
       }
       .btn-primary:disabled {
-        background: #9ca3af;
-        border-color: #9ca3af;
+        background: rgba(255,255,255,0.08);
+        border-color: rgba(255,255,255,0.08);
         box-shadow: none;
         cursor: not-allowed;
-        opacity: 1;
+        color: rgba(255,255,255,0.4);
       }
       .club-search-wrap { position: relative; }
       .club-search-input-row {
         display: flex; align-items: center; justify-content: space-between;
-        padding: 0.55rem 0.75rem; border: 1px solid #d1d5db; border-radius: 8px;
-        background: #fff; cursor: pointer; min-height: 42px; transition: border-color 0.2s;
+        padding: 0.55rem 0.75rem; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+        background: rgba(255,255,255,0.04); cursor: pointer; min-height: 42px; transition: border-color 0.2s;
       }
-      .club-search-input-row:hover { border-color: #c9a15d; }
-      .club-selected-val { font-size: 0.95rem; color: #111827; font-weight: 500; }
-      .club-placeholder { font-size: 0.95rem; color: #9ca3af; }
-      .club-caret { color: #9ca3af; font-size: 0.75rem; transition: transform 0.2s; }
+      .club-search-input-row:hover { border-color: rgba(163,230,53,0.28); }
+      .club-selected-val { font-size: 0.95rem; color: #ffffff; font-weight: 500; }
+      .club-placeholder { font-size: 0.95rem; color: rgba(255,255,255,0.4); }
+      .club-caret { color: rgba(255,255,255,0.55); font-size: 0.75rem; transition: transform 0.2s; }
       .club-caret.open { transform: rotate(180deg); }
       .club-dropdown {
         position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50;
-        background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.12); overflow: hidden;
+        background: var(--dm-surface); border: 1px solid rgba(163,230,53,0.12); border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3); overflow: hidden;
       }
       .club-search-box {
         display: flex; align-items: center; gap: 8px;
-        padding: 8px 12px; border-bottom: 1px solid #f0f0f0; background: #fafafa;
+        padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02);
       }
-      .club-search-icon { color: #9ca3af; font-size: 0.8rem; flex-shrink: 0; }
+      .club-search-icon { color: rgba(255,255,255,0.4); font-size: 0.8rem; flex-shrink: 0; }
       .club-search-field {
         flex: 1; border: none; outline: none; font-size: 0.875rem;
-        background: transparent; color: #111827;
+        background: transparent; color: #ffffff;
+      }
+      .club-search-field::placeholder {
+        color: rgba(255,255,255,0.4);
       }
       .club-options { max-height: 200px; overflow-y: auto; }
       .club-option {
@@ -511,39 +531,39 @@ import { ClubService, Club } from '../../../core/services/club.service';
         padding: 9px 12px; border: none; background: transparent;
         cursor: pointer; text-align: left; font-family: inherit; transition: background 0.12s;
       }
-      .club-option:hover { background: #f8f1e4; }
-      .club-option.selected { background: #fdf6ea; }
+      .club-option:hover { background: rgba(163,230,53,0.08); }
+      .club-option.selected { background: rgba(163,230,53,0.12); }
       .club-option-initials {
         width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0;
-        background: linear-gradient(135deg, #c9a15d, #9f7338);
-        color: #fff; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+        background: rgba(163,230,53,0.2);
+        color: var(--dm-accent); font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
         display: flex; align-items: center; justify-content: center;
       }
-      .club-option-name { flex: 1; font-size: 0.875rem; color: #111827; font-weight: 500; }
-      .club-option-check { color: #9f7338; font-size: 0.75rem; }
-      .club-no-results { padding: 16px; text-align: center; font-size: 0.85rem; color: #9ca3af; }
+      .club-option-name { flex: 1; font-size: 0.875rem; color: #ffffff; font-weight: 500; }
+      .club-option-check { color: var(--dm-accent); font-size: 0.75rem; }
+      .club-no-results { padding: 16px; text-align: center; font-size: 0.85rem; color: rgba(255,255,255,0.4); }
 
       .auth-footer {
         text-align: center;
         padding: 0 2rem 1.5rem;
         font-size: 0.9rem;
-        color: #6b7280;
+        color: rgba(255,255,255,0.6);
       }
       .auth-footer a {
-        color: #b88942;
+        color: var(--dm-accent);
         font-weight: 600;
         text-decoration: none;
       }
       .auth-footer a:hover {
-        color: #9f7338;
+        color: rgba(163,230,53,0.9);
       }
       .alert-success {
         margin: 1.5rem 2rem 0;
         padding: 1rem;
-        background: #f8f1e4;
-        border: 1px solid #c9a15d;
+        background: rgba(163,230,53,0.08);
+        border: 1px solid rgba(163,230,53,0.2);
         border-radius: 8px;
-        color: #9f7338;
+        color: rgba(163,230,53,0.9);
         font-size: 0.9rem;
       }
       @media (max-width: 600px) {

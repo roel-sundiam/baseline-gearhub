@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -12,306 +12,206 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="page-wrap">
-      <div class="court-bg"><div class="court-overlay"></div></div>
-      <div class="page-card">
-        <!-- Header -->
-        <div class="card-header">
-          <button class="back-btn" (click)="goBack()">← Back</button>
-          <h2>Payment Card</h2>
-          <div class="balance-summary" [class.all-clear]="totals.totalOutstanding === 0">
-            <span class="balance-icon">{{ totals.totalOutstanding > 0 ? '⚠️' : '✅' }}</span>
-            <div>
-              <div class="balance-amount">
-                {{ totals.totalOutstanding > 0 ? (totals.totalOutstanding | currency: 'PHP' : 'symbol') : 'All Paid' }}
-              </div>
-              <div class="balance-label">{{ totals.totalOutstanding > 0 ? 'Outstanding' : 'Balance' }}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Filter Tabs -->
-        <div class="tabs">
-          <button class="tab-btn" [class.active]="filterTab === 'unpaid'" (click)="setFilterTab('unpaid')">
-            Unpaid
-            <span class="tab-badge">{{ totals.unpaidCount }}</span>
-          </button>
-<button class="tab-btn" [class.active]="filterTab === 'paid'" (click)="setFilterTab('paid')">
-            Paid
-            <span class="tab-badge">{{ totals.paidCount }}</span>
-          </button>
-          <button class="tab-btn" [class.active]="filterTab === 'all'" (click)="setFilterTab('all')">
-            All
-            <span class="tab-badge">{{ totals.totalCharges }}</span>
-          </button>
-        </div>
-
-        <!-- Main Content -->
-        <div class="card-body">
-          @if (loading) {
-            <div class="loading">Loading your charges...</div>
-          } @else if (errorMessage) {
-            <div class="error-state">
-              <span>❌</span>
-              <p>{{ errorMessage }}</p>
-              <button class="retry-btn" (click)="loadCharges()">Retry</button>
-            </div>
-          } @else if (filteredCharges.length === 0) {
-            <div class="empty-state">
-              <span>{{ filterTab === 'paid' ? '✅' : '💳' }}</span>
-              <p>
-                @if (filterTab === 'all') {
-                  No charges yet. Book a court to create one!
-                } @else if (filterTab === 'unpaid') {
-                  All charges are paid! Great job.
-                } @else {
-                  No paid charges yet.
-                }
-              </p>
-            </div>
+    <div class="dm-shell">
+      <!-- Mobile header -->
+      <header class="dm-header">
+        <button class="dm-back-btn" (click)="navigateTo('/player/dashboard')">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <span class="dm-header-title">Payments</span>
+        <div class="dm-header-balance" [class.all-clear]="totals.totalOutstanding === 0">
+          @if (totals.totalOutstanding > 0) {
+            <span class="dm-balance-amount">{{ totals.totalOutstanding | currency: 'PHP' : 'symbol' }}</span>
+            <span class="dm-balance-label">outstanding</span>
           } @else {
-            <div class="charges-list">
-              @for (charge of filteredCharges; track charge._id) {
-                <div class="charge-card" [class.paid]="charge.status === 'paid'">
-                  <!-- Left Section: Info -->
-                  <div class="charge-left">
-                    <div class="charge-header">
-                      <h4 class="charge-title">
-                        @if (charge.chargeType === 'reservation') {
-                          Court Reservation Fee
-                        } @else {
-                          Session Charge
-                        }
-                      </h4>
-                      @if (charge.approvalStatus === 'pending') {
-                        <span class="status-badge status-pending">AWAITING APPROVAL</span>
-                      } @else if (charge.approvalStatus === 'approved') {
-                        <span class="status-badge paid">APPROVED</span>
-                      } @else if (charge.approvalStatus === 'rejected') {
-                        <span class="status-badge status-rejected">REJECTED</span>
-                      } @else {
-                        <span class="status-badge" [class.unpaid]="charge.status === 'unpaid'" [class.paid]="charge.status === 'paid'">
-                          {{ charge.status | uppercase }}
-                        </span>
-                      }
-                    </div>
+            <i class="fas fa-check-circle" style="color:#a3e635"></i>
+            <span class="dm-balance-label">all paid</span>
+          }
+        </div>
+      </header>
 
-                    <!-- Date/Reference Info -->
-                    <div class="charge-details">
-                      @if (charge.chargeType === 'reservation' && charge.reservationId) {
-                        <div class="detail-row">
-                          <span class="detail-label">📅 Date:</span>
-                          <span class="detail-value">{{ charge.reservationId.date | date: 'MMM d, yyyy' : 'UTC' }}</span>
-                        </div>
-                        @if (charge.reservationId.timeSlot) {
-                          <div class="detail-row">
-                            <span class="detail-label">⏰ Time:</span>
-                            <span class="detail-value">{{ formatTimeSlot(charge.reservationId.timeSlot) }}</span>
-                          </div>
-                        }
-                        <div class="detail-row">
-                          <span class="detail-label">🏟️ Court:</span>
-                          <span class="detail-value">Court {{ charge.reservationId.court }}</span>
-                        </div>
-                      } @else if (charge.chargeType === 'session' && charge.sessionId) {
-                        <div class="detail-row">
-                          <span class="detail-label">📅 Date:</span>
-                          <span class="detail-value">{{ charge.sessionId.date | date: 'MMM d, yyyy' : 'UTC' }}</span>
-                        </div>
-                        <div class="detail-row">
-                          <span class="detail-label">⏰ Time:</span>
-                          <span class="detail-value">{{ charge.sessionId.startTime }}</span>
-                        </div>
-                      }
+      <!-- Filter tabs -->
+      <div class="dm-tabs">
+        <button class="dm-tab" [class.active]="filterTab === 'unpaid'" (click)="setFilterTab('unpaid')">
+          Unpaid
+          @if (totals.unpaidCount > 0) { <span class="dm-tab-badge">{{ totals.unpaidCount }}</span> }
+        </button>
+        <button class="dm-tab" [class.active]="filterTab === 'paid'" (click)="setFilterTab('paid')">
+          Paid
+          @if (totals.paidCount > 0) { <span class="dm-tab-badge dm-tab-badge-green">{{ totals.paidCount }}</span> }
+        </button>
+        <button class="dm-tab" [class.active]="filterTab === 'all'" (click)="setFilterTab('all')">
+          All
+          @if (totals.totalCharges > 0) { <span class="dm-tab-badge dm-tab-badge-muted">{{ totals.totalCharges }}</span> }
+        </button>
+      </div>
 
-                      @if (charge.paidAt && charge.approvalStatus !== 'rejected') {
-                        <div class="detail-row">
-                          <span class="detail-label">{{ charge.approvalStatus === 'approved' ? '✅ Paid On:' : '📤 Submitted:' }}</span>
-                          <span class="detail-value">{{ charge.paidAt | date: 'MMM d, yyyy' : 'UTC' }}</span>
-                        </div>
-                      }
-                      @if (charge.paymentMethod && charge.approvalStatus !== 'rejected') {
-                        <div class="detail-row">
-                          <span class="detail-label">💳 Method:</span>
-                          <span class="detail-value">{{ charge.paymentMethod }}</span>
-                        </div>
-                      }
-                      @if (charge.approvalStatus === 'rejected' && charge.adminNote) {
-                        <div class="detail-row rejection-note">
-                          <span class="detail-label">📝 Note:</span>
-                          <span class="detail-value">{{ charge.adminNote }}</span>
-                        </div>
-                      }
+      <div class="dm-body">
+        @if (loading) {
+          <div class="dm-state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading charges…</div>
+        } @else if (errorMessage) {
+          <div class="dm-error-card">
+            <i class="fas fa-exclamation-triangle"></i>
+            <p>{{ errorMessage }}</p>
+            <button class="dm-retry-btn" (click)="loadCharges()">Retry</button>
+          </div>
+        } @else if (filteredCharges.length === 0) {
+          <div class="dm-empty">
+            <i class="far fa-credit-card"></i>
+            <p>
+              @if (filterTab === 'all') { No charges yet. }
+              @else if (filterTab === 'unpaid') { All charges are paid! }
+              @else { No paid charges yet. }
+            </p>
+          </div>
+        } @else {
+          <div class="dm-charges-list">
+            @for (charge of filteredCharges; track charge._id) {
+              <div class="dm-charge-card" [class.dm-charge-paid]="charge.status === 'paid'" [class.dm-charge-rejected]="charge.approvalStatus === 'rejected'">
+                <div class="dm-charge-accent" [class.accent-amber]="charge.approvalStatus === 'pending'" [class.accent-green]="charge.approvalStatus === 'approved' || charge.status === 'paid'" [class.accent-red]="charge.approvalStatus === 'rejected'" [class.accent-white]="!charge.approvalStatus || charge.approvalStatus === 'none'"></div>
+
+                <div class="dm-charge-main">
+                  <div class="dm-charge-top">
+                    <div class="dm-charge-title">
+                      @if (charge.chargeType === 'reservation') { Court Reservation }
+                      @else { Session Charge }
                     </div>
+                    @if (charge.approvalStatus === 'pending') {
+                      <span class="dm-status-chip chip-amber">Awaiting</span>
+                    } @else if (charge.approvalStatus === 'approved') {
+                      <span class="dm-status-chip chip-green">Approved</span>
+                    } @else if (charge.approvalStatus === 'rejected') {
+                      <span class="dm-status-chip chip-red">Rejected</span>
+                    } @else {
+                      <span class="dm-status-chip" [class.chip-green]="charge.status === 'paid'" [class.chip-amber]="charge.status === 'unpaid'">
+                        {{ charge.status | uppercase }}
+                      </span>
+                    }
                   </div>
 
-                  <!-- Right Section: Amount & Action -->
-                  <div class="charge-right">
-                    <div class="charge-amount">
-                      <span class="amount-label">Amount</span>
-                      <span class="amount-value">{{ charge.amount | currency: 'PHP' : 'symbol' }}</span>
-                    </div>
-
-                    @if (charge.approvalStatus === 'pending') {
-                      <div class="pending-badge">
-                        <i class="fas fa-hourglass-half"></i>
-                        Pending
-                      </div>
-                    } @else if (charge.approvalStatus === 'approved') {
-                      <div class="paid-badge">
-                        <i class="fas fa-check-circle"></i>
-                        Approved
-                      </div>
-                    } @else if (charge.approvalStatus === 'rejected') {
-                      <button
-                        class="pay-btn pay-btn-retry"
-                        [disabled]="payingChargeId === charge._id"
-                        (click)="openPaymentModal(charge)"
-                      >
-                        Re-submit
-                      </button>
-                    } @else if (charge.status === 'unpaid') {
-                      <button
-                        class="pay-btn"
-                        [disabled]="payingChargeId === charge._id"
-                        (click)="openPaymentModal(charge)"
-                      >
-                        @if (payingChargeId === charge._id) {
-                          <i class="fas fa-circle-notch fa-spin"></i>
-                        } @else {
-                          Log Payment
+                  <div class="dm-charge-details">
+                    @if (charge.chargeType === 'reservation' && charge.reservationId) {
+                      <div class="dm-detail-row">
+                        <span class="dm-detail-icon"><i class="fas fa-calendar-alt"></i></span>
+                        <span>{{ charge.reservationId.date | date: 'MMM d, yyyy' : 'UTC' }}</span>
+                        @if (charge.reservationId.timeSlot) {
+                          <span class="dm-detail-sep">·</span>
+                          <span>{{ formatTimeSlot(charge.reservationId.timeSlot) }}</span>
                         }
-                      </button>
-                    } @else {
-                      <div class="paid-badge">
-                        <i class="fas fa-check-circle"></i>
-                        Paid
+                      </div>
+                      <div class="dm-detail-row">
+                        <span class="dm-detail-icon"><i class="fas fa-table-tennis"></i></span>
+                        <span class="dm-court-label">Court {{ charge.reservationId.court }}</span>
+                      </div>
+                    } @else if (charge.chargeType === 'session' && charge.sessionId) {
+                      <div class="dm-detail-row">
+                        <span class="dm-detail-icon"><i class="fas fa-calendar-alt"></i></span>
+                        <span>{{ charge.sessionId.date | date: 'MMM d, yyyy' : 'UTC' }} · {{ charge.sessionId.startTime }}</span>
+                      </div>
+                    }
+                    @if (charge.paidAt && charge.approvalStatus !== 'rejected') {
+                      <div class="dm-detail-row">
+                        <span class="dm-detail-icon"><i class="fas fa-check"></i></span>
+                        <span>{{ charge.approvalStatus === 'approved' ? 'Paid' : 'Submitted' }} {{ charge.paidAt | date: 'MMM d, yyyy' : 'UTC' }}</span>
+                        @if (charge.paymentMethod) { <span class="dm-detail-sep">·</span><span>{{ charge.paymentMethod }}</span> }
+                      </div>
+                    }
+                    @if (charge.approvalStatus === 'rejected' && charge.adminNote) {
+                      <div class="dm-detail-row dm-rejection-note">
+                        <span class="dm-detail-icon"><i class="fas fa-info-circle"></i></span>
+                        <span>{{ charge.adminNote }}</span>
                       </div>
                     }
                   </div>
+
+                  <div class="dm-charge-bottom">
+                    <span class="dm-amount">{{ charge.amount | currency: 'PHP' : 'symbol' }}</span>
+                    @if (charge.approvalStatus === 'pending') {
+                      <div class="dm-pending-badge"><i class="fas fa-hourglass-half"></i> Pending</div>
+                    } @else if (charge.approvalStatus === 'approved') {
+                      <div class="dm-paid-badge"><i class="fas fa-check-circle"></i> Approved</div>
+                    } @else if (charge.approvalStatus === 'rejected') {
+                      <button class="dm-pay-btn dm-retry-btn-pay" [disabled]="payingChargeId === charge._id" (click)="openPaymentModal(charge)">Re-submit</button>
+                    } @else if (charge.status === 'unpaid') {
+                      <button class="dm-pay-btn" [disabled]="payingChargeId === charge._id" (click)="openPaymentModal(charge)">
+                        @if (payingChargeId === charge._id) { <i class="fas fa-circle-notch fa-spin"></i> }
+                        @else { Log Payment }
+                      </button>
+                    } @else {
+                      <div class="dm-paid-badge"><i class="fas fa-check-circle"></i> Paid</div>
+                    }
+                  </div>
                 </div>
-              }
-            </div>
-          }
-        </div>
+              </div>
+            }
+          </div>
+        }
+        <div class="dm-bottom-spacer"></div>
       </div>
 
       <!-- Payment Modal -->
       @if (showPaymentModal && selectedCharge) {
-        <div class="modal-overlay" (click)="closePaymentModal()">
-          <div class="modal-content" (click)="$event.stopPropagation()">
-            <div class="modal-header">
-              <h3>💳 Log Payment</h3>
-              <button class="close-btn" (click)="closePaymentModal()">✕</button>
+        <div class="dm-modal-overlay" (click)="closePaymentModal()">
+          <div class="dm-modal" (click)="$event.stopPropagation()">
+            <div class="dm-modal-header">
+              <span class="dm-modal-title"><i class="far fa-credit-card"></i> Log Payment</span>
+              <button class="dm-modal-close" (click)="closePaymentModal()"><i class="fas fa-times"></i></button>
             </div>
 
-            <div class="modal-body">
-              <!-- Success Status -->
+            <div class="dm-modal-body">
               @if (paymentSuccessful) {
-                <div class="success-status">
-                  <div class="success-icon">⏳</div>
-                  <div class="success-message">
-                    <h4>Payment Submitted!</h4>
-                    <p>Your payment of {{ selectedCharge.amount | currency: 'PHP' : 'symbol' }} via {{ selectedPaymentMethod }} has been submitted and is awaiting admin approval.</p>
-                  </div>
+                <div class="dm-success-state">
+                  <div class="dm-success-icon"><i class="fas fa-hourglass-half"></i></div>
+                  <h4>Payment Submitted!</h4>
+                  <p>{{ selectedCharge.amount | currency: 'PHP' : 'symbol' }} via {{ selectedPaymentMethod }} is awaiting admin approval.</p>
                 </div>
               } @else {
-              <!-- Charge Details -->
-              <div class="charge-details-box">
-                <div class="charge-detail-item">
-                  <span class="detail-icon">🏟️</span>
-                  <div>
-                    <div class="detail-label">Type</div>
-                    <div class="detail-value">
-                      @if (selectedCharge.chargeType === 'reservation') {
-                        Court Reservation
-                      } @else {
-                        Session Charge
-                      }
+                <div class="dm-modal-charge-box">
+                  @if (selectedCharge.chargeType === 'reservation' && selectedCharge.reservationId) {
+                    <div class="dm-modal-detail">
+                      <span class="dm-modal-detail-label">Court</span>
+                      <span class="dm-modal-detail-value dm-court-label">Court {{ selectedCharge.reservationId.court }}</span>
                     </div>
-                  </div>
-                </div>
-                
-                @if (selectedCharge.chargeType === 'reservation' && selectedCharge.reservationId) {
-                  <div class="charge-detail-item">
-                    <span class="detail-icon">📅</span>
-                    <div>
-                      <div class="detail-label">Date</div>
-                      <div class="detail-value">{{ selectedCharge.reservationId.date | date: 'MMM d, yyyy' : 'UTC' }}</div>
+                    <div class="dm-modal-detail">
+                      <span class="dm-modal-detail-label">Date</span>
+                      <span class="dm-modal-detail-value">{{ selectedCharge.reservationId.date | date: 'MMM d, yyyy' : 'UTC' }}</span>
                     </div>
-                  </div>
-                  @if (selectedCharge.reservationId.timeSlot) {
-                    <div class="charge-detail-item">
-                      <span class="detail-icon">⏰</span>
-                      <div>
-                        <div class="detail-label">Time</div>
-                        <div class="detail-value">{{ formatTimeSlot(selectedCharge.reservationId.timeSlot) }}</div>
+                    @if (selectedCharge.reservationId.timeSlot) {
+                      <div class="dm-modal-detail">
+                        <span class="dm-modal-detail-label">Time</span>
+                        <span class="dm-modal-detail-value">{{ formatTimeSlot(selectedCharge.reservationId.timeSlot) }}</span>
                       </div>
-                    </div>
+                    }
                   }
-                }
-              </div>
+                </div>
 
-              <!-- Amount Display -->
-              <div class="amount-box">
-                <div class="amount-label">Amount Due</div>
-                <div class="amount-display">{{ selectedCharge.amount | currency: 'PHP' : 'symbol' }}</div>
-              </div>
+                <div class="dm-amount-box">
+                  <span class="dm-amount-label">Amount Due</span>
+                  <span class="dm-amount-display">{{ selectedCharge.amount | currency: 'PHP' : 'symbol' }}</span>
+                </div>
 
-              <!-- Payment Method Selection -->
-              <div class="form-group">
-                <label class="form-label">
-                  <span class="label-icon">💰</span>
-                  Select Payment Method
-                </label>
-                <div class="radio-group">
+                <div class="dm-payment-methods">
+                  <div class="dm-methods-label">Select Payment Method</div>
                   @for (method of paymentMethods; track method) {
-                    <label class="radio-label" [class.selected]="selectedPaymentMethod === method">
-                      <input
-                        type="radio"
-                        [value]="method"
-                        [(ngModel)]="selectedPaymentMethod"
-                      />
-                      <div class="method-content">
-                        <span class="method-icon">
-                          @switch (method) {
-                            @case ('GCash') { 📱 }
-                            @case ('Cash') { 💵 }
-                            @case ('Bank Transfer') { 🏦 }
-                          }
-                        </span>
-                        <div class="method-info">
-                          <span class="method-name">{{ method }}</span>
-                          <span class="method-desc">
-                            @switch (method) {
-                              @case ('GCash') { Mobile payment }
-                              @case ('Cash') { Physical payment }
-                              @case ('Bank Transfer') { Bank deposit }
-                            }
-                          </span>
-                        </div>
-                      </div>
+                    <label class="dm-method-row" [class.selected]="selectedPaymentMethod === method">
+                      <input type="radio" [value]="method" [(ngModel)]="selectedPaymentMethod" />
+                      <span class="dm-method-icon">
+                        @switch (method) {
+                          @case ('GCash') { 📱 }
+                          @case ('Cash') { 💵 }
+                          @case ('Bank Transfer') { 🏦 }
+                        }
+                      </span>
+                      <span class="dm-method-name">{{ method }}</span>
                     </label>
                   }
                 </div>
-              </div>
-              }
 
-              <!-- Footer -->
-              @if (!paymentSuccessful) {
-                <div class="modal-footer">
-                  <button class="btn-cancel" (click)="closePaymentModal()">Cancel</button>
-                  <button
-                    class="btn-submit"
-                    [disabled]="!selectedPaymentMethod || submittingPayment"
-                    (click)="submitPayment()"
-                  >
-                    @if (submittingPayment) {
-                      <i class="fas fa-circle-notch fa-spin"></i>
-                      Processing...
-                    } @else {
-                      ✓ Confirm & Log Payment
-                    }
+                <div class="dm-modal-footer">
+                  <button class="dm-modal-cancel" (click)="closePaymentModal()">Cancel</button>
+                  <button class="dm-modal-submit" [disabled]="!selectedPaymentMethod || submittingPayment" (click)="submitPayment()">
+                    @if (submittingPayment) { <i class="fas fa-circle-notch fa-spin"></i> Processing… }
+                    @else { Confirm Payment }
                   </button>
                 </div>
               }
@@ -319,723 +219,605 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
           </div>
         </div>
       }
+
+      <!-- Bottom Nav -->
+      <nav class="dm-bottom-nav">
+        <button class="dm-nav-item" (click)="navigateTo('/player/dashboard')">
+          <i class="fas fa-home"></i><span>Home</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/reserve')">
+          <i class="fas fa-table-tennis"></i><span>Courts</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/reservations')">
+          <i class="far fa-calendar-check"></i><span>Bookings</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/tournaments')">
+          <i class="fas fa-medal"></i><span>Rankings</span>
+        </button>
+        <button class="dm-nav-item" (click)="navigateTo('/player/profile/edit')">
+          <i class="far fa-user"></i><span>Profile</span>
+        </button>
+      </nav>
     </div>
   `,
   styles: [`
-    .page-wrap {
-      position: relative;
-      min-height: 100vh;
-      padding: 20px;
-      background: linear-gradient(135deg, #9f7338 0%, #c9a15d 100%);
+    :host {
+      display: block;
+      margin: -1.5rem;
+      width: calc(100% + 3rem);
+    }
+    @media (min-width: 769px) {
+      :host { margin: 0; width: 100%; }
     }
 
-    .court-bg {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><rect fill="%23f0f0f0" width="1200" height="800"/></svg>');
-      z-index: 0;
-    }
-
-    .court-overlay {
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.3);
-    }
-
-    .page-card {
-      position: relative;
-      z-index: 1;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-      max-width: 800px;
+    .dm-shell {
+      background: #0c1a11;
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 60px);
+      max-width: 480px;
       margin: 0 auto;
-      overflow: hidden;
-    }
-
-    .card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 24px;
-      border-bottom: 1px solid #eee;
-      gap: 20px;
-    }
-
-    .back-btn {
-      background: none;
-      border: none;
-      font-size: 16px;
-      cursor: pointer;
-      padding: 8px 12px;
-      border-radius: 4px;
-      transition: background 0.2s;
-      white-space: nowrap;
-    }
-
-    .back-btn:hover {
-      background: #f0f0f0;
-    }
-
-    .card-header h2 {
-      margin: 0;
-      flex: 1;
-      font-size: 24px;
-      color: #333;
-    }
-
-    .balance-summary {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 8px 16px;
-      background: #fff3cd;
-      border-radius: 8px;
-      min-width: 160px;
-    }
-
-    .balance-summary.all-clear {
-      background: #d4edda;
-    }
-
-    .balance-icon {
-      font-size: 20px;
-    }
-
-    .balance-amount {
-      font-size: 16px;
-      font-weight: bold;
-      color: #333;
-    }
-
-    .balance-label {
-      font-size: 12px;
-      color: #666;
-      margin-top: 2px;
-    }
-
-    .tabs {
-      display: flex;
-      border-bottom: 1px solid #eee;
-      padding: 0 24px;
-    }
-
-    .tab-btn {
-      flex: 1;
-      padding: 16px 0;
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      color: #999;
-      border-bottom: 3px solid transparent;
-      transition: all 0.2s;
       position: relative;
+    }
+    @media (min-width: 769px) {
+      .dm-shell {
+        max-width: 720px;
+        height: auto;
+        min-height: calc(100vh - 60px);
+      }
+    }
+
+    /* Header */
+    .dm-header {
+      background: #111f16;
+      padding: 1rem 1rem 0.8rem;
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
+      gap: 0.75rem;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      flex-shrink: 0;
     }
+    @media (min-width: 769px) { .dm-header { display: none; } }
 
-    .tab-btn.active {
-      color: #b88942;
-      border-bottom-color: #b88942;
-    }
-
-    .tab-btn:hover {
-      color: #b88942;
-    }
-
-    .tab-badge {
-      background: #b88942;
-      color: white;
-      font-size: 11px;
-      padding: 2px 6px;
+    .dm-back-btn {
+      background: rgba(255,255,255,0.08);
+      border: none;
+      color: rgba(255,255,255,0.7);
+      width: 34px; height: 34px;
       border-radius: 10px;
-      min-width: 20px;
-      text-align: center;
-    }
-
-
-    .card-body {
-      padding: 24px;
-    }
-
-    .loading, .empty-state {
-      text-align: center;
-      padding: 40px 20px;
-      color: #999;
-    }
-
-    .empty-state span {
-      font-size: 48px;
-      display: block;
-      margin-bottom: 16px;
-    }
-
-    .empty-state p {
-      margin: 0;
-      color: #666;
-    }
-
-    .error-state {
-      text-align: center;
-      padding: 40px 20px;
-      color: #dc3545;
-    }
-
-    .error-state span {
-      font-size: 48px;
-      display: block;
-      margin-bottom: 16px;
-    }
-
-    .error-state p {
-      margin: 0 0 16px 0;
-      color: #dc3545;
-    }
-
-    .retry-btn {
-      background: #dc3545;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0;
       transition: background 0.2s;
     }
+    .dm-back-btn:hover { background: rgba(255,255,255,0.14); }
 
-    .retry-btn:hover {
-      background: #c82333;
-    }
-
-    .charges-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .charge-card {
-      display: flex;
-      gap: 20px;
-      padding: 16px;
-      border: 1px solid #eee;
-      border-radius: 8px;
-      background: #fafafa;
-      transition: all 0.2s;
-    }
-
-    .charge-card:hover {
-      border-color: #b88942;
-      box-shadow: 0 2px 8px rgba(184, 137, 66, 0.1);
-    }
-
-    .charge-card.paid {
-      background: #f0f9ff;
-      border-color: #d4edda;
-    }
-
-    .charge-left {
+    .dm-header-title {
       flex: 1;
-    }
-
-    .charge-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-
-    .charge-title {
-      margin: 0;
-      font-size: 16px;
-      color: #333;
-      font-weight: 600;
-    }
-
-    .status-badge {
-      font-size: 11px;
-      font-weight: bold;
-      padding: 4px 10px;
-      border-radius: 4px;
-      background: #fff3cd;
-      color: #856404;
-    }
-
-    .status-badge.paid {
-      background: #d4edda;
-      color: #155724;
-    }
-
-    .status-pending {
-      background: #fff3cd;
-      color: #856404;
-    }
-
-    .status-rejected {
-      background: #f8d7da;
-      color: #721c24;
-    }
-
-    .rejection-note .detail-value {
-      color: #dc3545;
-      font-style: italic;
-    }
-
-    .charge-details {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: 13px;
-    }
-
-    .detail-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .detail-label {
-      color: #999;
-      min-width: 80px;
-    }
-
-    .detail-value {
-      color: #333;
-      font-weight: 500;
-    }
-
-    .charge-right {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      justify-content: space-between;
-      min-width: 120px;
-    }
-
-    .charge-amount {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-    }
-
-    .amount-label {
-      font-size: 12px;
-      color: #999;
-    }
-
-    .amount-value {
-      font-size: 20px;
-      font-weight: bold;
-      color: #b88942;
-    }
-
-    .pay-btn {
-      background: #b88942;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .pay-btn:hover:not(:disabled) {
-      background: #9f7338;
-    }
-
-    .pay-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .paid-badge {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: #28a745;
-      font-weight: 600;
-      font-size: 13px;
-    }
-
-    .pending-badge {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: #d97706;
-      font-weight: 600;
-      font-size: 13px;
-    }
-
-    .pay-btn-retry {
-      background: #f59e0b;
-    }
-
-    .pay-btn-retry:hover:not(:disabled) {
-      background: #d97706;
-    }
-
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-
-    .modal-content {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-      max-width: 450px;
-      width: 90%;
-      max-height: 90vh;
-      overflow-y: auto;
-      animation: slideUp 0.3s ease-out;
-    }
-
-    @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 20px;
-      border-bottom: 1px solid #eee;
-      background: linear-gradient(135deg, rgba(184, 137, 66, 0.05), rgba(159, 115, 56, 0.05));
-    }
-
-    .modal-header h3 {
-      margin: 0;
-      font-size: 18px;
+      font-size: 1rem;
       font-weight: 700;
-      color: #333;
+      color: #ffffff;
     }
 
-    .close-btn {
-      background: none;
-      border: none;
-      font-size: 24px;
-      cursor: pointer;
-      color: #999;
-      padding: 0;
-      width: 32px;
-      height: 32px;
+    .dm-header-balance {
       display: flex;
       align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-      border-radius: 4px;
+      gap: 0.35rem;
     }
 
-    .close-btn:hover {
-      background: #f0f0f0;
-      color: #333;
+    .dm-balance-amount {
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: #f59e0b;
     }
 
-    .modal-body {
-      padding: 24px;
-    }
-
-    .success-status {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-      padding: 30px 20px;
-      text-align: center;
-      animation: slideIn 0.3s ease-out;
-    }
-
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: scale(0.9);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
-    }
-
-    .success-icon {
-      font-size: 48px;
-      animation: bounce 0.6s ease-out;
-    }
-
-    @keyframes bounce {
-      0% {
-        transform: scale(0.8);
-      }
-      50% {
-        transform: scale(1.1);
-      }
-      100% {
-        transform: scale(1);
-      }
-    }
-
-    .success-message h4 {
-      margin: 0 0 8px 0;
-      color: #9f7338;
-      font-size: 18px;
-      font-weight: 700;
-    }
-
-    .success-message p {
-      margin: 0;
-      color: #666;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    .charge-details-box {
-      background: linear-gradient(135deg, rgba(184, 137, 66, 0.08), rgba(159, 115, 56, 0.08));
-      border-left: 4px solid #b88942;
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .charge-detail-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-    }
-
-    .detail-icon {
-      font-size: 20px;
-      margin-top: 2px;
-    }
-
-    .detail-label {
-      font-size: 11px;
-      color: #999;
-      text-transform: uppercase;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-    }
-
-    .detail-value {
-      font-size: 14px;
-      color: #333;
+    .dm-balance-label {
+      font-size: 0.7rem;
       font-weight: 600;
-      margin-top: 2px;
+      color: rgba(255,255,255,0.45);
     }
 
-    .amount-box {
-      background: linear-gradient(135deg, rgba(184, 137, 66, 0.1), rgba(159, 115, 56, 0.1));
-      border: 2px dashed #b88942;
-      border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 24px;
-      text-align: center;
-    }
-
-    .amount-label {
-      font-size: 12px;
-      color: #666;
-      text-transform: uppercase;
-      font-weight: 600;
-      letter-spacing: 0.8px;
-      margin-bottom: 10px;
-    }
-
-    .amount-display {
-      font-size: 36px;
-      font-weight: 700;
-      color: #9f7338;
-      letter-spacing: -1px;
-    }
-
-    .form-group {
-      margin-bottom: 24px;
-    }
-
-    .form-label {
+    /* Tabs */
+    .dm-tabs {
       display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      font-weight: 700;
-      margin-bottom: 14px;
-      color: #333;
-      letter-spacing: 0.2px;
-    }
-
-    .label-icon {
-      font-size: 16px;
-    }
-
-    .radio-group {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .radio-label {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      cursor: pointer;
-      padding: 14px;
-      border: 2px solid #e8e8e8;
-      border-radius: 8px;
-      transition: all 0.2s ease;
-      background: white;
-    }
-
-    .radio-label:hover {
-      border-color: #b88942;
-      background: #f9fef8;
-    }
-
-    .radio-label.selected {
-      border-color: #b88942;
-      background: linear-gradient(135deg, rgba(184, 137, 66, 0.06), rgba(159, 115, 56, 0.06));
-      box-shadow: inset 0 0 0 1px rgba(184, 137, 66, 0.1);
-    }
-
-    .radio-label input[type="radio"] {
-      cursor: pointer;
-      accent-color: #b88942;
-      width: 20px;
-      height: 20px;
+      background: #111f16;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
       flex-shrink: 0;
     }
 
-    .method-content {
-      display: flex;
-      align-items: center;
-      gap: 14px;
+    .dm-tab {
       flex: 1;
-    }
-
-    .method-icon {
-      font-size: 24px;
-    }
-
-    .method-info {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .method-name {
-      font-size: 14px;
-      font-weight: 700;
-      color: #333;
-    }
-
-    .method-desc {
-      font-size: 12px;
-      color: #999;
-    }
-
-    .modal-footer {
-      display: flex;
-      gap: 12px;
-      padding: 20px;
-      border-top: 1px solid #e8e8e8;
-      background: #fafafa;
-    }
-
-    .btn-cancel, .btn-submit {
-      flex: 1;
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-size: 15px;
-      font-weight: 600;
+      padding: 0.75rem 0.5rem;
+      background: none;
       border: none;
+      border-bottom: 2px solid transparent;
+      color: rgba(255,255,255,0.40);
+      font-size: 0.82rem;
+      font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 0.4rem;
     }
 
-    .btn-cancel {
-      background: #f0f0f0;
-      color: #333;
+    .dm-tab.active {
+      color: #a3e635;
+      border-bottom-color: #a3e635;
     }
 
-    .btn-cancel:hover {
-      background: #e0e0e0;
-      transform: translateY(-1px);
+    .dm-tab-badge {
+      background: rgba(245,158,11,0.2);
+      color: #f59e0b;
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 1px 6px;
+      border-radius: 10px;
     }
 
-    .btn-submit {
-      background: linear-gradient(135deg, #b88942 0%, #9f7338 100%);
-      color: white;
+    .dm-tab-badge-green {
+      background: rgba(163,230,53,0.15);
+      color: #a3e635;
     }
 
-    .btn-submit:hover:not(:disabled) {
-      background: linear-gradient(135deg, #9f7338 0%, #1f6939 100%);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(184, 137, 66, 0.3);
+    .dm-tab-badge-muted {
+      background: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.45);
     }
 
-    .btn-submit:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    /* Body */
+    .dm-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      -webkit-overflow-scrolling: touch;
     }
-
-    .btn-submit:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    @media (max-width: 600px) {
-      .card-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-      }
-
-      .charge-card {
-        flex-direction: column;
-      }
-
-      .charge-right {
-        align-items: flex-start;
-      }
-
-      .modal-content {
-        width: 95%;
+    @media (min-width: 769px) {
+      .dm-body {
+        overflow-y: visible;
+        padding: 1.5rem 2rem 2rem;
       }
     }
-  `,
-  ],
+
+    .dm-state-msg {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: rgba(255,255,255,0.40);
+      font-size: 0.88rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .dm-error-card {
+      background: #1b3028;
+      border-radius: 12px;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: #ef4444;
+    }
+
+    .dm-error-card i { font-size: 1.5rem; display: block; margin-bottom: 0.75rem; }
+    .dm-error-card p { margin: 0 0 1rem; font-size: 0.88rem; }
+
+    .dm-retry-btn {
+      background: rgba(239,68,68,0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239,68,68,0.3);
+      padding: 0.5rem 1.25rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    .dm-empty {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: rgba(255,255,255,0.35);
+    }
+
+    .dm-empty i { font-size: 2rem; display: block; margin-bottom: 0.75rem; opacity: 0.4; }
+    .dm-empty p { margin: 0; font-size: 0.88rem; }
+
+    /* Charge cards */
+    .dm-charges-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+    }
+
+    .dm-charge-card {
+      background: #1b3028;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      transition: background 0.2s;
+    }
+
+    .dm-charge-card:hover { background: #213830; }
+
+    .dm-charge-accent {
+      width: 4px;
+      flex-shrink: 0;
+    }
+
+    .accent-amber { background: #f59e0b; }
+    .accent-green { background: #a3e635; }
+    .accent-red { background: #ef4444; }
+    .accent-white { background: rgba(255,255,255,0.2); }
+
+    .dm-charge-main {
+      flex: 1;
+      padding: 0.85rem 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+
+    .dm-charge-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .dm-charge-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .dm-status-chip {
+      font-size: 0.62rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .chip-amber { background: rgba(245,158,11,0.18); color: #f59e0b; }
+    .chip-green { background: rgba(163,230,53,0.15); color: #a3e635; }
+    .chip-red { background: rgba(239,68,68,0.18); color: #ef4444; }
+
+    .dm-charge-details {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .dm-detail-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.55);
+    }
+
+    .dm-detail-icon { color: rgba(255,255,255,0.35); font-size: 0.7rem; }
+    .dm-detail-sep { color: rgba(255,255,255,0.25); }
+    .dm-court-label { color: #a3e635; font-weight: 600; }
+
+    .dm-rejection-note { color: #ef4444; }
+
+    .dm-charge-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 0.25rem;
+    }
+
+    .dm-amount {
+      font-size: 1rem;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .dm-paid-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #a3e635;
+    }
+
+    .dm-pending-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #f59e0b;
+    }
+
+    .dm-pay-btn {
+      background: #a3e635;
+      color: #0a1f00;
+      border: none;
+      border-radius: 20px;
+      padding: 0.35rem 1rem;
+      font-size: 0.78rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .dm-pay-btn:hover:not(:disabled) { background: #b8f040; }
+    .dm-pay-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .dm-retry-btn-pay {
+      background: rgba(245,158,11,0.2);
+      color: #f59e0b;
+      border: 1px solid rgba(245,158,11,0.3);
+    }
+
+    .dm-retry-btn-pay:hover:not(:disabled) {
+      background: rgba(245,158,11,0.3);
+    }
+
+    /* Bottom spacer */
+    .dm-bottom-spacer { height: 80px; }
+    @media (min-width: 769px) { .dm-bottom-spacer { display: none; } }
+
+    /* Modal */
+    .dm-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 500;
+    }
+    @media (min-width: 769px) {
+      .dm-modal-overlay { align-items: center; }
+    }
+
+    .dm-modal {
+      background: #1b3028;
+      border-radius: 20px 20px 0 0;
+      width: 100%;
+      max-width: 480px;
+      max-height: 85vh;
+      overflow-y: auto;
+      animation: slideUp 0.25s ease-out;
+    }
+    @media (min-width: 769px) {
+      .dm-modal {
+        border-radius: 16px;
+        max-height: 80vh;
+      }
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .dm-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.1rem 1.25rem 0.9rem;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .dm-modal-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .dm-modal-close {
+      background: rgba(255,255,255,0.08);
+      border: none;
+      color: rgba(255,255,255,0.5);
+      width: 30px; height: 30px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .dm-modal-body { padding: 1.25rem; }
+
+    .dm-success-state {
+      text-align: center;
+      padding: 2rem 1rem;
+    }
+
+    .dm-success-icon {
+      font-size: 2.5rem;
+      color: #a3e635;
+      margin-bottom: 1rem;
+    }
+
+    .dm-success-state h4 {
+      margin: 0 0 0.5rem;
+      color: #ffffff;
+      font-size: 1rem;
+    }
+
+    .dm-success-state p {
+      margin: 0;
+      color: rgba(255,255,255,0.55);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .dm-modal-charge-box {
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .dm-modal-detail {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.82rem;
+    }
+
+    .dm-modal-detail-label { color: rgba(255,255,255,0.45); }
+    .dm-modal-detail-value { color: #ffffff; font-weight: 600; }
+
+    .dm-amount-box {
+      border: 1px solid rgba(163,230,53,0.25);
+      border-radius: 12px;
+      padding: 1.25rem;
+      text-align: center;
+      margin-bottom: 1.25rem;
+    }
+
+    .dm-amount-label {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.45);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 0.4rem;
+    }
+
+    .dm-amount-display {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #a3e635;
+      letter-spacing: -0.5px;
+    }
+
+    .dm-payment-methods { margin-bottom: 1.25rem; }
+
+    .dm-methods-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.40);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 0.75rem;
+    }
+
+    .dm-method-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .dm-method-row input { display: none; }
+
+    .dm-method-row.selected {
+      border-color: rgba(163,230,53,0.4);
+      background: rgba(163,230,53,0.08);
+    }
+
+    .dm-method-icon { font-size: 1.2rem; }
+
+    .dm-method-name {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .dm-modal-footer {
+      display: flex;
+      gap: 0.75rem;
+      padding-top: 0.25rem;
+    }
+
+    .dm-modal-cancel {
+      flex: 1;
+      padding: 0.75rem;
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.7);
+      border: none;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .dm-modal-submit {
+      flex: 2;
+      padding: 0.75rem;
+      background: #a3e635;
+      color: #0a1f00;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: background 0.2s;
+    }
+
+    .dm-modal-submit:hover:not(:disabled) { background: #b8f040; }
+    .dm-modal-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Bottom nav */
+    .dm-bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      background: #111f16;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      height: 62px;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+    }
+    @media (min-width: 769px) { .dm-bottom-nav { display: none; } }
+
+    .dm-nav-item {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.35);
+      font-size: 0.6rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.2rem;
+      padding: 0.4rem 0.75rem;
+      transition: color 0.2s;
+      font-family: inherit;
+    }
+
+    .dm-nav-item i { font-size: 1.1rem; }
+    .dm-nav-item.dm-nav-active { color: #a3e635; }
+  `],
 })
-export class PlayerPaymentsComponent implements OnInit {
+export class PlayerPaymentsComponent implements OnInit, OnDestroy {
   charges: Charge[] = [];
   filteredCharges: Charge[] = [];
   filterTab: FilterTab = 'unpaid';
   loading = true;
   errorMessage: string | null = null;
-  
+
   totals = {
     totalCharges: 0,
     totalUnsettled: 0,
@@ -1046,7 +828,6 @@ export class PlayerPaymentsComponent implements OnInit {
     pendingCount: 0,
   };
 
-  // Payment modal
   showPaymentModal = false;
   selectedCharge: Charge | null = null;
   selectedPaymentMethod: 'GCash' | 'Cash' | 'Bank Transfer' | '' = '';
@@ -1060,10 +841,22 @@ export class PlayerPaymentsComponent implements OnInit {
     private auth: AuthService,
     private router: Router,
     private cdr: ChangeDetectorRef,
+    private renderer: Renderer2,
   ) {}
 
   ngOnInit() {
+    this.renderer.addClass(document.documentElement, 'dark-player-page');
+    this.renderer.addClass(document.body, 'dark-player-page');
     this.loadCharges();
+  }
+
+  ngOnDestroy() {
+    this.renderer.removeClass(document.documentElement, 'dark-player-page');
+    this.renderer.removeClass(document.body, 'dark-player-page');
+  }
+
+  navigateTo(path: string) {
+    this.router.navigate([path]);
   }
 
   loadCharges() {
@@ -1113,38 +906,23 @@ export class PlayerPaymentsComponent implements OnInit {
   }
 
   formatTimeSlot(timeSlot: string | undefined): string {
-    // Guard against undefined/null timeSlot
     if (!timeSlot) return 'N/A';
-
-    // Parse timeSlot like "6am" or "6pm"
     const match = timeSlot.match(/^(\d{1,2})([ap]m)$/i);
     if (!match) return timeSlot;
-
     const hour = parseInt(match[1], 10);
     const period = match[2].toLowerCase();
-    
-    // Format start time
-    const startTime = hour === 12 || hour < 10 ? `${hour}:00` : `${hour}:00`;
+    const startTime = `${hour}:00`;
     const startPeriod = period === 'am' ? 'AM' : 'PM';
-    
-    // Calculate end hour
     let endHour = hour + 1;
     let endPeriod = period;
-    
     if (hour === 12) {
       endHour = 1;
       endPeriod = period === 'am' ? 'am' : 'pm';
     } else if (endHour === 12 || endHour === 24) {
       endPeriod = period === 'am' ? 'pm' : 'am';
     }
-    if (endHour > 12) {
-      endHour = endHour - 12;
-    }
-    
-    const endTime = `${endHour}:00`;
-    const endPeriodFormatted = endPeriod === 'am' ? 'AM' : 'PM';
-    
-    return `${startTime} ${startPeriod} - ${endTime} ${endPeriodFormatted}`;
+    if (endHour > 12) endHour = endHour - 12;
+    return `${startTime} ${startPeriod} - ${endHour}:00 ${endPeriod === 'am' ? 'AM' : 'PM'}`;
   }
 
   openPaymentModal(charge: Charge) {
@@ -1162,21 +940,15 @@ export class PlayerPaymentsComponent implements OnInit {
 
   submitPayment() {
     if (!this.selectedCharge || !this.selectedPaymentMethod) return;
-
     this.submittingPayment = true;
     this.payingChargeId = this.selectedCharge._id;
-
     console.log('Submitting payment for charge:', this.selectedCharge._id, 'Method:', this.selectedPaymentMethod);
-
     this.chargesService.markAsPaid(this.selectedCharge._id, this.selectedPaymentMethod).subscribe({
       next: (res) => {
         console.log('Payment successful:', res);
-        // Update the charge in the list
         if (res.charge) {
           const idx = this.charges.findIndex((c) => c._id === this.selectedCharge!._id);
-          if (idx >= 0) {
-            this.charges[idx] = res.charge;
-          }
+          if (idx >= 0) this.charges[idx] = res.charge;
           this.totals = this.chargesService.calculateTotals(this.charges);
           this.applyFilter();
         }
@@ -1184,16 +956,10 @@ export class PlayerPaymentsComponent implements OnInit {
         this.payingChargeId = null;
         this.paymentSuccessful = true;
         this.cdr.markForCheck();
-
-        // Auto-close modal after 2 seconds
-        setTimeout(() => {
-          this.closePaymentModal();
-        }, 2000);
+        setTimeout(() => { this.closePaymentModal(); }, 2000);
       },
       error: (err) => {
         console.error('Payment failed:', err);
-        console.error('Error response:', err.error);
-        console.error('Error status:', err.status);
         alert(`Failed to log payment: ${err.error?.error || err.error?.message || 'Please try again.'}`);
         this.submittingPayment = false;
         this.payingChargeId = null;
@@ -1206,4 +972,3 @@ export class PlayerPaymentsComponent implements OnInit {
     this.router.navigate(['/player/dashboard']);
   }
 }
-

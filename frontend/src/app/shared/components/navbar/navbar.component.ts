@@ -1,7 +1,7 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, NavigationEnd } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { ClubService, Club } from '../../../core/services/club.service';
 import { CoinsService } from '../../../core/services/coins.service';
@@ -291,7 +291,6 @@ import { CoinsService } from '../../../core/services/coins.service';
         .club-value { max-width: 110px; }
       }
       @media (max-width: 600px) {
-        .brand-name { display: none; }
         .club-select { max-width: 90px; font-size: 0.72rem; padding: 0.25rem 0.4rem; }
         .club-locked-badge { max-width: 130px; padding: 0.2rem 0.45rem 0.2rem 0.24rem; }
         .club-value { max-width: 84px; font-size: 0.73rem; }
@@ -367,9 +366,10 @@ import { CoinsService } from '../../../core/services/coins.service';
     `,
   ],
 })
-export class NavbarComponent implements OnInit {
+export class NavbarComponent implements OnInit, OnDestroy {
   mobileMenuOpen = false;
   protected clubs = signal<Club[]>([]);
+  private routerSub: any;
 
   readonly activeClubName = computed(() => {
     const clubs = this.clubs();
@@ -401,6 +401,34 @@ export class NavbarComponent implements OnInit {
     });
     if (this.auth.isLoggedIn() && !this.auth.isSuperAdmin()) {
       this.coinsService.loadBalance().subscribe({ error: () => {} });
+    }
+
+    // Toggle dark-player-page class for admin routes to match player dashboard
+    this.updateThemeClass(this.router.url);
+    this.routerSub = this.router.events.subscribe((ev: any) => {
+      if (ev instanceof NavigationEnd) {
+        this.updateThemeClass(ev.urlAfterRedirects || ev.url || '');
+      }
+    });
+  }
+
+  ngOnDestroy() {
+    if (this.routerSub && typeof this.routerSub.unsubscribe === 'function') {
+      this.routerSub.unsubscribe();
+    }
+    document.documentElement.classList.remove('dark-player-page');
+    document.body.classList.remove('dark-player-page');
+  }
+
+  private updateThemeClass(url: string) {
+    const isAdmin = typeof url === 'string' && url.startsWith('/admin');
+    const cls = 'dark-player-page';
+    if (isAdmin) {
+      document.documentElement.classList.add(cls);
+      document.body.classList.add(cls);
+    } else {
+      document.documentElement.classList.remove(cls);
+      document.body.classList.remove(cls);
     }
   }
 
