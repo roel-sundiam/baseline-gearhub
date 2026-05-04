@@ -1,2 +1,19 @@
-# This file is kept for reference but netlify.toml in /frontend is the active config
-# See frontend/netlify.toml for build and deployment configuration
+[build]
+  base = "frontend"
+  command = "npm ci && npm run build"
+  publish = "dist/frontend/browser"
+  functions = "../netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["mongoose"]
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
