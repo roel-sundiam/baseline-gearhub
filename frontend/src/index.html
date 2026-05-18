@@ -2,10 +2,49 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Baseline Gearhub</title>
+    <title>CourtGo</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/jpeg" href="/baselinegh.jpg" />
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Theme & status bar -->
+    <meta name="theme-color" content="#0c1a11" />
+    <meta name="msapplication-TileColor" content="#0c1a11" />
+    <meta name="msapplication-TileImage" content="/icons/icon-144.png" />
+
+    <!-- Android -->
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- iOS Safari -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="CourtGo" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144.png" />
+    <link rel="apple-touch-icon" sizes="128x128" href="/icons/icon-128.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+
+    <script>
+      (function () {
+        var p = location.pathname;
+        if (p.startsWith('/player') || p.startsWith('/admin')) {
+          document.documentElement.classList.add('dark-player-page');
+        }
+      })();
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"

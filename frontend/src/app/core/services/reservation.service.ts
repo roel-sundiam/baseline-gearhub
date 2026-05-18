@@ -14,10 +14,17 @@ export interface Reservation {
   date: string;
   timeSlot: string;
   hasLights: boolean;
-  player: ReservationPlayer | string;
+  player: ReservationPlayer | string | null;
   players: ReservationPlayer[];
-  status: 'confirmed' | 'cancelled';
+  status: 'confirmed' | 'cancelled' | 'pending_payment';
+  guestInfo?: { name: string; email: string; phone?: string };
   createdAt: string;
+  lightsRequested?: boolean;
+  ballBoy?: boolean;
+  isHoliday?: boolean;
+  guestCount?: number;
+  rentals?: { balls50: number; balls100: number; ballMachine: boolean; rackets: number };
+  courtFee?: number;
 }
 
 export interface AvailabilityResult {
@@ -56,6 +63,14 @@ export class ReservationService {
     if (filters?.date) params = params.set('date', filters.date);
     if (filters?.court) params = params.set('court', filters.court);
     return this.http.get<Reservation[]>(this.base, { params });
+  }
+
+  update(id: string, payload: {
+    court: 1 | 2; date: string; timeSlot: string; players?: string[];
+    lightsRequested?: boolean; ballBoy?: boolean; isHoliday?: boolean; guestCount?: number;
+    rentals?: { balls50?: number; balls100?: number; ballMachine?: boolean; rackets?: number };
+  }) {
+    return this.http.patch<Reservation>(`${this.base}/${id}`, payload);
   }
 
   cancel(id: string) {

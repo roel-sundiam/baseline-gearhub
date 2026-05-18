@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 
 export interface AppServicePayment {
@@ -16,8 +16,8 @@ export class AppServicePaymentsService {
   constructor(private http: HttpClient) {}
 
   getAll(clubId?: string) {
-    const q = clubId ? `?clubId=${encodeURIComponent(clubId)}` : '';
-    return this.http.get<AppServicePayment[]>(`${environment.apiUrl}/app-service-payments${q}`);
+    const params = clubId ? new HttpParams().set('clubId', clubId) : undefined;
+    return this.http.get<AppServicePayment[]>(`${environment.apiUrl}/app-service-payments`, { params });
   }
 
   record(amount: number, paymentMethod: 'GCash' | 'Cash' | 'Bank Transfer', note?: string, clubId?: string) {

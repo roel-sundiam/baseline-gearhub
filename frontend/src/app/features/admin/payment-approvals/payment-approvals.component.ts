@@ -69,6 +69,9 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
             <div class="charge-info">
               <div class="player-row">
                 <span class="player-name">{{ getPlayerName(charge) }}</span>
+                @if (!charge.playerId && charge.guestName) {
+                  <span class="guest-badge">Guest</span>
+                }
                 <span class="approval-badge"
                       [class.badge-pending]="charge.approvalStatus === 'pending'"
                       [class.badge-approved]="charge.approvalStatus === 'approved'"
@@ -211,6 +214,7 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
     .charge-info { flex: 1; }
     .player-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
     .player-name { font-weight: 700; font-size: 1rem; color: #111827; }
+    .guest-badge { font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: #ede9fe; color: #5b21b6; }
     .approval-badge { font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
     .badge-pending { background: #fef3c7; color: #92400e; }
     .badge-approved { background: #dcfce7; color: #166534; }
@@ -337,7 +341,7 @@ export class PaymentApprovalsComponent implements OnInit {
     if (charge.playerId && typeof charge.playerId === 'object') {
       return (charge.playerId as any).name || 'Unknown Player';
     }
-    return 'Unknown Player';
+    return charge.guestName || 'Unknown Player';
   }
 
   approve(id: string) {

@@ -44,6 +44,22 @@ export class AuthService {
     return this.http.post<{ message: string }>(`${environment.apiUrl}/auth/register`, data);
   }
 
+  registerClub(data: {
+    clubName: string;
+    adminName: string;
+    adminUsername: string;
+    adminPassword: string;
+    location?: string;
+    logo?: string;
+    email?: string;
+    contactNumber?: string;
+  }) {
+    return this.http.post<{ message: string; clubId: string; adminId: string }>(
+      `${environment.apiUrl}/auth/register-club`,
+      data,
+    );
+  }
+
   login(username: string, password: string) {
     return this.http
       .post<{

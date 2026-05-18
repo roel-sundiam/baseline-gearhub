@@ -4,7 +4,12 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "prebuild": "node scripts/bump-version.js",
     "build": "ng build",
+    "build:mobile": "ng build --configuration=mobile && npx cap sync",
+    "cap:sync": "npx cap sync",
+    "cap:android": "npx cap open android",
+    "cap:ios": "npx cap open ios",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
@@ -17,6 +22,12 @@
     "@angular/forms": "^21.2.0",
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -24,7 +35,10 @@
     "@angular/build": "^21.2.7",
     "@angular/cli": "^21.2.7",
     "@angular/compiler-cli": "^21.2.0",
+    "gif-encoder-2": "^1.0.5",
+    "pngjs": "^7.0.0",
     "prettier": "^3.8.1",
+    "puppeteer": "^24.43.0",
     "typescript": "~5.9.2"
   }
 }

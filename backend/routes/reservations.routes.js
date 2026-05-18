@@ -244,6 +244,144 @@ router.post("/", auth, async (req, res) => {
   }
 });
 
+const EDIT_COIN_COST = 3;
+
+// PATCH /api/reservations/:id — edit a reservation (owner only, confirmed + future)
+router.patch("/:id", auth, async (req, res) => {
+  try {
+    const reservation = await Reservation.findById(req.params.id);
+    if (!reservation) return res.status(404).json({ error: "Reservation not found" });
+
+    if (reservation.player.toString() !== req.user.userId)
+      return res.status(403).json({ error: "Access denied" });
+    if (reservation.status !== "confirmed")
+      return res.status(400).json({ error: "Only confirmed reservations can be edited" });
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    if (reservation.date < today)
+      return res.status(400).json({ error: "Cannot edit past reservations" });
+
+    const {
+      court, date, timeSlot, players = [],
+      lightsRequested = false, ballBoy = false, isHoliday = false,
+      guestCount = 0, rentals = {},
+    } = req.body;
+
+    const courtNum = Number(court);
+    if (courtNum !== 1 && courtNum !== 2)
+      return res.status(400).json({ error: "court must be 1 or 2" });
+
+    const parsedDate = new Date(date);
+    parsedDate.setUTCHours(0, 0, 0, 0);
+    if (parsedDate < today)
+      return res.status(400).json({ error: "Cannot edit to a past date" });
+
+    const coreChanged =
+      courtNum !== reservation.court ||
+      parsedDate.getTime() !== reservation.date.getTime() ||
+      timeSlot !== reservation.timeSlot;
+
+    if (coreChanged) {
+      const conflict = await Reservation.findOne({
+        _id: { $ne: reservation._id },
+        clubId: reservation.clubId,
+        court: courtNum,
+        date: parsedDate,
+        timeSlot,
+        status: "confirmed",
+      });
+      if (conflict) return res.status(409).json({ error: "That slot is already booked" });
+
+      const club = await Club.findById(reservation.clubId);
+      if (!club || club.coinBalance < EDIT_COIN_COST)
+        return res.status(402).json({ error: "Insufficient coins to modify the reservation", coinBalance: club?.coinBalance ?? 0 });
+
+      club.coinBalance -= EDIT_COIN_COST;
+      await club.save();
+      await CoinTransaction.create({
+        clubId: reservation.clubId,
+        userId: req.user.userId,
+        type: "debit",
+        amount: EDIT_COIN_COST,
+        action: "reservation_edit",
+        relatedId: reservation._id,
+        balanceAfter: club.coinBalance,
+      });
+    }
+
+    const rawRates = await Rates.findOne({ clubId: reservation.clubId }).lean();
+    const ratesUsed = {
+      weekdayRate:          Number(rawRates?.reservationWeekdayRate ?? 0),
+      weekendRate:          Number(rawRates?.reservationWeekendRate ?? 0),
+      holidayRate:          Number(rawRates?.reservationHolidayRate ?? 0),
+      lightsRate:           Number(rawRates?.lightRate ?? 0),
+      ballBoyRate:          Number(rawRates?.ballBoyRate ?? 0),
+      guestFee:             Number(rawRates?.reservationGuestFee ?? 0),
+      rentalBalls50Rate:    Number(rawRates?.rentalBalls50Rate ?? 0),
+      rentalBalls100Rate:   Number(rawRates?.rentalBalls100Rate ?? 0),
+      rentalBallMachineRate:Number(rawRates?.rentalBallMachineRate ?? 0),
+      rentalRacketRate:     Number(rawRates?.rentalRacketRate ?? 0),
+    };
+
+    const sanitizedRentals = {
+      balls50:     Math.max(0, Math.floor(Number(rentals.balls50)  || 0)),
+      balls100:    Math.max(0, Math.floor(Number(rentals.balls100) || 0)),
+      ballMachine: Boolean(rentals.ballMachine),
+      rackets:     Math.max(0, Math.floor(Number(rentals.rackets)  || 0)),
+    };
+    const sanitizedGuestCount = Math.max(0, Math.floor(Number(guestCount) || 0));
+
+    const dayOfWeek = parsedDate.getUTCDay();
+    const isWeekend = WEEKEND_DAYS.has(dayOfWeek);
+    let baseCourtFee = Boolean(isHoliday) ? ratesUsed.holidayRate
+      : isWeekend ? ratesUsed.weekendRate : ratesUsed.weekdayRate;
+
+    const lightsFee  = Boolean(lightsRequested) ? ratesUsed.lightsRate : 0;
+    const ballBoyFee = Boolean(ballBoy) ? ratesUsed.ballBoyRate : 0;
+    const guestTotalFee = sanitizedGuestCount * ratesUsed.guestFee;
+    const rentalFee =
+      sanitizedRentals.balls50   * ratesUsed.rentalBalls50Rate +
+      sanitizedRentals.balls100  * ratesUsed.rentalBalls100Rate +
+      (sanitizedRentals.ballMachine ? ratesUsed.rentalBallMachineRate : 0) +
+      sanitizedRentals.rackets   * ratesUsed.rentalRacketRate;
+    const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;
+
+    const additionalPlayers = [...new Set(
+      (Array.isArray(players) ? players : []).map(String)
+        .filter((id) => id && id !== String(req.user.userId)),
+    )];
+
+    reservation.court          = courtNum;
+    reservation.date           = parsedDate;
+    reservation.timeSlot       = timeSlot;
+    reservation.players        = additionalPlayers;
+    reservation.lightsRequested = Boolean(lightsRequested);
+    reservation.isHoliday      = Boolean(isHoliday);
+    reservation.ballBoy        = Boolean(ballBoy);
+    reservation.guestCount     = sanitizedGuestCount;
+    reservation.rentals        = sanitizedRentals;
+    reservation.courtFee       = courtFee;
+    reservation.ratesUsed      = ratesUsed;
+    await reservation.save();
+
+    const charge = await Charge.findOne({ reservationId: reservation._id });
+    if (charge) {
+      charge.amount = courtFee;
+      charge.breakdown = { withoutLightFee: baseCourtFee, lightFee: lightsFee, ballBoyFee, guestFee: guestTotalFee, rentalFee };
+      await charge.save();
+    }
+
+    await reservation.populate("player", "name email");
+    await reservation.populate("players", "name email");
+    res.json(reservation);
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ error: "That slot is already booked" });
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // PATCH /api/reservations/:id/cancel — cancel (owner or admin)
 router.patch("/:id/cancel", auth, async (req, res) => {
   try {

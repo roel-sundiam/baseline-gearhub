@@ -11,7 +11,7 @@ import { SessionsService, Session } from '../../../core/services/sessions.servic
     <div class="sessions-shell">
       <div class="hero">
         <div>
-          <p class="hero-kicker">Baseline Gearhub</p>
+          <p class="hero-kicker"><span style="color:#a3e635">Court</span><span style="color:#ffffff">Go</span></p>
           <h2>Admin Sessions</h2>
           <p class="subtitle">
             Professional ledger of courts, players, trainings, rates, and totals.

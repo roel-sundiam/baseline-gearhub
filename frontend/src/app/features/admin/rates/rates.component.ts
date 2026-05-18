@@ -11,7 +11,7 @@ import { RatesService } from '../../../core/services/rates.service';
   template: `
     <section class="rates-shell">
       <div class="page-header">
-        <p class="hero-kicker">Baseline Gearhub</p>
+        <p class="hero-kicker"><span style="color:#a3e635">Court</span><span style="color:#ffffff">Go</span></p>
         <h2>Rate Management</h2>
         <p class="subtitle">Set clear pricing rules for sessions, reservations, and rentals.</p>
       </div>

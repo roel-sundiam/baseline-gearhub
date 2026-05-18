@@ -15,6 +15,9 @@ const appServicePaymentsRoutes = require("./routes/app-service-payments.routes")
 const tournamentsRoutes = require("./routes/tournaments.routes");
 const clubsRoutes = require("./routes/clubs.routes");
 const { router: coinsRoutes } = require("./routes/coins.routes");
+const newsRoutes = require("./routes/news.routes");
+const publicRoutes = require("./routes/public.routes");
+const inquiriesRoutes = require("./routes/inquiries.routes");
 
 const app = express();
 
@@ -106,5 +109,8 @@ app.use("/api/app-service-payments", appServicePaymentsRoutes);
 app.use("/api/tournaments", tournamentsRoutes);
 app.use("/api/clubs", clubsRoutes);
 app.use("/api/coins", coinsRoutes);
+app.use("/api/news", newsRoutes);
+app.use("/api/public", publicRoutes);
+app.use("/api/inquiries", inquiriesRoutes);
 
 module.exports = app;

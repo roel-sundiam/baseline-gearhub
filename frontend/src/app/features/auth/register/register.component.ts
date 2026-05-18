@@ -19,7 +19,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
       <div class="auth-card">
         <div class="auth-header">
           <div class="header-banner">
-            <h1>Baseline Gearhub</h1>
+            <img src="/CourtGo.png" alt="CourtGo" class="hero-logo" />
           </div>
           <p class="header-sub">Create a Player Account</p>
         </div>
@@ -257,11 +257,11 @@ import { ClubService, Club } from '../../../core/services/club.service';
         position: relative;
         min-height: 100vh;
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: center;
-        padding: 1rem;
+        padding: 2rem 1rem;
         margin: 0;
-        overflow: hidden;
+        overflow-y: auto;
         background: var(--dm-bg);
       }
       .court-bg {
@@ -286,26 +286,30 @@ import { ClubService, Club } from '../../../core/services/club.service';
           0 8px 32px rgba(0, 0, 0, 0.55),
           0 0 1px rgba(0, 0, 0, 0.1);
         border: 1px solid rgba(163,230,53,0.12);
-        overflow: hidden;
+        overflow: visible;
+        align-self: flex-start;
       }
       .auth-header {
         text-align: center;
         margin-bottom: 0;
+        border-radius: 20px 20px 0 0;
+        overflow: hidden;
       }
       .header-banner {
         background: var(--dm-header);
         padding: 2rem 2rem 1.5rem;
+        position: relative;
+        min-height: 84px;
         display: flex;
         flex-direction: column;
         align-items: center;
       }
-      .header-banner h1 {
-        color: #ffffff;
-        font-size: 1.75rem;
-        font-weight: 800;
-        margin: 0;
-        letter-spacing: -0.5px;
-        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      .hero-logo {
+        position: absolute;
+        top: 16px;
+        right: 20px;
+        height: 34px;
+        width: auto;
       }
       .header-sub {
         color: var(--dm-accent);
@@ -570,9 +574,6 @@ import { ClubService, Club } from '../../../core/services/club.service';
         .header-banner {
           padding: 1.5rem 1.5rem 1.25rem;
         }
-        .header-banner h1 {
-          font-size: 1.5rem;
-        }
         form {
           padding: 1rem 1.5rem;
         }
@@ -616,8 +617,9 @@ export class RegisterComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.clubService.getClubs().subscribe({
       next: (clubs) => {
-        this.clubs = clubs;
-        this.filteredClubs = clubs;
+        const active = clubs.filter(c => c.status !== 'suspended');
+        this.clubs = active;
+        this.filteredClubs = active;
         this.loadingClubs = false;
         this.cdr.detectChanges();
       },

@@ -6,6 +6,8 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ReservationService, Reservation, ReservationPlayer } from '../../../core/services/reservation.service';
 import { ClubService } from '../../../core/services/club.service';
 import { TournamentService, Tournament } from '../../../core/services/tournament.service';
+import { CoinsService } from '../../../core/services/coins.service';
+import { NewsService, ClubNews } from '../../../core/services/news.service';
 
 @Component({
   selector: 'app-player-dashboard',
@@ -17,10 +19,19 @@ import { TournamentService, Tournament } from '../../../core/services/tournament
       <!-- Header (mobile only) -->
       <header class="dm-header">
         <div class="dm-header-left">
-          <span class="dm-club-name">
-            <span class="dm-club-accent">{{ clubNameFirst }}</span>@if (clubNameLast) {<span class="dm-club-word"> {{ clubNameLast }}</span>}
-          </span>
-          <span class="dm-greeting-sub">{{ greeting }}, {{ firstName }}! 👋</span>
+          <div class="dm-club-avatar">
+            @if (clubLogo) {
+              <img [src]="clubLogo" alt="Club logo" class="dm-club-avatar-img" />
+            } @else {
+              <span class="dm-club-avatar-initials">{{ clubInitials }}</span>
+            }
+          </div>
+          <div class="dm-club-text">
+            <span class="dm-club-name">
+              <span class="dm-club-accent">{{ clubNameFirst }}</span>@if (clubNameLast) {<span class="dm-club-word"> {{ clubNameLast }}</span>}
+            </span>
+            <span class="dm-greeting-sub">{{ greeting }}, {{ firstName }}! 👋</span>
+          </div>
         </div>
         <button class="dm-bell-btn" title="Notifications">
           <i class="far fa-bell"></i>
@@ -32,10 +43,21 @@ import { TournamentService, Tournament } from '../../../core/services/tournament
 
         <!-- Greeting (desktop only) -->
         <div class="dm-greeting">
-          <div class="dm-greeting-club">
-            <span class="dm-club-accent">{{ clubNameFirst }}</span>@if (clubNameLast) {<span class="dm-club-word"> {{ clubNameLast }}</span>}
+          <div class="dm-greeting-top">
+            <div class="dm-club-avatar dm-club-avatar-lg">
+              @if (clubLogo) {
+                <img [src]="clubLogo" alt="Club logo" class="dm-club-avatar-img" />
+              } @else {
+                <span class="dm-club-avatar-initials">{{ clubInitials }}</span>
+              }
+            </div>
+            <div>
+              <div class="dm-greeting-club">
+                <span class="dm-club-accent">{{ clubNameFirst }}</span>@if (clubNameLast) {<span class="dm-club-word"> {{ clubNameLast }}</span>}
+              </div>
+              <h2 class="dm-greeting-text">{{ greeting }}, {{ firstName }}! 👋</h2>
+            </div>
           </div>
-          <h2 class="dm-greeting-text">{{ greeting }}, {{ firstName }}! 👋</h2>
           @if (auth.isAdmin()) {
             <button class="dm-admin-pill" (click)="navigateTo('/admin/dashboard')">
               <i class="fas fa-shield-alt"></i> Admin Panel
@@ -121,7 +143,7 @@ import { TournamentService, Tournament } from '../../../core/services/tournament
               <span class="dm-ac-title">Approvals</span>
               <span class="dm-ac-sub">My requests</span>
             </button>
-            <button class="dm-action-card" (click)="navigateTo('/rules')">
+            <button class="dm-action-card" (click)="navigateTo('/player/rules')">
               <div class="dm-ac-icon dm-ac-orange"><i class="fas fa-gavel"></i></div>
               <span class="dm-ac-title">Rules</span>
               <span class="dm-ac-sub">Club guidelines</span>
@@ -154,6 +176,11 @@ import { TournamentService, Tournament } from '../../../core/services/tournament
                 <span class="dm-ac-title">Dashboard</span>
                 <span class="dm-ac-sub">Admin panel</span>
               </button>
+              <button class="dm-action-card" (click)="navigateTo('/admin/news')">
+                <div class="dm-ac-icon dm-ac-orange"><i class="fas fa-newspaper"></i></div>
+                <span class="dm-ac-title">Club News</span>
+                <span class="dm-ac-sub">Posts & updates</span>
+              </button>
               @if (auth.isSuperAdmin()) {
                 <button class="dm-action-card" (click)="navigateTo('/admin/analytics')">
                   <div class="dm-ac-icon dm-ac-rose"><i class="fas fa-chart-bar"></i></div>
@@ -173,7 +200,27 @@ import { TournamentService, Tournament } from '../../../core/services/tournament
         <!-- Club News -->
         <div class="dm-section">
           <h4 class="dm-section-label">Club News</h4>
-          @if (nextTournament) {
+          @if (newsItems.length > 0) {
+            @for (item of newsItems; track item._id) {
+              <div class="dm-news-card dm-news-card-post" [class.dm-news-card-pinned]="item.pinned">
+                <div class="dm-news-content">
+                  <div class="dm-news-badges">
+                    <span class="dm-news-type dm-news-type-{{ item.type }}">{{ item.type | titlecase }}</span>
+                    @if (item.pinned) {
+                      <span class="dm-news-pin"><i class="fas fa-thumbtack"></i></span>
+                    }
+                  </div>
+                  <p class="dm-news-text">{{ item.title }}</p>
+                  <span class="dm-news-meta">{{ item.body | slice:0:120 }}{{ item.body.length > 120 ? '...' : '' }}</span>
+                </div>
+                <div class="dm-news-thumb dm-news-thumb-{{ item.type }}">
+                  @if (item.type === 'announcement') { <i class="fas fa-bullhorn"></i> }
+                  @else if (item.type === 'event') { <i class="fas fa-calendar-star"></i> }
+                  @else { <i class="fas fa-newspaper"></i> }
+                </div>
+              </div>
+            }
+          } @else if (nextTournament) {
             <div class="dm-news-card" (click)="navigateTo('/player/tournaments')">
               <div class="dm-news-content">
                 <p class="dm-news-text">{{ nextTournament.name }}</p>
@@ -265,8 +312,39 @@ import { TournamentService, Tournament } from '../../../core/services/tournament
     }
     .dm-header-left {
       display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.65rem;
+    }
+    .dm-club-text {
+      display: flex;
       flex-direction: column;
       gap: 0.08rem;
+    }
+    .dm-club-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 2px solid rgba(163,230,53,0.45);
+      background: rgba(163,230,53,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .dm-club-avatar-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+    }
+    .dm-club-avatar-initials {
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #a3e635;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
     }
     .dm-club-name {
       font-size: 1.15rem;
@@ -571,6 +649,33 @@ import { TournamentService, Tournament } from '../../../core/services/tournament
       background: rgba(255,255,255,0.06);
       color: rgba(255,255,255,0.4);
     }
+    .dm-news-card-post { cursor: default; }
+    .dm-news-card-post:hover { background: #1b3028; }
+    .dm-news-card-pinned {
+      border: 1px solid rgba(163,230,53,0.25);
+      background: rgba(163,230,53,0.05);
+    }
+    .dm-news-badges {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.25rem;
+    }
+    .dm-news-type {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 99px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .dm-news-type-news { background: rgba(56,189,248,0.15); color: #38bdf8; }
+    .dm-news-type-announcement { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .dm-news-type-event { background: rgba(163,230,53,0.15); color: #a3e635; }
+    .dm-news-pin { color: #a3e635; font-size: 0.7rem; }
+    .dm-news-thumb-news { background: rgba(56,189,248,0.12); color: #38bdf8; }
+    .dm-news-thumb-announcement { background: rgba(251,191,36,0.12); color: #fbbf24; }
+    .dm-news-thumb-event { background: rgba(163,230,53,0.12); color: #a3e635; }
 
     /* ── Bottom Navigation ── */
     .dm-bottom-nav {
@@ -619,6 +724,20 @@ import { TournamentService, Tournament } from '../../../core/services/tournament
         display: block;
         margin-bottom: 1.5rem;
       }
+      .dm-greeting-top {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.75rem;
+      }
+      .dm-club-avatar-lg {
+        width: 52px;
+        height: 52px;
+        flex-shrink: 0;
+      }
+      .dm-club-avatar-lg .dm-club-avatar-initials {
+        font-size: 0.9rem;
+      }
       .dm-greeting-club {
         font-size: 1.5rem;
         font-weight: 800;
@@ -629,7 +748,7 @@ import { TournamentService, Tournament } from '../../../core/services/tournament
         font-size: 1.6rem;
         font-weight: 800;
         color: #ffffff;
-        margin: 0 0 0.5rem 0;
+        margin: 0;
       }
       .dm-admin-pill {
         display: inline-flex;
@@ -671,14 +790,20 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   loading = true;
   outstanding = 0;
   clubName = 'Baseline Club';
+  clubLogo = '';
   nextReservation: Reservation | null = null;
   nextTournament: Tournament | null = null;
+  newsItems: ClubNews[] = [];
 
   get pendingApprovalCharges(): Charge[] {
     return this.charges.filter((c) => c.approvalStatus === 'pending');
   }
   get rejectedCharges(): Charge[] {
     return this.charges.filter((c) => c.approvalStatus === 'rejected');
+  }
+
+  get clubInitials(): string {
+    return this.clubName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   }
 
   get clubNameFirst(): string {
@@ -712,6 +837,8 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     private reservationService: ReservationService,
     private clubService: ClubService,
     private tournamentService: TournamentService,
+    private coinsService: CoinsService,
+    private newsService: NewsService,
     private cdr: ChangeDetectorRef,
     private router: Router,
     private renderer: Renderer2,
@@ -720,6 +847,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
+    this.coinsService.trackVisit('player-dashboard').subscribe({ error: () => {} });
 
     this.chargesService.getMyCharges().subscribe({
       next: (charges) => {
@@ -757,6 +885,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
       this.clubService.getClub(clubId).subscribe({
         next: (club) => {
           this.clubName = club.name;
+          this.clubLogo = club.logo ?? '';
           this.cdr.detectChanges();
         },
         error: () => {},
@@ -766,6 +895,14 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     this.tournamentService.getAll().subscribe({
       next: (ts) => {
         this.nextTournament = ts.find((t) => t.published && t.status !== 'completed') ?? null;
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
+
+    this.newsService.getNews().subscribe({
+      next: (items) => {
+        this.newsItems = items;
         this.cdr.detectChanges();
       },
       error: () => {},

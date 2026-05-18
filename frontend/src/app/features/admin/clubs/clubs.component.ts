@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -16,6 +16,7 @@ interface AdminUser {
   email?: string;
   role: string;
   status: string;
+  profileImage?: string;
   clubId?: { _id: string; name: string } | string;
   createdAt: string;
 }
@@ -48,12 +49,15 @@ interface AdminUser {
         </div>
       </header>
 
-      <!-- ── Loading skeleton ── -->
+      <!-- ── Loading overlay ── -->
       @if (loading) {
-        <div class="skeleton-grid">
-          @for (i of [1,2,3]; track i) {
-            <div class="skeleton-card"></div>
-          }
+        <div class="cg-loader-overlay">
+          <div class="cg-loader-scene">
+            <img src="/CGLoader.png" alt="Loading" class="cg-loader-img" />
+            <div class="cg-loader-spin-ring"></div>
+            <div class="cg-loader-ball-glow"></div>
+            <div class="cg-loader-bar"><div class="cg-loader-bar-fill"></div></div>
+          </div>
         </div>
       }
 
@@ -78,8 +82,30 @@ interface AdminUser {
 
       <!-- ── Club grid ── -->
       @else {
+        <!-- ── List tabs ── -->
+        <div class="tabs-bar club-list-tabs-bar">
+          <button type="button" class="tab-btn" [class.tab-active]="clubListTab === 'active'" (click)="clubListTab = 'active'">
+            <i class="fas fa-circle-check"></i> Active
+            @if (activeClubCount > 0) {
+              <span class="tab-badge tab-badge-members">{{ activeClubCount }}</span>
+            }
+          </button>
+          <button type="button" class="tab-btn" [class.tab-active]="clubListTab === 'suspended'" (click)="clubListTab = 'suspended'">
+            <i class="fas fa-ban"></i> Suspended
+            @if (suspendedClubCount > 0) {
+              <span class="tab-badge">{{ suspendedClubCount }}</span>
+            }
+          </button>
+        </div>
+
+        @if (visibleClubs.length === 0) {
+          <div class="state-card state-empty">
+            <i class="fas fa-ban"></i>
+            <p>No {{ clubListTab }} clubs.</p>
+          </div>
+        } @else {
         <div class="clubs-grid">
-          @for (club of clubs; track club._id) {
+          @for (club of visibleClubs; track club._id) {
             <article
               class="club-card"
               [class.selected]="selectedClub?._id === club._id"
@@ -122,6 +148,11 @@ interface AdminUser {
                     <i class="fas fa-clock"></i> {{ pendingCounts[club._id] }} pending
                   </span>
                 }
+                @if (club.status === 'suspended') {
+                  <span class="pill pill-suspended">
+                    <i class="fas fa-ban"></i> Suspended
+                  </span>
+                }
               </div>
 
               <div class="club-actions">
@@ -131,13 +162,27 @@ interface AdminUser {
                 <a [routerLink]="['/admin/clubs', club._id, 'edit']" class="btn btn-sm btn-outline" (click)="$event.stopPropagation()">
                   <i class="fas fa-pen"></i> Edit
                 </a>
+                <button type="button" class="btn btn-sm btn-copy" (click)="$event.stopPropagation(); copyBookingLink(club._id)">
+                  <i class="fas" [class.fa-copy]="copiedClubId !== club._id" [class.fa-check]="copiedClubId === club._id"></i>
+                  {{ copiedClubId === club._id ? 'Copied!' : 'Copy Link' }}
+                </button>
                 <button type="button" class="btn btn-sm btn-danger" (click)="$event.stopPropagation(); deleteClub(club)">
                   <i class="fas fa-trash"></i> Delete
                 </button>
+                @if (club.status === 'suspended') {
+                  <button type="button" class="btn btn-sm btn-unsuspend" (click)="$event.stopPropagation(); suspendClub(club)">
+                    <i class="fas fa-circle-check"></i> Unsuspend
+                  </button>
+                } @else {
+                  <button type="button" class="btn btn-sm btn-suspend" (click)="$event.stopPropagation(); suspendClub(club)">
+                    <i class="fas fa-ban"></i> Suspend
+                  </button>
+                }
               </div>
             </article>
           }
         </div>
+        } <!-- end @else visibleClubs -->
 
         <!-- ── Detail module ── -->
         @if (selectedClub) {
@@ -167,6 +212,12 @@ interface AdminUser {
                 <i class="fas fa-user-cog"></i> Admins
               </button>
               @if (auth.isSuperAdmin()) {
+                <button type="button" class="tab-btn" [class.tab-active]="activeTab === 'members'" (click)="setTab('members')">
+                  <i class="fas fa-users"></i> Members
+                  @if (clubMembers.length > 0) {
+                    <span class="tab-badge tab-badge-members">{{ clubMembers.length }}</span>
+                  }
+                </button>
                 <button type="button" class="tab-btn" [class.tab-active]="activeTab === 'coins'" (click)="setTab('coins')">
                   <i class="fas fa-coins"></i> Coin Requests
                   @if ((pendingCounts[selectedClub._id] ?? 0) > 0) {
@@ -435,10 +486,130 @@ interface AdminUser {
               </div>
             }
 
+            <!-- ── MEMBERS TAB ── -->
+            @if (activeTab === 'members' && auth.isSuperAdmin()) {
+              <div class="list-card">
+                <div class="filter-row">
+                  @for (f of memberFilterOptions; track f) {
+                    <button type="button" class="filter-btn" [class.filter-active]="memberStatusFilter === f" (click)="memberStatusFilter = f">
+                      {{ f | titlecase }}
+                      @if (f !== 'all' && memberCountByStatus(f) > 0) {
+                        <span class="filter-count" [class.count-green]="f === 'active'">{{ memberCountByStatus(f) }}</span>
+                      }
+                    </button>
+                  }
+                </div>
+
+                @if (membersLoading) {
+                  <p class="state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading members…</p>
+                } @else if (membersError) {
+                  <p class="state-msg state-msg-error">{{ membersError }}</p>
+                } @else if (filteredMembers.length === 0) {
+                  <p class="state-msg">No {{ memberStatusFilter === 'all' ? '' : memberStatusFilter }} members found.</p>
+                } @else {
+                  <div class="members-header-row">
+                    <span class="members-count-label">{{ filteredMembers.length }} {{ filteredMembers.length === 1 ? 'member' : 'members' }}</span>
+                  </div>
+                  <div class="admin-grid">
+                    @for (member of filteredMembers; track member._id) {
+                      <div class="admin-card member-card">
+                        <div class="admin-avatar member-avatar">
+                          @if (member.profileImage) {
+                            <img [src]="member.profileImage" [alt]="member.name" class="member-club-logo" />
+                          } @else {
+                            <i class="fas fa-user"></i>
+                          }
+                        </div>
+                        <div class="admin-info">
+                          <div class="admin-name">{{ member.name }}</div>
+                          <div class="admin-username">&#64;{{ member.username }}</div>
+                          @if (member.email) { <div class="admin-email">{{ member.email }}</div> }
+                          <div class="admin-email member-since">Since {{ formatDate(member.createdAt) }}</div>
+                        </div>
+                        <div class="admin-badges">
+                          <span class="badge badge-role">{{ member.role }}</span>
+                          <span class="badge" [class.badge-active]="member.status === 'active'" [class.badge-inactive]="member.status !== 'active'">{{ member.status }}</span>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+
           </section>
         }
       }
     </div>
+
+    <!-- ── Delete club confirmation modal ── -->
+    @if (deleteModal().club) {
+      <div class="modal-backdrop" (click)="closeDeleteModal()">
+        <div class="modal-card modal-card-delete" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <span class="modal-title modal-title-danger"><i class="fas fa-trash"></i> Delete Club</span>
+            <button type="button" class="modal-close" (click)="closeDeleteModal()"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="delete-modal-body">
+            <div class="delete-warn-icon"><i class="fas fa-triangle-exclamation"></i></div>
+            <p class="delete-modal-msg">
+              You are about to permanently delete
+              <strong class="delete-club-name">{{ deleteModal().club!.name }}</strong>.
+              This action cannot be undone.
+            </p>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-danger" (click)="confirmDelete()" [disabled]="deleteModal().deleting">
+              <i class="fas" [class.fa-trash]="!deleteModal().deleting" [class.fa-circle-notch]="deleteModal().deleting" [class.fa-spin]="deleteModal().deleting"></i>
+              {{ deleteModal().deleting ? 'Deleting…' : 'Yes, delete' }}
+            </button>
+            <button type="button" class="btn btn-outline" (click)="closeDeleteModal()">Cancel</button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Suspend / unsuspend club confirmation modal ── -->
+    @if (suspendModal().club) {
+      <div class="modal-backdrop" (click)="closeSuspendModal()">
+        <div class="modal-card modal-card-suspend" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <span class="modal-title modal-title-suspend">
+              <i class="fas fa-{{ suspendModal().club!.status === 'suspended' ? 'circle-check' : 'ban' }}"></i>
+              {{ suspendModal().club!.status === 'suspended' ? 'Unsuspend' : 'Suspend' }} Club
+            </span>
+            <button type="button" class="modal-close" (click)="closeSuspendModal()"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="delete-modal-body">
+            <div class="suspend-warn-icon">
+              <i class="fas fa-{{ suspendModal().club!.status === 'suspended' ? 'circle-check' : 'ban' }}"></i>
+            </div>
+            @if (suspendModal().club!.status === 'suspended') {
+              <p class="delete-modal-msg">
+                Unsuspend <strong class="delete-club-name">{{ suspendModal().club!.name }}</strong>?
+                It will reappear in the registration list and be treated as active.
+              </p>
+            } @else {
+              <p class="delete-modal-msg">
+                Suspend <strong class="delete-club-name">{{ suspendModal().club!.name }}</strong>?
+                It will be hidden from new registrations. Existing members are unaffected.
+              </p>
+            }
+          </div>
+          <div class="modal-actions">
+            <button type="button"
+              class="btn {{ suspendModal().club!.status === 'suspended' ? 'btn-teal' : 'btn-suspend-confirm' }}"
+              (click)="confirmSuspend()" [disabled]="suspendModal().suspending">
+              <i class="fas" [class.fa-circle-check]="!suspendModal().suspending && suspendModal().club!.status === 'suspended'"
+                [class.fa-ban]="!suspendModal().suspending && suspendModal().club!.status !== 'suspended'"
+                [class.fa-circle-notch]="suspendModal().suspending" [class.fa-spin]="suspendModal().suspending"></i>
+              {{ suspendModal().suspending ? 'Saving…' : (suspendModal().club!.status === 'suspended' ? 'Yes, unsuspend' : 'Yes, suspend') }}
+            </button>
+            <button type="button" class="btn btn-outline" (click)="closeSuspendModal()">Cancel</button>
+          </div>
+        </div>
+      </div>
+    }
 
     <!-- ── Reject coin request modal ── -->
     @if (rejectModal.show) {
@@ -650,6 +821,52 @@ interface AdminUser {
     }
     .btn-danger:hover:not(:disabled) { background: #fee2e2; transform: translateY(-1px); }
 
+    .btn-suspend {
+      background: #fff7ed;
+      color: #c2410c;
+      border-color: rgba(234,88,12,0.3);
+    }
+    .btn-suspend:hover:not(:disabled) { background: #ffedd5; transform: translateY(-1px); }
+
+    .btn-unsuspend {
+      background: rgba(20,184,166,0.08);
+      color: #0f766e;
+      border-color: rgba(20,184,166,0.3);
+    }
+    .btn-unsuspend:hover:not(:disabled) { background: rgba(20,184,166,0.16); transform: translateY(-1px); }
+
+    .btn-copy {
+      background: rgba(99,102,241,0.08);
+      color: #4f46e5;
+      border-color: rgba(99,102,241,0.25);
+    }
+    .btn-copy:hover:not(:disabled) { background: rgba(99,102,241,0.14); transform: translateY(-1px); }
+
+    .btn-suspend-confirm {
+      background: #fff7ed;
+      color: #c2410c;
+      border: 1px solid rgba(234,88,12,0.35);
+      padding: 0.55rem 1.2rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .btn-suspend-confirm:hover:not(:disabled) { background: #ffedd5; transform: translateY(-1px); }
+    .btn-suspend-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .modal-card-suspend { border-top: 3px solid #f97316; }
+    .modal-title-suspend { color: #c2410c; }
+    .suspend-warn-icon {
+      font-size: 2.5rem;
+      color: #f97316;
+      margin-bottom: 0.75rem;
+    }
+
     .btn-approve {
       background: #f0fdf4;
       color: #166534;
@@ -671,22 +888,90 @@ interface AdminUser {
     }
 
     /* ── Skeleton ── */
-    .skeleton-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 1rem;
+    .cg-loader-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(8,20,12,0.96);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: cgFadeIn 0.2s ease-out;
+    }
+    @keyframes cgFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .cg-loader-scene {
+      position: relative;
+      width: min(420px, 90vw);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
-    .skeleton-card {
-      height: 180px;
-      border-radius: 14px;
-      background: linear-gradient(110deg, #ece8e0 8%, #f6f2ea 18%, #ece8e0 33%);
-      background-size: 200% 100%;
-      animation: shimmer 1.2s linear infinite;
-      border: 1px solid rgba(184,137,66,0.1);
+    .cg-loader-img {
+      width: 100%;
+      display: block;
+      border-radius: 12px;
+      animation: cgPulse 2.4s ease-in-out infinite;
+    }
+    @keyframes cgPulse {
+      0%, 100% { filter: brightness(1)    drop-shadow(0 0  8px rgba(163,230,53,0.20)); }
+      50%       { filter: brightness(1.08) drop-shadow(0 0 18px rgba(163,230,53,0.45)); }
     }
 
-    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .cg-loader-spin-ring {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -54%);
+      width: 54%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      border-top-color: #a3e635;
+      border-right-color: rgba(163,230,53,0.3);
+      animation: cgSpin 1.6s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes cgSpin { to { transform: translate(-50%, -54%) rotate(360deg); } }
+
+    .cg-loader-ball-glow {
+      position: absolute;
+      bottom: 22%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #a3e635;
+      box-shadow: 0 0 8px 2px rgba(163,230,53,0.6);
+      animation: cgBallPulse 1.6s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes cgBallPulse {
+      0%, 100% { transform: translateX(-50%) scale(1);   opacity: 0.85; }
+      50%       { transform: translateX(-50%) scale(1.4); opacity: 1; }
+    }
+
+    .cg-loader-bar {
+      width: 55%;
+      height: 3px;
+      background: rgba(163,230,53,0.12);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: -14%;
+    }
+    .cg-loader-bar-fill {
+      height: 100%;
+      width: 40%;
+      background: linear-gradient(90deg, transparent, #a3e635, transparent);
+      border-radius: 99px;
+      animation: cgShimmer 1.4s ease-in-out infinite;
+    }
+    @keyframes cgShimmer {
+      0%   { transform: translateX(-150%); }
+      100% { transform: translateX(350%); }
+    }
 
     /* ── State cards ── */
     .state-card {
@@ -747,7 +1032,7 @@ interface AdminUser {
     .club-logo {
       width: 52px;
       height: 52px;
-      border-radius: 10px;
+      border-radius: 50%;
       object-fit: cover;
       border: 1px solid rgba(184,137,66,0.2);
       flex-shrink: 0;
@@ -756,7 +1041,7 @@ interface AdminUser {
     .club-logo-placeholder {
       width: 52px;
       height: 52px;
-      border-radius: 10px;
+      border-radius: 50%;
       background: linear-gradient(135deg, #f6efe4, #e8d7bf);
       color: #b88942;
       font-weight: 800;
@@ -820,10 +1105,18 @@ interface AdminUser {
     .pill-pending i { color: #ea580c; }
     @keyframes pulse-ring { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 0 3px rgba(234,88,12,0.12)} }
 
+    .pill-suspended {
+      background: #fff7ed;
+      border: 1px solid rgba(234,88,12,0.35);
+      color: #9a3412;
+      font-weight: 700;
+    }
+    .pill-suspended i { color: #ea580c; }
+
     /* Club actions */
     .club-actions {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr;
       gap: 0.5rem;
     }
 
@@ -1010,6 +1303,20 @@ interface AdminUser {
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
+    }
+    .member-avatar {
+      font-size: 1rem;
+      font-weight: 400;
+      background: linear-gradient(135deg, #1b3028, #2d4f3c) !important;
+      color: #a3e635 !important;
+      border: 2px solid rgba(163,230,53,0.4) !important;
+      overflow: hidden;
+    }
+    .member-club-logo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
     }
 
     .admin-info { flex: 1; min-width: 0; }
@@ -1411,11 +1718,6 @@ interface AdminUser {
       border-color: rgba(244,63,94,0.5);
     }
 
-    .skeleton-card {
-      background: linear-gradient(110deg, #1a2f27 8%, #213830 18%, #1a2f27 33%);
-      border-color: var(--dm-border);
-    }
-
     .club-card {
       border-width: 1px;
       border-radius: 14px;
@@ -1640,6 +1942,49 @@ interface AdminUser {
       background: rgba(255,255,255,0.15);
     }
 
+    .modal-card-delete { max-width: 400px; }
+
+    .delete-modal-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.5rem 0;
+      text-align: center;
+    }
+
+    .delete-warn-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(244,63,94,0.12);
+      border: 1px solid rgba(244,63,94,0.28);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      color: #fb7185;
+    }
+
+    .delete-modal-msg {
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--dm-muted);
+      line-height: 1.55;
+    }
+
+    .delete-club-name {
+      color: var(--dm-text);
+      font-weight: 700;
+    }
+
+    /* Members tab */
+    .member-card { align-items: flex-start; }
+    .member-since { margin-top: 0.15rem; font-size: 0.72rem; }
+    .members-header-row { display: flex; align-items: center; justify-content: flex-end; }
+    .members-count-label { font-size: 0.78rem; font-weight: 700; color: var(--dm-muted); }
+    .tab-badge-members { background: rgba(163,230,53,0.22); color: #a3e635; border: 1px solid rgba(163,230,53,0.4); }
+
     @media (min-width: 769px) {
       .clubs-page {
         padding: 2rem 2.5rem 2.3rem;
@@ -1668,6 +2013,20 @@ interface AdminUser {
 export class AdminClubsComponent implements OnInit {
   clubs: Club[] = [];
   selectedClub: Club | null = null;
+  clubListTab: 'active' | 'suspended' = 'active';
+  copiedClubId: string | null = null;
+
+  get activeClubCount(): number {
+    return this.clubs.filter(c => c.status !== 'suspended').length;
+  }
+  get suspendedClubCount(): number {
+    return this.clubs.filter(c => c.status === 'suspended').length;
+  }
+  get visibleClubs(): Club[] {
+    return this.clubListTab === 'suspended'
+      ? this.clubs.filter(c => c.status === 'suspended')
+      : this.clubs.filter(c => c.status !== 'suspended');
+  }
   clubAdmins: AdminUser[] = [];
   loading = true;
   error = '';
@@ -1682,7 +2041,24 @@ export class AdminClubsComponent implements OnInit {
   private usernameManuallyEdited = false;
   adminForm = { name: '', username: '', password: this.DEFAULT_ADMIN_PASSWORD, email: '' };
 
-  activeTab: 'admins' | 'coins' | 'payments' | 'appfees' = 'admins';
+  activeTab: 'admins' | 'coins' | 'payments' | 'appfees' | 'members' = 'admins';
+
+  // ── Members ──
+  clubMembers: AdminUser[] = [];
+  membersLoading = false;
+  membersError = '';
+  memberStatusFilter: 'all' | 'active' | 'pending' = 'all';
+
+  readonly memberFilterOptions: Array<'all' | 'active' | 'pending'> = ['all', 'active', 'pending'];
+
+  get filteredMembers(): AdminUser[] {
+    if (this.memberStatusFilter === 'all') return this.clubMembers;
+    return this.clubMembers.filter(m => m.status === this.memberStatusFilter);
+  }
+
+  memberCountByStatus(status: string): number {
+    return this.clubMembers.filter(m => m.status === status).length;
+  }
 
   // ── Coin requests ──
   allClubRequests: CoinRequest[] = [];
@@ -1692,6 +2068,8 @@ export class AdminClubsComponent implements OnInit {
   readonly coinFilterOptions: Array<'pending' | 'approved' | 'rejected'> = ['pending', 'approved', 'rejected'];
   pendingCounts: Record<string, number> = {};
   processingReq = new Set<string>();
+  readonly deleteModal = signal<{ club: Club | null; deleting: boolean }>({ club: null, deleting: false });
+  readonly suspendModal = signal<{ club: Club | null; suspending: boolean }>({ club: null, suspending: false });
   rejectModal = { show: false, requestId: '', note: '', submitting: false };
 
   get filteredCoinRequests(): CoinRequest[] {
@@ -1784,26 +2162,82 @@ export class AdminClubsComponent implements OnInit {
     this.allApprovalCharges = [];
     this.approvedCharges = [];
     this.aspPayments = [];
+    this.clubMembers = [];
     this.coinReqFilter = 'pending';
     this.chargeFilter = 'pending';
+    this.memberStatusFilter = 'all';
     this.coinReqError = '';
     this.chargesError = '';
     this.aspError = '';
+    this.membersError = '';
+
+    this.clubService.getClub(club._id).subscribe({
+      next: (fresh) => {
+        this.selectedClub = { ...this.selectedClub!, coinBalance: fresh.coinBalance };
+        const idx = this.clubs.findIndex(c => c._id === club._id);
+        if (idx !== -1) this.clubs[idx] = { ...this.clubs[idx], coinBalance: fresh.coinBalance };
+      },
+      error: () => {},
+    });
+
     this.loadClubAdmins();
   }
 
-  setTab(tab: 'admins' | 'coins' | 'payments' | 'appfees') {
+  setTab(tab: 'admins' | 'coins' | 'payments' | 'appfees' | 'members') {
     this.activeTab = tab;
     if (tab === 'coins') this.loadClubCoinRequests();
     if (tab === 'payments') this.loadPaymentApprovals();
     if (tab === 'appfees') this.loadAppServiceData();
+    if (tab === 'members') this.loadClubMembers();
   }
 
   deleteClub(club: Club) {
-    if (!confirm(`Delete "${club.name}"? This cannot be undone.`)) return;
+    this.deleteModal.set({ club, deleting: false });
+  }
+
+  closeDeleteModal() {
+    if (this.deleteModal().deleting) return;
+    this.deleteModal.set({ club: null, deleting: false });
+  }
+
+  confirmDelete() {
+    const club = this.deleteModal().club;
+    if (!club) return;
+    this.deleteModal.update(s => ({ ...s, deleting: true }));
     this.clubService.deleteClub(club._id).subscribe({
-      next: () => this.loadClubs(),
-      error: () => alert('Failed to delete club.'),
+      next: () => {
+        this.deleteModal.set({ club: null, deleting: false });
+        this.loadClubs();
+      },
+      error: () => {
+        this.deleteModal.update(s => ({ ...s, deleting: false }));
+      },
+    });
+  }
+
+  suspendClub(club: Club) {
+    this.suspendModal.set({ club, suspending: false });
+  }
+
+  closeSuspendModal() {
+    if (this.suspendModal().suspending) return;
+    this.suspendModal.set({ club: null, suspending: false });
+  }
+
+  confirmSuspend() {
+    const club = this.suspendModal().club;
+    if (!club) return;
+    const newStatus = club.status === 'suspended' ? 'active' : 'suspended';
+    this.suspendModal.update(s => ({ ...s, suspending: true }));
+    this.clubService.setStatus(club._id, newStatus).subscribe({
+      next: (updated) => {
+        this.clubs = this.clubs.map(c => c._id === updated._id ? updated : c);
+        if (this.selectedClub?._id === updated._id) this.selectedClub = { ...this.selectedClub, ...updated };
+        this.suspendModal.set({ club: null, suspending: false });
+      },
+      error: () => {
+        this.suspendModal.update(s => ({ ...s, suspending: false }));
+      },
     });
   }
 
@@ -1815,6 +2249,19 @@ export class AdminClubsComponent implements OnInit {
     this.usersService.getAdmins(this.selectedClub._id).subscribe({
       next: (admins) => { this.clubAdmins = admins.filter(a => a.role === 'admin'); this.adminsLoading = false; },
       error: (err) => { this.adminsLoading = false; this.adminsError = err?.error?.error || 'Failed to load club admins.'; },
+    });
+  }
+
+  loadClubMembers() {
+    if (!this.selectedClub?._id || !this.auth.isSuperAdmin()) return;
+    this.membersLoading = true;
+    this.membersError = '';
+    this.usersService.getClubUsers(this.selectedClub._id).subscribe({
+      next: (users) => {
+        this.clubMembers = users.filter(u => u.role === 'player');
+        this.membersLoading = false;
+      },
+      error: () => { this.membersError = 'Failed to load members.'; this.membersLoading = false; },
     });
   }
 
@@ -2004,6 +2451,14 @@ export class AdminClubsComponent implements OnInit {
 
   getInitials(name: string) {
     return name.split(' ').filter(p => p.trim().length > 0).map(p => p.charAt(0)).slice(0, 2).join('');
+  }
+
+  copyBookingLink(clubId: string) {
+    const link = `${window.location.origin}/book/${clubId}`;
+    navigator.clipboard.writeText(link).then(() => {
+      this.copiedClubId = clubId;
+      setTimeout(() => { this.copiedClubId = null; }, 2000);
+    });
   }
 
   formatDate(value?: string) {

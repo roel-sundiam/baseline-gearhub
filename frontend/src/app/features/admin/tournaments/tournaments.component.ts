@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -21,7 +21,7 @@ import { TournamentService, Tournament, RankingEntry } from '../../../core/servi
           </div>
           <div class="header-stats">
             <div class="stat-pill">
-              <span class="stat-num">{{ tournaments.length }}</span>
+              <span class="stat-num">{{ tournaments().length }}</span>
               <span class="stat-lbl">Total</span>
             </div>
             <div class="stat-pill stat-pill-amber">
@@ -41,25 +41,25 @@ import { TournamentService, Tournament, RankingEntry } from '../../../core/servi
 
         <!-- Tab Bar -->
         <div class="tab-bar">
-          <button class="tab-btn" [class.active]="activeTab === 'all'" (click)="activeTab = 'all'">
+          <button class="tab-btn" [class.active]="activeTab() === 'all'" (click)="activeTab.set('all')">
             <i class="fas fa-list"></i> All
           </button>
-          <button class="tab-btn" [class.active]="activeTab === 'active'" (click)="activeTab = 'active'">
+          <button class="tab-btn" [class.active]="activeTab() === 'active'" (click)="activeTab.set('active')">
             <i class="fas fa-play-circle"></i> Active
             @if (countByStatus('active') > 0) {
               <span class="tab-badge">{{ countByStatus('active') }}</span>
             }
           </button>
-          <button class="tab-btn" [class.active]="activeTab === 'draft'" (click)="activeTab = 'draft'">
+          <button class="tab-btn" [class.active]="activeTab() === 'draft'" (click)="activeTab.set('draft')">
             <i class="fas fa-pencil-alt"></i> Draft
           </button>
-          <button class="tab-btn" [class.active]="activeTab === 'completed'" (click)="activeTab = 'completed'">
+          <button class="tab-btn" [class.active]="activeTab() === 'completed'" (click)="activeTab.set('completed')">
             <i class="fas fa-trophy"></i> Completed
           </button>
-          <button class="tab-btn" [class.active]="activeTab === 'rankings'" (click)="switchToRankings()">
+          <button class="tab-btn" [class.active]="activeTab() === 'rankings'" (click)="switchToRankings()">
             <i class="fas fa-medal"></i> Rankings
           </button>
-          <button class="tab-btn tab-btn-create" (click)="showCreate = true">
+          <button class="tab-btn tab-btn-create" (click)="showCreate.set(true)">
             <i class="fas fa-plus"></i> New Tournament
           </button>
         </div>
@@ -67,10 +67,10 @@ import { TournamentService, Tournament, RankingEntry } from '../../../core/servi
         <div class="card-body">
 
           <!-- ── RANKINGS TAB ──────────────────────────────────────── -->
-          @if (activeTab === 'rankings') {
-            @if (rankingsLoading) {
+          @if (activeTab() === 'rankings') {
+            @if (rankingsLoading()) {
               <div class="loading"><i class="fas fa-circle-notch fa-spin"></i> Loading rankings...</div>
-            } @else if (rankings.length === 0) {
+            } @else if (rankings().length === 0) {
               <div class="empty-state">
                 <div class="empty-icon"><i class="fas fa-medal"></i></div>
                 <p class="empty-title">No rankings yet</p>
@@ -88,7 +88,7 @@ import { TournamentService, Tournament, RankingEntry } from '../../../core/servi
                     </tr>
                   </thead>
                   <tbody>
-                    @for (r of rankings; track r.playerId; let i = $index) {
+                    @for (r of rankings(); track r.playerId; let i = $index) {
                       <tr [class.rank-top]="i < 3">
                         <td class="col-rank">
                           @if (i === 0) { <span class="medal">🥇</span> }
@@ -138,26 +138,26 @@ import { TournamentService, Tournament, RankingEntry } from '../../../core/servi
             }
 
           <!-- ── TOURNAMENT LIST TABS ───────────────────────────────── -->
-          } @else if (loading) {
+          } @else if (loading()) {
             <div class="loading"><i class="fas fa-circle-notch fa-spin"></i> Loading tournaments...</div>
-          } @else if (filtered.length === 0) {
+          } @else if (filtered().length === 0) {
             <div class="empty-state">
               <div class="empty-icon"><i class="fas fa-trophy"></i></div>
               <p class="empty-title">
-                {{ activeTab === 'all' ? 'No tournaments yet' : 'No ' + activeTab + ' tournaments' }}
+                {{ activeTab() === 'all' ? 'No tournaments yet' : 'No ' + activeTab() + ' tournaments' }}
               </p>
               <p class="empty-sub">
-                {{ activeTab === 'all' ? 'Create your first tournament to get started.' : 'Switch tabs or create a new tournament.' }}
+                {{ activeTab() === 'all' ? 'Create your first tournament to get started.' : 'Switch tabs or create a new tournament.' }}
               </p>
-              @if (activeTab === 'all') {
-                <button class="btn-create-empty" (click)="showCreate = true">
+              @if (activeTab() === 'all') {
+                <button class="btn-create-empty" (click)="showCreate.set(true)">
                   <i class="fas fa-plus"></i> Create Tournament
                 </button>
               }
             </div>
           } @else {
             <div class="tournament-list">
-              @for (t of filtered; track t._id) {
+              @for (t of filtered(); track t._id) {
                 <div class="tournament-card" (click)="openTournament(t._id)">
                   <div class="tournament-icon-wrap" [class]="'icon-' + t.status">
                     <i class="fas fa-trophy"></i>
@@ -199,7 +199,7 @@ import { TournamentService, Tournament, RankingEntry } from '../../../core/servi
     </div>
 
     <!-- Create Tournament Modal -->
-    @if (showCreate) {
+    @if (showCreate()) {
       <div class="modal-backdrop" (click)="cancelCreate()">
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="modal-header">
@@ -211,7 +211,8 @@ import { TournamentService, Tournament, RankingEntry } from '../../../core/servi
               <label>Tournament Name</label>
               <input
                 type="text"
-                [(ngModel)]="newName"
+                [ngModel]="newName()"
+                (ngModelChange)="newName.set($event)"
                 placeholder="e.g. Spring 2026 Open"
                 (keyup.enter)="createTournament()"
                 autofocus
@@ -220,22 +221,22 @@ import { TournamentService, Tournament, RankingEntry } from '../../../core/servi
             <div class="modal-field">
               <label>Type</label>
               <div class="type-select">
-                <button class="type-opt" [class.active]="newType === 'singles'" (click)="newType = 'singles'">
+                <button class="type-opt" [class.active]="newType() === 'singles'" (click)="newType.set('singles')">
                   <i class="fas fa-user"></i> Singles
                 </button>
-                <button class="type-opt" [class.active]="newType === 'doubles'" (click)="newType = 'doubles'">
+                <button class="type-opt" [class.active]="newType() === 'doubles'" (click)="newType.set('doubles')">
                   <i class="fas fa-user-friends"></i> Doubles
                 </button>
               </div>
             </div>
-            @if (createError) {
-              <div class="modal-error"><i class="fas fa-exclamation-circle"></i> {{ createError }}</div>
+            @if (createError()) {
+              <div class="modal-error"><i class="fas fa-exclamation-circle"></i> {{ createError() }}</div>
             }
           </div>
           <div class="modal-footer">
-            <button class="btn-cancel" (click)="cancelCreate()" [disabled]="creating">Cancel</button>
-            <button class="btn-confirm" (click)="createTournament()" [disabled]="creating || !newName.trim()">
-              @if (creating) { <i class="fas fa-circle-notch fa-spin"></i> Creating... }
+            <button class="btn-cancel" (click)="cancelCreate()" [disabled]="creating()">Cancel</button>
+            <button class="btn-confirm" (click)="createTournament()" [disabled]="creating() || !newName().trim()">
+              @if (creating()) { <i class="fas fa-circle-notch fa-spin"></i> Creating... }
               @else { <i class="fas fa-plus"></i> Create Tournament }
             </button>
           </div>
@@ -383,73 +384,122 @@ import { TournamentService, Tournament, RankingEntry } from '../../../core/servi
     }
     .tournament-card:hover .btn-manage { border-color: rgba(163,230,53,0.4); color: var(--dm-accent); }
 
-    /* Modal */
+    /* ── Modal ── */
     .modal-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100;
+      position: fixed; inset: 0;
+      background: rgba(5, 14, 10, 0.78);
+      backdrop-filter: blur(3px);
+      z-index: 100;
       display: flex; align-items: center; justify-content: center;
-      padding: 20px; animation: fadeIn 0.15s ease;
+      padding: 20px;
+      animation: fadeIn 0.15s ease;
     }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
     .modal {
-      background: white; border-radius: 14px; width: 100%; max-width: 440px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.25); animation: slideUp 0.2s ease; overflow: hidden;
+      background: var(--dm-surface);
+      border: 1px solid rgba(163,230,53,0.18);
+      border-radius: 18px;
+      width: 100%; max-width: 440px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(163,230,53,0.06) inset;
+      animation: slideUp 0.22s cubic-bezier(0.16,1,0.3,1);
+      overflow: hidden;
     }
-    @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
     .modal-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 18px 20px; border-bottom: 1px solid #eee;
+      padding: 20px 22px 18px;
+      border-bottom: 1px solid rgba(163,230,53,0.1);
+      background: linear-gradient(160deg, #1e352d 0%, #192d25 100%);
     }
     .modal-header h3 {
-      margin: 0; font-size: 1rem; font-weight: 700; color: #1a1a1a;
-      display: flex; align-items: center; gap: 8px;
+      margin: 0; font-size: 1.05rem; font-weight: 800; color: #ffffff;
+      display: flex; align-items: center; gap: 9px; letter-spacing: -0.01em;
     }
-    .modal-header h3 i { color: #9f7338; }
+    .modal-header h3 i { color: var(--dm-accent); font-size: 0.95rem; }
+
     .modal-close {
-      background: none; border: none; font-size: 1rem; color: #888;
-      cursor: pointer; padding: 4px 8px; border-radius: 4px;
+      background: rgba(255,255,255,0.07); border: none;
+      color: rgba(255,255,255,0.5);
+      width: 30px; height: 30px; border-radius: 8px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 0.88rem; transition: background 0.15s, color 0.15s;
     }
-    .modal-close:hover { background: #f0f0f0; color: #333; }
-    .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 18px; }
-    .modal-field { display: flex; flex-direction: column; gap: 6px; }
+    .modal-close:hover { background: rgba(255,255,255,0.14); color: #ffffff; }
+
+    .modal-body { padding: 22px; display: flex; flex-direction: column; gap: 20px; }
+
+    .modal-field { display: flex; flex-direction: column; gap: 7px; }
     .modal-field label {
-      font-size: 0.8rem; font-weight: 700; color: rgba(255,255,255,0.8);
-      text-transform: uppercase; letter-spacing: 0.4px;
+      font-size: 0.72rem; font-weight: 800; color: rgba(255,255,255,0.55);
+      text-transform: uppercase; letter-spacing: 0.08em;
     }
     .modal-field input {
-      padding: 9px 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
-      font-size: 0.9rem; background: rgba(255,255,255,0.04); width: 100%; box-sizing: border-box; color: #ffffff;
+      padding: 10px 13px;
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
+      font-size: 0.93rem; font-family: inherit;
+      background: rgba(255,255,255,0.05);
+      width: 100%; box-sizing: border-box; color: #ffffff;
+      transition: border-color 0.18s, box-shadow 0.18s;
     }
-    .modal-field input::placeholder { color: rgba(255,255,255,0.4); }
-    .modal-field input:focus { outline: none; border-color: rgba(163,230,53,0.28); box-shadow: 0 0 0 3px rgba(163,230,53,0.12); }
+    .modal-field input::placeholder { color: rgba(255,255,255,0.3); }
+    .modal-field input:focus {
+      outline: none;
+      border-color: rgba(163,230,53,0.5);
+      box-shadow: 0 0 0 3px rgba(163,230,53,0.14);
+    }
+
     .type-select { display: flex; gap: 10px; }
     .type-opt {
-      flex: 1; padding: 10px; border: 1.5px solid rgba(255,255,255,0.08); border-radius: 8px;
-      background: rgba(255,255,255,0.02); cursor: pointer; font-size: 0.875rem; font-weight: 600;
-      color: rgba(255,255,255,0.72); transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 7px;
+      flex: 1; padding: 13px 10px;
+      border: 1.5px solid rgba(255,255,255,0.1); border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      cursor: pointer; font-size: 0.88rem; font-weight: 700; font-family: inherit;
+      color: rgba(255,255,255,0.55);
+      transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
     }
-    .type-opt:hover { border-color: rgba(163,230,53,0.28); color: var(--dm-accent); }
-    .type-opt.active { border-color: rgba(163,230,53,0.28); background: rgba(163,230,53,0.12); color: var(--dm-accent); }
+    .type-opt:hover { border-color: rgba(163,230,53,0.3); color: var(--dm-accent); background: rgba(163,230,53,0.06); }
+    .type-opt.active {
+      border-color: rgba(163,230,53,0.5);
+      background: rgba(163,230,53,0.14);
+      color: var(--dm-accent);
+      box-shadow: 0 0 0 1px rgba(163,230,53,0.18) inset;
+    }
+
     .modal-error {
-      background: rgba(239,68,68,0.12); color: #fca5a5; border: 1px solid rgba(239,68,68,0.2);
-      border-radius: 8px; padding: 8px 12px; font-size: 0.82rem;
+      background: rgba(239,68,68,0.1); color: #fca5a5;
+      border: 1px solid rgba(239,68,68,0.25); border-radius: 9px;
+      padding: 9px 13px; font-size: 0.82rem;
       display: flex; align-items: center; gap: 6px;
     }
+
     .modal-footer {
       display: flex; justify-content: flex-end; gap: 10px;
-      padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02);
+      padding: 16px 22px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      background: rgba(255,255,255,0.02);
     }
     .btn-cancel {
-      padding: 9px 16px; background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.72);
-      border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; font-size: 0.875rem; cursor: pointer;
+      padding: 9px 18px;
+      background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.7);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 9px;
+      font-size: 0.875rem; font-weight: 600; font-family: inherit; cursor: pointer;
+      transition: background 0.15s;
     }
-    .btn-cancel:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
+    .btn-cancel:hover:not(:disabled) { background: rgba(255,255,255,0.1); color: #ffffff; }
     .btn-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+
     .btn-confirm {
-      padding: 9px 20px; background: rgba(163,230,53,0.16); color: var(--dm-accent);
-      border: 1px solid rgba(163,230,53,0.28); border-radius: 8px; font-size: 0.875rem; font-weight: 600;
-      cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 6px;
+      padding: 9px 20px;
+      background: rgba(163,230,53,0.18); color: var(--dm-accent);
+      border: 1px solid rgba(163,230,53,0.4); border-radius: 9px;
+      font-size: 0.875rem; font-weight: 700; font-family: inherit; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      display: flex; align-items: center; gap: 7px;
     }
-    .btn-confirm:hover:not(:disabled) { background: rgba(163,230,53,0.24); }
+    .btn-confirm:hover:not(:disabled) { background: rgba(163,230,53,0.26); border-color: rgba(163,230,53,0.56); color: #d9f99d; }
     .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* Rankings */
@@ -508,50 +558,52 @@ import { TournamentService, Tournament, RankingEntry } from '../../../core/servi
     }
   `]
 })
-export class AdminTournamentsComponent implements OnInit {
-  tournaments: Tournament[] = [];
-  loading = true;
-  activeTab: 'all' | 'active' | 'draft' | 'completed' | 'rankings' = 'all';
+export class AdminTournamentsComponent {
+  private tournamentService = inject(TournamentService);
+  private router = inject(Router);
 
-  rankings: RankingEntry[] = [];
-  rankingsLoading = false;
+  tournaments = signal<Tournament[]>([]);
+  loading = signal(true);
+  activeTab = signal<'all' | 'active' | 'draft' | 'completed' | 'rankings'>('all');
 
-  showCreate = false;
-  newName = '';
-  newType: 'singles' | 'doubles' = 'singles';
-  creating = false;
-  createError = '';
+  rankings = signal<RankingEntry[]>([]);
+  rankingsLoading = signal(false);
 
-  constructor(private tournamentService: TournamentService, private router: Router) {}
+  showCreate = signal(false);
+  newName = signal('');
+  newType = signal<'singles' | 'doubles'>('singles');
+  creating = signal(false);
+  createError = signal('');
 
-  ngOnInit() {
+  filtered = computed<Tournament[]>(() => {
+    const tab = this.activeTab();
+    if (tab === 'all' || tab === 'rankings') return this.tournaments();
+    return this.tournaments().filter(t => t.status === tab);
+  });
+
+  constructor() {
     this.load();
   }
 
   load() {
-    this.loading = true;
+    this.loading.set(true);
     this.tournamentService.getAll().subscribe({
-      next: (data) => { this.tournaments = data; this.loading = false; },
-      error: () => { this.loading = false; }
+      next: (data) => { this.tournaments.set(data); this.loading.set(false); },
+      error: () => { this.loading.set(false); }
     });
   }
 
   switchToRankings() {
-    this.activeTab = 'rankings';
-    this.rankingsLoading = true;
+    this.activeTab.set('rankings');
+    this.rankingsLoading.set(true);
     this.tournamentService.getRankings().subscribe({
-      next: (data) => { this.rankings = data; this.rankingsLoading = false; },
-      error: () => { this.rankingsLoading = false; }
+      next: (data) => { this.rankings.set(data); this.rankingsLoading.set(false); },
+      error: () => { this.rankingsLoading.set(false); }
     });
   }
 
-  get filtered(): Tournament[] {
-    if (this.activeTab === 'all' || this.activeTab === 'rankings') return this.tournaments;
-    return this.tournaments.filter(t => t.status === this.activeTab);
-  }
-
   countByStatus(status: string): number {
-    return this.tournaments.filter(t => t.status === status).length;
+    return this.tournaments().filter(t => t.status === status).length;
   }
 
   completedMatches(t: Tournament): number {
@@ -574,27 +626,27 @@ export class AdminTournamentsComponent implements OnInit {
   }
 
   cancelCreate() {
-    this.showCreate = false;
-    this.newName = '';
-    this.newType = 'singles';
-    this.createError = '';
+    this.showCreate.set(false);
+    this.newName.set('');
+    this.newType.set('singles');
+    this.createError.set('');
   }
 
   createTournament() {
-    if (!this.newName.trim()) return;
-    this.creating = true;
-    this.createError = '';
-    this.tournamentService.create({ name: this.newName.trim(), type: this.newType }).subscribe({
+    if (!this.newName().trim()) return;
+    this.creating.set(true);
+    this.createError.set('');
+    this.tournamentService.create({ name: this.newName().trim(), type: this.newType() }).subscribe({
       next: (t) => {
-        this.creating = false;
-        this.showCreate = false;
-        this.newName = '';
-        this.newType = 'singles';
+        this.creating.set(false);
+        this.showCreate.set(false);
+        this.newName.set('');
+        this.newType.set('singles');
         this.router.navigate(['/admin/tournaments', t._id]);
       },
       error: (err) => {
-        this.creating = false;
-        this.createError = err.error?.error || 'Failed to create tournament';
+        this.creating.set(false);
+        this.createError.set(err.error?.error || 'Failed to create tournament');
       }
     });
   }

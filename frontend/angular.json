@@ -52,7 +52,9 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"]
+            "styles": [
+              "src/styles.scss"
+            ]
           },
           "configurations": {
             "production": {
@@ -64,8 +66,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "16kB",
-                  "maximumError": "24kB"
+                  "maximumWarning": "20kB",
+                  "maximumError": "28kB"
                 }
               ],
               "outputHashing": "all",
@@ -80,6 +82,27 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "mobile": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "500kB",
+                  "maximumError": "1MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "20kB",
+                  "maximumError": "28kB"
+                }
+              ],
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.mobile.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"

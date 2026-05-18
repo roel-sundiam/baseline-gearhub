@@ -6,6 +6,7 @@ const clubSchema = new mongoose.Schema(
     location: { type: String, trim: true },
     logo: { type: String, default: null },
     coinBalance: { type: Number, default: 0 },
+    status: { type: String, enum: ['active', 'suspended'], default: 'active' },
   },
   { timestamps: true },
 );

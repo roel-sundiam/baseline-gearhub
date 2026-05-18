@@ -1,8 +1,9 @@
-import { Component, OnInit, OnDestroy, Renderer2 } from '@angular/core';
+import { Component, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { TournamentService, Tournament, RankingEntry } from '../../../core/services/tournament.service';
 import { CoinsService } from '../../../core/services/coins.service';
+import { Renderer2 } from '@angular/core';
 
 @Component({
   selector: 'app-player-tournaments',
@@ -17,17 +18,17 @@ import { CoinsService } from '../../../core/services/coins.service';
         </button>
         <span class="dm-header-title">Tournaments</span>
         <div class="dm-header-pills">
-          <span class="dm-pill">{{ tournaments.length }} active</span>
+          <span class="dm-pill">{{ tournaments().length }} active</span>
         </div>
       </header>
 
       <!-- Tabs -->
       <div class="dm-tabs">
-        <button class="dm-tab" [class.active]="activeTab === 'tournaments'" (click)="activeTab = 'tournaments'">
+        <button class="dm-tab" [class.active]="activeTab() === 'tournaments'" (click)="activeTab.set('tournaments')">
           <i class="fas fa-sitemap"></i> Tournaments
-          @if (tournaments.length) { <span class="dm-tab-badge">{{ tournaments.length }}</span> }
+          @if (tournaments().length) { <span class="dm-tab-badge">{{ tournaments().length }}</span> }
         </button>
-        <button class="dm-tab" [class.active]="activeTab === 'rankings'" (click)="loadRankings()">
+        <button class="dm-tab" [class.active]="activeTab() === 'rankings'" (click)="loadRankings()">
           <i class="fas fa-medal"></i> Rankings
         </button>
       </div>
@@ -35,18 +36,18 @@ import { CoinsService } from '../../../core/services/coins.service';
       <div class="dm-body">
 
         <!-- TOURNAMENTS TAB -->
-        @if (activeTab === 'tournaments') {
-          @if (loading) {
+        @if (activeTab() === 'tournaments') {
+          @if (loading()) {
             <div class="dm-state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading tournaments…</div>
-          } @else if (tournaments.length === 0) {
+          } @else if (tournaments().length === 0) {
             <div class="dm-empty">
               <i class="fas fa-trophy"></i>
               <p>No tournaments yet. Check back soon!</p>
             </div>
           } @else {
-            <div class="dm-section-label">{{ tournaments.length }} tournament{{ tournaments.length !== 1 ? 's' : '' }}</div>
+            <div class="dm-section-label">{{ tournaments().length }} tournament{{ tournaments().length !== 1 ? 's' : '' }}</div>
             <div class="dm-tournament-list">
-              @for (t of tournaments; track t._id) {
+              @for (t of tournaments(); track t._id) {
                 <div class="dm-t-card" (click)="openTournament(t._id)">
                   <div class="dm-t-icon" [class.icon-active]="t.status === 'active'" [class.icon-done]="t.status === 'completed'" [class.icon-draft]="t.status === 'draft'">
                     <i class="fas fa-{{ t.status === 'completed' ? 'flag-checkered' : 'table-tennis' }}"></i>
@@ -77,10 +78,10 @@ import { CoinsService } from '../../../core/services/coins.service';
         }
 
         <!-- RANKINGS TAB -->
-        @if (activeTab === 'rankings') {
-          @if (rankingsLoading) {
+        @if (activeTab() === 'rankings') {
+          @if (rankingsLoading()) {
             <div class="dm-state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading rankings…</div>
-          } @else if (rankings.length === 0) {
+          } @else if (rankings().length === 0) {
             <div class="dm-empty">
               <i class="fas fa-medal"></i>
               <p>No rankings yet. Rankings appear once tournaments are completed.</p>
@@ -89,13 +90,13 @@ import { CoinsService } from '../../../core/services/coins.service';
             <div class="dm-section-label">Player Leaderboard</div>
 
             <div class="dm-gender-tabs">
-              <button class="dm-gender-tab" [class.active]="genderFilter === 'all'" (click)="genderFilter = 'all'">All</button>
-              <button class="dm-gender-tab" [class.active]="genderFilter === 'men'" (click)="genderFilter = 'men'">Men's</button>
-              <button class="dm-gender-tab" [class.active]="genderFilter === 'women'" (click)="genderFilter = 'women'">Women's</button>
+              <button class="dm-gender-tab" [class.active]="genderFilter() === 'all'" (click)="genderFilter.set('all')">All</button>
+              <button class="dm-gender-tab" [class.active]="genderFilter() === 'men'" (click)="genderFilter.set('men')">Men's</button>
+              <button class="dm-gender-tab" [class.active]="genderFilter() === 'women'" (click)="genderFilter.set('women')">Women's</button>
             </div>
 
             <div class="dm-rankings-list">
-              @for (entry of filteredRankings; track entry.playerId; let i = $index) {
+              @for (entry of filteredRankings(); track entry.playerId; let i = $index) {
                 <div class="dm-rank-row" [class.rank-gold]="i === 0" [class.rank-silver]="i === 1" [class.rank-bronze]="i === 2">
                   <div class="dm-rank-pos">
                     @if (i === 0) { <span>🥇</span> }
@@ -591,29 +592,35 @@ import { CoinsService } from '../../../core/services/coins.service';
     .dm-nav-item.dm-nav-active { color: #a3e635; }
   `]
 })
-export class PlayerTournamentsComponent implements OnInit, OnDestroy {
-  activeTab: 'tournaments' | 'rankings' = 'tournaments';
-  tournaments: Tournament[] = [];
-  rankings: RankingEntry[] = [];
-  loading = true;
-  rankingsLoading = false;
-  genderFilter: 'all' | 'men' | 'women' = 'all';
+export class PlayerTournamentsComponent implements OnDestroy {
+  private tournamentService = inject(TournamentService);
+  private coinsService = inject(CoinsService);
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
+  private renderer = inject(Renderer2);
 
-  constructor(
-    private tournamentService: TournamentService,
-    private coinsService: CoinsService,
-    private router: Router,
-    private route: ActivatedRoute,
-    private renderer: Renderer2,
-  ) {}
+  activeTab = signal<'tournaments' | 'rankings'>('tournaments');
+  tournaments = signal<Tournament[]>([]);
+  rankings = signal<RankingEntry[]>([]);
+  loading = signal(true);
+  rankingsLoading = signal(false);
+  genderFilter = signal<'all' | 'men' | 'women'>('all');
 
-  ngOnInit() {
+  filteredRankings = computed<RankingEntry[]>(() => {
+    const f = this.genderFilter();
+    const r = this.rankings();
+    if (f === 'men')   return r.filter(e => e.gender === 'Male');
+    if (f === 'women') return r.filter(e => e.gender === 'Female');
+    return r;
+  });
+
+  constructor() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
     this.coinsService.trackVisit('tournament-list').subscribe({ error: () => {} });
     this.tournamentService.getAll().subscribe({
-      next: (data) => { this.tournaments = data.filter(t => t.published); this.loading = false; },
-      error: () => { this.loading = false; }
+      next: (data) => { this.tournaments.set(data.filter(t => t.published)); this.loading.set(false); },
+      error: () => { this.loading.set(false); }
     });
     this.route.queryParams.subscribe(p => {
       if (p['tab'] === 'rankings') this.loadRankings();
@@ -625,31 +632,18 @@ export class PlayerTournamentsComponent implements OnInit, OnDestroy {
     this.renderer.removeClass(document.body, 'dark-player-page');
   }
 
-  navigateTo(path: string) {
-    this.router.navigate([path]);
-  }
-
-  get filteredRankings(): RankingEntry[] {
-    if (this.genderFilter === 'men')   return this.rankings.filter(r => r.gender === 'Male');
-    if (this.genderFilter === 'women') return this.rankings.filter(r => r.gender === 'Female');
-    return this.rankings;
-  }
+  navigateTo(path: string) { this.router.navigate([path]); }
 
   loadRankings() {
-    this.activeTab = 'rankings';
-    this.rankingsLoading = true;
+    this.activeTab.set('rankings');
+    this.rankingsLoading.set(true);
     this.tournamentService.getRankings().subscribe({
-      next: (data) => { this.rankings = data; this.rankingsLoading = false; },
-      error: () => { this.rankingsLoading = false; }
+      next: (data) => { this.rankings.set(data); this.rankingsLoading.set(false); },
+      error: () => { this.rankingsLoading.set(false); }
     });
   }
 
   openTournament(id: string) { this.router.navigate(['/player/tournaments', id]); }
-  goBack() { this.router.navigate(['/player/dashboard']); }
-
-  get completedCount(): number {
-    return this.tournaments.filter(t => t.status === 'completed').length;
-  }
 
   completedMatches(t: Tournament): number {
     return t.matches.filter(m => m.status === 'completed').length;

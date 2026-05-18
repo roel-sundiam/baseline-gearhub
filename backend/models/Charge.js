@@ -5,8 +5,8 @@ const chargeSchema = new mongoose.Schema(
     playerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
     },
+    guestName: { type: String },
     reservationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Reservation",

@@ -2,6 +2,7 @@ const express = require("express");
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
 const Charge = require("../models/Charge");
+const Reservation = require("../models/Reservation");
 const Session = require("../models/Session");
 
 const router = express.Router();
@@ -28,9 +29,11 @@ router.get("/my", auth, async (req, res) => {
 // ?status=pending (default) | approved | rejected | all
 router.get("/pending-approval", auth, admin, async (req, res) => {
   try {
-    const clubId = req.query.clubId || req.user.clubId;
+    const rawClubId = req.query.clubId;
+    const clubId = Array.isArray(rawClubId) ? rawClubId[0] : rawClubId || req.user.clubId;
     const cf = clubId ? { clubId } : {};
-    const { status } = req.query;
+    const rawStatus = req.query.status;
+    const status = Array.isArray(rawStatus) ? rawStatus[0] : rawStatus;
     let filter;
     if (!status || status === "pending") {
       filter = { ...cf, approvalStatus: "pending" };
@@ -69,6 +72,14 @@ router.patch("/:id/approve", auth, admin, async (req, res) => {
     charge.status = "paid";
     charge.approvalStatus = "approved";
     await charge.save();
+
+    // Confirm reservation if it was pending payment (guest booking)
+    if (charge.reservationId) {
+      await Reservation.updateOne(
+        { _id: charge.reservationId, status: "pending_payment" },
+        { $set: { status: "confirmed" } },
+      );
+    }
 
     // Sync session embedded player entry if applicable
     if (charge.sessionId) {
@@ -216,7 +227,8 @@ router.patch("/:id/pay", auth, async (req, res) => {
 router.get("/", auth, admin, async (req, res) => {
   try {
     const { playerId, status, approvalStatus } = req.query;
-    const clubId = req.query.clubId || req.user.clubId;
+    const rawClubId = req.query.clubId;
+    const clubId = Array.isArray(rawClubId) ? rawClubId[0] : rawClubId || req.user.clubId;
     const filter = clubId ? { clubId } : {};
 
     if (playerId) filter.playerId = playerId;

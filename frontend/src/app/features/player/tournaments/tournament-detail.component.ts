@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, Renderer2 } from '@angular/core';
+import { Component, OnDestroy, signal, inject, Renderer2 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TournamentService, Tournament, TournamentMatch, TournamentPlayer } from '../../../core/services/tournament.service';
@@ -16,49 +16,50 @@ import { CoinsService } from '../../../core/services/coins.service';
           <i class="fas fa-arrow-left"></i>
         </button>
         <span class="dm-header-title">
-          @if (tournament) { {{ tournament.name }} }
+          @if (tournament()) { {{ tournament()!.name }} }
           @else { Tournament }
         </span>
-        @if (tournament) {
-          <span class="dm-status-chip" [class.chip-active]="tournament.status === 'active'" [class.chip-done]="tournament.status === 'completed'" [class.chip-draft]="tournament.status === 'draft'">
-            {{ tournament.status }}
+        @if (tournament()) {
+          <span class="dm-status-chip" [class.chip-active]="tournament()!.status === 'active'" [class.chip-done]="tournament()!.status === 'completed'" [class.chip-draft]="tournament()!.status === 'draft'">
+            {{ tournament()!.status }}
           </span>
         }
       </header>
 
       <!-- Tabs -->
       <div class="dm-tabs">
-        <button class="dm-tab" [class.active]="activeTab === 'matches'" (click)="activeTab = 'matches'">
+        <button class="dm-tab" [class.active]="activeTab() === 'matches'" (click)="activeTab.set('matches')">
           <i class="fas fa-table-tennis"></i> Matches
         </button>
-        <button class="dm-tab" [class.active]="activeTab === 'players'" (click)="activeTab = 'players'">
+        <button class="dm-tab" [class.active]="activeTab() === 'players'" (click)="activeTab.set('players')">
           <i class="fas fa-users"></i> Players
-          @if (tournament) { <span class="dm-tab-badge">{{ tournament.participants.length }}</span> }
+          @if (tournament()) { <span class="dm-tab-badge">{{ tournament()!.participants.length }}</span> }
         </button>
       </div>
 
       <div class="dm-body">
 
-        @if (loading) {
+        @if (loading()) {
           <div class="dm-state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading tournament…</div>
-        } @else if (!tournament) {
+        } @else if (!tournament()) {
           <div class="dm-empty">
             <i class="fas fa-trophy"></i>
             <p>Tournament not found.</p>
           </div>
         } @else {
+          @let t = tournament()!;
 
           <!-- Tournament meta -->
           <div class="dm-t-meta-row">
-            <span class="dm-t-type-badge" [class.type-singles]="tournament.type === 'singles'" [class.type-doubles]="tournament.type === 'doubles'">{{ tournament.type }}</span>
-            <span class="dm-t-meta-item"><i class="fas fa-users"></i> {{ tournament.participants.length }} players</span>
-            @if (tournament.status !== 'draft') {
-              <span class="dm-t-meta-item"><i class="fas fa-check"></i> {{ completedCount }}/{{ tournament.matches.length }} done</span>
+            <span class="dm-t-type-badge" [class.type-singles]="t.type === 'singles'" [class.type-doubles]="t.type === 'doubles'">{{ t.type }}</span>
+            <span class="dm-t-meta-item"><i class="fas fa-users"></i> {{ t.participants.length }} players</span>
+            @if (t.status !== 'draft') {
+              <span class="dm-t-meta-item"><i class="fas fa-check"></i> {{ completedCount }}/{{ t.matches.length }} done</span>
             }
           </div>
 
           <!-- Champion banner -->
-          @if (tournament.status === 'completed') {
+          @if (t.status === 'completed') {
             <div class="dm-champion-banner">
               <div class="dm-champion-trophy">🏆</div>
               <div class="dm-champion-left">
@@ -73,7 +74,7 @@ import { CoinsService } from '../../../core/services/coins.service';
           }
 
           <!-- MATCHES TAB -->
-          @if (activeTab === 'matches') {
+          @if (activeTab() === 'matches') {
             @if (visibleMatches.length === 0) {
               <div class="dm-empty">
                 <i class="fas fa-table-tennis"></i>
@@ -114,10 +115,10 @@ import { CoinsService } from '../../../core/services/coins.service';
           }
 
           <!-- PLAYERS TAB -->
-          @if (activeTab === 'players') {
-            <div class="dm-section-label">{{ tournament.participants.length }} participant{{ tournament.participants.length !== 1 ? 's' : '' }}</div>
+          @if (activeTab() === 'players') {
+            <div class="dm-section-label">{{ t.participants.length }} participant{{ t.participants.length !== 1 ? 's' : '' }}</div>
             <div class="dm-players-list">
-              @for (p of tournament.participants; track p._id) {
+              @for (p of t.participants; track p._id) {
                 <div class="dm-player-row">
                   <div class="dm-p-avatar">
                     @if (p.profileImage) {
@@ -583,35 +584,33 @@ import { CoinsService } from '../../../core/services/coins.service';
     .dm-nav-item.dm-nav-active { color: #a3e635; }
   `]
 })
-export class PlayerTournamentDetailComponent implements OnInit, OnDestroy {
-  tournament: Tournament | null = null;
-  loading = true;
-  activeTab: 'matches' | 'players' = 'matches';
-  rounds: number[] = [];
+export class PlayerTournamentDetailComponent implements OnDestroy {
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private tournamentService = inject(TournamentService);
+  private coinsService = inject(CoinsService);
+  private renderer = inject(Renderer2);
 
-  constructor(
-    private route: ActivatedRoute,
-    private router: Router,
-    private tournamentService: TournamentService,
-    private coinsService: CoinsService,
-    private renderer: Renderer2,
-  ) {}
+  tournament = signal<Tournament | null>(null);
+  loading = signal(true);
+  activeTab = signal<'matches' | 'players'>('matches');
+  rounds = signal<number[]>([]);
 
-  ngOnInit() {
+  constructor() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
     this.coinsService.trackVisit('tournament-detail').subscribe({ error: () => {} });
     this.route.params.subscribe(params => {
       this.tournamentService.getById(params['id']).subscribe({
         next: (t) => {
-          this.tournament = t;
-          this.loading = false;
+          this.tournament.set(t);
+          this.loading.set(false);
           if (t.matches.length) {
             const max = Math.max(...t.matches.map(m => m.round));
-            this.rounds = Array.from({ length: max }, (_, i) => i + 1);
+            this.rounds.set(Array.from({ length: max }, (_, i) => i + 1));
           }
         },
-        error: () => { this.loading = false; }
+        error: () => { this.loading.set(false); }
       });
     });
   }
@@ -621,20 +620,16 @@ export class PlayerTournamentDetailComponent implements OnInit, OnDestroy {
     this.renderer.removeClass(document.body, 'dark-player-page');
   }
 
-  navigateTo(path: string) {
-    this.router.navigate([path]);
-  }
-
-  goBack() { this.router.navigate(['/player/tournaments']); }
+  navigateTo(path: string) { this.router.navigate([path]); }
 
   get visibleMatches(): TournamentMatch[] {
-    return [...(this.tournament?.matches || [])]
+    return [...(this.tournament()?.matches || [])]
       .filter(m => m.slot1Players.length > 0 || m.slot2Players.length > 0)
       .sort((a, b) => a.round - b.round || a.position - b.position);
   }
 
   get completedCount(): number {
-    return this.tournament?.matches.filter(m => m.status === 'completed').length ?? 0;
+    return this.tournament()?.matches.filter(m => m.status === 'completed').length ?? 0;
   }
 
   slotLabel(players: TournamentPlayer[]): string {
@@ -645,31 +640,37 @@ export class PlayerTournamentDetailComponent implements OnInit, OnDestroy {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
 
+  private getFinalMatch() {
+    const r = this.rounds();
+    if (!r.length) return null;
+    return this.tournament()?.matches.find(m => m.round === r[r.length - 1] && m.position === 0) ?? null;
+  }
+
   getChampion(): string {
-    if (!this.tournament || !this.rounds.length) return '—';
-    const final = this.tournament.matches.find(m => m.round === this.rounds[this.rounds.length - 1] && m.position === 0);
-    if (!final || !final.winner) return '—';
+    const final = this.getFinalMatch();
+    if (!final?.winner) return '—';
     return (final.winner === 1 ? final.slot1Players : final.slot2Players).map(p => p.name).join(' & ') || '—';
   }
 
   getRunnerUp(): string {
-    if (!this.tournament || !this.rounds.length) return '—';
-    const final = this.tournament.matches.find(m => m.round === this.rounds[this.rounds.length - 1] && m.position === 0);
-    if (!final || !final.winner) return '—';
+    const final = this.getFinalMatch();
+    if (!final?.winner) return '—';
     return (final.winner === 1 ? final.slot2Players : final.slot1Players).map(p => p.name).join(' & ') || '—';
   }
 
   isChampion(pid: string): boolean {
-    if (!this.tournament || this.tournament.status !== 'completed' || !this.rounds.length) return false;
-    const final = this.tournament.matches.find(m => m.round === this.rounds[this.rounds.length - 1] && m.position === 0);
-    if (!final || !final.winner) return false;
+    const t = this.tournament();
+    if (!t || t.status !== 'completed') return false;
+    const final = this.getFinalMatch();
+    if (!final?.winner) return false;
     return (final.winner === 1 ? final.slot1Players : final.slot2Players).some(p => p._id === pid);
   }
 
   isRunnerUp(pid: string): boolean {
-    if (!this.tournament || this.tournament.status !== 'completed' || !this.rounds.length) return false;
-    const final = this.tournament.matches.find(m => m.round === this.rounds[this.rounds.length - 1] && m.position === 0);
-    if (!final || !final.winner) return false;
+    const t = this.tournament();
+    if (!t || t.status !== 'completed') return false;
+    const final = this.getFinalMatch();
+    if (!final?.winner) return false;
     return (final.winner === 1 ? final.slot2Players : final.slot1Players).some(p => p._id === pid);
   }
 }

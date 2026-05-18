@@ -64,6 +64,10 @@ export class UsersService {
     return this.http.get<any[]>(`${environment.apiUrl}/users/admins`, { params });
   }
 
+  getClubUsers(clubId: string) {
+    return this.http.get<any[]>(`${environment.apiUrl}/users`, { params: { clubId } });
+  }
+
   createAdmin(data: { name: string; username: string; password: string; clubId: string; email?: string; contactNumber?: string }) {
     return this.http.post<{ message: string; userId: string }>(`${environment.apiUrl}/users/create-admin`, data);
   }

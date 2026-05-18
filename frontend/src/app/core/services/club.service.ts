@@ -9,6 +9,7 @@ export interface Club {
   logo?: string | null;
   createdAt?: string;
   coinBalance?: number;
+  status?: 'active' | 'suspended';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -38,6 +39,10 @@ export class ClubService {
 
   deleteClub(id: string) {
     return this.http.delete<{ message: string }>(`${environment.apiUrl}/clubs/${id}`);
+  }
+
+  setStatus(id: string, status: 'active' | 'suspended') {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/status`, { status });
   }
 
   setSelectedClubId(id: string) {

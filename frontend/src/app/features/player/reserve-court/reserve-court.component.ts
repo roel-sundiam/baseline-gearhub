@@ -7,6 +7,7 @@ import { UsersService } from '../../../core/services/users.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { RatesService } from '../../../core/services/rates.service';
 import { CoinsService } from '../../../core/services/coins.service';
+import { SoundService } from '../../../core/services/sound.service';
 
 const ALL_SLOTS = [
   '5am','6am','7am','8am','9am','10am','11am',
@@ -142,24 +143,28 @@ interface ActivePlayer { _id: string; name: string; email: string; }
         </div>
 
         <!-- Holiday -->
-        <div class="dm-section">
-          <div class="dm-section-label">Holiday <span class="dm-optional">optional</span></div>
-          <label class="dm-toggle-row">
-            <input type="checkbox" class="dm-toggle-input" [(ngModel)]="isHoliday" />
-            <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
-            <span class="dm-toggle-label">{{ isHoliday ? 'Yes — holiday rates apply' : 'No — regular rates apply' }}</span>
-          </label>
-        </div>
+        @if (holidayRate > 0) {
+          <div class="dm-section">
+            <div class="dm-section-label">Holiday <span class="dm-optional">optional</span></div>
+            <label class="dm-toggle-row">
+              <input type="checkbox" class="dm-toggle-input" [(ngModel)]="isHoliday" />
+              <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
+              <span class="dm-toggle-label">{{ isHoliday ? 'Yes — holiday rates apply' : 'No — regular rates apply' }}</span>
+            </label>
+          </div>
+        }
 
         <!-- Ball Boy -->
-        <div class="dm-section">
-          <div class="dm-section-label">Ball Boy <span class="dm-optional">optional</span></div>
-          <label class="dm-toggle-row">
-            <input type="checkbox" class="dm-toggle-input" [(ngModel)]="ballBoyRequested" />
-            <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
-            <span class="dm-toggle-label">{{ ballBoyRequested ? '🎾 Requested' : 'Not requested' }}</span>
-          </label>
-        </div>
+        @if (ballBoyRate > 0) {
+          <div class="dm-section">
+            <div class="dm-section-label">Ball Boy <span class="dm-optional">optional</span></div>
+            <label class="dm-toggle-row">
+              <input type="checkbox" class="dm-toggle-input" [(ngModel)]="ballBoyRequested" />
+              <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
+              <span class="dm-toggle-label">{{ ballBoyRequested ? '🎾 Requested' : 'Not requested' }}</span>
+            </label>
+          </div>
+        }
 
         <!-- Guests -->
         <div class="dm-section">
@@ -175,58 +180,62 @@ interface ActivePlayer { _id: string; name: string; email: string; }
         </div>
 
         <!-- Rentals -->
-        <div class="dm-section">
-          <div class="dm-section-label">Rentals <span class="dm-optional">optional</span></div>
-          <div class="dm-rentals-card">
+        @if (hasAnyRental) {
+          <div class="dm-section">
+            <div class="dm-section-label">Rentals <span class="dm-optional">optional</span></div>
+            <div class="dm-rentals-card">
 
-            <div class="dm-rental-row">
-              <span class="dm-rental-name">🎾 Balls (50 pcs)</span>
-              <span class="dm-rental-rate">{{ rentalBalls50Rate | currency: 'PHP' : 'symbol' }}/hr</span>
-              <div class="dm-rental-counter">
-                <button type="button" class="dm-counter-btn sm" (click)="rentalBalls50 = rentalBalls50 > 0 ? rentalBalls50 - 1 : 0">−</button>
-                <span class="dm-counter-val sm">{{ rentalBalls50 }}</span>
-                <button type="button" class="dm-counter-btn sm" (click)="rentalBalls50 = rentalBalls50 + 1">+</button>
-              </div>
+              @if (rentalBalls50Rate > 0) {
+                <div class="dm-rental-row">
+                  <span class="dm-rental-name">🎾 Balls (50 pcs)</span>
+                  <span class="dm-rental-rate">{{ rentalBalls50Rate | currency: 'PHP' : 'symbol' }}/hr</span>
+                  <div class="dm-rental-counter">
+                    <button type="button" class="dm-counter-btn sm" (click)="rentalBalls50 = rentalBalls50 > 0 ? rentalBalls50 - 1 : 0">−</button>
+                    <span class="dm-counter-val sm">{{ rentalBalls50 }}</span>
+                    <button type="button" class="dm-counter-btn sm" (click)="rentalBalls50 = rentalBalls50 + 1">+</button>
+                  </div>
+                </div>
+              }
+
+              @if (rentalBalls100Rate > 0) {
+                <div class="dm-rental-row">
+                  <span class="dm-rental-name">🎾 Balls (100 pcs)</span>
+                  <span class="dm-rental-rate">{{ rentalBalls100Rate | currency: 'PHP' : 'symbol' }}/hr</span>
+                  <div class="dm-rental-counter">
+                    <button type="button" class="dm-counter-btn sm" (click)="rentalBalls100 = rentalBalls100 > 0 ? rentalBalls100 - 1 : 0">−</button>
+                    <span class="dm-counter-val sm">{{ rentalBalls100 }}</span>
+                    <button type="button" class="dm-counter-btn sm" (click)="rentalBalls100 = rentalBalls100 + 1">+</button>
+                  </div>
+                </div>
+              }
+
+              @if (rentalBallMachineRate > 0) {
+                <div class="dm-rental-row">
+                  <span class="dm-rental-name">🤖 Ball Machine</span>
+                  <span class="dm-rental-rate">{{ rentalBallMachineRate | currency: 'PHP' : 'symbol' }}/hr</span>
+                  <label class="dm-toggle-row" style="margin:0">
+                    <input type="checkbox" class="dm-toggle-input" [(ngModel)]="rentalBallMachine" />
+                    <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
+                    <span class="dm-toggle-label" style="font-size:.82rem">{{ rentalBallMachine ? 'Yes' : 'No' }}</span>
+                  </label>
+                </div>
+              }
+
+              @if (rentalRacketRate > 0) {
+                <div class="dm-rental-row">
+                  <span class="dm-rental-name">🏓 Racket</span>
+                  <span class="dm-rental-rate">{{ rentalRacketRate | currency: 'PHP' : 'symbol' }}/hr each</span>
+                  <div class="dm-rental-counter">
+                    <button type="button" class="dm-counter-btn sm" (click)="rentalRackets = rentalRackets > 0 ? rentalRackets - 1 : 0">−</button>
+                    <span class="dm-counter-val sm">{{ rentalRackets }}</span>
+                    <button type="button" class="dm-counter-btn sm" (click)="rentalRackets = rentalRackets + 1">+</button>
+                  </div>
+                </div>
+              }
+
             </div>
-
-            <div class="dm-rental-divider"></div>
-
-            <div class="dm-rental-row">
-              <span class="dm-rental-name">🎾 Balls (100 pcs)</span>
-              <span class="dm-rental-rate">{{ rentalBalls100Rate | currency: 'PHP' : 'symbol' }}/hr</span>
-              <div class="dm-rental-counter">
-                <button type="button" class="dm-counter-btn sm" (click)="rentalBalls100 = rentalBalls100 > 0 ? rentalBalls100 - 1 : 0">−</button>
-                <span class="dm-counter-val sm">{{ rentalBalls100 }}</span>
-                <button type="button" class="dm-counter-btn sm" (click)="rentalBalls100 = rentalBalls100 + 1">+</button>
-              </div>
-            </div>
-
-            <div class="dm-rental-divider"></div>
-
-            <div class="dm-rental-row">
-              <span class="dm-rental-name">🤖 Ball Machine</span>
-              <span class="dm-rental-rate">{{ rentalBallMachineRate | currency: 'PHP' : 'symbol' }}/hr</span>
-              <label class="dm-toggle-row" style="margin:0">
-                <input type="checkbox" class="dm-toggle-input" [(ngModel)]="rentalBallMachine" />
-                <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
-                <span class="dm-toggle-label" style="font-size:.82rem">{{ rentalBallMachine ? 'Yes' : 'No' }}</span>
-              </label>
-            </div>
-
-            <div class="dm-rental-divider"></div>
-
-            <div class="dm-rental-row">
-              <span class="dm-rental-name">🏓 Racket</span>
-              <span class="dm-rental-rate">{{ rentalRacketRate | currency: 'PHP' : 'symbol' }}/hr each</span>
-              <div class="dm-rental-counter">
-                <button type="button" class="dm-counter-btn sm" (click)="rentalRackets = rentalRackets > 0 ? rentalRackets - 1 : 0">−</button>
-                <span class="dm-counter-val sm">{{ rentalRackets }}</span>
-                <button type="button" class="dm-counter-btn sm" (click)="rentalRackets = rentalRackets + 1">+</button>
-              </div>
-            </div>
-
           </div>
-        </div>
+        }
 
         <!-- Summary -->
         @if (selectedSlot) {
@@ -742,7 +751,7 @@ interface ActivePlayer { _id: string; name: string; email: string; }
       padding: 0.75rem 0.9rem;
     }
 
-    .dm-rental-divider { height: 1px; background: rgba(255,255,255,0.06); }
+    .dm-rental-row:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.06); }
 
     .dm-rental-name { flex: 1; font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.75); }
     .dm-rental-rate { font-size: 0.72rem; color: #a3e635; font-weight: 600; white-space: nowrap; }
@@ -911,6 +920,11 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
 
   get hasLights(): boolean { return LIGHT_SLOTS.has(this.selectedSlot); }
 
+  get hasAnyRental(): boolean {
+    return this.rentalBalls50Rate > 0 || this.rentalBalls100Rate > 0
+      || this.rentalBallMachineRate > 0 || this.rentalRacketRate > 0;
+  }
+
   get dayType(): 'weekday' | 'weekend' | 'holiday' {
     if (this.isHoliday) return 'holiday';
     if (!this.selectedDate) return 'weekday';
@@ -953,6 +967,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     private router: Router,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
+    private sound: SoundService,
   ) {}
 
   ngOnInit() {
@@ -1103,6 +1118,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
           ? ` with ${this.addedPlayers.map((p) => p.name).join(', ')}`
           : '';
         this.successMsg = `Court ${this.selectedCourt} reserved for ${this.selectedSlot}${withStr}!`;
+        this.sound.success();
         this.bookedSlots = new Set([...this.bookedSlots, this.selectedSlot]);
         this.selectedSlot = '';
         this.addedPlayers = [];
@@ -1118,6 +1134,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.booking = false;
+        this.sound.error();
         if (err?.status === 402) {
           this.errorMsg = `Insufficient coins. Your club has ${err.error?.coinBalance ?? 0} coins but 5 are needed. Please ask your admin to request more coins.`;
         } else {

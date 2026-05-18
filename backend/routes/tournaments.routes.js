@@ -666,9 +666,13 @@ router.post("/:id/random-matches", auth, admin, async (req, res) => {
 router.patch("/:id/publish", auth, admin, async (req, res) => {
   try {
     const { published } = req.body;
+    const existing = await Tournament.findById(req.params.id).lean();
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    const update = { published: !!published };
+    if (!!published && existing.status === "draft") update.status = "active";
     const tournament = await Tournament.findByIdAndUpdate(
       req.params.id,
-      { published: !!published },
+      update,
       { new: true }
     )
       .populate("participants", "name profileImage")

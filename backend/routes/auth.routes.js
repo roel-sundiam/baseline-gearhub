@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const Club = require("../models/Club");
 const LoginHistory = require("../models/LoginHistory");
 
 const router = express.Router();
@@ -94,6 +95,13 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid username or password" });
     }
 
+    if (user.clubId && user.role !== "superadmin") {
+      const club = await Club.findById(user.clubId).lean();
+      if (club?.status === "suspended") {
+        return res.status(403).json({ error: "Your club has been suspended. Please contact support." });
+      }
+    }
+
     const token = jwt.sign(
       {
         userId: user._id,
@@ -123,6 +131,69 @@ router.post("/login", async (req, res) => {
         profileImage: user.profileImage || null,
         clubId: user.clubId,
       },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/auth/register-club
+router.post("/register-club", async (req, res) => {
+  try {
+    const {
+      clubName,
+      adminName,
+      adminUsername,
+      adminPassword,
+      location,
+      logo,
+      email,
+      contactNumber,
+    } = req.body;
+
+    if (!clubName || !adminName || !adminUsername || !adminPassword || !logo) {
+      return res.status(400).json({
+        error: "Club name, logo, admin name, username, and password are required",
+      });
+    }
+
+    const existingUsername = await User.findOne({ username: adminUsername });
+    if (existingUsername) {
+      return res.status(409).json({ error: "Username already taken" });
+    }
+
+    if (email) {
+      const existingEmail = await User.findOne({ email });
+      if (existingEmail) {
+        return res.status(409).json({ error: "Email already registered" });
+      }
+    }
+
+    const club = await Club.create({
+      name: clubName,
+      location: location || undefined,
+      logo: logo || null,
+      coinBalance: 100,
+      status: "active",
+    });
+
+    const passwordHash = await bcrypt.hash(adminPassword, 12);
+    const admin = await User.create({
+      name: adminName,
+      username: adminUsername,
+      email: email || undefined,
+      passwordHash,
+      contactNumber: contactNumber || undefined,
+      role: "admin",
+      status: "active",
+      clubId: club._id,
+    });
+
+    res.status(201).json({
+      message: "Club registered successfully. You can now log in.",
+      clubId: club._id,
+      adminId: admin._id,
     });
   } catch (err) {
     console.error(err);

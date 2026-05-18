@@ -40,7 +40,7 @@ interface CourtSessionRow {
     <div class="new-session-shell">
       <div class="page-header">
         <div class="hero-copy">
-          <p class="eyebrow">Baseline Gearhub</p>
+          <p class="eyebrow"><span style="color:#a3e635">Court</span><span style="color:#ffffff">Go</span></p>
           <h2>Record Session</h2>
           <p class="subtitle">
             Log court sessions, players, trainings, and instantly compute billing.

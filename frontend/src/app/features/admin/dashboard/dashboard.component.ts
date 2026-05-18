@@ -14,7 +14,7 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
     <section class="dashboard-shell">
       <header class="hero-panel">
         <div>
-          <p class="hero-kicker">Baseline Gearhub</p>
+          <p class="hero-kicker"><span style="color:#a3e635">Court</span><span style="color:#ffffff">Go</span></p>
           <h2>Admin Command Center</h2>
           <p class="hero-subtitle">Monitor operations, handle approvals, and keep your club finances moving.</p>
         </div>
@@ -153,6 +153,16 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
               <span class="action-icon"><i class="fas fa-coins"></i></span>
               <span class="action-title">Coins</span>
               <span class="action-sub">Request and manage club coin balance</span>
+            </a>
+            <a routerLink="/admin/news" class="action-card">
+              <span class="action-icon"><i class="fas fa-newspaper"></i></span>
+              <span class="action-title">Club News</span>
+              <span class="action-sub">Post updates and announcements</span>
+            </a>
+            <a routerLink="/admin/inquiries" class="action-card">
+              <span class="action-icon"><i class="fas fa-envelope"></i></span>
+              <span class="action-title">Inquiries</span>
+              <span class="action-sub">View and reply to guest messages</span>
             </a>
           </div>
         </section>
@@ -711,7 +721,7 @@ export class AdminDashboardComponent implements OnInit {
     if (charge.playerId && typeof charge.playerId === 'object') {
       return (charge.playerId as any).name || 'Unknown';
     }
-    return 'Unknown';
+    return charge.guestName || 'Unknown';
   }
 
   quickApprove(id: string) {

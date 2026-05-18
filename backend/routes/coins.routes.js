@@ -14,6 +14,11 @@ const COIN_COSTS = {
   "member-directory": 1,
   "tournament-list": 1,
   "tournament-detail": 1,
+  "player-dashboard": 1,
+  "my-reservations": 1,
+  "payment-approvals": 1,
+  "profile-edit": 1,
+  "payments": 1,
 };
 
 // GET /api/coins/balance
@@ -160,7 +165,7 @@ router.post("/track-visit", auth, async (req, res) => {
   try {
     const clubId = req.user.clubId;
     const { page } = req.body;
-    const validPages = ["member-directory", "tournament-list", "tournament-detail"];
+    const validPages = ["member-directory", "tournament-list", "tournament-detail", "player-dashboard", "my-reservations", "payment-approvals", "profile-edit", "payments"];
     if (!validPages.includes(page)) return res.status(400).json({ error: "Invalid page" });
 
     const cost = COIN_COSTS[page];

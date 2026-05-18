@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -26,13 +26,14 @@ interface PlayerStat {
     <div class="page-wrap">
       <div class="court-bg"><div class="court-overlay"></div></div>
 
-      @if (loading) {
+      @if (loading()) {
         <div class="page-card loading-card">
           <i class="fas fa-circle-notch fa-spin"></i> Loading tournament...
         </div>
-      } @else if (!tournament) {
+      } @else if (!tournament()) {
         <div class="page-card loading-card">Tournament not found.</div>
       } @else {
+        @let t = tournament()!;
         <div class="page-card">
 
           <!-- Header -->
@@ -40,23 +41,23 @@ interface PlayerStat {
             <button class="back-btn" (click)="goBack()">← Back</button>
             <div class="header-center">
               <div class="header-title-row">
-                <h2>{{ tournament.name }}</h2>
-                <span class="type-badge type-{{ tournament.type }}">{{ tournament.type }}</span>
-                <span class="status-badge status-{{ tournament.status }}">{{ tournament.status }}</span>
+                <h2>{{ t.name }}</h2>
+                <span class="type-badge type-{{ t.type }}">{{ t.type }}</span>
+                <span class="status-badge status-{{ t.status }}">{{ t.status }}</span>
               </div>
             </div>
             <div class="header-stats">
               <div class="stat-pill">
-                <span class="stat-num">{{ tournament.participants.length }}</span>
+                <span class="stat-num">{{ t.participants.length }}</span>
                 <span class="stat-lbl">Players</span>
               </div>
-              @if (tournament.status !== 'draft') {
+              @if (t.status !== 'draft') {
                 <div class="stat-pill stat-pill-green">
                   <span class="stat-num">{{ completedMatchCount }}</span>
                   <span class="stat-lbl">Done</span>
                 </div>
                 <div class="stat-pill">
-                  <span class="stat-num">{{ tournament.matches.length }}</span>
+                  <span class="stat-num">{{ t.matches.length }}</span>
                   <span class="stat-lbl">Matches</span>
                 </div>
               }
@@ -64,19 +65,19 @@ interface PlayerStat {
           </div>
 
           <!-- Action bar -->
-          @if (tournament.status === 'draft' || (tournament.status === 'active' && canComplete()) || true) {
+          @if (t.status === 'draft' || (t.status === 'active' && canComplete()) || true) {
             <div class="action-bar">
-              @if (actionError) {
-                <div class="action-error"><i class="fas fa-exclamation-circle"></i> {{ actionError }}</div>
+              @if (actionError()) {
+                <div class="action-error"><i class="fas fa-exclamation-circle"></i> {{ actionError() }}</div>
               }
               <div class="action-bar-right">
-                @if (tournament.status === 'draft') {
+                @if (t.status === 'draft') {
                   <div class="bracket-hint">
                     <i class="fas fa-info-circle"></i>
-                    Add at least 2 {{ tournament.type === 'singles' ? 'players' : 'teams' }}, then use Auto Matches to create the bracket.
+                    Add at least 2 {{ t.type === 'singles' ? 'players' : 'teams' }}, then use Auto Matches to create the bracket.
                   </div>
                 }
-                @if (tournament.status === 'active' && canComplete()) {
+                @if (t.status === 'active' && canComplete()) {
                   <button class="btn-action btn-complete" (click)="completeTournament()">
                     <i class="fas fa-flag-checkered"></i> Complete Tournament
                   </button>
@@ -90,24 +91,24 @@ interface PlayerStat {
 
           <!-- Tab Bar -->
           <div class="tab-bar">
-            <button class="tab-btn" [class.active]="activeTab === 'participants'" (click)="activeTab = 'participants'">
-              <i class="fas fa-{{ tournament.type === 'singles' ? 'user' : 'user-friends' }}"></i>
-              {{ tournament.type === 'singles' ? 'Players' : 'Teams' }}
+            <button class="tab-btn" [class.active]="activeTab() === 'participants'" (click)="activeTab.set('participants')">
+              <i class="fas fa-{{ t.type === 'singles' ? 'user' : 'user-friends' }}"></i>
+              {{ t.type === 'singles' ? 'Players' : 'Teams' }}
               <span class="tab-badge">{{ entryCount }}</span>
             </button>
-            @if (tournament.status !== 'draft' || tournament.matches.length > 0) {
-              <button class="tab-btn" [class.active]="activeTab === 'matches'" (click)="activeTab = 'matches'">
-                <i class="fas fa-sitemap"></i> Matches
-              </button>
-              <button class="tab-btn" [class.active]="activeTab === 'schedule'" (click)="activeTab = 'schedule'">
+            <button class="tab-btn" [class.active]="activeTab() === 'matches'" (click)="activeTab.set('matches')">
+              <i class="fas fa-sitemap"></i> Matches
+            </button>
+            @if (t.status !== 'draft' || t.matches.length > 0) {
+              <button class="tab-btn" [class.active]="activeTab() === 'schedule'" (click)="activeTab.set('schedule')">
                 <i class="fas fa-calendar-alt"></i> Schedule
               </button>
             }
-            <button class="tab-btn" [class.active]="activeTab === 'info'" (click)="activeTab = 'info'">
+            <button class="tab-btn" [class.active]="activeTab() === 'info'" (click)="activeTab.set('info')">
               <i class="fas fa-info-circle"></i> Info
             </button>
-            @if (tournament.status !== 'draft' || tournament.matches.length > 0) {
-              <button class="tab-btn" [class.active]="activeTab === 'rankings'" (click)="activeTab = 'rankings'">
+            @if (t.status !== 'draft' || t.matches.length > 0) {
+              <button class="tab-btn" [class.active]="activeTab() === 'rankings'" (click)="activeTab.set('rankings')">
                 <i class="fas fa-medal"></i> Rankings
               </button>
             }
@@ -116,30 +117,30 @@ interface PlayerStat {
           <div class="card-body">
 
             <!-- ── PARTICIPANTS TAB ─────────────────────────────────── -->
-            @if (activeTab === 'participants') {
-              @if (tournament.type === 'singles') {
+            @if (activeTab() === 'participants') {
+              @if (t.type === 'singles') {
                 <div class="two-col">
                   <!-- Enrolled -->
                   <div class="panel">
                     <div class="panel-header">
                       <span class="panel-title"><i class="fas fa-users"></i> Enrolled Players</span>
-                      <span class="panel-count">{{ tournament.participants.length }}</span>
-                      @if (tournament.participants.length >= 2) {
-                        <button class="btn-random-matches" [disabled]="generatingRandom" (click)="generateRandomMatches()">
-                          @if (generatingRandom) { <i class="fas fa-circle-notch fa-spin"></i> }
+                      <span class="panel-count">{{ t.participants.length }}</span>
+                      @if (t.participants.length >= 2) {
+                        <button class="btn-random-matches" [disabled]="generatingRandom()" (click)="generateRandomMatches()">
+                          @if (generatingRandom()) { <i class="fas fa-circle-notch fa-spin"></i> }
                           @else { <i class="fas fa-random"></i> }
                           Auto Matches
                         </button>
                       }
                     </div>
-                    @if (tournament.participants.length === 0) {
+                    @if (t.participants.length === 0) {
                       <div class="panel-empty">
                         <i class="fas fa-user-plus"></i>
                         <p>No players added yet.</p>
                       </div>
                     } @else {
                       <div class="player-list">
-                        @for (p of tournament.participants; track p._id) {
+                        @for (p of t.participants; track p._id) {
                           <div class="player-row">
                             <div class="player-avatar">
                               @if (p.profileImage) {
@@ -168,7 +169,7 @@ interface PlayerStat {
                       <input type="text" placeholder="Search members..." [(ngModel)]="playerSearch" (input)="filterUsers()" />
                     </div>
                     <div class="user-search-list">
-                      @for (u of filteredUsers; track u._id) {
+                      @for (u of filteredUsers(); track u._id) {
                         <div class="user-row" [class.enrolled]="isEnrolled(u._id)" (click)="!isEnrolled(u._id) && addParticipant(u._id)">
                           <div class="player-avatar sm">
                             @if (u.profileImage) {
@@ -194,16 +195,16 @@ interface PlayerStat {
                   <div class="panel">
                     <div class="panel-header">
                       <span class="panel-title"><i class="fas fa-user-friends"></i> Teams</span>
-                      <span class="panel-count">{{ tournament.teams?.length || 0 }}</span>
-                      @if ((tournament.teams?.length || 0) >= 2) {
-                        <button class="btn-random-matches" [disabled]="generatingRandom" (click)="generateRandomMatches()">
-                          @if (generatingRandom) { <i class="fas fa-circle-notch fa-spin"></i> }
+                      <span class="panel-count">{{ t.teams?.length || 0 }}</span>
+                      @if ((t.teams?.length || 0) >= 2) {
+                        <button class="btn-random-matches" [disabled]="generatingRandom()" (click)="generateRandomMatches()">
+                          @if (generatingRandom()) { <i class="fas fa-circle-notch fa-spin"></i> }
                           @else { <i class="fas fa-random"></i> }
                           Auto Matches
                         </button>
                       }
                     </div>
-                    @if (!tournament.teams || tournament.teams.length === 0) {
+                    @if (!t.teams || t.teams.length === 0) {
                       <div class="panel-empty">
                         <i class="fas fa-user-friends"></i>
                         <p>No teams added yet.</p>
@@ -251,8 +252,8 @@ interface PlayerStat {
                         }
                       </select>
                     </div>
-                    <button class="btn-add-team" [disabled]="!doublesP1 || !doublesP2 || addingTeam" (click)="addTeam()">
-                      @if (addingTeam) {
+                    <button class="btn-add-team" [disabled]="!doublesP1 || !doublesP2 || addingTeam()" (click)="addTeam()">
+                      @if (addingTeam()) {
                         <i class="fas fa-circle-notch fa-spin"></i> Adding...
                       } @else {
                         <i class="fas fa-plus"></i> Add Team
@@ -262,10 +263,10 @@ interface PlayerStat {
                 </div>
               }
 
-              @if (entryCount >= 2 && tournament.status === 'draft') {
+              @if (entryCount >= 2 && t.status === 'draft') {
                 <div class="bracket-preview-bar">
                   <i class="fas fa-sitemap"></i>
-                  <strong>{{ entryCount }}</strong> {{ tournament.type === 'singles' ? 'players' : 'teams' }} →
+                  <strong>{{ entryCount }}</strong> {{ t.type === 'singles' ? 'players' : 'teams' }} →
                   <strong>{{ totalRoundsPreview }}</strong> rounds ·
                   <strong>{{ bracketSizePreview }}</strong>-player bracket ·
                   <strong>{{ bracketSizePreview - entryCount }}</strong> bye{{ bracketSizePreview - entryCount !== 1 ? 's' : '' }}
@@ -274,8 +275,8 @@ interface PlayerStat {
             }
 
             <!-- ── BRACKET TAB ──────────────────────────────────────── -->
-            @if (activeTab === 'matches') {
-              @if (tournament.status === 'completed') {
+            @if (activeTab() === 'matches') {
+              @if (t.status === 'completed') {
                 <div class="champion-banner">
                   <div class="champion-trophy">🏆</div>
                   <div>
@@ -288,8 +289,8 @@ interface PlayerStat {
                   </div>
                 </div>
               }
-              @if (tournament.status === 'active') {
-                @if (swapping) {
+              @if (t.status === 'active') {
+                @if (swapping()) {
                   <div class="swap-loading">
                     <i class="fas fa-circle-notch fa-spin"></i> Swapping teams…
                   </div>
@@ -303,21 +304,21 @@ interface PlayerStat {
                     [class.row-completed]="match.status === 'completed'"
                     [class.row-ongoing]="match.status === 'ongoing'">
 
-                    @if (tournament.status === 'active' && editingMatchRoundId === match._id) {
+                    @if (t.status === 'active' && editingMatchRoundId() === match._id) {
                       <input class="round-name-input"
                         [(ngModel)]="editRoundNameValue"
                         (keydown.enter)="saveRoundName()"
                         (keydown.escape)="cancelRoundName()"
                         (blur)="saveRoundName()"
-                        [disabled]="savingRoundName"
+                        [disabled]="savingRoundName()"
                         autofocus />
                     } @else {
                       <span class="row-round-chip"
-                        [class.chip-editable]="tournament.status === 'active'"
-                        (click)="tournament.status === 'active' && startEditRoundName(match._id, match.roundName)"
-                        [title]="tournament.status === 'active' ? 'Click to rename' : ''">
+                        [class.chip-editable]="t.status === 'active'"
+                        (click)="t.status === 'active' && startEditRoundName(match._id, match.roundName)"
+                        [title]="t.status === 'active' ? 'Click to rename' : ''">
                         {{ match.roundName }}
-                        @if (tournament.status === 'active') { <i class="fas fa-pen chip-edit-icon"></i> }
+                        @if (t.status === 'active') { <i class="fas fa-pen chip-edit-icon"></i> }
                       </span>
                     }
 
@@ -329,7 +330,7 @@ interface PlayerStat {
                         [class.slot-draggable]="canDrag(match)"
                         [class.slot-dragging]="isSlotDragging(match._id, 1)"
                         [class.slot-drag-over]="isSlotDragOver(match._id, 1)"
-                        [draggable]="canDrag(match) && !swapping"
+                        [draggable]="canDrag(match) && !swapping()"
                         (dragstart)="onSlotDragStart($event, match, 1)"
                         (dragover)="onSlotDragOver($event, match, 1)"
                         (dragleave)="onSlotDragLeave()"
@@ -350,7 +351,7 @@ interface PlayerStat {
                         [class.slot-draggable]="canDrag(match)"
                         [class.slot-dragging]="isSlotDragging(match._id, 2)"
                         [class.slot-drag-over]="isSlotDragOver(match._id, 2)"
-                        [draggable]="canDrag(match) && !swapping"
+                        [draggable]="canDrag(match) && !swapping()"
                         (dragstart)="onSlotDragStart($event, match, 2)"
                         (dragover)="onSlotDragOver($event, match, 2)"
                         (dragleave)="onSlotDragLeave()"
@@ -363,7 +364,7 @@ interface PlayerStat {
 
                     <span class="status-chip chip-{{ match.status }}">{{ match.status }}</span>
 
-                    @if (tournament.status === 'active') {
+                    @if (t.status === 'active') {
                       <div class="row-actions">
                         <button class="icon-btn icon-edit" (click)="openMatchEditor(match)" title="Edit match">
                           <i class="fas fa-pen"></i>
@@ -376,7 +377,7 @@ interface PlayerStat {
                   </div>
                 }
               </div>
-              @if (tournament.status === 'active') {
+              @if (t.status === 'active' || t.status === 'draft') {
                 <button class="btn-add-match" (click)="openAddMatch()">
                   <i class="fas fa-plus-circle"></i> Add Match
                 </button>
@@ -384,7 +385,7 @@ interface PlayerStat {
             }
 
             <!-- ── SCHEDULE TAB ─────────────────────────────────────── -->
-            @if (activeTab === 'schedule') {
+            @if (activeTab() === 'schedule') {
               @if (sortedMatches.length === 0) {
                 <div class="sched-empty">
                   <i class="fas fa-calendar-alt"></i>
@@ -397,24 +398,24 @@ interface PlayerStat {
 
                       <!-- Top row: label + status + edit -->
                       <div class="sched-top">
-                        @if (tournament.status === 'active' && editingMatchRoundId === match._id) {
+                        @if (t.status !== 'completed' && editingMatchRoundId() === match._id) {
                           <input class="round-name-input"
                             [(ngModel)]="editRoundNameValue"
                             (keydown.enter)="saveRoundName()"
                             (keydown.escape)="cancelRoundName()"
                             (blur)="saveRoundName()"
-                            [disabled]="savingRoundName" />
+                            [disabled]="savingRoundName()" />
                         } @else {
                           <span class="sched-label"
-                            [class.chip-editable]="tournament.status === 'active'"
-                            (click)="tournament.status === 'active' && startEditRoundName(match._id, match.roundName)"
-                            [title]="tournament.status === 'active' ? 'Click to rename' : ''">
+                            [class.chip-editable]="t.status !== 'completed'"
+                            (click)="t.status !== 'completed' && startEditRoundName(match._id, match.roundName)"
+                            [title]="t.status !== 'completed' ? 'Click to rename' : ''">
                             {{ match.roundName }}
-                            @if (tournament.status === 'active') { <i class="fas fa-pen chip-edit-icon"></i> }
+                            @if (t.status !== 'completed') { <i class="fas fa-pen chip-edit-icon"></i> }
                           </span>
                         }
                         <span class="status-chip chip-{{ match.status }}">{{ match.status }}</span>
-                        @if (tournament.status === 'active') {
+                        @if (t.status !== 'completed') {
                           <div class="row-actions sched-edit">
                             <button class="icon-btn icon-edit" (click)="openMatchEditor(match)" title="Edit match">
                               <i class="fas fa-pen"></i>
@@ -445,14 +446,46 @@ interface PlayerStat {
                       </div>
 
                       <!-- Date / time -->
-                      @if (match.scheduledDate || match.timeSlot) {
-                        <div class="sched-meta">
-                          <i class="fas fa-calendar"></i>
+                      @if (schedEditId() === match._id) {
+                        <div class="sched-inline-form">
+                          <div class="sched-inline-row">
+                            <div class="sched-inline-field">
+                              <label><i class="fas fa-calendar-alt"></i> Date</label>
+                              <input type="date" [(ngModel)]="schedDate" class="sched-date-input" />
+                            </div>
+                            <div class="sched-inline-field">
+                              <label><i class="fas fa-clock"></i> Time</label>
+                              <input type="text" [(ngModel)]="schedTime" placeholder="e.g. 9:00 AM" class="sched-time-input" />
+                            </div>
+                          </div>
+                          <div class="sched-inline-actions">
+                            <button class="sched-save-btn" (click)="saveSchedEdit(match._id)" [disabled]="savingSchedEdit()">
+                              @if (savingSchedEdit()) { <i class="fas fa-circle-notch fa-spin"></i> } @else { <i class="fas fa-check"></i> }
+                              Save
+                            </button>
+                            <button class="sched-cancel-btn" (click)="schedEditId.set(null)">Cancel</button>
+                          </div>
+                        </div>
+                      } @else if (match.scheduledDate || match.timeSlot) {
+                        <div class="sched-meta sched-meta-set">
+                          <i class="fas fa-calendar-check"></i>
                           @if (match.scheduledDate) { {{ match.scheduledDate | date: 'MMM d, yyyy' : 'UTC' }} }
                           @if (match.timeSlot) { <span class="sched-time"><i class="fas fa-clock"></i> {{ match.timeSlot }}</span> }
+                          @if (t.status !== 'completed') {
+                            <button class="sched-edit-date-btn" (click)="openSchedEdit(match)" title="Change schedule">
+                              <i class="fas fa-pen"></i>
+                            </button>
+                          }
                         </div>
                       } @else {
-                        <div class="sched-meta sched-unscheduled"><i class="fas fa-calendar-plus"></i> Not scheduled</div>
+                        <div class="sched-meta sched-unscheduled">
+                          <i class="fas fa-calendar-plus"></i> Not scheduled
+                          @if (t.status !== 'completed') {
+                            <button class="sched-set-btn" (click)="openSchedEdit(match)">
+                              <i class="fas fa-plus"></i> Set Date &amp; Time
+                            </button>
+                          }
+                        </div>
                       }
 
                     </div>
@@ -462,38 +495,38 @@ interface PlayerStat {
             }
 
             <!-- ── INFO TAB ────────────────────────────────────────── -->
-            @if (activeTab === 'info') {
+            @if (activeTab() === 'info') {
 
               <!-- Visibility card -->
-              <div class="info-visibility-card" [class.vis-published]="tournament.published" [class.vis-inactive]="!tournament.published">
+              <div class="info-visibility-card" [class.vis-published]="t.published" [class.vis-inactive]="!t.published">
                 <div class="vis-left">
                   <div class="vis-icon">
-                    <i class="fas fa-{{ tournament.published ? 'eye' : 'eye-slash' }}"></i>
+                    <i class="fas fa-{{ t.published ? 'eye' : 'eye-slash' }}"></i>
                   </div>
                   <div>
-                    <div class="vis-title">{{ tournament.published ? 'Published' : 'Inactive' }}</div>
+                    <div class="vis-title">{{ t.published ? 'Published' : 'Inactive' }}</div>
                     <div class="vis-sub">
-                      {{ tournament.published
+                      {{ t.published
                         ? 'Visible to all players in the Tournaments section.'
                         : 'Hidden from players. Publish to make it visible.' }}
                     </div>
                   </div>
                 </div>
-                <button class="btn-vis" [class.btn-unpublish]="tournament.published" (click)="togglePublished()" [disabled]="togglingPublish">
-                  @if (togglingPublish) { <i class="fas fa-circle-notch fa-spin"></i> }
-                  @else { <i class="fas fa-{{ tournament.published ? 'eye-slash' : 'rocket' }}"></i> }
-                  {{ tournament.published ? 'Unpublish' : 'Publish Tournament' }}
+                <button class="btn-vis" [class.btn-unpublish]="t.published" (click)="togglePublished()" [disabled]="togglingPublish()">
+                  @if (togglingPublish()) { <i class="fas fa-circle-notch fa-spin"></i> }
+                  @else { <i class="fas fa-{{ t.published ? 'eye-slash' : 'rocket' }}"></i> }
+                  {{ t.published ? 'Unpublish' : 'Publish Tournament' }}
                 </button>
               </div>
 
               <!-- Stats row -->
               <div class="info-stats-row">
                 <div class="info-stat-box">
-                  <div class="info-stat-num">{{ tournament.participants.length }}</div>
+                  <div class="info-stat-num">{{ t.participants.length }}</div>
                   <div class="info-stat-lbl"><i class="fas fa-users"></i> Players</div>
                 </div>
                 <div class="info-stat-box">
-                  <div class="info-stat-num">{{ tournament.matches.length }}</div>
+                  <div class="info-stat-num">{{ t.matches.length }}</div>
                   <div class="info-stat-lbl"><i class="fas fa-table-tennis"></i> Matches</div>
                 </div>
                 <div class="info-stat-box">
@@ -506,23 +539,23 @@ interface PlayerStat {
               <div class="info-details-grid">
                 <div class="info-detail-row">
                   <span class="info-detail-lbl"><i class="fas fa-trophy"></i> Name</span>
-                  <span class="info-detail-val">{{ tournament.name }}</span>
+                  <span class="info-detail-val">{{ t.name }}</span>
                 </div>
                 <div class="info-detail-row">
                   <span class="info-detail-lbl"><i class="fas fa-tag"></i> Type</span>
-                  <span class="info-detail-val capitalize">{{ tournament.type }}</span>
+                  <span class="info-detail-val capitalize">{{ t.type }}</span>
                 </div>
                 <div class="info-detail-row">
                   <span class="info-detail-lbl"><i class="fas fa-circle-dot"></i> Status</span>
-                  <span class="status-badge status-{{ tournament.status }}">{{ tournament.status }}</span>
+                  <span class="status-badge status-{{ t.status }}">{{ t.status }}</span>
                 </div>
                 <div class="info-detail-row">
                   <span class="info-detail-lbl"><i class="fas fa-calendar"></i> Created</span>
-                  <span class="info-detail-val">{{ tournament.createdAt | date: 'MMMM d, yyyy' }}</span>
+                  <span class="info-detail-val">{{ t.createdAt | date: 'MMMM d, yyyy' }}</span>
                 </div>
               </div>
 
-              @if (tournament.status === 'completed') {
+              @if (t.status === 'completed') {
                 <div class="results-section">
                   <div class="results-title"><i class="fas fa-medal"></i> Final Results</div>
                   <div class="podium">
@@ -542,7 +575,7 @@ interface PlayerStat {
             }
 
             <!-- ── RANKINGS TAB ───────────────────────────────────── -->
-            @if (activeTab === 'rankings') {
+            @if (activeTab() === 'rankings') {
               @if (hasMatchesWithoutWinner) {
                 <div class="no-winner-warn">
                   <i class="fas fa-exclamation-triangle"></i>
@@ -611,11 +644,11 @@ interface PlayerStat {
     </div><!-- end page-wrap -->
 
     <!-- ── MATCH EDITOR MODAL ──────────────────────────────────────── -->
-    @if (editingMatch) {
+    @if (editingMatch()) {
       <div class="modal-backdrop" (click)="closeMatchEditor()">
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="modal-header">
-            <h3><i class="fas fa-pen"></i> Edit Match — {{ editingMatch.roundName }}</h3>
+            <h3><i class="fas fa-pen"></i> Edit Match — {{ editingMatch()!.roundName }}</h3>
             <button class="modal-close" (click)="closeMatchEditor()"><i class="fas fa-times"></i></button>
           </div>
           <div class="modal-body">
@@ -626,8 +659,8 @@ interface PlayerStat {
               <div class="winner-picker">
                 <div class="winner-opt" [class.winner-selected]="editWinner === 1" (click)="editWinner = 1">
                   <div class="winner-names">
-                    @for (p of editingMatch.slot1Players; track p._id) { <span>{{ p.name }}</span> }
-                    @if (editingMatch.slot1Players.length === 0) { <span class="slot-tbd">TBD</span> }
+                    @for (p of editingMatch()!.slot1Players; track p._id) { <span>{{ p.name }}</span> }
+                    @if (editingMatch()!.slot1Players.length === 0) { <span class="slot-tbd">TBD</span> }
                   </div>
                   <input
                     class="score-input"
@@ -641,8 +674,8 @@ interface PlayerStat {
                 <div class="winner-vs">VS</div>
                 <div class="winner-opt" [class.winner-selected]="editWinner === 2" (click)="editWinner = 2">
                   <div class="winner-names">
-                    @for (p of editingMatch.slot2Players; track p._id) { <span>{{ p.name }}</span> }
-                    @if (editingMatch.slot2Players.length === 0) { <span class="slot-tbd">TBD</span> }
+                    @for (p of editingMatch()!.slot2Players; track p._id) { <span>{{ p.name }}</span> }
+                    @if (editingMatch()!.slot2Players.length === 0) { <span class="slot-tbd">TBD</span> }
                   </div>
                   <input
                     class="score-input"
@@ -676,14 +709,14 @@ interface PlayerStat {
               </select>
             </div>
 
-            @if (matchError) {
-              <div class="modal-error"><i class="fas fa-exclamation-circle"></i> {{ matchError }}</div>
+            @if (matchError()) {
+              <div class="modal-error"><i class="fas fa-exclamation-circle"></i> {{ matchError() }}</div>
             }
           </div>
           <div class="modal-footer">
-            <button class="btn-cancel" (click)="closeMatchEditor()" [disabled]="savingMatch">Cancel</button>
-            <button class="btn-confirm" (click)="saveMatch()" [disabled]="savingMatch">
-              @if (savingMatch) { <i class="fas fa-circle-notch fa-spin"></i> Saving... }
+            <button class="btn-cancel" (click)="closeMatchEditor()" [disabled]="savingMatch()">Cancel</button>
+            <button class="btn-confirm" (click)="saveMatch()" [disabled]="savingMatch()">
+              @if (savingMatch()) { <i class="fas fa-circle-notch fa-spin"></i> Saving... }
               @else { <i class="fas fa-check"></i> Save Match }
             </button>
           </div>
@@ -692,7 +725,7 @@ interface PlayerStat {
     }
 
     <!-- ── ADD MATCH MODAL ──────────────────────────────────────────── -->
-    @if (showAddMatch) {
+    @if (showAddMatch()) {
       <div class="modal-backdrop" (click)="closeAddMatch()">
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="modal-header">
@@ -706,11 +739,11 @@ interface PlayerStat {
             </div>
             <div class="modal-row">
               <div class="modal-field">
-                <label>{{ tournament!.type === 'singles' ? 'Player 1' : 'Team 1' }}</label>
+                <label>{{ tournament()!.type === 'singles' ? 'Player 1' : 'Team 1' }}</label>
                 <select [(ngModel)]="newMatchSlot1">
                   <option value="">— Select —</option>
-                  @if (tournament!.type === 'singles') {
-                    @for (p of tournament!.participants; track p._id) {
+                  @if (tournament()!.type === 'singles') {
+                    @for (p of tournament()!.participants; track p._id) {
                       <option [value]="p._id">{{ p.name }}</option>
                     }
                   } @else {
@@ -721,11 +754,11 @@ interface PlayerStat {
                 </select>
               </div>
               <div class="modal-field">
-                <label>{{ tournament!.type === 'singles' ? 'Player 2' : 'Team 2' }}</label>
+                <label>{{ tournament()!.type === 'singles' ? 'Player 2' : 'Team 2' }}</label>
                 <select [(ngModel)]="newMatchSlot2">
                   <option value="">— Select —</option>
-                  @if (tournament!.type === 'singles') {
-                    @for (p of tournament!.participants; track p._id) {
+                  @if (tournament()!.type === 'singles') {
+                    @for (p of tournament()!.participants; track p._id) {
                       @if (p._id !== newMatchSlot1) {
                         <option [value]="p._id">{{ p.name }}</option>
                       }
@@ -750,14 +783,14 @@ interface PlayerStat {
                 <input type="text" [(ngModel)]="newMatchTime" placeholder="e.g. 9:00 AM" />
               </div>
             </div>
-            @if (addMatchError) {
-              <div class="modal-error"><i class="fas fa-exclamation-circle"></i> {{ addMatchError }}</div>
+            @if (addMatchError()) {
+              <div class="modal-error"><i class="fas fa-exclamation-circle"></i> {{ addMatchError() }}</div>
             }
           </div>
           <div class="modal-footer">
-            <button class="btn-cancel" (click)="closeAddMatch()" [disabled]="addingMatch">Cancel</button>
-            <button class="btn-confirm" (click)="saveAddMatch()" [disabled]="!newMatchLabel.trim() || addingMatch">
-              @if (addingMatch) { <i class="fas fa-circle-notch fa-spin"></i> Adding... }
+            <button class="btn-cancel" (click)="closeAddMatch()" [disabled]="addingMatch()">Cancel</button>
+            <button class="btn-confirm" (click)="saveAddMatch()" [disabled]="!newMatchLabel.trim() || addingMatch()">
+              @if (addingMatch()) { <i class="fas fa-circle-notch fa-spin"></i> Adding... }
               @else { <i class="fas fa-plus"></i> Add Match }
             </button>
           </div>
@@ -766,21 +799,21 @@ interface PlayerStat {
     }
 
     <!-- ── DELETE CONFIRM MODAL ─────────────────────────────────────── -->
-    @if (confirmPrompt) {
+    @if (confirmPrompt()) {
       <div class="modal-backdrop" (click)="cancelPrompt()">
         <div class="modal modal-sm" (click)="$event.stopPropagation()">
           <div class="modal-header delete-header">
-            <div class="delete-icon-wrap"><i class="fas fa-{{ confirmPrompt.icon }}"></i></div>
+            <div class="delete-icon-wrap"><i class="fas fa-{{ confirmPrompt()!.icon }}"></i></div>
             <div>
-              <h3>{{ confirmPrompt.title }}</h3>
-              <p class="delete-sub">{{ confirmPrompt.subtitle }}</p>
+              <h3>{{ confirmPrompt()!.title }}</h3>
+              <p class="delete-sub">{{ confirmPrompt()!.subtitle }}</p>
             </div>
             <button class="modal-close" (click)="cancelPrompt()"><i class="fas fa-times"></i></button>
           </div>
           <div class="modal-footer">
             <button class="btn-cancel" (click)="cancelPrompt()">Cancel</button>
-            <button [class]="confirmPrompt.confirmClass" (click)="executePrompt()">
-              <i class="fas fa-{{ confirmPrompt.icon }}"></i> {{ confirmPrompt.confirmLabel }}
+            <button [class]="confirmPrompt()!.confirmClass" (click)="executePrompt()">
+              <i class="fas fa-{{ confirmPrompt()!.icon }}"></i> {{ confirmPrompt()!.confirmLabel }}
             </button>
           </div>
         </div>
@@ -788,67 +821,88 @@ interface PlayerStat {
     }
   `,
   styles: [`
+    /* ── Design tokens ───────────────────────────────────────────── */
+    :host {
+      --dm-bg: #0c1a11;
+      --dm-surface: #1b3028;
+      --dm-header: #16251d;
+      --dm-accent: #a3e635;
+    }
+
     /* ── Layout ──────────────────────────────────────────────────── */
     .page-wrap {
       position: relative; min-height: 100vh; padding: 20px;
-      background: linear-gradient(135deg, #9f7338 0%, #c9a15d 100%);
+      background: var(--dm-bg);
     }
     .court-bg {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: url('/tennis-court-surface.png') center/cover no-repeat; z-index: 0;
+      background: var(--dm-bg); z-index: 0;
     }
-    .court-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.3); }
+    .court-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.18); }
     .page-card {
-      position: relative; z-index: 1; background: white; border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.1); max-width: 1000px; margin: 0 auto; overflow: hidden;
+      position: relative; z-index: 1;
+      background: var(--dm-surface);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.32);
+      border: 1px solid rgba(163,230,53,0.12);
+      max-width: 1000px; margin: 0 auto; overflow: hidden;
     }
     .loading-card {
-      padding: 40px; text-align: center; color: #888; font-size: 0.9rem;
+      padding: 40px; text-align: center; color: rgba(255,255,255,0.62); font-size: 0.9rem;
     }
 
     /* ── Header ──────────────────────────────────────────────────── */
     .card-header {
       display: flex; align-items: center; gap: 16px;
-      padding: 20px 24px; border-bottom: 1px solid #eee; flex-wrap: wrap;
+      padding: 20px 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: var(--dm-header);
+      flex-wrap: wrap;
     }
     .back-btn {
       background: none; border: none; font-size: 15px;
-      cursor: pointer; padding: 8px 12px; border-radius: 4px; color: #555; white-space: nowrap;
+      cursor: pointer; padding: 8px 12px; border-radius: 4px;
+      color: rgba(255,255,255,0.7); white-space: nowrap;
+      transition: background 0.15s;
     }
-    .back-btn:hover { background: #f0f0f0; }
+    .back-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
     .header-center { flex: 1; min-width: 0; }
     .header-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .header-title-row h2 { margin: 0; font-size: 20px; color: #1a1a1a; }
+    .header-title-row h2 { margin: 0; font-size: 20px; color: #ffffff; }
     .type-badge, .status-badge {
       padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; text-transform: capitalize;
     }
-    .type-singles { background: #dbeafe; color: #1e40af; }
-    .type-doubles { background: #fef3c7; color: #92400e; }
-    .status-draft   { background: #f1f5f9; color: #475569; }
-    .status-active  { background: #f4ead6; color: #7a5626; }
-    .status-completed { background: #ede9fe; color: #5b21b6; }
+    .type-singles { background: rgba(163,230,53,0.15); color: var(--dm-accent); }
+    .type-doubles { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .status-draft   { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); }
+    .status-active  { background: rgba(163,230,53,0.15); color: var(--dm-accent); }
+    .status-completed { background: rgba(139,92,246,0.18); color: #a78bfa; }
 
     .header-stats { display: flex; gap: 8px; flex-wrap: wrap; }
     .stat-pill {
       display: flex; flex-direction: column; align-items: center;
-      padding: 6px 14px; background: #f1f5f9; border-radius: 20px; min-width: 52px;
+      padding: 6px 14px; background: rgba(255,255,255,0.06); border-radius: 20px; min-width: 52px;
+      border: 1px solid rgba(255,255,255,0.08);
     }
-    .stat-pill-green { background: #f4ead6; }
-    .stat-num { font-size: 1rem; font-weight: 700; color: #1a1a1a; line-height: 1.2; }
-    .stat-pill-green .stat-num { color: #7a5626; }
-    .stat-lbl { font-size: 0.65rem; color: #888; text-transform: uppercase; letter-spacing: 0.4px; }
+    .stat-pill-green { background: rgba(163,230,53,0.12); border-color: rgba(163,230,53,0.2); }
+    .stat-num { font-size: 1rem; font-weight: 700; color: #ffffff; line-height: 1.2; }
+    .stat-pill-green .stat-num { color: var(--dm-accent); }
+    .stat-lbl { font-size: 0.65rem; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.4px; }
 
     /* ── Action bar ──────────────────────────────────────────────── */
     .action-bar {
       display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
-      padding: 12px 24px; background: #f8fafc; border-bottom: 1px solid #eee;
+      padding: 12px 24px;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
     }
     .action-error {
-      font-size: 0.82rem; color: #b91c1c; display: flex; align-items: center; gap: 6px;
+      font-size: 0.82rem; color: #f87171; display: flex; align-items: center; gap: 6px;
     }
     .action-bar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-left: auto; }
     .bracket-hint {
-      font-size: 0.78rem; color: #64748b; background: #f0f9ff; border: 1px solid #bae6fd;
+      font-size: 0.78rem; color: rgba(255,255,255,0.6);
+      background: rgba(163,230,53,0.06); border: 1px solid rgba(163,230,53,0.18);
       border-radius: 6px; padding: 6px 10px; display: flex; align-items: center; gap: 6px;
     }
     .btn-action {
@@ -856,28 +910,32 @@ interface PlayerStat {
       cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.15s;
     }
     .btn-action:disabled { opacity: 0.45; cursor: not-allowed; }
-    .btn-generate { background: #9f7338; color: white; }
-    .btn-generate:hover:not(:disabled) { background: #245517; }
-    .btn-complete { background: #7c3aed; color: white; }
-    .btn-complete:hover { background: #6d28d9; }
-    .btn-danger  { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
-    .btn-danger:hover { background: #fee2e2; }
+    .btn-generate {
+      background: rgba(163,230,53,0.18); color: var(--dm-accent);
+      border: 1px solid rgba(163,230,53,0.28);
+    }
+    .btn-generate:hover:not(:disabled) { background: rgba(163,230,53,0.28); }
+    .btn-complete { background: rgba(139,92,246,0.2); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+    .btn-complete:hover { background: rgba(139,92,246,0.3); }
+    .btn-danger { background: rgba(220,38,38,0.12); color: #f87171; border: 1px solid rgba(220,38,38,0.25); }
+    .btn-danger:hover { background: rgba(220,38,38,0.22); }
 
     /* ── Tab bar ─────────────────────────────────────────────────── */
     .tab-bar {
-      display: flex; border-bottom: 2px solid #e9ecef;
+      display: flex; border-bottom: 1px solid rgba(255,255,255,0.08);
       padding: 0 24px; overflow-x: auto; gap: 2px;
+      background: var(--dm-header);
     }
     .tab-btn {
       background: none; border: none; padding: 14px 16px;
-      font-size: 0.875rem; font-weight: 600; color: #888; cursor: pointer;
-      border-bottom: 3px solid transparent; margin-bottom: -2px;
+      font-size: 0.875rem; font-weight: 600; color: rgba(255,255,255,0.5); cursor: pointer;
+      border-bottom: 3px solid transparent; margin-bottom: -1px;
       transition: all 0.15s; white-space: nowrap; display: flex; align-items: center; gap: 7px;
     }
-    .tab-btn:hover { color: #9f7338; }
-    .tab-btn.active { color: #9f7338; border-bottom-color: #9f7338; }
+    .tab-btn:hover { color: var(--dm-accent); }
+    .tab-btn.active { color: var(--dm-accent); border-bottom-color: var(--dm-accent); }
     .tab-badge {
-      background: #f4ead6; color: #7a5626; font-size: 0.7rem; font-weight: 700;
+      background: rgba(163,230,53,0.15); color: var(--dm-accent); font-size: 0.7rem; font-weight: 700;
       padding: 2px 7px; border-radius: 10px;
     }
 
@@ -888,194 +946,213 @@ interface PlayerStat {
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 680px) { .two-col { grid-template-columns: 1fr; } }
 
-    .panel { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+    .panel {
+      border: 1px solid rgba(163,230,53,0.12); border-radius: 10px; overflow: hidden;
+      background: rgba(255,255,255,0.02);
+    }
     .panel-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
     }
-    .panel-title { font-size: 0.82rem; font-weight: 700; color: #374151; display: flex; align-items: center; gap: 7px; }
+    .panel-title { font-size: 0.82rem; font-weight: 700; color: rgba(255,255,255,0.8); display: flex; align-items: center; gap: 7px; }
     .panel-count {
-      background: #9f7338; color: white; font-size: 0.7rem; font-weight: 700;
+      background: var(--dm-accent); color: #0c1a11; font-size: 0.7rem; font-weight: 700;
       padding: 2px 8px; border-radius: 10px;
     }
     .btn-random-matches {
-      margin-left: auto; padding: 4px 10px; background: #f8f1e4; color: #9f7338;
-      border: 1.5px solid #e6d2ad; border-radius: 6px; font-size: 0.72rem; font-weight: 700;
+      margin-left: auto; padding: 4px 10px;
+      background: rgba(163,230,53,0.12); color: var(--dm-accent);
+      border: 1px solid rgba(163,230,53,0.25); border-radius: 6px; font-size: 0.72rem; font-weight: 700;
       cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.15s;
     }
-    .btn-random-matches:hover:not(:disabled) { background: #f2e4c9; border-color: #9f7338; }
+    .btn-random-matches:hover:not(:disabled) { background: rgba(163,230,53,0.22); }
     .btn-random-matches:disabled { opacity: 0.5; cursor: not-allowed; }
-    .panel-empty { padding: 32px 16px; text-align: center; color: #94a3b8; }
+    .panel-empty { padding: 32px 16px; text-align: center; color: rgba(255,255,255,0.35); }
     .panel-empty i { font-size: 1.8rem; display: block; margin-bottom: 8px; }
     .panel-empty p { margin: 0; font-size: 0.82rem; }
 
     .player-list { display: flex; flex-direction: column; max-height: 360px; overflow-y: auto; }
     .player-row {
       display: flex; align-items: center; gap: 10px;
-      padding: 10px 14px; border-bottom: 1px solid #f0f4f8;
+      padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05);
       transition: background 0.12s;
     }
     .player-row:last-child { border-bottom: none; }
-    .player-row:hover { background: #f8fafc; }
+    .player-row:hover { background: rgba(255,255,255,0.04); }
 
     .team-row {
       display: flex; align-items: center; gap: 10px;
-      padding: 10px 14px; border-bottom: 1px solid #f0f4f8;
+      padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.05);
     }
     .team-row:last-child { border-bottom: none; }
-    .team-num { width: 22px; font-size: 0.75rem; font-weight: 700; color: #94a3b8; flex-shrink: 0; }
-    .team-names { flex: 1; font-size: 0.875rem; font-weight: 600; color: #1a1a1a; display: flex; align-items: center; gap: 6px; }
-    .team-amp { color: #94a3b8; font-weight: 400; }
+    .team-num { width: 22px; font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.35); flex-shrink: 0; }
+    .team-names { flex: 1; font-size: 0.875rem; font-weight: 600; color: #ffffff; display: flex; align-items: center; gap: 6px; }
+    .team-amp { color: rgba(255,255,255,0.4); font-weight: 400; }
 
     .player-avatar {
       width: 32px; height: 32px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
-      background: linear-gradient(135deg, #9f7338, #c9a15d);
-      color: white; font-size: 0.7rem; font-weight: 700;
+      background: linear-gradient(135deg, rgba(163,230,53,0.4), rgba(163,230,53,0.2));
+      color: var(--dm-accent); font-size: 0.7rem; font-weight: 700;
       display: flex; align-items: center; justify-content: center;
     }
     .player-avatar img { width: 100%; height: 100%; object-fit: cover; }
     .player-avatar.sm { width: 26px; height: 26px; font-size: 0.62rem; }
-    .player-name { flex: 1; font-size: 0.875rem; font-weight: 600; color: #1a1a1a; }
+    .player-name { flex: 1; font-size: 0.875rem; font-weight: 600; color: #ffffff; }
     .btn-remove {
-      background: none; border: none; color: #cbd5e1; cursor: pointer;
+      background: none; border: none; color: rgba(255,255,255,0.2); cursor: pointer;
       padding: 4px 6px; border-radius: 4px; font-size: 0.8rem;
     }
-    .btn-remove:hover { color: #b91c1c; background: #fef2f2; }
+    .btn-remove:hover { color: #f87171; background: rgba(220,38,38,0.12); }
 
     .search-bar {
-      position: relative; padding: 10px 14px; border-bottom: 1px solid #e2e8f0;
+      position: relative; padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
     }
-    .search-icon { position: absolute; left: 24px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.8rem; }
+    .search-icon { position: absolute; left: 24px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.3); font-size: 0.8rem; }
     .search-bar input {
-      width: 100%; padding: 7px 10px 7px 28px; border: 1px solid #ddd; border-radius: 6px;
+      width: 100%; padding: 7px 10px 7px 28px;
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
       font-size: 0.875rem; box-sizing: border-box;
+      background: rgba(255,255,255,0.05); color: #ffffff;
     }
-    .search-bar input:focus { outline: none; border-color: #9f7338; }
+    .search-bar input::placeholder { color: rgba(255,255,255,0.3); }
+    .search-bar input:focus { outline: none; border-color: rgba(163,230,53,0.4); }
 
     .user-search-list { max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; }
     .user-row {
       display: flex; align-items: center; gap: 10px;
-      padding: 9px 14px; border-bottom: 1px solid #f0f4f8; cursor: pointer;
+      padding: 9px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer;
       transition: background 0.12s;
     }
     .user-row:last-child { border-bottom: none; }
-    .user-row:hover:not(.enrolled) { background: #f8f1e4; }
-    .user-row.enrolled { opacity: 0.5; cursor: default; }
-    .user-name { flex: 1; font-size: 0.875rem; color: #374151; }
-    .enrolled-tag { font-size: 0.75rem; font-weight: 700; color: #9f7338; display: flex; align-items: center; gap: 4px; }
-    .add-tag { font-size: 0.75rem; font-weight: 600; color: #94a3b8; display: flex; align-items: center; gap: 4px; }
-    .user-row:hover:not(.enrolled) .add-tag { color: #9f7338; }
+    .user-row:hover:not(.enrolled) { background: rgba(163,230,53,0.06); }
+    .user-row.enrolled { opacity: 0.45; cursor: default; }
+    .user-name { flex: 1; font-size: 0.875rem; color: rgba(255,255,255,0.8); }
+    .enrolled-tag { font-size: 0.75rem; font-weight: 700; color: var(--dm-accent); display: flex; align-items: center; gap: 4px; }
+    .add-tag { font-size: 0.75rem; font-weight: 600; color: rgba(255,255,255,0.35); display: flex; align-items: center; gap: 4px; }
+    .user-row:hover:not(.enrolled) .add-tag { color: var(--dm-accent); }
 
     .form-field { padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
-    .form-field label { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; }
+    .form-field label { font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.4px; }
     .form-field select {
-      padding: 7px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.875rem; background: white; width: 100%;
+      padding: 7px 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+      font-size: 0.875rem; background: #1b3028; color: #ffffff; width: 100%;
     }
-    .form-field select:focus { outline: none; border-color: #9f7338; }
+    .form-field select:focus { outline: none; border-color: rgba(163,230,53,0.4); }
+    .form-field select option { background: #1b3028; color: #ffffff; }
     .btn-add-team {
-      margin: 10px 14px 14px; padding: 9px; background: #9f7338; color: white;
-      border: none; border-radius: 8px; font-size: 0.875rem; font-weight: 600;
+      margin: 10px 14px 14px; padding: 9px;
+      background: rgba(163,230,53,0.18); color: var(--dm-accent);
+      border: 1px solid rgba(163,230,53,0.28); border-radius: 8px; font-size: 0.875rem; font-weight: 600;
       cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: background 0.15s;
     }
     .btn-add-team:disabled { opacity: 0.45; cursor: not-allowed; }
-    .btn-add-team:hover:not(:disabled) { background: #245517; }
+    .btn-add-team:hover:not(:disabled) { background: rgba(163,230,53,0.28); }
 
     .bracket-preview-bar {
       margin-top: 20px; padding: 12px 16px;
-      background: #f8f1e4; border: 1px solid #e6d2ad; border-radius: 8px;
-      font-size: 0.875rem; color: #374151; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      background: rgba(163,230,53,0.06); border: 1px solid rgba(163,230,53,0.18); border-radius: 8px;
+      font-size: 0.875rem; color: rgba(255,255,255,0.7); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
     }
-    .bracket-preview-bar i { color: #9f7338; }
-    .bracket-preview-bar strong { color: #9f7338; }
+    .bracket-preview-bar i { color: var(--dm-accent); }
+    .bracket-preview-bar strong { color: var(--dm-accent); }
 
     /* ── Bracket (match rows) ────────────────────────────────────── */
     .champion-banner {
       display: flex; align-items: center; gap: 16px; padding: 16px 20px;
-      background: linear-gradient(135deg, #fffbeb, #fef3c7);
-      border: 1px solid #fcd34d; border-radius: 10px; margin-bottom: 20px;
+      background: rgba(163,230,53,0.06);
+      border: 1px solid rgba(163,230,53,0.2); border-radius: 10px; margin-bottom: 20px;
     }
     .champion-trophy { font-size: 2.2rem; }
-    .champion-label { font-size: 0.7rem; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px; }
-    .champion-name { font-size: 1.1rem; font-weight: 800; color: #1a1a1a; margin-top: 2px; }
+    .champion-label { font-size: 0.7rem; font-weight: 700; color: var(--dm-accent); text-transform: uppercase; letter-spacing: 0.5px; }
+    .champion-name { font-size: 1.1rem; font-weight: 800; color: #ffffff; margin-top: 2px; }
     .runner-up-block { margin-left: auto; text-align: right; }
-    .runner-label { font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-    .runner-name { font-size: 0.95rem; font-weight: 700; color: #374151; margin-top: 2px; }
+    .runner-label { font-size: 0.7rem; font-weight: 700; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.5px; }
+    .runner-name { font-size: 0.95rem; font-weight: 700; color: rgba(255,255,255,0.8); margin-top: 2px; }
 
     .drag-hint {
-      font-size: 0.78rem; color: #94a3b8; margin-bottom: 12px;
+      font-size: 0.78rem; color: rgba(255,255,255,0.4); margin-bottom: 12px;
       display: flex; align-items: center; gap: 6px;
     }
     .swap-loading {
-      font-size: 0.82rem; color: #9f7338; font-weight: 600; margin-bottom: 12px;
+      font-size: 0.82rem; color: var(--dm-accent); font-weight: 600; margin-bottom: 12px;
       display: flex; align-items: center; gap: 8px;
-      background: #f8f1e4; border: 1px solid #e6d2ad;
+      background: rgba(163,230,53,0.08); border: 1px solid rgba(163,230,53,0.2);
       padding: 8px 12px; border-radius: 8px;
     }
     .match-rows { display: flex; flex-direction: column; }
     .match-row {
       display: flex; align-items: center; gap: 14px; padding: 13px 4px;
-      border-bottom: 1px solid #f1f5f9; transition: background 0.12s;
+      border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.12s;
     }
     .match-row:last-child { border-bottom: none; }
+    .match-row:hover { background: rgba(255,255,255,0.02); }
     .match-row.row-completed { opacity: 0.85; }
 
     .slot-draggable { cursor: grab; }
     .slot-draggable:active { cursor: grabbing; }
     .slot-dragging { opacity: 0.35 !important; }
     .slot-drag-over {
-      background: #f8f1e4; border-radius: 6px;
-      outline: 2px dashed #9f7338; outline-offset: 2px;
-      color: #9f7338 !important; font-weight: 700;
+      background: rgba(163,230,53,0.1); border-radius: 6px;
+      outline: 2px dashed var(--dm-accent); outline-offset: 2px;
+      color: var(--dm-accent) !important; font-weight: 700;
     }
 
     .row-round-chip {
-      background: #dbeafe; color: #1e40af; padding: 3px 9px;
+      background: rgba(163,230,53,0.12); color: var(--dm-accent); padding: 3px 9px;
       border-radius: 12px; font-size: 0.72rem; font-weight: 700;
-      white-space: nowrap; flex-shrink: 0;
+      white-space: nowrap; flex-shrink: 0; border: 1px solid rgba(163,230,53,0.2);
     }
     .row-players {
       flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap;
     }
     .row-player {
       display: flex; align-items: center; gap: 6px;
-      font-size: 0.875rem; color: #374151;
+      font-size: 0.875rem; color: rgba(255,255,255,0.75);
     }
-    .row-player.row-winner { font-weight: 700; color: #1a1a1a; }
-    .row-player.row-loser  { opacity: 0.5; }
+    .row-player.row-winner { font-weight: 700; color: #ffffff; }
+    .row-player.row-loser  { opacity: 0.4; }
     .row-win-flag {
-      background: #9f7338; color: white; font-size: 0.62rem; font-weight: 800;
+      background: var(--dm-accent); color: #0c1a11; font-size: 0.62rem; font-weight: 800;
       padding: 1px 5px; border-radius: 4px;
     }
-    .row-vs { font-size: 0.78rem; color: #cbd5e1; font-weight: 600; flex-shrink: 0; }
+    .row-vs { font-size: 0.78rem; color: rgba(255,255,255,0.25); font-weight: 600; flex-shrink: 0; }
 
     .btn-add-match {
       display: flex; align-items: center; gap: 7px; margin-top: 14px;
-      padding: 8px 16px; background: none; border: 1.5px dashed #cbd5e1;
-      border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: #64748b;
+      padding: 8px 16px; background: none;
+      border: 1.5px dashed rgba(163,230,53,0.25);
+      border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: rgba(255,255,255,0.4);
       cursor: pointer; transition: all 0.15s; width: 100%; justify-content: center;
     }
-    .btn-add-match:hover { border-color: #9f7338; color: #9f7338; background: #f8f1e4; }
+    .btn-add-match:hover { border-color: var(--dm-accent); color: var(--dm-accent); background: rgba(163,230,53,0.06); }
     .btn-add-match i { font-size: 0.9rem; }
 
     /* ── Schedule cards ──────────────────────────────────────────── */
-    .sched-empty { text-align: center; color: #94a3b8; padding: 40px 20px; }
+    .sched-empty { text-align: center; color: rgba(255,255,255,0.35); padding: 40px 20px; }
     .sched-empty i { font-size: 2rem; display: block; margin-bottom: 8px; }
     .sched-empty p { margin: 0; font-size: 0.875rem; }
     .sched-list { display: flex; flex-direction: column; gap: 10px; }
     .sched-card {
-      border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;
-      background: white; transition: box-shadow 0.15s;
+      border: 1px solid rgba(163,230,53,0.12); border-radius: 10px; overflow: hidden;
+      background: rgba(255,255,255,0.02); transition: box-shadow 0.15s;
     }
-    .sched-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
-    .sched-done { opacity: 0.8; }
-    .sched-live { border-color: #fcd34d; background: #fffbeb; }
+    .sched-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.3); border-color: rgba(163,230,53,0.22); }
+    .sched-done { opacity: 0.75; }
+    .sched-live { border-color: rgba(163,230,53,0.35); background: rgba(163,230,53,0.04); }
     .sched-top {
       display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-      padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
     }
     .sched-label {
-      font-size: 0.78rem; font-weight: 700; color: #1e40af;
-      background: #dbeafe; padding: 3px 10px; border-radius: 12px;
+      font-size: 0.78rem; font-weight: 700; color: var(--dm-accent);
+      background: rgba(163,230,53,0.12); padding: 3px 10px; border-radius: 12px;
+      border: 1px solid rgba(163,230,53,0.2);
     }
     .sched-edit { margin-left: auto; }
     .sched-matchup {
@@ -1083,59 +1160,102 @@ interface PlayerStat {
     }
     .sched-player {
       flex: 1; display: flex; align-items: center; gap: 8px;
-      font-size: 0.9rem; font-weight: 600; color: #1a1a1a; min-width: 0;
+      font-size: 0.9rem; font-weight: 600; color: rgba(255,255,255,0.8); min-width: 0;
     }
     .sched-player:last-child { justify-content: flex-end; text-align: right; }
-    .sched-avatar { font-size: 1.3rem; color: #cbd5e1; flex-shrink: 0; }
-    .sched-winner { color: #9f7338; font-weight: 700; }
-    .sched-winner .sched-avatar { color: #9f7338; }
-    .sched-loser { opacity: 0.45; }
+    .sched-avatar { font-size: 1.3rem; color: rgba(255,255,255,0.2); flex-shrink: 0; }
+    .sched-winner { color: var(--dm-accent); font-weight: 700; }
+    .sched-winner .sched-avatar { color: var(--dm-accent); }
+    .sched-loser { opacity: 0.35; }
     .sched-trophy { font-size: 1rem; flex-shrink: 0; }
     .sched-vs {
       flex-shrink: 0; width: 60px; text-align: center;
-      font-size: 0.75rem; font-weight: 700; color: #94a3b8;
+      font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.3);
     }
     .sched-score {
-      font-size: 0.85rem; font-weight: 800; color: #1a1a1a;
-      background: #f1f5f9; padding: 2px 8px; border-radius: 6px;
+      font-size: 0.85rem; font-weight: 800; color: #ffffff;
+      background: rgba(255,255,255,0.08); padding: 2px 8px; border-radius: 6px;
     }
     .sched-meta {
       display: flex; align-items: center; gap: 8px;
-      padding: 8px 16px; font-size: 0.78rem; color: #64748b;
-      border-top: 1px solid #f1f5f9; background: #fafafa;
+      padding: 8px 16px; font-size: 0.78rem; color: rgba(255,255,255,0.45);
+      border-top: 1px solid rgba(255,255,255,0.05);
+      background: rgba(255,255,255,0.01);
     }
-    .sched-meta i { color: #94a3b8; }
+    .sched-meta i { color: rgba(255,255,255,0.25); }
     .sched-time { display: flex; align-items: center; gap: 4px; }
-    .sched-unscheduled { color: #cbd5e1; font-style: italic; }
+    .sched-unscheduled { color: rgba(255,255,255,0.2); font-style: italic; }
+    .sched-meta-set { color: rgba(255,255,255,0.65); }
+    .sched-meta-set i { color: var(--dm-accent); }
+    .sched-edit-date-btn {
+      margin-left: 4px; padding: 2px 7px; border: 1px solid rgba(163,230,53,0.25); border-radius: 6px;
+      background: rgba(163,230,53,0.07); color: var(--dm-accent); font-size: 0.72rem; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 4px; transition: all 0.12s;
+    }
+    .sched-edit-date-btn:hover { background: rgba(163,230,53,0.18); border-color: var(--dm-accent); }
+    .sched-set-btn {
+      margin-left: 8px; padding: 3px 10px; border: 1px solid rgba(163,230,53,0.25); border-radius: 6px;
+      background: rgba(163,230,53,0.07); color: var(--dm-accent); font-size: 0.75rem; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 5px; transition: all 0.12s;
+    }
+    .sched-set-btn:hover { background: rgba(163,230,53,0.18); border-color: var(--dm-accent); }
+    .sched-inline-form {
+      padding: 12px 16px; border-top: 1px solid rgba(163,230,53,0.12);
+      background: rgba(163,230,53,0.04);
+    }
+    .sched-inline-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .sched-inline-field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px; }
+    .sched-inline-field label { font-size: 0.72rem; color: rgba(255,255,255,0.45); display: flex; align-items: center; gap: 5px; }
+    .sched-inline-field label i { color: var(--dm-accent); }
+    .sched-date-input, .sched-time-input {
+      padding: 6px 10px; border: 1.5px solid rgba(163,230,53,0.25); border-radius: 8px;
+      background: rgba(255,255,255,0.05); color: #fff; font-size: 0.82rem; outline: none;
+      color-scheme: dark;
+    }
+    .sched-date-input:focus, .sched-time-input:focus { border-color: var(--dm-accent); background: rgba(163,230,53,0.07); }
+    .sched-inline-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .sched-save-btn {
+      padding: 6px 16px; border: none; border-radius: 8px; background: var(--dm-accent);
+      color: #111; font-size: 0.82rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;
+      transition: opacity 0.15s;
+    }
+    .sched-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .sched-cancel-btn {
+      padding: 6px 14px; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
+      background: transparent; color: rgba(255,255,255,0.55); font-size: 0.82rem; cursor: pointer;
+      transition: all 0.12s;
+    }
+    .sched-cancel-btn:hover { border-color: rgba(255,255,255,0.35); color: #fff; }
     .status-chip {
       padding: 3px 9px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; text-transform: capitalize; white-space: nowrap;
     }
-    .chip-upcoming  { background: #f1f5f9; color: #475569; }
-    .chip-ongoing   { background: #fef3c7; color: #92400e; }
-    .chip-completed { background: #f4ead6; color: #7a5626; }
+    .chip-upcoming  { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.55); }
+    .chip-ongoing   { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .chip-completed { background: rgba(163,230,53,0.12); color: var(--dm-accent); }
     .btn-edit-row {
-      padding: 5px 10px; border: 1.5px solid #e2e8f0; border-radius: 6px;
-      background: white; color: #475569; font-size: 0.78rem; font-weight: 600;
+      padding: 5px 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+      background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.6); font-size: 0.78rem; font-weight: 600;
       cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.12s;
     }
-    .btn-edit-row:hover { border-color: #9f7338; color: #9f7338; background: #f8f1e4; }
+    .btn-edit-row:hover { border-color: var(--dm-accent); color: var(--dm-accent); background: rgba(163,230,53,0.06); }
     .row-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
     .icon-btn {
       width: 30px; height: 30px; border-radius: 6px; border: none;
       display: flex; align-items: center; justify-content: center;
       font-size: 0.75rem; cursor: pointer; transition: all 0.15s;
     }
-    .icon-edit { background: #f0f9ff; color: #0369a1; }
-    .icon-edit:hover { background: #0369a1; color: white; }
-    .icon-delete { background: #fef2f2; color: #dc2626; }
+    .icon-edit { background: rgba(163,230,53,0.10); color: var(--dm-accent); }
+    .icon-edit:hover { background: rgba(163,230,53,0.22); }
+    .icon-delete { background: rgba(220,38,38,0.1); color: #f87171; }
     .icon-delete:hover { background: #dc2626; color: white; }
     .chip-editable { cursor: pointer; transition: background 0.12s; }
-    .chip-editable:hover { background: #bfdbfe; }
+    .chip-editable:hover { background: rgba(163,230,53,0.22); }
     .chip-edit-icon { font-size: 0.6rem; opacity: 0.5; margin-left: 3px; }
     .round-name-input {
-      padding: 2px 8px; border: 1.5px solid #9f7338; border-radius: 12px;
-      font-size: 0.72rem; font-weight: 700; color: #1e40af; background: #dbeafe;
-      width: 110px; outline: none; box-shadow: 0 0 0 2px rgba(159,115,56,0.15);
+      padding: 2px 8px; border: 1.5px solid rgba(163,230,53,0.4); border-radius: 12px;
+      font-size: 0.72rem; font-weight: 700; color: var(--dm-accent);
+      background: rgba(163,230,53,0.08);
+      width: 110px; outline: none; box-shadow: 0 0 0 2px rgba(163,230,53,0.1);
     }
 
     /* ── Info tab ────────────────────────────────────────────────── */
@@ -1144,221 +1264,237 @@ interface PlayerStat {
       display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
       padding: 16px 20px; border-radius: 12px; margin-bottom: 20px; border: 1.5px solid;
     }
-    .vis-published { background: #f8f1e4; border-color: #e6d2ad; }
-    .vis-inactive  { background: #fafafa; border-color: #e2e8f0; }
+    .vis-published { background: rgba(163,230,53,0.06); border-color: rgba(163,230,53,0.25); }
+    .vis-inactive  { background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.1); }
     .vis-left { display: flex; align-items: center; gap: 14px; }
     .vis-icon {
       width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;
     }
-    .vis-published .vis-icon { background: #f4ead6; color: #7a5626; }
-    .vis-inactive  .vis-icon { background: #f1f5f9; color: #94a3b8; }
-    .vis-title { font-size: 0.95rem; font-weight: 700; color: #1a1a1a; }
-    .vis-sub { font-size: 0.78rem; color: #64748b; margin-top: 2px; max-width: 340px; }
+    .vis-published .vis-icon { background: rgba(163,230,53,0.15); color: var(--dm-accent); }
+    .vis-inactive  .vis-icon { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); }
+    .vis-title { font-size: 0.95rem; font-weight: 700; color: #ffffff; }
+    .vis-sub { font-size: 0.78rem; color: rgba(255,255,255,0.5); margin-top: 2px; max-width: 340px; }
     .btn-vis {
       padding: 9px 18px; border: none; border-radius: 8px; font-size: 0.82rem; font-weight: 700;
       cursor: pointer; display: flex; align-items: center; gap: 7px; transition: all 0.15s; flex-shrink: 0;
-      background: #9f7338; color: white;
+      background: rgba(163,230,53,0.18); color: var(--dm-accent); border: 1px solid rgba(163,230,53,0.28);
     }
-    .btn-vis:hover:not(:disabled) { background: #245517; }
+    .btn-vis:hover:not(:disabled) { background: rgba(163,230,53,0.28); }
     .btn-vis:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-unpublish { background: #f1f5f9; color: #475569; border: 1.5px solid #e2e8f0; }
-    .btn-unpublish:hover:not(:disabled) { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+    .btn-unpublish {
+      background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .btn-unpublish:hover:not(:disabled) { background: rgba(220,38,38,0.12); color: #f87171; border-color: rgba(220,38,38,0.25); }
 
     .info-stats-row {
       display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;
     }
     .info-stat-box {
-      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(163,230,53,0.12); border-radius: 10px;
       padding: 16px; text-align: center;
     }
-    .info-stat-num { font-size: 1.6rem; font-weight: 800; color: #1a1a1a; line-height: 1; }
-    .info-stat-lbl { font-size: 0.72rem; font-weight: 600; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 5px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .info-stat-num { font-size: 1.6rem; font-weight: 800; color: var(--dm-accent); line-height: 1; }
+    .info-stat-lbl { font-size: 0.72rem; font-weight: 600; color: rgba(255,255,255,0.45); margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 5px; text-transform: uppercase; letter-spacing: 0.4px; }
 
     .info-details-grid {
-      border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px;
+      border: 1px solid rgba(163,230,53,0.12); border-radius: 10px; overflow: hidden; margin-bottom: 20px;
     }
     .info-detail-row {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 16px; border-bottom: 1px solid #f1f5f9; font-size: 0.875rem;
+      padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.875rem;
     }
     .info-detail-row:last-child { border-bottom: none; }
-    .info-detail-lbl { color: #64748b; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-    .info-detail-lbl i { color: #94a3b8; width: 14px; text-align: center; }
-    .info-detail-val { font-weight: 700; color: #1a1a1a; }
+    .info-detail-lbl { color: rgba(255,255,255,0.5); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .info-detail-lbl i { color: rgba(255,255,255,0.3); width: 14px; text-align: center; }
+    .info-detail-val { font-weight: 700; color: #ffffff; }
 
-    .results-section { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+    .results-section { border: 1px solid rgba(163,230,53,0.12); border-radius: 10px; overflow: hidden; }
     .results-title {
       display: flex; align-items: center; gap: 8px; padding: 12px 16px;
-      background: #f8fafc; border-bottom: 1px solid #e2e8f0;
-      font-size: 0.82rem; font-weight: 700; color: #374151;
+      background: rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-size: 0.82rem; font-weight: 700; color: rgba(255,255,255,0.8);
     }
     .podium { display: flex; gap: 12px; padding: 16px; }
     .podium-card {
       flex: 1; padding: 16px; border-radius: 10px; text-align: center; display: flex; flex-direction: column; gap: 4px;
     }
-    .podium-gold   { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fcd34d; }
-    .podium-silver { background: linear-gradient(135deg, #f8fafc, #f1f5f9); border: 1px solid #e2e8f0; }
+    .podium-gold   { background: rgba(163,230,53,0.08); border: 1px solid rgba(163,230,53,0.25); }
+    .podium-silver { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); }
     .podium-medal { font-size: 1.8rem; }
-    .podium-role { font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-    .podium-name { font-size: 0.95rem; font-weight: 700; color: #1a1a1a; margin-top: 2px; }
+    .podium-role { font-size: 0.7rem; font-weight: 700; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.5px; }
+    .podium-name { font-size: 0.95rem; font-weight: 700; color: #ffffff; margin-top: 2px; }
 
     /* ── Modal ───────────────────────────────────────────────────── */
     .modal-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100;
+      position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 100;
       display: flex; align-items: center; justify-content: center;
       padding: 20px; animation: fadeIn 0.15s ease;
     }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     .modal {
-      background: white; border-radius: 14px; width: 100%; max-width: 500px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.25); animation: slideUp 0.2s ease; overflow: hidden;
+      background: var(--dm-surface); border-radius: 14px; width: 100%; max-width: 500px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      border: 1px solid rgba(163,230,53,0.18);
+      animation: slideUp 0.2s ease; overflow: hidden;
     }
     @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     .modal-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 18px 20px; border-bottom: 1px solid #eee;
+      padding: 18px 20px; border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: var(--dm-header);
     }
     .modal-header h3 {
-      margin: 0; font-size: 0.95rem; font-weight: 700; color: #1a1a1a;
+      margin: 0; font-size: 0.95rem; font-weight: 700; color: #ffffff;
       display: flex; align-items: center; gap: 8px;
     }
-    .modal-header h3 i { color: #9f7338; }
+    .modal-header h3 i { color: var(--dm-accent); }
     .modal-close {
-      background: none; border: none; font-size: 1rem; color: #888;
+      background: none; border: none; font-size: 1rem; color: rgba(255,255,255,0.4);
       cursor: pointer; padding: 4px 8px; border-radius: 4px;
     }
-    .modal-close:hover { background: #f0f0f0; }
+    .modal-close:hover { background: rgba(255,255,255,0.08); color: #fff; }
     .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
     .modal-field { display: flex; flex-direction: column; gap: 6px; }
     .modal-field label {
-      font-size: 0.75rem; font-weight: 700; color: #444;
+      font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.5);
       text-transform: uppercase; letter-spacing: 0.4px; display: flex; align-items: center; gap: 6px;
     }
-    .field-hint { font-size: 0.72rem; font-weight: 400; color: #94a3b8; text-transform: none; letter-spacing: 0; }
+    .field-hint { font-size: 0.72rem; font-weight: 400; color: rgba(255,255,255,0.3); text-transform: none; letter-spacing: 0; }
     .modal-field input, .modal-field select {
-      padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px;
-      font-size: 0.9rem; background: white; width: 100%; box-sizing: border-box;
+      padding: 9px 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+      font-size: 0.9rem; background: #1b3028; color: #ffffff; width: 100%; box-sizing: border-box;
     }
+    .modal-field select option { background: #1b3028; color: #ffffff; }
+    .modal-field input::placeholder { color: rgba(255,255,255,0.3); }
     .modal-field input:focus, .modal-field select:focus {
-      outline: none; border-color: #9f7338; box-shadow: 0 0 0 3px rgba(159,115,56,0.1);
+      outline: none; border-color: rgba(163,230,53,0.4); box-shadow: 0 0 0 3px rgba(163,230,53,0.08);
     }
     .modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
     .winner-picker { display: flex; align-items: stretch; gap: 10px; }
     .winner-opt {
-      flex: 1; padding: 12px; border: 1.5px solid #e2e8f0; border-radius: 8px;
+      flex: 1; padding: 12px; border: 1.5px solid rgba(255,255,255,0.1); border-radius: 8px;
       cursor: pointer; transition: all 0.15s; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+      background: rgba(255,255,255,0.03);
     }
-    .winner-opt:hover { border-color: #9f7338; background: #f8f1e4; }
-    .winner-opt.winner-selected { border-color: #9f7338; background: #f8f1e4; }
-    .winner-names { display: flex; flex-direction: column; gap: 2px; font-size: 0.875rem; font-weight: 600; color: #374151; }
-    .winner-check { font-size: 0.75rem; font-weight: 700; color: #9f7338; display: flex; align-items: center; gap: 4px; }
+    .winner-opt:hover { border-color: rgba(163,230,53,0.35); background: rgba(163,230,53,0.06); }
+    .winner-opt.winner-selected { border-color: var(--dm-accent); background: rgba(163,230,53,0.1); }
+    .winner-names { display: flex; flex-direction: column; gap: 2px; font-size: 0.875rem; font-weight: 600; color: rgba(255,255,255,0.8); }
+    .winner-check { font-size: 0.75rem; font-weight: 700; color: var(--dm-accent); display: flex; align-items: center; gap: 4px; }
     .winner-vs {
-      display: flex; align-items: center; font-size: 0.78rem; font-weight: 700; color: #94a3b8; flex-shrink: 0;
+      display: flex; align-items: center; font-size: 0.78rem; font-weight: 700; color: rgba(255,255,255,0.3); flex-shrink: 0;
     }
-    .slot-tbd { color: #cbd5e1; font-style: italic; font-size: 0.8rem; }
+    .slot-tbd { color: rgba(255,255,255,0.25); font-style: italic; font-size: 0.8rem; }
     .score-input {
       width: 100%; box-sizing: border-box; padding: 5px 8px;
-      border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.82rem;
-      text-align: center; background: white; color: #1a1a1a;
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; font-size: 0.82rem;
+      text-align: center; background: rgba(255,255,255,0.05); color: #ffffff;
       margin-top: 2px;
     }
-    .score-input:focus { outline: none; border-color: #9f7338; box-shadow: 0 0 0 2px rgba(159,115,56,0.1); }
-    .winner-selected .score-input { border-color: #e6d2ad; }
+    .score-input::placeholder { color: rgba(255,255,255,0.25); }
+    .score-input:focus { outline: none; border-color: rgba(163,230,53,0.4); box-shadow: 0 0 0 2px rgba(163,230,53,0.08); }
+    .winner-selected .score-input { border-color: rgba(163,230,53,0.25); }
 
     .modal-sm { max-width: 380px; }
     .delete-header { gap: 12px; align-items: flex-start; }
     .delete-icon-wrap {
-      width: 40px; height: 40px; border-radius: 10px; background: #fef2f2;
+      width: 40px; height: 40px; border-radius: 10px; background: rgba(220,38,38,0.15);
       display: flex; align-items: center; justify-content: center;
-      color: #dc2626; font-size: 1rem; flex-shrink: 0;
+      color: #f87171; font-size: 1rem; flex-shrink: 0;
     }
-    .delete-header h3 { margin: 0; font-size: 0.95rem; font-weight: 700; color: #1a1a1a; }
-    .delete-sub { margin: 3px 0 0; font-size: 0.8rem; color: #64748b; font-weight: 400; }
+    .delete-header h3 { margin: 0; font-size: 0.95rem; font-weight: 700; color: #ffffff; }
+    .delete-sub { margin: 3px 0 0; font-size: 0.8rem; color: rgba(255,255,255,0.5); font-weight: 400; }
     .btn-delete-confirm {
-      padding: 9px 20px; background: #dc2626; color: white; border: none;
+      padding: 9px 20px; background: rgba(220,38,38,0.18); color: #f87171;
+      border: 1px solid rgba(220,38,38,0.3);
       border-radius: 8px; font-size: 0.875rem; font-weight: 600;
       cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.15s;
     }
-    .btn-delete-confirm:hover { background: #b91c1c; }
+    .btn-delete-confirm:hover { background: rgba(220,38,38,0.3); }
     .btn-complete-confirm {
-      padding: 9px 20px; background: #9f7338; color: white; border: none;
+      padding: 9px 20px; background: rgba(163,230,53,0.18); color: var(--dm-accent);
+      border: 1px solid rgba(163,230,53,0.28);
       border-radius: 8px; font-size: 0.875rem; font-weight: 600;
       cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.15s;
     }
-    .btn-complete-confirm:hover { background: #245517; }
+    .btn-complete-confirm:hover { background: rgba(163,230,53,0.28); }
 
     .modal-error {
-      background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5;
+      background: rgba(220,38,38,0.1); color: #f87171; border: 1px solid rgba(220,38,38,0.25);
       border-radius: 8px; padding: 8px 12px; font-size: 0.82rem;
       display: flex; align-items: center; gap: 6px;
     }
     .modal-footer {
       display: flex; justify-content: flex-end; gap: 10px;
-      padding: 16px 20px; border-top: 1px solid #eee; background: #f9fafb;
+      padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.02);
     }
     .btn-cancel {
-      padding: 9px 16px; background: white; color: #555;
-      border: 1px solid #ddd; border-radius: 8px; font-size: 0.875rem; cursor: pointer;
+      padding: 9px 16px; background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.6);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; font-size: 0.875rem; cursor: pointer;
+      transition: background 0.15s;
     }
-    .btn-cancel:hover:not(:disabled) { background: #f0f0f0; }
+    .btn-cancel:hover:not(:disabled) { background: rgba(255,255,255,0.1); color: #fff; }
     .btn-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-confirm {
-      padding: 9px 20px; background: #9f7338; color: white; border: none;
+      padding: 9px 20px; background: rgba(163,230,53,0.18); color: var(--dm-accent);
+      border: 1px solid rgba(163,230,53,0.28);
       border-radius: 8px; font-size: 0.875rem; font-weight: 600;
       cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.15s;
     }
-    .btn-confirm:hover:not(:disabled) { background: #245517; }
+    .btn-confirm:hover:not(:disabled) { background: rgba(163,230,53,0.28); }
     .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .no-winner-warn {
       display: flex; align-items: center; gap: 10px;
-      background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px;
-      padding: 10px 14px; font-size: 0.82rem; color: #92400e; margin-bottom: 16px;
+      background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25); border-radius: 8px;
+      padding: 10px 14px; font-size: 0.82rem; color: #fbbf24; margin-bottom: 16px;
     }
     .no-winner-warn i { flex-shrink: 0; }
 
     /* Tournament Rankings Tab */
     .rank-empty { text-align: center; padding: 48px 24px; }
-    .rank-empty-icon { font-size: 2.5rem; color: #ccc; margin-bottom: 12px; }
-    .rank-empty-title { font-size: 1rem; font-weight: 700; color: #444; margin: 0 0 6px; }
-    .rank-empty-sub { font-size: 0.875rem; color: #888; margin: 0; }
+    .rank-empty-icon { font-size: 2.5rem; color: rgba(255,255,255,0.15); margin-bottom: 12px; }
+    .rank-empty-title { font-size: 1rem; font-weight: 700; color: rgba(255,255,255,0.7); margin: 0 0 6px; }
+    .rank-empty-sub { font-size: 0.875rem; color: rgba(255,255,255,0.4); margin: 0; }
 
     .rank-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-    .rank-table thead tr { background: #f8fafc; }
+    .rank-table thead tr { background: rgba(255,255,255,0.03); }
     .rank-table th {
       padding: 10px 12px; text-align: left; font-size: 0.72rem; font-weight: 700;
-      color: #888; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid #eee;
+      color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.4px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
-    .rank-table td { padding: 11px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-    .rank-table tbody tr:hover td { background: #f8f1e4; }
+    .rank-table td { padding: 11px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); vertical-align: middle; color: rgba(255,255,255,0.8); }
+    .rank-table tbody tr:hover td { background: rgba(163,230,53,0.04); }
     .rc-rank { width: 56px; text-align: center; }
-    .rc-played, .rc-won, .rc-lost { width: 70px; text-align: center; color: #555; }
+    .rc-played, .rc-won, .rc-lost { width: 70px; text-align: center; }
     .rc-pts { width: 90px; text-align: right; }
     .medal { font-size: 1.2rem; }
-    .rank-num { font-weight: 700; color: #999; }
-    .wins-val { font-weight: 700; color: #9f7338; }
+    .rank-num { font-weight: 700; color: rgba(255,255,255,0.35); }
+    .wins-val { font-weight: 700; color: var(--dm-accent); }
     .player-cell { display: flex; align-items: center; gap: 9px; }
     .player-av {
       width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
     }
     .av-init {
-      background: #9f7338; color: white; font-size: 0.75rem;
+      background: rgba(163,230,53,0.2); color: var(--dm-accent); font-size: 0.75rem;
       font-weight: 700; display: flex; align-items: center; justify-content: center;
     }
-    .player-nm { font-weight: 600; color: #1a1a1a; }
+    .player-nm { font-weight: 600; color: #ffffff; }
     .place-badge {
       display: inline-block; padding: 3px 10px; border-radius: 20px;
       font-size: 0.72rem; font-weight: 700;
     }
-    .place-badge.place-champion { background: #fef3c7; color: #92400e; }
-    .place-badge.place-runner-up { background: #f1f5f9; color: #475569; }
-    .place-badge.place-semifinalist { background: #fce7f3; color: #9d174d; }
-    .place-badge.place-quarterfinalist { background: #ede9fe; color: #5b21b6; }
-    .place-badge.place-participant { background: #f8f1e4; color: #7a5626; }
+    .place-badge.place-champion { background: rgba(163,230,53,0.15); color: var(--dm-accent); }
+    .place-badge.place-runner-up { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); }
+    .place-badge.place-semifinalist { background: rgba(139,92,246,0.15); color: #a78bfa; }
+    .place-badge.place-quarterfinalist { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .place-badge.place-participant { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.45); }
     .pts-chip {
       display: inline-flex; align-items: center; gap: 5px;
-      background: #fef3c7; color: #92400e; padding: 4px 10px;
+      background: rgba(163,230,53,0.12); color: var(--dm-accent); padding: 4px 10px;
       border-radius: 20px; font-size: 0.8rem; font-weight: 700;
     }
     .pts-chip i { font-size: 0.65rem; }
@@ -1375,87 +1511,92 @@ interface PlayerStat {
     }
   `]
 })
-export class AdminTournamentDetailComponent implements OnInit {
-  tournament: Tournament | null = null;
-  loading = true;
-  actionError = '';
-  activeTab: 'participants' | 'matches' | 'schedule' | 'info' | 'rankings' = 'participants';
+export class AdminTournamentDetailComponent {
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private tournamentService = inject(TournamentService);
+  private usersService = inject(UsersService);
 
-  allUsers: User[] = [];
-  playerSearch = '';
-  filteredUsers: User[] = [];
-  doublesP1 = '';
-  doublesP2 = '';
-  addingTeam = false;
+  tournament = signal<Tournament | null>(null);
+  loading = signal(true);
+  actionError = signal('');
+  activeTab = signal<'participants' | 'matches' | 'schedule' | 'info' | 'rankings'>('participants');
 
-  rounds: number[] = [];
+  allUsers = signal<User[]>([]);
+  filteredUsers = signal<User[]>([]);
+  addingTeam = signal(false);
 
-  editingMatch: TournamentMatch | null = null;
-  editScore1 = '';
-  editScore2 = '';
-  editWinner: number | null = null;
-  editDate = '';
-  editTimeSlot = '';
-  editStatus = 'upcoming';
-  savingMatch = false;
-  matchError = '';
+  rounds = signal<number[]>([]);
 
-  generating = false;
-  dragSource: { matchId: string; slot: 1 | 2 } | null = null;
-  dragOverTarget: { matchId: string; slot: 1 | 2 } | null = null;
-  swapping = false;
+  editingMatch = signal<TournamentMatch | null>(null);
+  savingMatch = signal(false);
+  matchError = signal('');
 
-  editingMatchRoundId: string | null = null;
-  editRoundNameValue = '';
-  savingRoundName = false;
+  generating = signal(false);
+  swapping = signal(false);
 
-  confirmPrompt: {
+  editingMatchRoundId = signal<string | null>(null);
+  savingRoundName = signal(false);
+
+  confirmPrompt = signal<{
     title: string;
     subtitle: string;
     icon: string;
     confirmLabel: string;
     confirmClass: 'btn-delete-confirm' | 'btn-complete-confirm';
     action: () => void;
-  } | null = null;
-  togglingPublish = false;
-  generatingRandom = false;
-  showAddMatch = false;
+  } | null>(null);
+
+  togglingPublish = signal(false);
+  generatingRandom = signal(false);
+  showAddMatch = signal(false);
+  addingMatch = signal(false);
+  addMatchError = signal('');
+  schedEditId = signal<string | null>(null);
+  savingSchedEdit = signal(false);
+
+  // Plain properties (used in [(ngModel)] two-way binding)
+  playerSearch = '';
+  doublesP1 = '';
+  doublesP2 = '';
+  editScore1 = '';
+  editScore2 = '';
+  editWinner: number | null = null;
+  editDate = '';
+  editTimeSlot = '';
+  editStatus = 'upcoming';
+  editRoundNameValue = '';
   newMatchLabel = '';
   newMatchSlot1 = '';
   newMatchSlot2 = '';
   newMatchDate = '';
   newMatchTime = '';
-  addingMatch = false;
-  addMatchError = '';
+  schedDate = '';
+  schedTime = '';
+  dragSource: { matchId: string; slot: 1 | 2 } | null = null;
+  dragOverTarget: { matchId: string; slot: 1 | 2 } | null = null;
 
-  constructor(
-    private route: ActivatedRoute,
-    private router: Router,
-    private tournamentService: TournamentService,
-    private usersService: UsersService
-  ) {}
-
-  ngOnInit() {
+  constructor() {
     this.route.params.subscribe(params => this.loadTournament(params['id']));
     this.usersService.getAllUsers().subscribe({
       next: (users: any[]) => {
-        this.allUsers = users.filter((u: any) => u.status === 'active');
-        this.filteredUsers = [...this.allUsers];
+        this.allUsers.set(users.filter((u: any) => u.status === 'active'));
+        this.filteredUsers.set([...this.allUsers()]);
       },
       error: () => {}
     });
   }
 
   loadTournament(id: string) {
-    this.loading = true;
+    this.loading.set(true);
     this.tournamentService.getById(id).subscribe({
       next: (t) => {
-        this.tournament = t;
-        this.loading = false;
-        this.rounds = this.computeRounds(t);
+        this.tournament.set(t);
+        this.loading.set(false);
+        this.rounds.set(this.computeRounds(t));
         this.filterUsers();
       },
-      error: () => { this.loading = false; }
+      error: () => { this.loading.set(false); }
     });
   }
 
@@ -1466,14 +1607,15 @@ export class AdminTournamentDetailComponent implements OnInit {
   }
 
   get completedMatchCount(): number {
-    return this.tournament?.matches.filter(m => m.status === 'completed').length ?? 0;
+    return this.tournament()?.matches.filter(m => m.status === 'completed').length ?? 0;
   }
 
   get entryCount(): number {
-    if (!this.tournament) return 0;
-    return this.tournament.type === 'singles'
-      ? this.tournament.participants.length
-      : (this.tournament.teams?.length || 0);
+    const t = this.tournament();
+    if (!t) return 0;
+    return t.type === 'singles'
+      ? t.participants.length
+      : (t.teams?.length || 0);
   }
 
   get totalRoundsPreview(): number {
@@ -1485,24 +1627,27 @@ export class AdminTournamentDetailComponent implements OnInit {
   }
 
   get availableUsers(): User[] {
-    const enrolled = new Set(this.tournament?.participants.map(p => p._id) || []);
-    return this.allUsers.filter(u => !enrolled.has(u._id));
+    const t = this.tournament();
+    const enrolled = new Set(t?.participants.map(p => p._id) || []);
+    return this.allUsers().filter(u => !enrolled.has(u._id));
   }
 
   get teamPickerUsers(): User[] {
-    const inTeam = new Set((this.tournament?.teams || []).flat().map((p: any) => p?._id || p?.toString?.() || p));
-    return this.allUsers.filter(u => !inTeam.has(u._id));
+    const t = this.tournament();
+    const inTeam = new Set((t?.teams || []).flat().map((p: any) => p?._id || p?.toString?.() || p));
+    return this.allUsers().filter(u => !inTeam.has(u._id));
   }
 
   get teamsWithNames(): (TournamentPlayer | undefined)[][] {
-    if (!this.tournament) return [];
-    return (this.tournament.teams || []).map(team =>
-      team.map(pid => this.tournament!.participants.find(p => p._id === pid))
+    const t = this.tournament();
+    if (!t) return [];
+    return (t.teams || []).map(team =>
+      team.map(pid => t.participants.find(p => p._id === pid))
     );
   }
 
   get sortedMatches(): TournamentMatch[] {
-    return [...(this.tournament?.matches || [])]
+    return [...(this.tournament()?.matches || [])]
       .filter(m => m.slot1Players.length > 0 || m.slot2Players.length > 0)
       .sort((a, b) => a.round - b.round || a.position - b.position);
   }
@@ -1511,13 +1656,13 @@ export class AdminTournamentDetailComponent implements OnInit {
 
   filterUsers() {
     const q = this.playerSearch.toLowerCase();
-    this.filteredUsers = q
-      ? this.allUsers.filter(u => u.name.toLowerCase().includes(q))
-      : [...this.allUsers];
+    this.filteredUsers.set(q
+      ? this.allUsers().filter(u => u.name.toLowerCase().includes(q))
+      : [...this.allUsers()]);
   }
 
   isEnrolled(userId: string): boolean {
-    return this.tournament?.participants.some(p => p._id === userId) || false;
+    return this.tournament()?.participants.some(p => p._id === userId) || false;
   }
 
   initials(name: string): string {
@@ -1525,71 +1670,78 @@ export class AdminTournamentDetailComponent implements OnInit {
   }
 
   addParticipant(playerId: string) {
-    if (!this.tournament) return;
-    this.tournamentService.addParticipant(this.tournament._id, playerId).subscribe({
-      next: (t) => { this.tournament = { ...this.tournament!, participants: t.participants }; },
-      error: (err) => { this.actionError = err.error?.error || 'Failed to add player'; }
+    const t = this.tournament();
+    if (!t) return;
+    this.tournamentService.addParticipant(t._id, playerId).subscribe({
+      next: (updated) => { this.tournament.set({ ...t, participants: updated.participants }); },
+      error: (err) => { this.actionError.set(err.error?.error || 'Failed to add player'); }
     });
   }
 
   removeParticipant(playerId: string) {
-    if (!this.tournament) return;
-    this.tournamentService.removeParticipant(this.tournament._id, playerId).subscribe({
-      next: (t) => { this.tournament = { ...this.tournament!, participants: t.participants }; },
-      error: (err) => { this.actionError = err.error?.error || 'Failed to remove player'; }
+    const t = this.tournament();
+    if (!t) return;
+    this.tournamentService.removeParticipant(t._id, playerId).subscribe({
+      next: (updated) => { this.tournament.set({ ...t, participants: updated.participants }); },
+      error: (err) => { this.actionError.set(err.error?.error || 'Failed to remove player'); }
     });
   }
 
   addTeam() {
-    if (!this.tournament || !this.doublesP1 || !this.doublesP2) return;
-    this.addingTeam = true;
-    this.tournamentService.addTeam(this.tournament._id, this.doublesP1, this.doublesP2).subscribe({
-      next: (t) => {
-        this.tournament = { ...this.tournament!, participants: t.participants, teams: t.teams };
+    const t = this.tournament();
+    if (!t || !this.doublesP1 || !this.doublesP2) return;
+    this.addingTeam.set(true);
+    this.tournamentService.addTeam(t._id, this.doublesP1, this.doublesP2).subscribe({
+      next: (updated) => {
+        this.tournament.set({ ...t, participants: updated.participants, teams: updated.teams });
         this.doublesP1 = '';
         this.doublesP2 = '';
-        this.addingTeam = false;
+        this.addingTeam.set(false);
       },
       error: (err) => {
-        this.actionError = err.error?.error || 'Failed to add team';
-        this.addingTeam = false;
+        this.actionError.set(err.error?.error || 'Failed to add team');
+        this.addingTeam.set(false);
       }
     });
   }
 
   removeTeam(idx: number) {
-    if (!this.tournament) return;
-    const id = this.tournament._id;
+    const t = this.tournament();
+    if (!t) return;
+    const id = t._id;
     this.tournamentService.removeTeam(id, idx).subscribe({
       next: () => this.loadTournament(id),
-      error: (err) => { this.actionError = err.error?.error || 'Failed to remove team'; }
+      error: (err) => { this.actionError.set(err.error?.error || 'Failed to remove team'); }
     });
   }
 
   generateBracket() {
-    if (!this.tournament) return;
-    this.generating = true;
-    this.actionError = '';
-    this.tournamentService.generateBracket(this.tournament._id).subscribe({
-      next: (t) => {
-        this.tournament = t;
-        this.rounds = this.computeRounds(t);
-        this.activeTab = 'matches';
-        this.generating = false;
+    const t = this.tournament();
+    if (!t) return;
+    this.generating.set(true);
+    this.actionError.set('');
+    this.tournamentService.generateBracket(t._id).subscribe({
+      next: (updated) => {
+        this.tournament.set(updated);
+        this.rounds.set(this.computeRounds(updated));
+        this.activeTab.set('matches');
+        this.generating.set(false);
       },
       error: (err) => {
-        this.generating = false;
-        this.actionError = err.error?.error || 'Failed to generate bracket';
+        this.generating.set(false);
+        this.actionError.set(err.error?.error || 'Failed to generate bracket');
       }
     });
   }
 
   canComplete(): boolean {
-    if (!this.tournament) return false;
-    const matches = this.tournament.matches;
+    const t = this.tournament();
+    if (!t) return false;
+    const matches = t.matches;
     if (!matches.length) return true;
-    if (this.rounds.length > 0) {
-      const final = matches.find(m => m.round === this.rounds.length && m.position === 0);
+    const r = this.rounds();
+    if (r.length > 0) {
+      const final = matches.find(m => m.round === r.length && m.position === 0);
       return !!final && final.winner !== null;
     }
     const playable = matches.filter(m => m.slot1Players.length > 0 && m.slot2Players.length > 0);
@@ -1597,10 +1749,11 @@ export class AdminTournamentDetailComponent implements OnInit {
   }
 
   completeTournament() {
-    if (!this.tournament) return;
-    const name = this.tournament.name;
-    const id = this.tournament._id;
-    this.confirmPrompt = {
+    const t = this.tournament();
+    if (!t) return;
+    const name = t.name;
+    const id = t._id;
+    this.confirmPrompt.set({
       title: `Complete "${name}"?`,
       subtitle: 'This will lock the tournament. Scores and results can no longer be edited.',
       icon: 'flag-checkered',
@@ -1608,18 +1761,19 @@ export class AdminTournamentDetailComponent implements OnInit {
       confirmClass: 'btn-complete-confirm',
       action: () => {
         this.tournamentService.completeTournament(id).subscribe({
-          next: (t) => { this.tournament = t; this.activeTab = 'info'; },
-          error: (err) => { this.actionError = err.error?.error || 'Failed to complete tournament'; }
+          next: (updated) => { this.tournament.set(updated); this.activeTab.set('info'); },
+          error: (err) => { this.actionError.set(err.error?.error || 'Failed to complete tournament'); }
         });
       }
-    };
+    });
   }
 
   confirmDelete() {
-    if (!this.tournament) return;
-    const name = this.tournament.name;
-    const id = this.tournament._id;
-    this.confirmPrompt = {
+    const t = this.tournament();
+    if (!t) return;
+    const name = t.name;
+    const id = t._id;
+    this.confirmPrompt.set({
       title: `Delete "${name}"?`,
       subtitle: 'This tournament and all its data will be permanently removed.',
       icon: 'trash',
@@ -1628,38 +1782,40 @@ export class AdminTournamentDetailComponent implements OnInit {
       action: () => {
         this.tournamentService.delete(id).subscribe({
           next: () => this.router.navigate(['/admin/tournaments']),
-          error: (err) => { this.actionError = err.error?.error || 'Failed to delete'; }
+          error: (err) => { this.actionError.set(err.error?.error || 'Failed to delete'); }
         });
       }
-    };
-  }
-
-  togglePublished() {
-    if (!this.tournament) return;
-    this.togglingPublish = true;
-    this.tournamentService.setPublished(this.tournament._id, !this.tournament.published).subscribe({
-      next: (t) => { this.tournament = t; this.togglingPublish = false; },
-      error: () => { this.togglingPublish = false; }
     });
   }
 
-  cancelPrompt() { this.confirmPrompt = null; }
+  togglePublished() {
+    const t = this.tournament();
+    if (!t) return;
+    this.togglingPublish.set(true);
+    this.tournamentService.setPublished(t._id, !t.published).subscribe({
+      next: (updated) => { this.tournament.set(updated); this.togglingPublish.set(false); },
+      error: () => { this.togglingPublish.set(false); }
+    });
+  }
+
+  cancelPrompt() { this.confirmPrompt.set(null); }
 
   executePrompt() {
-    if (!this.confirmPrompt) return;
-    const action = this.confirmPrompt.action;
-    this.confirmPrompt = null;
+    const prompt = this.confirmPrompt();
+    if (!prompt) return;
+    const action = prompt.action;
+    this.confirmPrompt.set(null);
     action();
   }
 
   getMatchesForRound(round: number): TournamentMatch[] {
-    return (this.tournament?.matches || [])
+    return (this.tournament()?.matches || [])
       .filter(m => m.round === round)
       .sort((a, b) => a.position - b.position);
   }
 
   getRoundName(round: number): string {
-    return this.tournament?.matches.find(m => m.round === round)?.roundName || `Round ${round}`;
+    return this.tournament()?.matches.find(m => m.round === round)?.roundName || `Round ${round}`;
   }
 
   slotLabel(players: TournamentPlayer[]): string {
@@ -1667,8 +1823,8 @@ export class AdminTournamentDetailComponent implements OnInit {
   }
 
   openMatchEditor(match: TournamentMatch) {
-    if (this.tournament?.status !== 'active') return;
-    this.editingMatch = match;
+    if (this.tournament()?.status !== 'active') return;
+    this.editingMatch.set(match);
     const parts = (match.score || '').split(' - ');
     this.editScore1 = parts[0]?.trim() || '';
     this.editScore2 = parts[1]?.trim() || '';
@@ -1676,37 +1832,39 @@ export class AdminTournamentDetailComponent implements OnInit {
     this.editDate = match.scheduledDate ? match.scheduledDate.split('T')[0] : '';
     this.editTimeSlot = match.timeSlot || '';
     this.editStatus = match.status;
-    this.matchError = '';
+    this.matchError.set('');
   }
 
-  closeMatchEditor() { this.editingMatch = null; this.matchError = ''; }
+  closeMatchEditor() { this.editingMatch.set(null); this.matchError.set(''); }
 
   saveMatch() {
-    if (!this.tournament || !this.editingMatch) return;
-    this.savingMatch = true;
-    this.matchError = '';
-    this.tournamentService.updateMatch(this.tournament._id, this.editingMatch._id, {
+    const t = this.tournament();
+    const em = this.editingMatch();
+    if (!t || !em) return;
+    this.savingMatch.set(true);
+    this.matchError.set('');
+    this.tournamentService.updateMatch(t._id, em._id, {
       score: [this.editScore1.trim(), this.editScore2.trim()].filter(Boolean).join(' - '),
       winner: this.editWinner,
       status: this.editStatus,
       scheduledDate: this.editDate || null,
       timeSlot: this.editTimeSlot,
     }).subscribe({
-      next: (t) => {
-        this.tournament = t;
-        this.rounds = this.computeRounds(t);
-        this.savingMatch = false;
-        this.editingMatch = null;
+      next: (updated) => {
+        this.tournament.set(updated);
+        this.rounds.set(this.computeRounds(updated));
+        this.savingMatch.set(false);
+        this.editingMatch.set(null);
       },
       error: (err) => {
-        this.savingMatch = false;
-        this.matchError = err.error?.error || 'Failed to save match';
+        this.savingMatch.set(false);
+        this.matchError.set(err.error?.error || 'Failed to save match');
       }
     });
   }
 
   canDrag(match: TournamentMatch): boolean {
-    return this.tournament?.status === 'active' && match.status === 'upcoming';
+    return this.tournament()?.status === 'active' && match.status === 'upcoming';
   }
 
   isSlotDragging(matchId: string, slot: 1 | 2): boolean {
@@ -1736,16 +1894,17 @@ export class AdminTournamentDetailComponent implements OnInit {
 
   onSlotDrop(event: DragEvent, match: TournamentMatch, slot: 1 | 2) {
     event.preventDefault();
-    if (!this.dragSource || !this.tournament) return;
+    const t = this.tournament();
+    if (!this.dragSource || !t) return;
     const source = this.dragSource;
     const sameSlot = source.matchId === match._id && source.slot === slot;
     if (sameSlot || !this.canDrag(match)) return;
     this.dragSource = null;
     this.dragOverTarget = null;
-    this.swapping = true;
-    this.tournamentService.swapSlots(this.tournament._id, source.matchId, source.slot, match._id, slot).subscribe({
-      next: (t) => { this.tournament = t; this.rounds = this.computeRounds(t); this.swapping = false; },
-      error: (err) => { this.actionError = err.error?.error || 'Failed to swap'; this.swapping = false; }
+    this.swapping.set(true);
+    this.tournamentService.swapSlots(t._id, source.matchId, source.slot, match._id, slot).subscribe({
+      next: (updated) => { this.tournament.set(updated); this.rounds.set(this.computeRounds(updated)); this.swapping.set(false); },
+      error: (err) => { this.actionError.set(err.error?.error || 'Failed to swap'); this.swapping.set(false); }
     });
   }
 
@@ -1755,27 +1914,29 @@ export class AdminTournamentDetailComponent implements OnInit {
   }
 
   generateRandomMatches() {
-    if (!this.tournament) return;
-    this.generatingRandom = true;
-    this.actionError = '';
-    this.tournamentService.generateRandomMatches(this.tournament._id).subscribe({
-      next: (t) => {
-        this.tournament = t;
-        this.rounds = this.computeRounds(t);
-        this.generatingRandom = false;
-        this.activeTab = 'matches';
+    const t = this.tournament();
+    if (!t) return;
+    this.generatingRandom.set(true);
+    this.actionError.set('');
+    this.tournamentService.generateRandomMatches(t._id).subscribe({
+      next: (updated) => {
+        this.tournament.set(updated);
+        this.rounds.set(this.computeRounds(updated));
+        this.generatingRandom.set(false);
+        this.activeTab.set('matches');
       },
       error: (err) => {
-        this.actionError = err.error?.error || 'Failed to generate matches';
-        this.generatingRandom = false;
+        this.actionError.set(err.error?.error || 'Failed to generate matches');
+        this.generatingRandom.set(false);
       }
     });
   }
 
   deleteMatch(matchId: string) {
-    if (!this.tournament) return;
-    const id = this.tournament._id;
-    this.confirmPrompt = {
+    const t = this.tournament();
+    if (!t) return;
+    const id = t._id;
+    this.confirmPrompt.set({
       title: 'Delete Match',
       subtitle: 'This match will be permanently removed.',
       icon: 'trash',
@@ -1783,97 +1944,129 @@ export class AdminTournamentDetailComponent implements OnInit {
       confirmClass: 'btn-delete-confirm',
       action: () => {
         this.tournamentService.deleteMatch(id, matchId).subscribe({
-          next: (t) => { this.tournament = t; this.rounds = this.computeRounds(t); },
-          error: (err) => { this.actionError = err.error?.error || 'Failed to delete match'; }
+          next: (updated) => { this.tournament.set(updated); this.rounds.set(this.computeRounds(updated)); },
+          error: (err) => { this.actionError.set(err.error?.error || 'Failed to delete match'); }
         });
       }
-    };
+    });
   }
 
   openAddMatch() {
-    this.showAddMatch = true;
+    this.showAddMatch.set(true);
     this.newMatchLabel = '';
     this.newMatchSlot1 = '';
     this.newMatchSlot2 = '';
     this.newMatchDate = '';
     this.newMatchTime = '';
-    this.addMatchError = '';
+    this.addMatchError.set('');
   }
 
-  closeAddMatch() { this.showAddMatch = false; this.addMatchError = ''; }
+  closeAddMatch() { this.showAddMatch.set(false); this.addMatchError.set(''); }
 
   saveAddMatch() {
-    if (!this.tournament || !this.newMatchLabel.trim()) return;
-    this.addingMatch = true;
-    this.addMatchError = '';
+    const t = this.tournament();
+    if (!t || !this.newMatchLabel.trim()) return;
+    this.addingMatch.set(true);
+    this.addMatchError.set('');
 
     let slot1: string[] = [];
     let slot2: string[] = [];
 
-    if (this.tournament.type === 'singles') {
+    if (t.type === 'singles') {
       if (this.newMatchSlot1) slot1 = [this.newMatchSlot1];
       if (this.newMatchSlot2) slot2 = [this.newMatchSlot2];
     } else {
-      const t1 = this.tournament.teams[+this.newMatchSlot1];
-      const t2 = this.tournament.teams[+this.newMatchSlot2];
+      const t1 = t.teams[+this.newMatchSlot1];
+      const t2 = t.teams[+this.newMatchSlot2];
       if (t1) slot1 = t1.map((p: any) => typeof p === 'string' ? p : p._id || p);
       if (t2) slot2 = t2.map((p: any) => typeof p === 'string' ? p : p._id || p);
     }
 
-    this.tournamentService.addMatch(this.tournament._id, {
+    this.tournamentService.addMatch(t._id, {
       roundName: this.newMatchLabel.trim(),
       slot1Players: slot1,
       slot2Players: slot2,
       scheduledDate: this.newMatchDate || undefined,
       timeSlot: this.newMatchTime || undefined,
     }).subscribe({
-      next: (t) => {
-        this.tournament = t;
-        this.rounds = this.computeRounds(t);
-        this.addingMatch = false;
-        this.showAddMatch = false;
+      next: (updated) => {
+        this.tournament.set(updated);
+        this.rounds.set(this.computeRounds(updated));
+        this.addingMatch.set(false);
+        this.showAddMatch.set(false);
       },
       error: (err) => {
-        this.addMatchError = err.error?.error || 'Failed to add match';
-        this.addingMatch = false;
+        this.addMatchError.set(err.error?.error || 'Failed to add match');
+        this.addingMatch.set(false);
       }
     });
   }
 
   startEditRoundName(matchId: string, currentName: string) {
-    this.editingMatchRoundId = matchId;
+    this.editingMatchRoundId.set(matchId);
     this.editRoundNameValue = currentName;
   }
 
   cancelRoundName() {
-    this.editingMatchRoundId = null;
+    this.editingMatchRoundId.set(null);
     this.editRoundNameValue = '';
   }
 
   saveRoundName() {
-    if (!this.tournament || !this.editingMatchRoundId || this.savingRoundName) return;
+    const t = this.tournament();
+    const erId = this.editingMatchRoundId();
+    if (!t || !erId || this.savingRoundName()) return;
     const name = this.editRoundNameValue.trim();
     if (!name) { this.cancelRoundName(); return; }
-    this.savingRoundName = true;
-    this.tournamentService.updateMatch(this.tournament._id, this.editingMatchRoundId, { roundName: name }).subscribe({
-      next: (t) => {
-        this.tournament = t;
-        this.rounds = this.computeRounds(t);
-        this.editingMatchRoundId = null;
+    this.savingRoundName.set(true);
+    this.tournamentService.updateMatch(t._id, erId, { roundName: name }).subscribe({
+      next: (updated) => {
+        this.tournament.set(updated);
+        this.rounds.set(this.computeRounds(updated));
+        this.editingMatchRoundId.set(null);
         this.editRoundNameValue = '';
-        this.savingRoundName = false;
+        this.savingRoundName.set(false);
       },
       error: (err) => {
-        this.actionError = err.error?.error || 'Failed to rename';
-        this.savingRoundName = false;
-        this.editingMatchRoundId = null;
+        this.actionError.set(err.error?.error || 'Failed to rename');
+        this.savingRoundName.set(false);
+        this.editingMatchRoundId.set(null);
+      }
+    });
+  }
+
+  openSchedEdit(match: TournamentMatch) {
+    this.schedDate = match.scheduledDate ? match.scheduledDate.split('T')[0] : '';
+    this.schedTime = match.timeSlot || '';
+    this.schedEditId.set(match._id);
+  }
+
+  saveSchedEdit(matchId: string) {
+    const t = this.tournament();
+    if (!t) return;
+    this.savingSchedEdit.set(true);
+    this.tournamentService.updateMatch(t._id, matchId, {
+      scheduledDate: this.schedDate || null,
+      timeSlot: this.schedTime || undefined,
+    }).subscribe({
+      next: (updated) => {
+        this.tournament.set(updated);
+        this.rounds.set(this.computeRounds(updated));
+        this.schedEditId.set(null);
+        this.savingSchedEdit.set(false);
+      },
+      error: (err) => {
+        this.actionError.set(err.error?.error || 'Failed to save schedule');
+        this.savingSchedEdit.set(false);
       }
     });
   }
 
   getPlacement(type: 'champion' | 'runnerUp'): string {
-    if (!this.tournament || !this.rounds.length) return '—';
-    const final = this.tournament.matches.find(m => m.round === this.rounds.length && m.position === 0);
+    const t = this.tournament();
+    const r = this.rounds();
+    if (!t || !r.length) return '—';
+    const final = t.matches.find(m => m.round === r.length && m.position === 0);
     if (!final || !final.winner) return '—';
     const players = type === 'champion'
       ? (final.winner === 1 ? final.slot1Players : final.slot2Players)
@@ -1895,13 +2088,13 @@ export class AdminTournamentDetailComponent implements OnInit {
   }
 
   get hasMatchesWithoutWinner(): boolean {
-    return (this.tournament?.matches || [])
+    return (this.tournament()?.matches || [])
       .some(m => m.status === 'completed' && this.inferWinner(m) == null);
   }
 
   get tournamentRankings(): PlayerStat[] {
-    if (!this.tournament) return [];
-    const t = this.tournament;
+    const t = this.tournament();
+    if (!t) return [];
     const POINTS = {
       singles: { champion: 100, runnerUp: 70, semiFinal: 40, quarterFinal: 20, participation: 10 },
       doubles: { champion: 80,  runnerUp: 50, semiFinal: 30, quarterFinal: 15, participation: 5 }
@@ -1989,14 +2182,12 @@ export class AdminTournamentDetailComponent implements OnInit {
 
   placementClass(placement: string): string {
     const classes: Record<string, string> = {
-      'Champion':      'place-badge place-champion',
-      'Runner-up':     'place-badge place-runner-up',
-      'Semifinalist':  'place-badge place-semifinalist',
+      'Champion':        'place-badge place-champion',
+      'Runner-up':       'place-badge place-runner-up',
+      'Semifinalist':    'place-badge place-semifinalist',
       'Quarterfinalist': 'place-badge place-quarterfinalist',
-      'Participant':   'place-badge place-participant'
+      'Participant':     'place-badge place-participant'
     };
     return classes[placement] ?? 'place-badge place-participant';
   }
 }
-
-

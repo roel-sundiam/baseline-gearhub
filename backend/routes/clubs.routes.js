@@ -58,6 +58,21 @@ router.put("/:id", auth, admin, async (req, res) => {
   }
 });
 
+// PATCH /api/clubs/:id/status — suspend or unsuspend a club (admin only)
+router.patch("/:id/status", auth, admin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['active', 'suspended'].includes(status))
+      return res.status(400).json({ error: "Invalid status" });
+    const club = await Club.findByIdAndUpdate(req.params.id, { status }, { new: true }).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json(club);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // DELETE /api/clubs/:id — delete a club (admin only)
 router.delete("/:id", auth, admin, async (req, res) => {
   try {

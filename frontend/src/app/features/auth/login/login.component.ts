@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
+import { APP_VERSION } from '../../../version';
 import { ClubService } from '../../../core/services/club.service';
 import { AnalyticsTrackService } from '../../../core/services/analytics-track.service';
 
@@ -18,7 +19,7 @@ import { AnalyticsTrackService } from '../../../core/services/analytics-track.se
       <div class="auth-card">
         <div class="auth-header">
           <div class="header-banner">
-            <h1>Baseline Gearhub</h1>
+            <img src="/CourtGo.png" alt="CourtGo" class="hero-logo" />
           </div>
           <p class="header-sub">Member Login Access</p>
         </div>
@@ -60,7 +61,9 @@ import { AnalyticsTrackService } from '../../../core/services/analytics-track.se
         </form>
 
         <p class="auth-footer">Don't have an account? <a routerLink="/register">Register</a></p>
+        <p class="auth-footer club-register-link">New club? <a routerLink="/register-club">Register your club</a></p>
       </div>
+      <span class="app-version">{{ version }}</span>
     </div>
   `,
   styles: [
@@ -107,18 +110,18 @@ import { AnalyticsTrackService } from '../../../core/services/analytics-track.se
       .header-banner {
         background: var(--dm-header);
         padding: 2rem 2rem 1.5rem;
+        position: relative;
+        min-height: 84px;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 0.5rem;
       }
-      .header-banner h1 {
-        color: #ffffff;
-        font-size: 1.75rem;
-        font-weight: 800;
-        margin: 0;
-        letter-spacing: -0.5px;
-        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      .hero-logo {
+        position: absolute;
+        top: 16px;
+        right: 20px;
+        height: 34px;
+        width: auto;
       }
       .header-sub {
         color: var(--dm-accent);
@@ -217,12 +220,27 @@ import { AnalyticsTrackService } from '../../../core/services/analytics-track.se
       .auth-footer a:hover {
         color: rgba(163,230,53,0.9);
       }
+      .club-register-link {
+        margin-top: 0.25rem;
+        font-size: 0.82rem;
+        color: rgba(255,255,255,0.4);
+        padding-bottom: 1.5rem;
+        padding-top: 0;
+      }
+      .app-version {
+        position: absolute;
+        bottom: 0.85rem;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.7rem;
+        color: rgba(255,255,255,0.22);
+        letter-spacing: 0.08em;
+        pointer-events: none;
+        white-space: nowrap;
+      }
       @media (max-width: 600px) {
         .header-banner {
           padding: 1.5rem 1.5rem 1.25rem;
-        }
-        .header-banner h1 {
-          font-size: 1.5rem;
         }
         form {
           padding: 1.25rem 1.5rem;
@@ -238,6 +256,8 @@ import { AnalyticsTrackService } from '../../../core/services/analytics-track.se
   ],
 })
 export class LoginComponent {
+  readonly version = APP_VERSION;
+
   private auth = inject(AuthService);
   private clubService = inject(ClubService);
   private router = inject(Router);

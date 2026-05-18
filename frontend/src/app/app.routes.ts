@@ -15,6 +15,11 @@ export const routes: Routes = [
       import('./features/auth/register/register.component').then((m) => m.RegisterComponent),
   },
   {
+    path: 'register-club',
+    loadComponent: () =>
+      import('./features/auth/register-club/register-club.component').then((m) => m.RegisterClubComponent),
+  },
+  {
     path: 'admin',
     canActivate: [authGuard, adminGuard],
     children: [
@@ -119,6 +124,16 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/clubs/manage-admins.component').then((m) => m.ManageAdminsComponent),
       },
+      {
+        path: 'news',
+        loadComponent: () =>
+          import('./features/admin/news/admin-news.component').then((m) => m.AdminNewsComponent),
+      },
+      {
+        path: 'inquiries',
+        loadComponent: () =>
+          import('./features/admin/inquiries/inquiries.component').then((m) => m.InquiriesComponent),
+      },
     ],
   },
   {
@@ -182,6 +197,13 @@ export const routes: Routes = [
             (m) => m.PlayerTournamentDetailComponent,
           ),
       },
+      {
+        path: 'rules',
+        loadComponent: () =>
+          import('./features/player/rules/rules.component').then(
+            (m) => m.PlayerRulesComponent,
+          ),
+      },
     ],
   },
   {
@@ -190,6 +212,20 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/player/payments/payments.component').then(
         (m) => m.PlayerPaymentsComponent,
+      ),
+  },
+  {
+    path: 'book/:clubId/reserve',
+    loadComponent: () =>
+      import('./features/guest-booking/guest-reserve/guest-reserve.component').then(
+        (m) => m.GuestReserveComponent,
+      ),
+  },
+  {
+    path: 'book/:clubId',
+    loadComponent: () =>
+      import('./features/guest-booking/guest-book/guest-book.component').then(
+        (m) => m.GuestBookComponent,
       ),
   },
   { path: '**', redirectTo: 'login' },

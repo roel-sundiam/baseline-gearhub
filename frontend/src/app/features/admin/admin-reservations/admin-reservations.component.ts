@@ -2,15 +2,38 @@ import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReservationService, Reservation } from '../../../core/services/reservation.service';
+import { CalendarViewComponent } from '../../../shared/components/calendar-view/calendar-view.component';
 
 @Component({
   selector: 'app-admin-reservations',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CalendarViewComponent],
   template: `
     <div class="page-header">
-      <h2>Court Reservations</h2>
+      <div class="header-row">
+        <h2>Court Reservations</h2>
+        <div class="view-toggle">
+          <button class="view-btn" [class.view-btn-active]="viewMode === 'table'" (click)="setView('table')">
+            <i class="fas fa-table"></i> Table
+          </button>
+          <button class="view-btn" [class.view-btn-active]="viewMode === 'calendar'" (click)="setView('calendar')">
+            <i class="fas fa-calendar-alt"></i> Calendar
+          </button>
+        </div>
+      </div>
     </div>
+
+    <!-- Calendar view -->
+    @if (viewMode === 'calendar') {
+      @if (calLoading) {
+        <div class="loading">Loading...</div>
+      } @else {
+        <app-calendar-view [reservations]="calendarReservations" theme="light" />
+      }
+    }
+
+    <!-- Table view -->
+    @if (viewMode === 'table') {
 
     <!-- Filters -->
     <div class="filters">
@@ -109,10 +132,22 @@ import { ReservationService, Reservation } from '../../../core/services/reservat
         }
       </div>
     }
+
+    } <!-- end table view -->
   `,
   styles: [`
     .page-header { margin-bottom: 1.5rem; }
-    .page-header h2 { color: var(--primary); font-size: 1.4rem; }
+    .page-header h2 { color: var(--primary); font-size: 1.4rem; margin: 0; }
+    .header-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
+    .view-toggle { display: flex; gap: .35rem; }
+    .view-btn {
+      padding: .4rem .85rem; border: 1px solid #d1d5db; border-radius: 8px;
+      background: #f9fafb; cursor: pointer; font-size: .82rem; font-weight: 600;
+      color: #6b7280; transition: all .2s; display: flex; align-items: center; gap: .35rem;
+    }
+    .view-btn:hover { background: #e5e7eb; color: #374151; }
+    .view-btn-active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .view-btn-active:hover { background: var(--primary); opacity: .9; color: #fff; }
 
     .filters {
       display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1.25rem; align-items: center;
@@ -190,10 +225,13 @@ import { ReservationService, Reservation } from '../../../core/services/reservat
 })
 export class AdminReservationsComponent implements OnInit {
   reservations: Reservation[] = [];
+  calendarReservations: Reservation[] = [];
   loading = true;
+  calLoading = false;
   acting = '';
   filterDate = '';
   filterCourt = '';
+  viewMode: 'table' | 'calendar' = 'table';
 
   constructor(
     private reservationService: ReservationService,
@@ -226,12 +264,28 @@ export class AdminReservationsComponent implements OnInit {
     this.load();
   }
 
+  setView(mode: 'table' | 'calendar') {
+    this.viewMode = mode;
+    if (mode === 'calendar' && this.calendarReservations.length === 0) {
+      this.loadAllForCalendar();
+    }
+    this.cdr.detectChanges();
+  }
+
+  loadAllForCalendar() {
+    this.calLoading = true;
+    this.reservationService.getAll().subscribe({
+      next: (res) => { this.calendarReservations = res; this.calLoading = false; this.cdr.detectChanges(); },
+      error: () => { this.calLoading = false; this.cdr.detectChanges(); },
+    });
+  }
+
   playerName(r: Reservation): string {
-    return typeof r.player === 'object' ? r.player.name : '—';
+    return typeof r.player === 'object' && r.player ? r.player.name : '—';
   }
 
   playerEmail(r: Reservation): string {
-    return typeof r.player === 'object' ? r.player.email : '';
+    return typeof r.player === 'object' && r.player ? r.player.email : '';
   }
 
   cancel(r: Reservation) {

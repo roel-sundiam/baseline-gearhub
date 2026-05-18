@@ -5,6 +5,8 @@ import { Router, NavigationEnd } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { ClubService, Club } from '../../../core/services/club.service';
 import { CoinsService } from '../../../core/services/coins.service';
+import { SoundService } from '../../../core/services/sound.service';
+import { InquiriesService } from '../../../core/services/inquiries.service';
 
 @Component({
   selector: 'app-navbar',
@@ -13,25 +15,26 @@ import { CoinsService } from '../../../core/services/coins.service';
   template: `
     <nav class="navbar">
       <button type="button" class="nav-brand" (click)="goToDashboard()" title="Go to dashboard">
-        <img src="/baselinegh.jpg" alt="Baseline Gearhub" class="brand-logo" />
-        <span class="brand-name">Baseline Gearhub</span>
+        <img src="/CourtGo.png" alt="CourtGo" class="brand-logo" />
       </button>
 
       @if (auth.isLoggedIn()) {
-        @if (!auth.isSuperAdmin()) {
-          <div class="club-selector-wrap">
-            <div class="club-locked-badge" title="Your assigned club">
-              <span class="club-badge-icon" aria-hidden="true"><i class="fas fa-lock"></i></span>
-              <span class="club-value">{{ activeClubName() || 'No club assigned' }}</span>
-            </div>
-          </div>
-        }
 
         <!-- Coin Balance -->
         @if (!auth.isSuperAdmin()) {
           <button type="button" class="coin-badge" title="Manage coins" (click)="navigate('/admin/coins')">
             <i class="fas fa-coins"></i>
             <span>{{ coinsService.coinBalance() }}</span>
+          </button>
+        }
+
+        <!-- Inquiries chat icon (admin only) -->
+        @if (auth.isAdmin() && !auth.isSuperAdmin()) {
+          <button type="button" class="btn-inquiries" (click)="navigate('/admin/inquiries')" title="Inquiries">
+            <i class="fas fa-comment-dots"></i>
+            @if (unreadCount() > 0) {
+              <span class="inq-dot">{{ unreadCount() > 9 ? '9+' : unreadCount() }}</span>
+            }
           </button>
         }
 
@@ -57,6 +60,10 @@ import { CoinsService } from '../../../core/services/coins.service';
             </button>
           }
 
+          <button class="btn-mute" (click)="sound.toggleMute()" [title]="sound.muted() ? 'Unmute sounds' : 'Mute sounds'">
+            <i class="fas" [class.fa-bell]="!sound.muted()" [class.fa-bell-slash]="sound.muted()"></i>
+          </button>
+
           <button class="btn-logout" (click)="auth.logout()" title="Logout">
             <i class="fas fa-sign-out-alt"></i>
             <span class="icon-label">Logout</span>
@@ -65,6 +72,10 @@ import { CoinsService } from '../../../core/services/coins.service';
 
         <!-- Mobile Navigation -->
         <div class="mobile-nav">
+          <button class="btn-mute-mobile" (click)="sound.toggleMute()" [title]="sound.muted() ? 'Unmute sounds' : 'Mute sounds'">
+            <i class="fas" [class.fa-bell]="!sound.muted()" [class.fa-bell-slash]="sound.muted()"></i>
+          </button>
+
           @if (auth.user()) {
             <button
               type="button"
@@ -125,12 +136,9 @@ import { CoinsService } from '../../../core/services/coins.service';
         background: rgba(255, 255, 255, 0.1);
       }
       .brand-logo {
-        width: 26px;
-        height: 26px;
-        border-radius: 6px;
-        object-fit: cover;
-        border: 1px solid rgba(255, 255, 255, 0.35);
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+        height: 32px;
+        width: auto;
+        object-fit: contain;
       }
       .club-selector-wrap {
         display: flex;
@@ -353,6 +361,30 @@ import { CoinsService } from '../../../core/services/coins.service';
         display: flex; align-items: center; justify-content: center;
       }
       .btn-logout-mobile-icon:hover { background: rgba(255, 0, 0, 0.1); border-color: rgba(255, 0, 0, 0.3); }
+      .btn-mute {
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255,255,255,0.7);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 0.4rem 0.6rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+        display: flex; align-items: center;
+      }
+      .btn-mute:hover { background: rgba(255, 255, 255, 0.2); color: #ffffff; }
+      .btn-mute-mobile {
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255,255,255,0.7);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 0.4rem 0.6rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+        display: flex; align-items: center;
+      }
+      .btn-mute-mobile:hover { background: rgba(255, 255, 255, 0.2); color: #ffffff; }
       .coin-badge {
         display: inline-flex; align-items: center; gap: 5px;
         background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
@@ -363,13 +395,42 @@ import { CoinsService } from '../../../core/services/coins.service';
       .coin-badge:hover { background: rgba(255,255,255,0.25); }
       .coin-badge i { color: #fcd34d; font-size: 0.9rem; }
       .nav-btn-coins i { color: #fcd34d; }
+      .btn-inquiries {
+        position: relative;
+        background: rgba(255,255,255,0.1);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 8px;
+        width: 38px; height: 38px;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; font-size: 1.05rem;
+        transition: background 0.15s;
+        flex-shrink: 0;
+      }
+      .btn-inquiries:hover { background: rgba(255,255,255,0.22); }
+      .inq-dot {
+        position: absolute;
+        top: -5px; right: -5px;
+        background: #ef4444;
+        color: #fff;
+        border-radius: 10px;
+        min-width: 18px; height: 18px;
+        font-size: 0.65rem;
+        font-weight: 800;
+        display: flex; align-items: center; justify-content: center;
+        padding: 0 3px;
+        border: 2px solid #9f7338;
+        line-height: 1;
+      }
     `,
   ],
 })
 export class NavbarComponent implements OnInit, OnDestroy {
   mobileMenuOpen = false;
   protected clubs = signal<Club[]>([]);
+  unreadCount = signal(0);
   private routerSub: any;
+  private unreadPollTimer: any = null;
 
   readonly activeClubName = computed(() => {
     const clubs = this.clubs();
@@ -392,6 +453,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     public clubService: ClubService,
     public coinsService: CoinsService,
     private router: Router,
+    public sound: SoundService,
+    private inquiriesService: InquiriesService,
   ) {}
 
   ngOnInit() {
@@ -403,11 +466,19 @@ export class NavbarComponent implements OnInit, OnDestroy {
       this.coinsService.loadBalance().subscribe({ error: () => {} });
     }
 
-    // Toggle dark-player-page class for admin routes to match player dashboard
-    this.updateThemeClass(this.router.url);
+    if (this.auth.isAdmin() && !this.auth.isSuperAdmin()) {
+      this.loadUnreadCount();
+      this.unreadPollTimer = setInterval(() => this.loadUnreadCount(), 15000);
+    }
+
+    // Use window.location.pathname because router.url is '/' until first NavigationEnd
+    this.updateThemeClass(window.location.pathname);
     this.routerSub = this.router.events.subscribe((ev: any) => {
       if (ev instanceof NavigationEnd) {
         this.updateThemeClass(ev.urlAfterRedirects || ev.url || '');
+        if (this.auth.isAdmin() && !this.auth.isSuperAdmin()) {
+          this.loadUnreadCount();
+        }
       }
     });
   }
@@ -416,14 +487,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
     if (this.routerSub && typeof this.routerSub.unsubscribe === 'function') {
       this.routerSub.unsubscribe();
     }
+    if (this.unreadPollTimer) { clearInterval(this.unreadPollTimer); }
     document.documentElement.classList.remove('dark-player-page');
     document.body.classList.remove('dark-player-page');
   }
 
   private updateThemeClass(url: string) {
-    const isAdmin = typeof url === 'string' && url.startsWith('/admin');
+    const isDark = typeof url === 'string' && (url.startsWith('/admin') || url.startsWith('/player'));
     const cls = 'dark-player-page';
-    if (isAdmin) {
+    if (isDark) {
       document.documentElement.classList.add(cls);
       document.body.classList.add(cls);
     } else {
@@ -464,6 +536,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   goToProfile() {
     this.router.navigate(['/player/profile/edit']);
+  }
+
+  private loadUnreadCount() {
+    this.inquiriesService.getInquiries().subscribe({
+      next: (list) => this.unreadCount.set(list.filter(i => i.status === 'unread').length),
+      error: () => {},
+    });
   }
 
   toggleMobileMenu() {

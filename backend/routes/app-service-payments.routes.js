@@ -8,7 +8,8 @@ const router = express.Router();
 // GET /api/app-service-payments — list all (admin only)
 router.get("/", auth, admin, async (req, res) => {
   try {
-    const clubId = req.query.clubId || req.user.clubId;
+    const raw = req.query.clubId;
+    const clubId = (Array.isArray(raw) ? raw[0] : raw) || req.user.clubId;
     const payments = await AppServicePayment.find(clubId ? { clubId } : {})
       .populate("paidBy", "name email")
       .sort({ createdAt: -1 });
