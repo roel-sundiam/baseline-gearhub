@@ -149,11 +149,6 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
               <span class="action-title">Tournaments</span>
               <span class="action-sub">Schedule and manage upcoming events</span>
             </a>
-            <a routerLink="/admin/coins" class="action-card">
-              <span class="action-icon"><i class="fas fa-coins"></i></span>
-              <span class="action-title">Coins</span>
-              <span class="action-sub">Request and manage club coin balance</span>
-            </a>
             <a routerLink="/admin/news" class="action-card">
               <span class="action-icon"><i class="fas fa-newspaper"></i></span>
               <span class="action-title">Club News</span>

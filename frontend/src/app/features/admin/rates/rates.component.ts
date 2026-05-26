@@ -10,34 +10,32 @@ import { RatesService } from '../../../core/services/rates.service';
   imports: [CommonModule, FormsModule],
   template: `
     <section class="rates-shell">
-      <div class="page-header">
-        <p class="hero-kicker"><span style="color:#a3e635">Court</span><span style="color:#ffffff">Go</span></p>
-        <h2>Rate Management</h2>
-        <p class="subtitle">Set clear pricing rules for sessions, reservations, and rentals.</p>
-      </div>
+
+      <header class="hero-panel">
+        <div>
+          <p class="hero-kicker"><span style="color:#a3e635">Court</span><span style="color:#ffffff">Go</span></p>
+          <h2>Rate Management</h2>
+          <p class="hero-subtitle">Set pricing rules for sessions, reservations, and rentals.</p>
+        </div>
+      </header>
 
       @if (loading()) {
-        <div class="loading">Loading current rates...</div>
+        <div class="state-card">
+          <i class="fas fa-circle-notch fa-spin"></i>
+          <p>Loading current rates…</p>
+        </div>
       } @else if (errorMsg() && !saving()) {
         <div class="alert alert-error">{{ errorMsg() }}</div>
       } @else {
         <div class="rates-card">
           <form (ngSubmit)="onSave()" #f="ngForm">
-            <div class="description-banner">
-              <h3>How Pricing Is Applied</h3>
-              <p>
-                These values are used in player billing. Session rates are charged per game per
-                player, while reservation rates are charged per court hour.
-              </p>
+
+            <div class="info-banner">
+              <i class="fas fa-circle-info"></i>
+              <p>Session rates are charged <strong>per game per player</strong>. Reservation rates are charged <strong>per court hour</strong>.</p>
             </div>
 
-            <div class="section-divider">
-              <span>Session Billing Rates</span>
-            </div>
-            <p class="section-text">
-              Use these rates for court sessions recorded by admin. Light and no-light rates let
-              you reflect different operational costs.
-            </p>
+            <div class="section-divider"><span>Session Billing Rates</span></div>
 
             <div class="rates-grid">
               <div class="rate-item">
@@ -46,16 +44,8 @@ import { RatesService } from '../../../core/services/rates.service';
                   <label for="withoutLightRate">Without Light Rate (per game per player)</label>
                   <div class="input-prefix">
                     <span>₱</span>
-                    <input
-                      id="withoutLightRate"
-                      type="number"
-                      [(ngModel)]="withoutLightRate"
-                      name="withoutLightRate"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    <input id="withoutLightRate" type="number" [(ngModel)]="withoutLightRate"
+                      name="withoutLightRate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
                   <p class="field-help">Applied when the game is played without lights.</p>
                 </div>
@@ -67,64 +57,10 @@ import { RatesService } from '../../../core/services/rates.service';
                   <label for="lightRate">With Light Rate (per game per player)</label>
                   <div class="input-prefix">
                     <span>₱</span>
-                    <input
-                      id="lightRate"
-                      type="number"
-                      [(ngModel)]="lightRate"
-                      name="lightRate"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    <input id="lightRate" type="number" [(ngModel)]="lightRate"
+                      name="lightRate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
                   <p class="field-help">Applied when lights are turned on during gameplay.</p>
-                </div>
-              </div>
-
-              <div class="rate-item">
-                <div class="rate-icon">🎯</div>
-                <div class="form-group">
-                  <label for="training2WithoutLightRate"
-                    >Training 2 Without Light Rate (per game per player)</label
-                  >
-                  <div class="input-prefix">
-                    <span>₱</span>
-                    <input
-                      id="training2WithoutLightRate"
-                      type="number"
-                      [(ngModel)]="training2WithoutLightRate"
-                      name="training2WithoutLightRate"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <p class="field-help">Training Court 2 sessions billed without light usage.</p>
-                </div>
-              </div>
-
-              <div class="rate-item">
-                <div class="rate-icon">🏟️</div>
-                <div class="form-group">
-                  <label for="training2LightRate"
-                    >Training 2 With Light Rate (per game per player)</label
-                  >
-                  <div class="input-prefix">
-                    <span>₱</span>
-                    <input
-                      id="training2LightRate"
-                      type="number"
-                      [(ngModel)]="training2LightRate"
-                      name="training2LightRate"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <p class="field-help">Training Court 2 sessions billed with light usage.</p>
                 </div>
               </div>
 
@@ -134,30 +70,16 @@ import { RatesService } from '../../../core/services/rates.service';
                   <label for="ballBoyRate">Ball Boy Fee (per game per player)</label>
                   <div class="input-prefix">
                     <span>₱</span>
-                    <input
-                      id="ballBoyRate"
-                      type="number"
-                      [(ngModel)]="ballBoyRate"
-                      name="ballBoyRate"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    <input id="ballBoyRate" type="number" [(ngModel)]="ballBoyRate"
+                      name="ballBoyRate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
                   <p class="field-help">Optional per-game fee when a ball boy is requested.</p>
                 </div>
               </div>
             </div>
 
-            <div class="section-divider">
-              <span>Court Reservation Fees (per hour)</span>
-            </div>
-            <p class="section-text">
-              Flat rate per hour — applies to all time slots regardless of lights. Mon–Thu use the
-              weekday rate, Fri–Sun use the weekend rate. Players can mark a booking as a holiday
-              to apply the holiday rate instead.
-            </p>
+            <div class="section-divider"><span>Court Reservation Fees (per hour)</span></div>
+            <p class="section-text">Mon–Thu use the weekday rate, Fri–Sun use the weekend rate. Players can mark a booking as a holiday to apply the holiday rate.</p>
 
             <div class="rates-grid">
               <div class="rate-item">
@@ -166,16 +88,8 @@ import { RatesService } from '../../../core/services/rates.service';
                   <label for="reservationWeekdayRate">Weekday Rate — Mon to Thu (per hour)</label>
                   <div class="input-prefix">
                     <span>₱</span>
-                    <input
-                      id="reservationWeekdayRate"
-                      type="number"
-                      [(ngModel)]="reservationWeekdayRate"
-                      name="reservationWeekdayRate"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    <input id="reservationWeekdayRate" type="number" [(ngModel)]="reservationWeekdayRate"
+                      name="reservationWeekdayRate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
                   <p class="field-help">Flat rate applied to all time slots on weekdays.</p>
                 </div>
@@ -187,16 +101,8 @@ import { RatesService } from '../../../core/services/rates.service';
                   <label for="reservationWeekendRate">Weekend Rate — Fri to Sun (per hour)</label>
                   <div class="input-prefix">
                     <span>₱</span>
-                    <input
-                      id="reservationWeekendRate"
-                      type="number"
-                      [(ngModel)]="reservationWeekendRate"
-                      name="reservationWeekendRate"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    <input id="reservationWeekendRate" type="number" [(ngModel)]="reservationWeekendRate"
+                      name="reservationWeekendRate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
                   <p class="field-help">Flat rate applied to all time slots on weekends.</p>
                 </div>
@@ -208,16 +114,8 @@ import { RatesService } from '../../../core/services/rates.service';
                   <label for="reservationHolidayRate">Holiday Rate (per hour)</label>
                   <div class="input-prefix">
                     <span>₱</span>
-                    <input
-                      id="reservationHolidayRate"
-                      type="number"
-                      [(ngModel)]="reservationHolidayRate"
-                      name="reservationHolidayRate"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    <input id="reservationHolidayRate" type="number" [(ngModel)]="reservationHolidayRate"
+                      name="reservationHolidayRate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
                   <p class="field-help">Applied when the player marks the booking as a holiday.</p>
                 </div>
@@ -225,26 +123,18 @@ import { RatesService } from '../../../core/services/rates.service';
             </div>
 
             <p class="section-note">
-              💡 Lights fee uses the <strong>With Light Rate</strong> from Session Billing above.
+              <i class="fas fa-lightbulb"></i> Lights fee on reservations uses the <strong>With Light Rate</strong> from Session Billing above.
             </p>
 
-            <div class="rates-grid" style="margin-top: .75rem">
+            <div class="rates-grid" style="margin-top:.75rem">
               <div class="rate-item">
                 <div class="rate-icon">🧑‍🤝‍🧑</div>
                 <div class="form-group">
                   <label for="reservationGuestFee">Guest Fee (per guest)</label>
                   <div class="input-prefix">
                     <span>₱</span>
-                    <input
-                      id="reservationGuestFee"
-                      type="number"
-                      [(ngModel)]="reservationGuestFee"
-                      name="reservationGuestFee"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    <input id="reservationGuestFee" type="number" [(ngModel)]="reservationGuestFee"
+                      name="reservationGuestFee" required min="0" step="0.01" placeholder="0.00" />
                   </div>
                   <p class="field-help">Charged per non-member guest joining the court booking.</p>
                 </div>
@@ -252,7 +142,6 @@ import { RatesService } from '../../../core/services/rates.service';
             </div>
 
             <div class="section-divider"><span>Rentals (per hour)</span></div>
-            <p class="section-text">Rates for equipment available for rent during court bookings.</p>
 
             <div class="rates-grid">
               <div class="rate-item">
@@ -261,16 +150,8 @@ import { RatesService } from '../../../core/services/rates.service';
                   <label for="rentalBalls50Rate">Balls — 50 pcs (per hour)</label>
                   <div class="input-prefix">
                     <span>₱</span>
-                    <input
-                      id="rentalBalls50Rate"
-                      type="number"
-                      [(ngModel)]="rentalBalls50Rate"
-                      name="rentalBalls50Rate"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    <input id="rentalBalls50Rate" type="number" [(ngModel)]="rentalBalls50Rate"
+                      name="rentalBalls50Rate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
                   <p class="field-help">50-piece ball set rental per booking hour.</p>
                 </div>
@@ -282,16 +163,8 @@ import { RatesService } from '../../../core/services/rates.service';
                   <label for="rentalBalls100Rate">Balls — 100 pcs (per hour)</label>
                   <div class="input-prefix">
                     <span>₱</span>
-                    <input
-                      id="rentalBalls100Rate"
-                      type="number"
-                      [(ngModel)]="rentalBalls100Rate"
-                      name="rentalBalls100Rate"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    <input id="rentalBalls100Rate" type="number" [(ngModel)]="rentalBalls100Rate"
+                      name="rentalBalls100Rate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
                   <p class="field-help">100-piece ball set rental per booking hour.</p>
                 </div>
@@ -303,16 +176,8 @@ import { RatesService } from '../../../core/services/rates.service';
                   <label for="rentalBallMachineRate">Ball Machine (per hour)</label>
                   <div class="input-prefix">
                     <span>₱</span>
-                    <input
-                      id="rentalBallMachineRate"
-                      type="number"
-                      [(ngModel)]="rentalBallMachineRate"
-                      name="rentalBallMachineRate"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    <input id="rentalBallMachineRate" type="number" [(ngModel)]="rentalBallMachineRate"
+                      name="rentalBallMachineRate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
                   <p class="field-help">Ball machine rental per booking hour.</p>
                 </div>
@@ -324,16 +189,8 @@ import { RatesService } from '../../../core/services/rates.service';
                   <label for="rentalRacketRate">Racket (per racket / hour)</label>
                   <div class="input-prefix">
                     <span>₱</span>
-                    <input
-                      id="rentalRacketRate"
-                      type="number"
-                      [(ngModel)]="rentalRacketRate"
-                      name="rentalRacketRate"
-                      required
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    <input id="rentalRacketRate" type="number" [(ngModel)]="rentalRacketRate"
+                      name="rentalRacketRate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
                   <p class="field-help">Per racket rental per booking hour.</p>
                 </div>
@@ -341,81 +198,77 @@ import { RatesService } from '../../../core/services/rates.service';
             </div>
 
             @if (lastUpdated()) {
-              <p class="last-updated">Last updated: {{ lastUpdated() | date: 'medium' }}</p>
+              <p class="last-updated"><i class="fas fa-clock"></i> Last updated: {{ lastUpdated() | date: 'medium' }}</p>
             }
 
             @if (successMsg()) {
-              <div class="alert alert-success">{{ successMsg() }}</div>
+              <div class="alert alert-success"><i class="fas fa-check-circle"></i> {{ successMsg() }}</div>
             }
             @if (errorMsg()) {
-              <div class="alert alert-error">{{ errorMsg() }}</div>
+              <div class="alert alert-error"><i class="fas fa-triangle-exclamation"></i> {{ errorMsg() }}</div>
             }
 
             <div class="form-actions">
-              <button type="submit" class="btn-primary" [disabled]="saving()">
-                {{ saving() ? 'Saving...' : 'Save Rates' }}
+              <button type="submit" class="btn-save" [disabled]="saving()">
+                <i class="fas" [class.fa-floppy-disk]="!saving()" [class.fa-circle-notch]="saving()" [class.fa-spin]="saving()"></i>
+                {{ saving() ? 'Saving…' : 'Save Rates' }}
               </button>
             </div>
           </form>
         </div>
 
         <div class="billing-preview">
-          <h3>Billing Formula Preview</h3>
+          <div class="section-header">
+            <p class="section-kicker">Reference</p>
+            <h3>Billing Formula Preview</h3>
+          </div>
           <div class="formula-card">
             <div class="formula-row">
               <span>🌙 Without Light Fee</span>
-              <span>= games without light × {{ withoutLightRate | currency: 'PHP' : 'symbol' }}</span>
+              <span>= games × {{ withoutLightRate | currency: 'PHP' : 'symbol' }}</span>
             </div>
             <div class="formula-row">
               <span>💡 With Light Fee</span>
-              <span>= games with light × {{ lightRate | currency: 'PHP' : 'symbol' }}</span>
+              <span>= games × {{ lightRate | currency: 'PHP' : 'symbol' }}</span>
             </div>
             <div class="formula-row">
-              <span>🎯 Training 2 Without Light</span>
-              <span>= games × {{ training2WithoutLightRate | currency: 'PHP' : 'symbol' }}</span>
-            </div>
-            <div class="formula-row">
-              <span>🏟️ Training 2 With Light</span>
-              <span>= games × {{ training2LightRate | currency: 'PHP' : 'symbol' }}</span>
-            </div>
-            <div class="formula-row">
-              <span>🙋 Ball Boy Fee (if used)</span>
+              <span>🙋 Ball Boy Fee</span>
               <span>= total games × {{ ballBoyRate | currency: 'PHP' : 'symbol' }}</span>
             </div>
-            <div class="formula-row highlight-weekday">
+            <div class="formula-row accent-green">
               <span>📅 Reservation — Weekday (Mon–Thu)</span>
               <span>= {{ reservationWeekdayRate | currency: 'PHP' : 'symbol' }} / hr</span>
             </div>
-            <div class="formula-row highlight-weekend">
+            <div class="formula-row accent-amber">
               <span>🎉 Reservation — Weekend (Fri–Sun)</span>
               <span>= {{ reservationWeekendRate | currency: 'PHP' : 'symbol' }} / hr</span>
             </div>
-            <div class="formula-row highlight-holiday">
+            <div class="formula-row accent-purple">
               <span>🏖️ Reservation — Holiday</span>
               <span>= {{ reservationHolidayRate | currency: 'PHP' : 'symbol' }} / hr</span>
             </div>
             <div class="formula-row">
-              <span>💡 Reservation Lights (if requested)</span>
+              <span>💡 Lights add-on</span>
               <span>= + {{ lightRate | currency: 'PHP' : 'symbol' }}</span>
             </div>
             <div class="formula-row">
-              <span>🧑‍🤝‍🧑 Guest Fee (per guest)</span>
+              <span>🧑‍🤝‍🧑 Guest Fee</span>
               <span>= guests × {{ reservationGuestFee | currency: 'PHP' : 'symbol' }}</span>
             </div>
             <div class="formula-row">
-              <span>🎾 Balls 50 pcs rental</span>
+              <span>🎾 Balls 50 pcs</span>
               <span>= {{ rentalBalls50Rate | currency: 'PHP' : 'symbol' }} / hr</span>
             </div>
             <div class="formula-row">
-              <span>🎾 Balls 100 pcs rental</span>
+              <span>🎾 Balls 100 pcs</span>
               <span>= {{ rentalBalls100Rate | currency: 'PHP' : 'symbol' }} / hr</span>
             </div>
             <div class="formula-row">
-              <span>🤖 Ball Machine rental</span>
+              <span>🤖 Ball Machine</span>
               <span>= {{ rentalBallMachineRate | currency: 'PHP' : 'symbol' }} / hr</span>
             </div>
             <div class="formula-row">
-              <span>🏓 Racket rental (per racket)</span>
+              <span>🏓 Racket (per racket)</span>
               <span>= {{ rentalRacketRate | currency: 'PHP' : 'symbol' }} / hr</span>
             </div>
           </div>
@@ -426,191 +279,106 @@ import { RatesService } from '../../../core/services/rates.service';
   styles: [
     `
       :host {
-        --ink: #102226;
-        --teal-700: #16636f;
-        --teal-600: #1d7b87;
-        --sand: #f6f2e8;
-        --line: rgba(16, 34, 38, 0.11);
-        --card-bg: rgba(255, 255, 255, 0.95);
         display: block;
-        font-family: 'Manrope', 'Segoe UI', 'Helvetica Neue', sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        background: var(--dm-bg);
       }
 
       .rates-shell {
         display: grid;
-        gap: 0.95rem;
+        gap: 1rem;
+        padding: 1.5rem;
+        min-height: calc(100vh - 60px);
       }
 
-      .page-header {
-        background:
-          radial-gradient(circle at top right, rgba(242, 183, 75, 0.28), transparent 44%),
-          linear-gradient(145deg, var(--sand), #ffffff);
-        border: 1px solid var(--line);
+      /* ── Hero ── */
+      .hero-panel {
+        background: var(--dm-header);
+        border: 1px solid rgba(163,230,53,0.12);
         border-radius: 18px;
         padding: 1rem 1.2rem;
-        box-shadow: 0 10px 28px rgba(7, 24, 28, 0.12);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.32);
       }
 
       .hero-kicker {
-        margin: 0 0 0.15rem;
-        color: var(--teal-700);
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
+        margin: 0 0 0.2rem;
         font-size: 0.74rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
         font-weight: 800;
       }
 
-      .page-header h2 {
+      .hero-panel h2 {
         margin: 0;
-        color: var(--ink);
-        font-size: 1.35rem;
+        font-size: 1.42rem;
+        color: #ffffff;
         letter-spacing: -0.02em;
       }
 
-      .subtitle {
+      .hero-subtitle {
         margin: 0.35rem 0 0;
-        color: rgba(16, 34, 38, 0.72);
-        font-size: 0.9rem;
+        color: rgba(255,255,255,0.7);
+        font-size: 0.91rem;
       }
 
-      .loading {
-        background: var(--card-bg);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        color: rgba(16, 34, 38, 0.74);
-        padding: 1rem;
-        box-shadow: 0 8px 22px rgba(10, 20, 24, 0.09);
-      }
-
-      .rates-card,
-      .billing-preview {
-        background: var(--card-bg);
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        padding: 0.95rem;
-        box-shadow: 0 8px 22px rgba(10, 20, 24, 0.09);
-      }
-
-      .description-banner {
-        border: 1px solid rgba(22, 99, 111, 0.18);
-        background: linear-gradient(135deg, #f0fafb 0%, #e8f5f7 100%);
-        border-radius: 10px;
-        padding: 0.9rem 1rem;
-        margin-bottom: 1rem;
-      }
-
-      .description-banner h3 {
-        margin: 0 0 0.35rem;
-        color: var(--ink);
-        font-size: 0.96rem;
-      }
-
-      .description-banner p,
-      .section-text {
-        margin: 0;
-        color: rgba(16, 34, 38, 0.72);
-        font-size: 0.84rem;
-        line-height: 1.45;
-      }
-
-      .section-text {
-        margin: -0.35rem 0 1rem;
-      }
-
-      .rates-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 0.85rem;
-        margin-bottom: 1rem;
-      }
-
-      .rate-item {
-        display: flex;
-        gap: 0.65rem;
-        align-items: flex-start;
-        background: #ffffff;
-        border: 1px solid rgba(16, 34, 38, 0.11);
-        border-radius: 12px;
-        padding: 0.75rem;
-      }
-
-      .rate-icon {
-        font-size: 1.45rem;
-        margin-top: 0.25rem;
-      }
-
-      .form-group {
-        width: 100%;
-      }
-
-      .form-group label {
-        color: var(--ink);
-        font-size: 0.84rem;
-        font-weight: 700;
-      }
-
-      .input-prefix {
+      /* ── State ── */
+      .state-card {
+        background: var(--dm-surface);
+        border: 1px solid rgba(163,230,53,0.12);
+        border-radius: 14px;
+        padding: 1.5rem;
+        color: rgba(255,255,255,0.6);
         display: flex;
         align-items: center;
-        border: 1px solid rgba(16, 34, 38, 0.2);
-        border-radius: 8px;
-        overflow: hidden;
-        background: #ffffff;
-      }
-
-      .input-prefix span {
-        padding: 0.58rem 0.72rem;
-        background: #f4f8f9;
-        border-right: 1px solid rgba(16, 34, 38, 0.18);
-        color: rgba(16, 34, 38, 0.75);
+        gap: 0.6rem;
         font-size: 0.9rem;
-        font-weight: 700;
       }
 
-      .input-prefix input {
-        border: none;
-        padding: 0.58rem 0.72rem;
-        width: 100%;
-        font-size: 0.95rem;
-        color: var(--ink);
+      /* ── Main card ── */
+      .rates-card,
+      .billing-preview {
+        background: var(--dm-surface);
+        border: 1px solid rgba(163,230,53,0.10);
+        border-radius: 16px;
+        padding: 1.1rem;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.28);
       }
 
-      .input-prefix input:focus {
-        outline: none;
+      /* ── Info banner ── */
+      .info-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.55rem;
+        background: rgba(163,230,53,0.07);
+        border: 1px solid rgba(163,230,53,0.18);
+        border-radius: 10px;
+        padding: 0.75rem 0.9rem;
+        margin-bottom: 1.1rem;
+        font-size: 0.85rem;
+        color: rgba(255,255,255,0.75);
+        line-height: 1.5;
       }
 
-      .input-prefix:focus-within {
-        border-color: #0f7481;
-        box-shadow: 0 0 0 2px rgba(15, 116, 129, 0.14);
+      .info-banner i {
+        color: var(--dm-accent);
+        margin-top: 0.15rem;
+        flex-shrink: 0;
       }
 
-      .field-help {
-        margin: 0.4rem 0 0;
-        font-size: 0.78rem;
-        color: rgba(16, 34, 38, 0.66);
-        line-height: 1.4;
-      }
+      .info-banner p { margin: 0; }
+      .info-banner strong { color: #ffffff; }
 
-      .section-note {
-        font-size: 0.82rem;
-        color: rgba(16, 34, 38, 0.72);
-        margin: 0.25rem 0 0.75rem;
-        padding: 0.55rem 0.72rem;
-        background: #edf9ef;
-        border-radius: 8px;
-        border-left: 3px solid #79d89a;
-      }
-
+      /* ── Section divider ── */
       .section-divider {
         display: flex;
         align-items: center;
         gap: 0.75rem;
-        margin: 1.45rem 0 1rem;
-        color: rgba(16, 34, 38, 0.62);
-        font-size: 0.8rem;
-        font-weight: 700;
+        margin: 1.3rem 0 0.9rem;
+        color: var(--dm-accent);
+        font-size: 0.75rem;
+        font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.1em;
       }
 
       .section-divider::before,
@@ -618,154 +386,245 @@ import { RatesService } from '../../../core/services/rates.service';
         content: '';
         flex: 1;
         height: 1px;
-        background: rgba(16, 34, 38, 0.13);
+        background: rgba(163,230,53,0.18);
       }
 
-      .last-updated {
-        color: rgba(16, 34, 38, 0.64);
-        font-size: 0.82rem;
-        margin-bottom: 1rem;
+      .section-text {
+        margin: -0.4rem 0 0.9rem;
+        font-size: 0.83rem;
+        color: rgba(255,255,255,0.55);
+        line-height: 1.45;
       }
 
-      .form-actions {
-        margin-top: 1.25rem;
+      /* ── Rate grid ── */
+      .rates-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 0.8rem;
+        margin-bottom: 0.9rem;
       }
 
-      .form-actions .btn-primary {
-        background: linear-gradient(145deg, var(--teal-600), #155860);
+      .rate-item {
+        display: flex;
+        gap: 0.65rem;
+        align-items: flex-start;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(163,230,53,0.1);
+        border-radius: 12px;
+        padding: 0.8rem;
+        transition: border-color 0.2s;
+      }
+
+      .rate-item:focus-within {
+        border-color: rgba(163,230,53,0.35);
+      }
+
+      .rate-icon {
+        font-size: 1.35rem;
+        margin-top: 0.2rem;
+        flex-shrink: 0;
+      }
+
+      .form-group { width: 100%; }
+
+      .form-group label {
+        display: block;
+        color: rgba(255,255,255,0.85);
+        font-size: 0.83rem;
+        font-weight: 700;
+        margin-bottom: 0.45rem;
+      }
+
+      /* ── Input ── */
+      .input-prefix {
+        display: flex;
+        align-items: center;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.05);
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+
+      .input-prefix:focus-within {
+        border-color: rgba(163,230,53,0.45);
+        box-shadow: 0 0 0 3px rgba(163,230,53,0.12);
+      }
+
+      .input-prefix span {
+        padding: 0.58rem 0.72rem;
+        background: rgba(163,230,53,0.08);
+        border-right: 1px solid rgba(255,255,255,0.08);
+        color: var(--dm-accent);
+        font-size: 0.88rem;
+        font-weight: 800;
+        flex-shrink: 0;
+      }
+
+      .input-prefix input {
+        border: none;
+        background: transparent;
+        padding: 0.58rem 0.72rem;
+        width: 100%;
+        font-size: 0.95rem;
         color: #ffffff;
+        font-family: inherit;
+      }
+
+      .input-prefix input:focus { outline: none; }
+      .input-prefix input::placeholder { color: rgba(255,255,255,0.3); }
+
+      .field-help {
+        margin: 0.38rem 0 0;
+        font-size: 0.77rem;
+        color: rgba(255,255,255,0.45);
+        line-height: 1.4;
+      }
+
+      /* ── Section note ── */
+      .section-note {
+        font-size: 0.82rem;
+        color: rgba(255,255,255,0.65);
+        margin: 0.1rem 0 0.75rem;
+        padding: 0.55rem 0.8rem;
+        background: rgba(163,230,53,0.07);
+        border-radius: 8px;
+        border-left: 3px solid rgba(163,230,53,0.45);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .section-note i { color: var(--dm-accent); }
+      .section-note strong { color: #ffffff; }
+
+      /* ── Last updated ── */
+      .last-updated {
+        font-size: 0.8rem;
+        color: rgba(255,255,255,0.4);
+        margin: 0.75rem 0 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+
+      /* ── Save button ── */
+      .form-actions { margin-top: 1.1rem; }
+
+      .btn-save {
+        background: #a3e635;
+        color: #0c1a11;
         border: none;
         border-radius: 10px;
-        padding: 0.6rem 1rem;
-        font-weight: 700;
-        box-shadow: 0 8px 16px rgba(21, 88, 96, 0.26);
+        padding: 0.62rem 1.4rem;
+        font-size: 0.92rem;
+        font-weight: 800;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: background 0.2s, transform 0.15s, box-shadow 0.15s;
+        box-shadow: 0 4px 14px rgba(163,230,53,0.25);
+        font-family: inherit;
       }
 
-      .form-actions .btn-primary:hover:not(:disabled) {
+      .btn-save:hover:not(:disabled) {
+        background: #b5f542;
         transform: translateY(-1px);
-        box-shadow: 0 10px 18px rgba(21, 88, 96, 0.32);
+        box-shadow: 0 6px 18px rgba(163,230,53,0.32);
       }
 
-      .form-actions .btn-primary:disabled {
-        opacity: 0.7;
+      .btn-save:disabled {
+        opacity: 0.65;
         cursor: not-allowed;
       }
 
+      /* ── Alerts ── */
       .alert {
-        border-radius: 8px;
-        padding: 0.6rem 0.7rem;
+        border-radius: 9px;
+        padding: 0.65rem 0.8rem;
         font-size: 0.84rem;
-        margin-top: 0.7rem;
+        margin-top: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
       }
 
       .alert-success {
-        background: #ecfdf3;
-        color: #106a2f;
-        border: 1px solid rgba(16, 106, 47, 0.24);
+        background: rgba(163,230,53,0.1);
+        color: #a3e635;
+        border: 1px solid rgba(163,230,53,0.25);
       }
 
       .alert-error {
-        background: #fff1f1;
-        color: #b22e2e;
-        border: 1px solid rgba(178, 46, 46, 0.24);
+        background: rgba(239,68,68,0.1);
+        color: #fca5a5;
+        border: 1px solid rgba(239,68,68,0.22);
+      }
+
+      /* ── Billing preview ── */
+      .section-header { margin-bottom: 0.75rem; }
+
+      .section-kicker {
+        margin: 0 0 0.1rem;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--dm-accent);
+        font-weight: 800;
       }
 
       .billing-preview h3 {
-        color: var(--ink);
+        margin: 0;
         font-size: 1rem;
-        margin: 0 0 0.75rem;
+        color: #ffffff;
       }
 
       .formula-card {
         display: flex;
         flex-direction: column;
-        gap: 0.45rem;
+        gap: 0.4rem;
       }
 
       .formula-row {
         display: flex;
         justify-content: space-between;
+        align-items: center;
         gap: 0.6rem;
-        padding: 0.58rem 0.68rem;
-        background: #f4f9fa;
-        border: 1px solid rgba(16, 34, 38, 0.09);
+        padding: 0.55rem 0.72rem;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.06);
         border-radius: 8px;
-        font-size: 0.85rem;
+        font-size: 0.84rem;
+        color: rgba(255,255,255,0.75);
       }
 
       .formula-row span:last-child {
-        font-weight: 600;
-        color: var(--teal-700);
+        font-weight: 700;
+        color: var(--dm-accent);
         text-align: right;
+        white-space: nowrap;
       }
 
-      .highlight-weekday {
-        background: #f0fdf4;
-      }
+      .accent-green { border-left: 3px solid rgba(163,230,53,0.45); }
+      .accent-green span:last-child { color: #a3e635; }
 
-      .highlight-weekday span:last-child {
-        color: #15803d;
-      }
+      .accent-amber { border-left: 3px solid rgba(251,191,36,0.45); }
+      .accent-amber span:last-child { color: #fbbf24; }
 
-      .highlight-weekend {
-        background: #fff7ed;
-      }
+      .accent-purple { border-left: 3px solid rgba(167,139,250,0.45); }
+      .accent-purple span:last-child { color: #c4b5fd; }
 
-      .highlight-weekend span:last-child {
-        color: #c2410c;
-      }
-
-      .highlight-holiday {
-        background: #fdf4ff;
-      }
-
-      .highlight-holiday span:last-child {
-        color: #7e22ce;
-      }
-
+      /* ── Mobile ── */
       @media (max-width: 640px) {
-        .rates-shell {
-          gap: 0.8rem;
-        }
-
-        .page-header {
-          padding: 0.85rem;
-        }
-
-        .page-header h2 {
-          font-size: 1.2rem;
-        }
-
-        .subtitle {
-          font-size: 0.84rem;
-        }
-
-        .rates-card,
-        .billing-preview {
-          padding: 0.78rem;
-        }
-
-        .rates-grid {
-          grid-template-columns: 1fr;
-          gap: 0.7rem;
-        }
-
-        .rate-item {
-          padding: 0.68rem;
-        }
-
-        .formula-row {
-          flex-direction: column;
-          align-items: flex-start;
-        }
-
-        .formula-row span:last-child {
-          text-align: left;
-        }
-
-        .form-actions .btn-primary {
-          width: 100%;
-        }
+        .rates-shell { padding: 0.85rem; gap: 0.85rem; }
+        .hero-panel { padding: 0.85rem; }
+        .hero-panel h2 { font-size: 1.2rem; }
+        .rates-card, .billing-preview { padding: 0.85rem; }
+        .rates-grid { grid-template-columns: 1fr; gap: 0.65rem; }
+        .formula-row { flex-direction: column; align-items: flex-start; gap: 0.2rem; }
+        .formula-row span:last-child { text-align: left; }
+        .btn-save { width: 100%; justify-content: center; }
       }
     `,
   ],
