@@ -13,9 +13,6 @@ import { SoundService } from './core/services/sound.service';
   selector: 'app-root',
   imports: [RouterOutlet, NavbarComponent, LiveVisitorsWidgetComponent],
   template: `
-    <div class="court-bg">
-      <div class="court-overlay"></div>
-    </div>
     @if (!isAuthRoute()) {
       <app-navbar />
     }
@@ -59,17 +56,6 @@ import { SoundService } from './core/services/sound.service';
   `,
   styles: [
     `
-      .court-bg {
-        position: fixed;
-        inset: 0;
-        background: url('/tennis-court-surface.png') center center / cover no-repeat;
-        z-index: -1;
-      }
-      .court-overlay {
-        position: absolute;
-        inset: 0;
-        background: rgba(0, 18, 0, 0.35);
-      }
       .main-content {
         min-height: calc(100vh - 60px);
         padding: 1.5rem;
@@ -264,6 +250,6 @@ export class App {
 
   isAuthRoute(): boolean {
     const url = this.router.url;
-    return url.includes('/login') || url.includes('/register') || url.startsWith('/book/');
+    return url === '/' || url === '' || url.includes('/login') || url.includes('/register') || url.startsWith('/book/');
   }
 }

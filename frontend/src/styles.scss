@@ -1,23 +1,23 @@
 /* ===========================
-   PV Tennis Club — Global Styles
+   CourtGo — Global Styles
    =========================== */
 
 :root {
-  --primary: #b88942;
-  --primary-light: #c9a15d;
-  --primary-dark: #9f7338;
-  --accent: #c9a15d;
-  --accent-light: #d6b777;
-  --bg: #f6efe4;
-  --surface: #ffffff;
+  --primary: #a3e635;
+  --primary-light: #b5f040;
+  --primary-dark: #84cc16;
+  --accent: #a3e635;
+  --accent-light: #b5f040;
+  --bg: #0c1a11;
+  --surface: #1b3028;
   --text: #f9fafb;
   --text-muted: #9ca3af;
   --text-secondary: #d1d5db;
-  --border: #374151;
-  --warm-bg: #efe2cf;
-  --panel: #e8d7bf;
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --border: rgba(255,255,255,0.1);
+  --warm-bg: #1b3028;
+  --panel: #111f16;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
   --gold: #f59e0b;
   --danger: #ef4444;
   --warning: #f59e0b;
@@ -38,7 +38,7 @@ body {
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 16px;
   color: var(--text);
-  background: #f6efe4;
+  background: #0c1a11;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -48,11 +48,11 @@ select,
 textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 1.5px solid #e5e7eb;
+  border: 1.5px solid rgba(255,255,255,0.1);
   border-radius: 10px;
   font-size: 0.95rem;
-  color: #111827;
-  background: white;
+  color: #ffffff;
+  background: rgba(255,255,255,0.05);
   transition:
     border-color 0.2s,
     box-shadow 0.2s,
@@ -63,16 +63,16 @@ textarea {
 input::placeholder,
 select::placeholder,
 textarea::placeholder {
-  color: #9ca3af;
+  color: rgba(255,255,255,0.3);
 }
 
 input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: #c9a15d;
-  box-shadow: 0 0 0 3px rgba(201, 161, 93, 0.15);
-  background: white;
+  border-color: rgba(163,230,53,0.4);
+  box-shadow: 0 0 0 3px rgba(163,230,53,0.12);
+  background: rgba(255,255,255,0.06);
 }
 
 input[type='date'],
@@ -85,13 +85,13 @@ input[type='time'] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #b88942;
-  color: white;
+  background: #a3e635;
+  color: #0c1a11;
   border: none;
   border-radius: 10px;
   padding: 0.75rem 1.5rem;
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   text-decoration: none;
   min-height: 44px;
@@ -99,12 +99,12 @@ input[type='time'] {
     background 0.2s,
     box-shadow 0.2s,
     transform 0.1s;
-  box-shadow: 0 4px 12px rgba(184, 137, 66, 0.35);
+  box-shadow: 0 4px 12px rgba(163,230,53,0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #9f7338;
-  box-shadow: 0 6px 16px rgba(184, 137, 66, 0.45);
+  background: #b5f040;
+  box-shadow: 0 6px 16px rgba(163,230,53,0.42);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -120,8 +120,8 @@ input[type='time'] {
   display: inline-flex;
   align-items: center;
   background: transparent;
-  color: #b88942;
-  border: 1.5px solid #b88942;
+  color: #a3e635;
+  border: 1.5px solid rgba(163,230,53,0.4);
   border-radius: 10px;
   padding: 0.65rem 1.25rem;
   font-size: 0.9rem;
@@ -133,9 +133,9 @@ input[type='time'] {
 }
 
 .btn-secondary:hover {
-  background: #f8f1e4;
-  border-color: #9f7338;
-  color: #9f7338;
+  background: rgba(163,230,53,0.08);
+  border-color: rgba(163,230,53,0.6);
+  color: #b5f040;
 }
 
 .btn-full {
@@ -151,15 +151,15 @@ input[type='time'] {
 }
 
 .alert-error {
-  background: #fef2f2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
+  background: rgba(239,68,68,0.1);
+  color: #fca5a5;
+  border: 1px solid rgba(239,68,68,0.25);
 }
 
 .alert-success {
-  background: #f8f1e4;
-  color: #7a5626;
-  border: 1px solid #e6d2ad;
+  background: rgba(163,230,53,0.08);
+  color: #a3e635;
+  border: 1px solid rgba(163,230,53,0.25);
 }
 
 /* ---- Scrollbar ---- */
@@ -171,7 +171,7 @@ input[type='time'] {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #c9a15d;
+  background: rgba(163,230,53,0.35);
   border-radius: 3px;
 }
 
@@ -179,11 +179,6 @@ input[type='time'] {
 html.dark-player-page,
 body.dark-player-page {
   background: #0c1a11;
-
-  /* Hide the global court background image */
-  .court-bg {
-    display: none;
-  }
 
   /* Fill the entire main content area dark */
   .main-content {

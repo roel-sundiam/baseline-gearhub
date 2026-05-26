@@ -5,13 +5,30 @@ const adminOnly = require("../middleware/admin");
 
 const router = express.Router();
 
-// GET /api/inquiries — list for admin's club, newest first
+// Backwards-compat: old docs used message:String + replies:[]. Synthesize messages[] if empty.
+function normalizeInquiry(inq) {
+  if (inq.messages && inq.messages.length > 0) return inq;
+  const msgs = [];
+  if (inq.message) {
+    msgs.push({ sender: "guest", name: inq.senderName, body: inq.message, createdAt: inq.createdAt });
+  }
+  if (Array.isArray(inq.replies)) {
+    for (const r of inq.replies) {
+      msgs.push({ sender: "admin", name: r.adminName || "Admin", body: r.body, createdAt: r.createdAt });
+    }
+  }
+  return { ...inq, messages: msgs };
+}
+
+// GET /api/inquiries — list for admin's own club, or any club for superadmin (?clubId=)
 router.get("/", auth, adminOnly, async (req, res) => {
   try {
-    const inquiries = await Inquiry.find({ clubId: req.user.clubId })
+    const isSuperAdmin = req.user.role === "superadmin";
+    const clubId = (isSuperAdmin && req.query.clubId) ? req.query.clubId : req.user.clubId;
+    const inquiries = await Inquiry.find({ clubId })
       .sort({ createdAt: -1 })
       .lean();
-    res.json(inquiries);
+    res.json(inquiries.map(normalizeInquiry));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

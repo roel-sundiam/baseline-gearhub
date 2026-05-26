@@ -68,8 +68,12 @@ export class AuthService {
       }>(`${environment.apiUrl}/auth/login`, { username, password })
       .pipe(
         tap((res) => {
-          localStorage.setItem(this.TOKEN_KEY, res.token);
-          localStorage.setItem(this.USER_KEY, JSON.stringify(res.user));
+          try {
+            localStorage.setItem(this.TOKEN_KEY, res.token);
+            localStorage.setItem(this.USER_KEY, JSON.stringify(res.user));
+          } catch {
+            // Safari private mode / storage quota exceeded — auth continues in-memory
+          }
           this._user.set(res.user);
         }),
       );

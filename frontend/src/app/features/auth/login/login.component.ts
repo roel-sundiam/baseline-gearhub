@@ -1,5 +1,4 @@
-import { Component, ChangeDetectorRef, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
@@ -10,19 +9,18 @@ import { AnalyticsTrackService } from '../../../core/services/analytics-track.se
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink],
   template: `
-    <div class="auth-container">
-      <div class="court-bg">
-        <div class="court-overlay"></div>
-      </div>
-      <div class="auth-card">
-        <div class="auth-header">
-          <div class="header-banner">
-            <img src="/CourtGo.png" alt="CourtGo" class="hero-logo" />
-          </div>
-          <p class="header-sub">Member Login Access</p>
-        </div>
+    <div class="page">
+      <div class="bg-orb bg-orb-1"></div>
+      <div class="bg-orb bg-orb-2"></div>
+
+      <div class="card">
+        <a routerLink="/" class="back-link">&larr; Back</a>
+
+        <img src="/CourtGo.png" alt="CourtGo" class="card-logo" />
+        <h1>Welcome back</h1>
+        <p class="card-sub">Sign in to your account</p>
 
         <form (ngSubmit)="onSubmit()" #f="ngForm">
           <div class="form-group">
@@ -51,209 +49,189 @@ import { AnalyticsTrackService } from '../../../core/services/analytics-track.se
             />
           </div>
 
-          @if (errorMsg) {
-            <div class="alert alert-error">{{ errorMsg }}</div>
+          @if (errorMsg()) {
+            <div class="alert-error">{{ errorMsg() }}</div>
           }
 
-          <button type="submit" class="btn-primary btn-full" [disabled]="loading">
-            {{ loading ? 'Signing in...' : 'Sign In' }}
+          <button type="submit" class="btn-signin" [disabled]="loading()">
+            {{ loading() ? 'Signing in...' : 'Sign In' }}
           </button>
         </form>
 
-        <p class="auth-footer">Don't have an account? <a routerLink="/register">Register</a></p>
-        <p class="auth-footer club-register-link">New club? <a routerLink="/register-club">Register your club</a></p>
+        <div class="card-footer">
+          <p class="footer-link">No account? <a routerLink="/register">Register for free</a></p>
+          <p class="footer-link footer-link--muted">New club? <a routerLink="/register-club">Register your club</a></p>
+        </div>
       </div>
+
       <span class="app-version">{{ version }}</span>
     </div>
   `,
-  styles: [
-    `
-      .auth-container {
-        position: relative;
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 1rem;
-        margin: 0;
-        overflow: hidden;
-        background: var(--dm-bg);
-      }
-      .court-bg {
-        position: absolute;
-        inset: 0;
-        background: none;
-      }
-      .court-overlay {
-        position: absolute;
-        inset: 0;
-        background: none;
-      }
-      .auth-card {
-        position: relative;
-        z-index: 1;
-        background: var(--dm-surface);
-        border-radius: 20px;
-        padding: 0;
-        width: 100%;
-        max-width: 480px;
-        box-shadow:
-          0 8px 32px rgba(0, 0, 0, 0.55),
-          0 0 1px rgba(0, 0, 0, 0.1);
-        border: 1px solid rgba(163,230,53,0.12);
-        overflow: hidden;
-      }
-      .auth-header {
-        text-align: center;
-        margin-bottom: 0;
-      }
-      .header-banner {
-        background: var(--dm-header);
-        padding: 2rem 2rem 1.5rem;
-        position: relative;
-        min-height: 84px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-      }
-      .hero-logo {
-        position: absolute;
-        top: 16px;
-        right: 20px;
-        height: 34px;
-        width: auto;
-      }
-      .header-sub {
-        color: var(--dm-accent);
-        font-size: 0.9rem;
-        font-weight: 600;
-        font-style: italic;
-        margin: 0.85rem 0 0 0;
-        padding: 0.4rem 1.25rem;
-        background: rgba(163,230,53,0.08);
-        border-top: 3px solid var(--dm-accent);
-        width: 100%;
-        box-sizing: border-box;
-      }
-      form {
-        padding: 1.5rem 2rem;
-      }
-      .form-group {
-        display: flex;
-        flex-direction: column;
-        gap: 0.65rem;
-        margin-bottom: 1.5rem;
-      }
-      .form-group label {
-        font-size: 0.875rem;
-        color: rgba(255,255,255,0.8);
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
-      input {
-        padding: 0.75rem 1rem;
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 8px;
-        font-size: 0.95rem;
-        background: rgba(255,255,255,0.04);
-        color: #ffffff;
-        font-family: inherit;
-      }
-      input::placeholder {
-        color: rgba(255,255,255,0.4);
-      }
-      input:focus {
-        outline: none;
-        border-color: rgba(163,230,53,0.28) !important;
-        box-shadow: 0 0 0 3px rgba(163,230,53,0.12) !important;
-      }
-      .alert {
-        padding: 0.875rem 1rem;
-        border-radius: 8px;
-        margin-bottom: 1rem;
-        font-size: 0.9rem;
-      }
-      .alert-error {
-        background: rgba(239,68,68,0.12);
-        color: #fca5a5;
-        border: 1px solid rgba(239,68,68,0.2);
-      }
-      .btn-primary {
-        margin-top: 0.75rem;
-        border-radius: 10px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        background: rgba(163,230,53,0.16);
-        color: var(--dm-accent);
-        border: 1px solid rgba(163,230,53,0.28);
-        box-shadow: 0 4px 12px rgba(163,230,53,0.12);
-        cursor: pointer;
-        padding: 0.75rem 1.5rem;
-        font-size: 0.95rem;
-      }
-      .btn-primary:hover:not(:disabled) {
-        background: rgba(163,230,53,0.24);
-        border-color: rgba(163,230,53,0.4);
-        box-shadow: 0 6px 16px rgba(163,230,53,0.2);
-      }
-      .btn-primary:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-      .btn-full {
-        width: 100%;
-      }
-      .auth-footer {
-        text-align: center;
-        padding: 0 2rem 1.5rem;
-        font-size: 0.9rem;
-        color: rgba(255,255,255,0.6);
-      }
-      .auth-footer a {
-        color: var(--dm-accent);
-        font-weight: 600;
-        text-decoration: none;
-        transition: color 0.2s;
-      }
-      .auth-footer a:hover {
-        color: rgba(163,230,53,0.9);
-      }
-      .club-register-link {
-        margin-top: 0.25rem;
-        font-size: 0.82rem;
-        color: rgba(255,255,255,0.4);
-        padding-bottom: 1.5rem;
-        padding-top: 0;
-      }
-      .app-version {
-        position: absolute;
-        bottom: 0.85rem;
-        left: 50%;
-        transform: translateX(-50%);
-        font-size: 0.7rem;
-        color: rgba(255,255,255,0.22);
-        letter-spacing: 0.08em;
-        pointer-events: none;
-        white-space: nowrap;
-      }
-      @media (max-width: 600px) {
-        .header-banner {
-          padding: 1.5rem 1.5rem 1.25rem;
-        }
-        form {
-          padding: 1.25rem 1.5rem;
-        }
-        .auth-footer {
-          padding: 0 1.5rem 1.25rem;
-        }
-        .auth-container {
-          padding: 1rem;
-        }
-      }
-    `,
-  ],
+  styles: [`
+    .page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--dm-bg, #0c1a11);
+      padding: 2rem 1rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .bg-orb {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, rgba(163,230,53,0.45), rgba(163,230,53,0.03));
+      filter: blur(28px);
+      pointer-events: none;
+      animation: float ease-in-out infinite alternate;
+    }
+    .bg-orb-1 { width: 340px; height: 340px; top: -100px; left: -100px; opacity: 0.2; animation-duration: 10s; }
+    .bg-orb-2 { width: 200px; height: 200px; bottom: -60px; right: -60px; opacity: 0.14; animation-duration: 8s; animation-delay: -4s; }
+
+    @keyframes float {
+      from { transform: translateY(0) scale(1); }
+      to   { transform: translateY(-24px) scale(1.06); }
+    }
+
+    .card {
+      position: relative;
+      z-index: 1;
+      background: var(--dm-surface, #1b3028);
+      border: 1px solid rgba(163,230,53,0.1);
+      border-radius: 20px;
+      padding: 2.5rem 2.25rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+
+    .back-link {
+      display: inline-block;
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.35);
+      text-decoration: none;
+      margin-bottom: 1.75rem;
+      transition: color 0.15s;
+    }
+    .back-link:hover { color: #a3e635; }
+
+    .card-logo {
+      height: 32px;
+      width: auto;
+      display: block;
+      margin-bottom: 1.5rem;
+    }
+
+    h1 {
+      font-size: 1.65rem;
+      font-weight: 700;
+      color: #fff;
+      margin: 0 0 0.35rem;
+      letter-spacing: -0.01em;
+    }
+
+    .card-sub {
+      font-size: 0.875rem;
+      color: rgba(255,255,255,0.4);
+      margin: 0 0 2rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin-bottom: 1.1rem;
+    }
+    .form-group label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: rgba(255,255,255,0.55);
+    }
+    input {
+      padding: 0.85rem 1rem;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      background: rgba(255,255,255,0.04);
+      color: #fff;
+      font-family: inherit;
+      transition: border-color 0.18s, box-shadow 0.18s;
+    }
+    input::placeholder { color: rgba(255,255,255,0.28); }
+    input:focus {
+      outline: none;
+      border-color: rgba(163,230,53,0.35);
+      box-shadow: 0 0 0 3px rgba(163,230,53,0.1);
+    }
+
+    .alert-error {
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      font-size: 0.875rem;
+      background: rgba(239,68,68,0.1);
+      color: #fca5a5;
+      border: 1px solid rgba(239,68,68,0.2);
+    }
+
+    .btn-signin {
+      width: 100%;
+      margin-top: 0.5rem;
+      padding: 0.9rem;
+      border-radius: 10px;
+      border: none;
+      background: #a3e635;
+      color: #0c1a11;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+      box-shadow: 0 4px 18px rgba(163,230,53,0.28);
+    }
+    .btn-signin:hover:not(:disabled) {
+      background: #b5f040;
+      box-shadow: 0 6px 24px rgba(163,230,53,0.4);
+      transform: translateY(-1px);
+    }
+    .btn-signin:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .card-footer {
+      margin-top: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .footer-link {
+      text-align: center;
+      font-size: 0.875rem;
+      color: rgba(255,255,255,0.45);
+      margin: 0;
+    }
+    .footer-link a {
+      color: #a3e635;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .footer-link a:hover { color: #b5f040; }
+    .footer-link--muted { font-size: 0.8rem; color: rgba(255,255,255,0.25); }
+    .footer-link--muted a { color: rgba(163,230,53,0.65); }
+
+    .app-version {
+      position: fixed;
+      bottom: 0.75rem;
+      right: 1rem;
+      font-size: 0.68rem;
+      color: rgba(255,255,255,0.15);
+      letter-spacing: 0.07em;
+      pointer-events: none;
+    }
+  `],
 })
 export class LoginComponent {
   readonly version = APP_VERSION;
@@ -261,24 +239,22 @@ export class LoginComponent {
   private auth = inject(AuthService);
   private clubService = inject(ClubService);
   private router = inject(Router);
-  private cdr = inject(ChangeDetectorRef);
   private analyticsTrack = inject(AnalyticsTrackService);
 
   username = '';
   password = '';
-  loading = false;
-  errorMsg = '';
+  loading = signal(false);
+  errorMsg = signal('');
 
   onSubmit() {
     if (!this.username || !this.password) return;
-    this.loading = true;
-    this.errorMsg = '';
+    this.loading.set(true);
+    this.errorMsg.set('');
 
     this.auth.login(this.username, this.password).subscribe({
       next: (res) => {
         this.analyticsTrack.trackLogin(this.username);
-        this.loading = false;
-        this.cdr.detectChanges();
+        this.loading.set(false);
         const role = res.user.role;
         const clubId = res.user.clubId;
         if (clubId) {
@@ -288,16 +264,11 @@ export class LoginComponent {
           this.router.navigate(['/admin/clubs']);
           return;
         }
-        if (role === 'admin') {
-          this.router.navigate(['/player/dashboard']);
-          return;
-        }
         this.router.navigate(['/player/dashboard']);
       },
       error: (err) => {
-        this.loading = false;
-        this.errorMsg = err.error?.error || 'Login failed. Please try again.';
-        this.cdr.detectChanges();
+        this.loading.set(false);
+        this.errorMsg.set(err.error?.error || 'Login failed. Please try again.');
       },
     });
   }

@@ -13,7 +13,7 @@ async function makeSuperAdmin() {
 
     const result = await User.updateOne(
       { username: "RoelSundiam" },
-      { role: "superadmin" },
+      { role: "superadmin", status: "active" },
     );
 
     if (result.modifiedCount > 0) {

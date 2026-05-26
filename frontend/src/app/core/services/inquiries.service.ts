@@ -29,6 +29,10 @@ export class InquiriesService {
     return this.http.get<Inquiry[]>(this.base);
   }
 
+  getInquiriesByClub(clubId: string) {
+    return this.http.get<Inquiry[]>(`${this.base}?clubId=${clubId}`);
+  }
+
   markRead(id: string) {
     return this.http.patch<Inquiry>(`${this.base}/${id}/read`, {});
   }
