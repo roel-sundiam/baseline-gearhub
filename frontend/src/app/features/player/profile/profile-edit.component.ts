@@ -5,7 +5,6 @@ import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { UsersService } from '../../../core/services/users.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
-import { CoinsService } from '../../../core/services/coins.service';
 
 @Component({
   selector: 'app-profile-edit',
@@ -628,7 +627,6 @@ export class ProfileEditComponent implements OnInit, OnDestroy {
     private auth: AuthService,
     private users: UsersService,
     private cloudinary: CloudinaryService,
-    private coinsService: CoinsService,
     private router: Router,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
@@ -637,7 +635,6 @@ export class ProfileEditComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
-    this.coinsService.trackVisit('profile-edit').subscribe({ error: () => {} });
     this.loadUserProfile();
   }
 

@@ -2,9 +2,6 @@ const express = require("express");
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
 const Tournament = require("../models/Tournament");
-const Club = require("../models/Club");
-const CoinTransaction = require("../models/CoinTransaction");
-const TOURNAMENT_JOIN_COIN_COST = 3;
 
 const router = express.Router();
 
@@ -300,28 +297,9 @@ router.post("/:id/participants", auth, admin, async (req, res) => {
 
     const alreadyIn = tournament.participants.some((p) => p.toString() === playerId);
     if (!alreadyIn) {
-      const clubId = tournament.clubId;
-      const club = await Club.findById(clubId);
-      if (!club || club.coinBalance < TOURNAMENT_JOIN_COIN_COST) {
-        return res.status(402).json({ error: "Insufficient coins to add a tournament participant", coinBalance: club?.coinBalance ?? 0 });
-      }
       tournament.participants.push(playerId);
-      await tournament.save();
-
-      club.coinBalance -= TOURNAMENT_JOIN_COIN_COST;
-      await club.save();
-      await CoinTransaction.create({
-        clubId,
-        userId: playerId,
-        type: "debit",
-        amount: TOURNAMENT_JOIN_COIN_COST,
-        action: "tournament-join",
-        relatedId: tournament._id,
-        balanceAfter: club.coinBalance,
-      });
-    } else {
-      await tournament.save();
     }
+    await tournament.save();
 
     const updated = await Tournament.findById(tournament._id).populate("participants", "name profileImage").lean();
     res.json(updated);

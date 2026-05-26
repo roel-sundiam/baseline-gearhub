@@ -2,7 +2,6 @@ import { Component, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { TournamentService, Tournament, RankingEntry } from '../../../core/services/tournament.service';
-import { CoinsService } from '../../../core/services/coins.service';
 import { Renderer2 } from '@angular/core';
 
 @Component({
@@ -594,7 +593,6 @@ import { Renderer2 } from '@angular/core';
 })
 export class PlayerTournamentsComponent implements OnDestroy {
   private tournamentService = inject(TournamentService);
-  private coinsService = inject(CoinsService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private renderer = inject(Renderer2);
@@ -617,7 +615,6 @@ export class PlayerTournamentsComponent implements OnDestroy {
   constructor() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
-    this.coinsService.trackVisit('tournament-list').subscribe({ error: () => {} });
     this.tournamentService.getAll().subscribe({
       next: (data) => { this.tournaments.set(data.filter(t => t.published)); this.loading.set(false); },
       error: () => { this.loading.set(false); }

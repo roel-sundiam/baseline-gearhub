@@ -3,7 +3,11 @@ import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
 
 export const routes: Routes = [
-  { path: '', redirectTo: 'login', pathMatch: 'full' },
+  {
+    path: '',
+    loadComponent: () =>
+      import('./features/landing/landing.component').then((m) => m.LandingComponent),
+  },
   {
     path: 'login',
     loadComponent: () =>
@@ -81,13 +85,6 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/finance/finance.component').then(
             (m) => m.FinanceComponent,
-          ),
-      },
-      {
-        path: 'coins',
-        loadComponent: () =>
-          import('./features/admin/coins/coins.component').then(
-            (m) => m.AdminCoinsComponent,
           ),
       },
       {
@@ -228,5 +225,5 @@ export const routes: Routes = [
         (m) => m.GuestBookComponent,
       ),
   },
-  { path: '**', redirectTo: 'login' },
+  { path: '**', redirectTo: '', pathMatch: 'full' },
 ];

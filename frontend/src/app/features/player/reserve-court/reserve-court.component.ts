@@ -6,7 +6,6 @@ import { ReservationService } from '../../../core/services/reservation.service';
 import { UsersService } from '../../../core/services/users.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { RatesService } from '../../../core/services/rates.service';
-import { CoinsService } from '../../../core/services/coins.service';
 import { SoundService } from '../../../core/services/sound.service';
 
 const ALL_SLOTS = [
@@ -963,7 +962,6 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     private usersService: UsersService,
     private ratesService: RatesService,
     private auth: AuthService,
-    private coinsService: CoinsService,
     private router: Router,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
@@ -1135,11 +1133,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.booking = false;
         this.sound.error();
-        if (err?.status === 402) {
-          this.errorMsg = `Insufficient coins. Your club has ${err.error?.coinBalance ?? 0} coins but 5 are needed. Please ask your admin to request more coins.`;
-        } else {
-          this.errorMsg = err?.error?.error || 'Failed to book. Please try again.';
-        }
+        this.errorMsg = err?.error?.error || 'Failed to book. Please try again.';
         this.cdr.detectChanges();
       },
     });

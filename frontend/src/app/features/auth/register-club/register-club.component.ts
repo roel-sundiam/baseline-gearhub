@@ -25,7 +25,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
           <div style="padding: 2rem;">
             <div class="alert alert-success">
               <strong>Club registered!</strong><br />
-              You can now log in with your admin credentials and start using the platform with 100 trial coins.
+              You can now log in with your admin credentials and start using the platform.
             </div>
             <p class="auth-footer"><a routerLink="/login">Go to Login</a></p>
           </div>

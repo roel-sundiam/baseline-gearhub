@@ -2,7 +2,6 @@ import { Component, OnDestroy, signal, inject, Renderer2 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TournamentService, Tournament, TournamentMatch, TournamentPlayer } from '../../../core/services/tournament.service';
-import { CoinsService } from '../../../core/services/coins.service';
 
 @Component({
   selector: 'app-player-tournament-detail',
@@ -588,7 +587,6 @@ export class PlayerTournamentDetailComponent implements OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private tournamentService = inject(TournamentService);
-  private coinsService = inject(CoinsService);
   private renderer = inject(Renderer2);
 
   tournament = signal<Tournament | null>(null);
@@ -599,7 +597,6 @@ export class PlayerTournamentDetailComponent implements OnDestroy {
   constructor() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
-    this.coinsService.trackVisit('tournament-detail').subscribe({ error: () => {} });
     this.route.params.subscribe(params => {
       this.tournamentService.getById(params['id']).subscribe({
         next: (t) => {

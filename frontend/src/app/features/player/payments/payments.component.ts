@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { CoinsService } from '../../../core/services/coins.service';
 
 type FilterTab = 'all' | 'unpaid' | 'paid';
 
@@ -840,7 +839,6 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
   constructor(
     private chargesService: ChargesService,
     private auth: AuthService,
-    private coinsService: CoinsService,
     private router: Router,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
@@ -849,7 +847,6 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
-    this.coinsService.trackVisit('payments').subscribe({ error: () => {} });
     this.loadCharges();
   }
 

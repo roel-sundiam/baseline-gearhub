@@ -5,9 +5,6 @@ const Reservation = require("../models/Reservation");
 const Charge = require("../models/Charge");
 const Rates = require("../models/Rates");
 const Club = require("../models/Club");
-const CoinTransaction = require("../models/CoinTransaction");
-const RESERVATION_COIN_COST = 5;
-
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
 
 const router = express.Router();
@@ -186,11 +183,6 @@ router.post("/", auth, async (req, res) => {
     const guestTotalFee = sanitizedGuestCount * ratesUsed.guestFee;
     const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;
 
-    const club = await Club.findById(clubId);
-    if (!club || club.coinBalance < RESERVATION_COIN_COST) {
-      return res.status(402).json({ error: "Insufficient coins to make a reservation", coinBalance: club?.coinBalance ?? 0 });
-    }
-
     const reservation = await Reservation.create({
       clubId,
       court: courtNum,
@@ -222,18 +214,6 @@ router.post("/", auth, async (req, res) => {
       chargeType: "reservation",
     });
 
-    club.coinBalance -= RESERVATION_COIN_COST;
-    await club.save();
-    await CoinTransaction.create({
-      clubId,
-      userId: req.user.userId,
-      type: "debit",
-      amount: RESERVATION_COIN_COST,
-      action: "reservation",
-      relatedId: reservation._id,
-      balanceAfter: club.coinBalance,
-    });
-
     res.status(201).json({ reservation, charge });
   } catch (err) {
     if (err.code === 11000) {
@@ -243,8 +223,6 @@ router.post("/", auth, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
-const EDIT_COIN_COST = 3;
 
 // PATCH /api/reservations/:id — edit a reservation (owner only, confirmed + future)
 router.patch("/:id", auth, async (req, res) => {
@@ -292,22 +270,6 @@ router.patch("/:id", auth, async (req, res) => {
         status: "confirmed",
       });
       if (conflict) return res.status(409).json({ error: "That slot is already booked" });
-
-      const club = await Club.findById(reservation.clubId);
-      if (!club || club.coinBalance < EDIT_COIN_COST)
-        return res.status(402).json({ error: "Insufficient coins to modify the reservation", coinBalance: club?.coinBalance ?? 0 });
-
-      club.coinBalance -= EDIT_COIN_COST;
-      await club.save();
-      await CoinTransaction.create({
-        clubId: reservation.clubId,
-        userId: req.user.userId,
-        type: "debit",
-        amount: EDIT_COIN_COST,
-        action: "reservation_edit",
-        relatedId: reservation._id,
-        balanceAfter: club.coinBalance,
-      });
     }
 
     const rawRates = await Rates.findOne({ clubId: reservation.clubId }).lean();

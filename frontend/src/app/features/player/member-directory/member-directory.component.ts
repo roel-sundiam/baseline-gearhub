@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { UsersService } from '../../../core/services/users.service';
-import { CoinsService } from '../../../core/services/coins.service';
 
 interface Member {
   _id: string;
@@ -360,7 +359,6 @@ export class MemberDirectoryComponent implements OnInit, OnDestroy {
 
   constructor(
     private usersService: UsersService,
-    private coinsService: CoinsService,
     private router: Router,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
@@ -369,7 +367,6 @@ export class MemberDirectoryComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
-    this.coinsService.trackVisit('member-directory').subscribe({ error: () => {} });
     this.loadMembers();
   }
 

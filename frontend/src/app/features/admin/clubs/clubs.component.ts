@@ -4,10 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ClubService, Club } from '../../../core/services/club.service';
 import { UsersService } from '../../../core/services/users.service';
-import { CoinsService, CoinRequest } from '../../../core/services/coins.service';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AppServicePaymentsService, AppServicePayment } from '../../../core/services/app-service-payments.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { InquiriesService, Inquiry } from '../../../core/services/inquiries.service';
 
 interface AdminUser {
   _id: string;
@@ -140,14 +140,6 @@ interface AdminUser {
                     <i class="fas fa-calendar-days"></i> {{ formatDate(club.createdAt) }}
                   </span>
                 }
-                <span class="pill pill-coin">
-                  <i class="fas fa-coins"></i> {{ club.coinBalance ?? 0 }} coins
-                </span>
-                @if (auth.isSuperAdmin() && (pendingCounts[club._id] ?? 0) > 0) {
-                  <span class="pill pill-pending">
-                    <i class="fas fa-clock"></i> {{ pendingCounts[club._id] }} pending
-                  </span>
-                }
                 @if (club.status === 'suspended') {
                   <span class="pill pill-suspended">
                     <i class="fas fa-ban"></i> Suspended
@@ -218,12 +210,6 @@ interface AdminUser {
                     <span class="tab-badge tab-badge-members">{{ clubMembers.length }}</span>
                   }
                 </button>
-                <button type="button" class="tab-btn" [class.tab-active]="activeTab === 'coins'" (click)="setTab('coins')">
-                  <i class="fas fa-coins"></i> Coin Requests
-                  @if ((pendingCounts[selectedClub._id] ?? 0) > 0) {
-                    <span class="tab-badge">{{ pendingCounts[selectedClub._id] }}</span>
-                  }
-                </button>
                 <button type="button" class="tab-btn" [class.tab-active]="activeTab === 'payments'" (click)="setTab('payments')">
                   <i class="fas fa-money-check-alt"></i> Payments
                 </button>
@@ -231,6 +217,12 @@ interface AdminUser {
                   <i class="fas fa-percentage"></i> App Service
                   @if (!aspLoading && aspBalance > 0) {
                     <span class="tab-badge tab-badge-amber">unpaid</span>
+                  }
+                </button>
+                <button type="button" class="tab-btn" [class.tab-active]="activeTab === 'chat'" (click)="setTab('chat')">
+                  <i class="fas fa-comment-dots"></i> Chat
+                  @if (clubInquiries.length > 0) {
+                    <span class="tab-badge tab-badge-members">{{ clubInquiries.length }}</span>
                   }
                 </button>
               }
@@ -288,63 +280,6 @@ interface AdminUser {
                           <span class="badge badge-role">{{ admin.role }}</span>
                           <span class="badge" [class.badge-active]="admin.status === 'active'" [class.badge-inactive]="admin.status !== 'active'">{{ admin.status }}</span>
                         </div>
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            }
-
-            <!-- ── COIN REQUESTS TAB ── -->
-            @if (activeTab === 'coins' && auth.isSuperAdmin()) {
-              <div class="list-card">
-                <div class="filter-row">
-                  @for (f of coinFilterOptions; track f) {
-                    <button type="button" class="filter-btn" [class.filter-active]="coinReqFilter === f" (click)="setCoinFilter(f)">
-                      {{ f | titlecase }}
-                      @if (coinReqCountByStatus(f) > 0) {
-                        <span class="filter-count" [class.count-green]="f === 'approved'" [class.count-red]="f === 'rejected'">{{ coinReqCountByStatus(f) }}</span>
-                      }
-                    </button>
-                  }
-                </div>
-
-                @if (coinReqLoading) {
-                  <p class="state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading requests…</p>
-                } @else if (coinReqError) {
-                  <p class="state-msg state-msg-error">{{ coinReqError }}</p>
-                } @else if (filteredCoinRequests.length === 0) {
-                  <p class="state-msg">No {{ coinReqFilter }} coin requests.</p>
-                } @else {
-                  <div class="item-list">
-                    @for (req of filteredCoinRequests; track req._id) {
-                      <div class="item-card" [class.item-approved]="req.status === 'approved'" [class.item-rejected]="req.status === 'rejected'">
-                        <div class="item-top">
-                          <span class="coin-amount"><i class="fas fa-coins"></i> {{ req.coinsRequested }} coins</span>
-                          <span class="badge badge-purple">{{ req.paymentMethod }}</span>
-                          <span class="item-meta">by {{ req.requestedBy?.name ?? '—' }}</span>
-                          <span class="item-meta">{{ formatDate(req.createdAt) }}</span>
-                        </div>
-                        @if (req.note) { <p class="item-note">"{{ req.note }}"</p> }
-                        @if (req.status === 'rejected' && req.rejectedNote) {
-                          <p class="item-reject-note"><i class="fas fa-ban"></i> {{ req.rejectedNote }}</p>
-                        }
-                        @if (req.status !== 'pending') {
-                          <p class="item-resolved" [class.resolved-ok]="req.status === 'approved'">
-                            <i class="fas" [class.fa-check-circle]="req.status === 'approved'" [class.fa-times-circle]="req.status === 'rejected'"></i>
-                            {{ req.status === 'approved' ? 'Approved' : 'Rejected' }} by {{ req.approvedBy?.name ?? '—' }}
-                          </p>
-                        }
-                        @if (req.status === 'pending') {
-                          <div class="item-actions">
-                            <button type="button" class="btn btn-sm btn-approve" (click)="approveRequest(req)" [disabled]="processingReq.has(req._id)">
-                              <i class="fas fa-check"></i> {{ processingReq.has(req._id) ? 'Approving…' : 'Approve' }}
-                            </button>
-                            <button type="button" class="btn btn-sm btn-reject" (click)="openRejectModal(req)" [disabled]="processingReq.has(req._id)">
-                              <i class="fas fa-times"></i> Reject
-                            </button>
-                          </div>
-                        }
                       </div>
                     }
                   </div>
@@ -537,6 +472,46 @@ interface AdminUser {
               </div>
             }
 
+            <!-- ── CHAT TAB ── -->
+            @if (activeTab === 'chat' && auth.isSuperAdmin()) {
+              <div class="list-card">
+                @if (chatLoading) {
+                  <p class="state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading chats…</p>
+                } @else if (chatError) {
+                  <p class="state-msg state-msg-error">{{ chatError }}</p>
+                } @else if (clubInquiries.length === 0) {
+                  <p class="state-msg">No inquiries for this club yet.</p>
+                } @else {
+                  <div class="item-list">
+                    @for (inq of clubInquiries; track inq._id) {
+                      <div class="item-card" [class.item-approved]="inq.status === 'replied'" style="cursor:pointer" (click)="expandedChatId = expandedChatId === inq._id ? null : inq._id">
+                        <div class="item-top">
+                          <span class="badge" [class.badge-role]="inq.status === 'unread'" [class.badge-active]="inq.status === 'replied'" [class.badge-inactive]="inq.status === 'read'">
+                            {{ inq.status }}
+                          </span>
+                          <span class="item-meta"><i class="fas fa-user"></i> {{ inq.senderName }}</span>
+                          <span class="item-meta">{{ inq.senderEmail }}</span>
+                          <span class="item-meta">{{ formatDate(inq.createdAt) }}</span>
+                          <span class="item-meta"><i class="fas fa-comment"></i> {{ inq.messages.length }} msg{{ inq.messages.length !== 1 ? 's' : '' }}</span>
+                          <i class="fas" [class.fa-chevron-down]="expandedChatId !== inq._id" [class.fa-chevron-up]="expandedChatId === inq._id" style="margin-left:auto;opacity:0.4;font-size:0.75rem"></i>
+                        </div>
+                        @if (expandedChatId === inq._id) {
+                          <div class="chat-thread-view">
+                            @for (msg of inq.messages; track msg.createdAt) {
+                              <div class="chat-bubble-row" [class.chat-bubble-guest]="msg.sender === 'guest'" [class.chat-bubble-admin]="msg.sender === 'admin'">
+                                <span class="chat-bubble-name">{{ msg.sender === 'guest' ? inq.senderName : msg.name }}</span>
+                                <div class="chat-bubble-body">{{ msg.body }}</div>
+                              </div>
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+
           </section>
         }
       }
@@ -606,26 +581,6 @@ interface AdminUser {
               {{ suspendModal().suspending ? 'Saving…' : (suspendModal().club!.status === 'suspended' ? 'Yes, unsuspend' : 'Yes, suspend') }}
             </button>
             <button type="button" class="btn btn-outline" (click)="closeSuspendModal()">Cancel</button>
-          </div>
-        </div>
-      </div>
-    }
-
-    <!-- ── Reject coin request modal ── -->
-    @if (rejectModal.show) {
-      <div class="modal-backdrop" (click)="closeRejectModal()">
-        <div class="modal-card" (click)="$event.stopPropagation()">
-          <div class="modal-header">
-            <span class="modal-title modal-title-danger"><i class="fas fa-times-circle"></i> Reject Coin Request</span>
-            <button type="button" class="modal-close" (click)="closeRejectModal()"><i class="fas fa-times"></i></button>
-          </div>
-          <p class="modal-desc">Optionally add a reason:</p>
-          <textarea class="modal-textarea" [(ngModel)]="rejectModal.note" name="rejectNote" rows="3" placeholder="Rejection reason (optional)"></textarea>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-danger" (click)="confirmReject()" [disabled]="rejectModal.submitting">
-              {{ rejectModal.submitting ? 'Rejecting…' : 'Confirm Reject' }}
-            </button>
-            <button type="button" class="btn btn-outline" (click)="closeRejectModal()">Cancel</button>
           </div>
         </div>
       </div>
@@ -1087,14 +1042,6 @@ interface AdminUser {
 
     .pill-default { background: #f6f5f0; border: 1px solid rgba(17,24,39,0.1); color: rgba(17,24,39,0.65); }
 
-    .pill-coin {
-      background: #fffbeb;
-      border: 1px solid rgba(245,158,11,0.3);
-      color: #92400e;
-      font-weight: 700;
-    }
-    .pill-coin i { color: #f59e0b; }
-
     .pill-pending {
       background: #fff7ed;
       border: 1px solid rgba(234,88,12,0.3);
@@ -1395,9 +1342,6 @@ interface AdminUser {
 
     .item-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
 
-    .coin-amount { font-weight: 800; font-size: 0.92rem; color: #92400e; display: inline-flex; align-items: center; gap: 0.3rem; }
-    .coin-amount i { color: #f59e0b; }
-
     .charge-amount { font-weight: 800; font-size: 0.92rem; color: #111827; }
 
     /* App service fees */
@@ -1634,7 +1578,6 @@ interface AdminUser {
     .count-chip,
     .tab-active,
     .tab-btn:hover,
-    .coin-amount,
     .asp-pay-amount {
       color: var(--dm-accent);
     }
@@ -1773,12 +1716,6 @@ interface AdminUser {
       background: rgba(255,255,255,0.04);
       border-color: rgba(255,255,255,0.14);
       color: var(--dm-text);
-    }
-
-    .pill-coin {
-      background: rgba(245,158,11,0.15);
-      border-color: rgba(245,158,11,0.38);
-      color: #fcd34d;
     }
 
     .pill-pending,
@@ -2008,6 +1945,50 @@ interface AdminUser {
         font-size: 0.78rem;
       }
     }
+
+    .chat-thread-view {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      margin-top: 0.85rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid rgba(0,0,0,0.07);
+    }
+    .chat-bubble-row {
+      display: flex;
+      flex-direction: column;
+      max-width: 80%;
+    }
+    .chat-bubble-guest { align-self: flex-end; align-items: flex-end; }
+    .chat-bubble-admin { align-self: flex-start; align-items: flex-start; }
+    .chat-bubble-name {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.38);
+      margin-bottom: 0.18rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .chat-bubble-body {
+      padding: 0.5rem 0.8rem;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .chat-bubble-guest .chat-bubble-body {
+      background: rgba(163,230,53,0.12);
+      border: 1px solid rgba(163,230,53,0.28);
+      color: #d4f7a0;
+      border-bottom-right-radius: 3px;
+    }
+    .chat-bubble-admin .chat-bubble-body {
+      background: rgba(96,165,250,0.12);
+      border: 1px solid rgba(96,165,250,0.28);
+      color: rgba(255,255,255,0.88);
+      border-bottom-left-radius: 3px;
+    }
   `],
 })
 export class AdminClubsComponent implements OnInit {
@@ -2041,7 +2022,13 @@ export class AdminClubsComponent implements OnInit {
   private usernameManuallyEdited = false;
   adminForm = { name: '', username: '', password: this.DEFAULT_ADMIN_PASSWORD, email: '' };
 
-  activeTab: 'admins' | 'coins' | 'payments' | 'appfees' | 'members' = 'admins';
+  activeTab: 'admins' | 'payments' | 'appfees' | 'members' | 'chat' = 'admins';
+
+  // ── Chat histories ──
+  clubInquiries: Inquiry[] = [];
+  chatLoading = false;
+  chatError = '';
+  expandedChatId: string | null = null;
 
   // ── Members ──
   clubMembers: AdminUser[] = [];
@@ -2060,25 +2047,8 @@ export class AdminClubsComponent implements OnInit {
     return this.clubMembers.filter(m => m.status === status).length;
   }
 
-  // ── Coin requests ──
-  allClubRequests: CoinRequest[] = [];
-  coinReqLoading = false;
-  coinReqError = '';
-  coinReqFilter: 'pending' | 'approved' | 'rejected' = 'pending';
-  readonly coinFilterOptions: Array<'pending' | 'approved' | 'rejected'> = ['pending', 'approved', 'rejected'];
-  pendingCounts: Record<string, number> = {};
-  processingReq = new Set<string>();
   readonly deleteModal = signal<{ club: Club | null; deleting: boolean }>({ club: null, deleting: false });
   readonly suspendModal = signal<{ club: Club | null; suspending: boolean }>({ club: null, suspending: false });
-  rejectModal = { show: false, requestId: '', note: '', submitting: false };
-
-  get filteredCoinRequests(): CoinRequest[] {
-    return this.allClubRequests.filter(r => r.status === this.coinReqFilter);
-  }
-
-  coinReqCountByStatus(status: string): number {
-    return this.allClubRequests.filter(r => r.status === status).length;
-  }
 
   // ── Payment approvals ──
   allApprovalCharges: Charge[] = [];
@@ -2119,15 +2089,14 @@ export class AdminClubsComponent implements OnInit {
   constructor(
     private clubService: ClubService,
     private usersService: UsersService,
-    private coinsService: CoinsService,
     private chargesService: ChargesService,
     private aspService: AppServicePaymentsService,
     readonly auth: AuthService,
+    private inquiriesService: InquiriesService,
   ) {}
 
   ngOnInit() {
     this.loadClubs();
-    this.loadPendingCounts();
   }
 
   // ── Club loading ──
@@ -2158,37 +2127,39 @@ export class AdminClubsComponent implements OnInit {
     this.adminFormSuccess = '';
     this.resetAdminForm();
     this.activeTab = 'admins';
-    this.allClubRequests = [];
     this.allApprovalCharges = [];
     this.approvedCharges = [];
     this.aspPayments = [];
     this.clubMembers = [];
-    this.coinReqFilter = 'pending';
     this.chargeFilter = 'pending';
     this.memberStatusFilter = 'all';
-    this.coinReqError = '';
+    this.clubInquiries = [];
+    this.expandedChatId = null;
+    this.chatError = '';
     this.chargesError = '';
     this.aspError = '';
     this.membersError = '';
 
-    this.clubService.getClub(club._id).subscribe({
-      next: (fresh) => {
-        this.selectedClub = { ...this.selectedClub!, coinBalance: fresh.coinBalance };
-        const idx = this.clubs.findIndex(c => c._id === club._id);
-        if (idx !== -1) this.clubs[idx] = { ...this.clubs[idx], coinBalance: fresh.coinBalance };
-      },
-      error: () => {},
-    });
-
     this.loadClubAdmins();
   }
 
-  setTab(tab: 'admins' | 'coins' | 'payments' | 'appfees' | 'members') {
+  setTab(tab: 'admins' | 'payments' | 'appfees' | 'members' | 'chat') {
     this.activeTab = tab;
-    if (tab === 'coins') this.loadClubCoinRequests();
     if (tab === 'payments') this.loadPaymentApprovals();
     if (tab === 'appfees') this.loadAppServiceData();
     if (tab === 'members') this.loadClubMembers();
+    if (tab === 'chat') this.loadClubInquiries();
+  }
+
+  loadClubInquiries() {
+    if (!this.selectedClub?._id) return;
+    this.chatLoading = true;
+    this.chatError = '';
+    this.expandedChatId = null;
+    this.inquiriesService.getInquiriesByClub(this.selectedClub._id).subscribe({
+      next: (data) => { this.clubInquiries = data; this.chatLoading = false; },
+      error: () => { this.chatError = 'Failed to load chats.'; this.chatLoading = false; },
+    });
   }
 
   deleteClub(club: Club) {
@@ -2294,73 +2265,6 @@ export class AdminClubsComponent implements OnInit {
 
   private generateUsername(name: string) {
     return name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
-  }
-
-  // ── Coin requests ──
-  loadPendingCounts() {
-    if (!this.auth.isSuperAdmin()) return;
-    this.coinsService.getAllRequests('pending').subscribe({
-      next: (requests) => {
-        const counts: Record<string, number> = {};
-        for (const r of requests) {
-          const id = typeof r.clubId === 'string' ? r.clubId : r.clubId?._id;
-          if (id) counts[id] = (counts[id] ?? 0) + 1;
-        }
-        this.pendingCounts = counts;
-      },
-      error: () => {},
-    });
-  }
-
-  loadClubCoinRequests() {
-    if (!this.selectedClub?._id || !this.auth.isSuperAdmin()) return;
-    this.coinReqLoading = true;
-    this.coinReqError = '';
-    this.coinsService.getAllRequests().subscribe({
-      next: (requests) => {
-        this.allClubRequests = requests.filter(r => {
-          const id = typeof r.clubId === 'string' ? r.clubId : r.clubId?._id;
-          return id === this.selectedClub!._id;
-        });
-        this.coinReqLoading = false;
-      },
-      error: () => { this.coinReqError = 'Failed to load coin requests.'; this.coinReqLoading = false; },
-    });
-  }
-
-  setCoinFilter(filter: 'pending' | 'approved' | 'rejected') { this.coinReqFilter = filter; }
-
-  approveRequest(req: CoinRequest) {
-    this.processingReq = new Set(this.processingReq).add(req._id);
-    this.coinsService.approveRequest(req._id).subscribe({
-      next: (res) => {
-        const next = new Set(this.processingReq); next.delete(req._id); this.processingReq = next;
-        const idx = this.allClubRequests.findIndex(r => r._id === req._id);
-        if (idx !== -1) this.allClubRequests = [...this.allClubRequests.slice(0, idx), res.request, ...this.allClubRequests.slice(idx + 1)];
-        const club = this.clubs.find(c => c._id === (typeof req.clubId === 'string' ? req.clubId : req.clubId?._id));
-        if (club) club.coinBalance = res.newBalance;
-        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, coinBalance: res.newBalance };
-        this.loadPendingCounts();
-      },
-      error: () => { const next = new Set(this.processingReq); next.delete(req._id); this.processingReq = next; },
-    });
-  }
-
-  openRejectModal(req: CoinRequest) { this.rejectModal = { show: true, requestId: req._id, note: '', submitting: false }; }
-  closeRejectModal() { this.rejectModal = { show: false, requestId: '', note: '', submitting: false }; }
-
-  confirmReject() {
-    if (!this.rejectModal.requestId) return;
-    this.rejectModal = { ...this.rejectModal, submitting: true };
-    this.coinsService.rejectRequest(this.rejectModal.requestId, this.rejectModal.note || undefined).subscribe({
-      next: (res) => {
-        const idx = this.allClubRequests.findIndex(r => r._id === this.rejectModal.requestId);
-        if (idx !== -1) this.allClubRequests = [...this.allClubRequests.slice(0, idx), res.request, ...this.allClubRequests.slice(idx + 1)];
-        this.loadPendingCounts();
-        this.closeRejectModal();
-      },
-      error: () => { this.rejectModal = { ...this.rejectModal, submitting: false }; },
-    });
   }
 
   // ── Payment approvals ──

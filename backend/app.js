@@ -14,7 +14,6 @@ const chargesRoutes = require("./routes/charges.routes");
 const appServicePaymentsRoutes = require("./routes/app-service-payments.routes");
 const tournamentsRoutes = require("./routes/tournaments.routes");
 const clubsRoutes = require("./routes/clubs.routes");
-const { router: coinsRoutes } = require("./routes/coins.routes");
 const newsRoutes = require("./routes/news.routes");
 const publicRoutes = require("./routes/public.routes");
 const inquiriesRoutes = require("./routes/inquiries.routes");
@@ -45,6 +44,7 @@ app.get('/', (_req, res) => res.redirect(302, '/index.html'));
 
 // Health check should respond even when DB is unavailable.
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
 
 // DB connection (cached; one concurrent attempt at a time)
 let isConnected = false;
@@ -108,7 +108,6 @@ app.use("/api/charges", chargesRoutes);
 app.use("/api/app-service-payments", appServicePaymentsRoutes);
 app.use("/api/tournaments", tournamentsRoutes);
 app.use("/api/clubs", clubsRoutes);
-app.use("/api/coins", coinsRoutes);
 app.use("/api/news", newsRoutes);
 app.use("/api/public", publicRoutes);
 app.use("/api/inquiries", inquiriesRoutes);

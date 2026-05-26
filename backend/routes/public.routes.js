@@ -3,10 +3,7 @@ const Reservation = require("../models/Reservation");
 const Charge = require("../models/Charge");
 const Rates = require("../models/Rates");
 const Club = require("../models/Club");
-const CoinTransaction = require("../models/CoinTransaction");
 const Inquiry = require("../models/Inquiry");
-
-const RESERVATION_COIN_COST = 5;
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
 
 const router = express.Router();
@@ -157,10 +154,6 @@ router.post("/:clubId/reserve", async (req, res) => {
     const guestTotalFee = sanitizedGuestCount * ratesUsed.guestFee;
     const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;
 
-    if (club.coinBalance < RESERVATION_COIN_COST) {
-      return res.status(402).json({ error: "Club has insufficient coins to accept bookings", coinBalance: club.coinBalance });
-    }
-
     const reservation = await Reservation.create({
       clubId,
       court: courtNum,
@@ -200,18 +193,6 @@ router.post("/:clubId/reserve", async (req, res) => {
       approvalStatus: "pending",
     });
 
-    club.coinBalance -= RESERVATION_COIN_COST;
-    await club.save();
-    await CoinTransaction.create({
-      clubId,
-      userId: null,
-      type: "debit",
-      amount: RESERVATION_COIN_COST,
-      action: "reservation",
-      relatedId: reservation._id,
-      balanceAfter: club.coinBalance,
-    });
-
     res.status(201).json({ reservation, charge });
   } catch (err) {
     if (err.code === 11000) {
@@ -249,13 +230,28 @@ router.post("/:clubId/inquiries", async (req, res) => {
   }
 });
 
+// Backwards-compat: old docs used message:String + replies:[]. Synthesize messages[] if empty.
+function normalizeInquiry(inq) {
+  if (inq.messages && inq.messages.length > 0) return inq;
+  const msgs = [];
+  if (inq.message) {
+    msgs.push({ sender: "guest", name: inq.senderName, body: inq.message, createdAt: inq.createdAt });
+  }
+  if (Array.isArray(inq.replies)) {
+    for (const r of inq.replies) {
+      msgs.push({ sender: "admin", name: r.adminName || "Admin", body: r.body, createdAt: r.createdAt });
+    }
+  }
+  return { ...inq, messages: msgs };
+}
+
 // GET /api/public/:clubId/inquiries/:inquiryId — poll for new messages (no auth)
 router.get("/:clubId/inquiries/:inquiryId", async (req, res) => {
   try {
     const { clubId, inquiryId } = req.params;
     const inquiry = await Inquiry.findOne({ _id: inquiryId, clubId }).lean();
     if (!inquiry) return res.status(404).json({ error: "Inquiry not found" });
-    res.json(inquiry);
+    res.json(normalizeInquiry(inquiry));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

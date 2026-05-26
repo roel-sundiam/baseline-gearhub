@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { Router, NavigationEnd } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { ClubService, Club } from '../../../core/services/club.service';
-import { CoinsService } from '../../../core/services/coins.service';
 import { SoundService } from '../../../core/services/sound.service';
 import { InquiriesService } from '../../../core/services/inquiries.service';
 
@@ -19,14 +18,6 @@ import { InquiriesService } from '../../../core/services/inquiries.service';
       </button>
 
       @if (auth.isLoggedIn()) {
-
-        <!-- Coin Balance -->
-        @if (!auth.isSuperAdmin()) {
-          <button type="button" class="coin-badge" title="Manage coins" (click)="navigate('/admin/coins')">
-            <i class="fas fa-coins"></i>
-            <span>{{ coinsService.coinBalance() }}</span>
-          </button>
-        }
 
         <!-- Inquiries chat icon (admin only) -->
         @if (auth.isAdmin() && !auth.isSuperAdmin()) {
@@ -385,16 +376,6 @@ import { InquiriesService } from '../../../core/services/inquiries.service';
         display: flex; align-items: center;
       }
       .btn-mute-mobile:hover { background: rgba(255, 255, 255, 0.2); color: #ffffff; }
-      .coin-badge {
-        display: inline-flex; align-items: center; gap: 5px;
-        background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
-        border-radius: 20px; padding: 4px 12px; font-size: 0.85rem; font-weight: 700;
-        color: #fff; white-space: nowrap; cursor: pointer; font-family: inherit;
-        transition: background 0.15s;
-      }
-      .coin-badge:hover { background: rgba(255,255,255,0.25); }
-      .coin-badge i { color: #fcd34d; font-size: 0.9rem; }
-      .nav-btn-coins i { color: #fcd34d; }
       .btn-inquiries {
         position: relative;
         background: rgba(255,255,255,0.1);
@@ -451,7 +432,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
   constructor(
     public auth: AuthService,
     public clubService: ClubService,
-    public coinsService: CoinsService,
     private router: Router,
     public sound: SoundService,
     private inquiriesService: InquiriesService,
@@ -462,10 +442,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
       next: (clubs) => { this.clubs.set(clubs); },
       error: () => {},
     });
-    if (this.auth.isLoggedIn() && !this.auth.isSuperAdmin()) {
-      this.coinsService.loadBalance().subscribe({ error: () => {} });
-    }
-
     if (this.auth.isAdmin() && !this.auth.isSuperAdmin()) {
       this.loadUnreadCount();
       this.unreadPollTimer = setInterval(() => this.loadUnreadCount(), 15000);

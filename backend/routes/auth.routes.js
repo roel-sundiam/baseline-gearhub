@@ -83,11 +83,13 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid username or password" });
     }
 
-    if (user.status === "pending") {
-      return res.status(403).json({ error: "Account pending admin approval" });
-    }
-    if (user.status === "rejected") {
-      return res.status(403).json({ error: "Account has been rejected" });
+    if (user.role !== "superadmin") {
+      if (user.status === "pending") {
+        return res.status(403).json({ error: "Account pending admin approval" });
+      }
+      if (user.status === "rejected") {
+        return res.status(403).json({ error: "Account has been rejected" });
+      }
     }
 
     const valid = await bcrypt.compare(password, user.passwordHash);
@@ -174,7 +176,6 @@ router.post("/register-club", async (req, res) => {
       name: clubName,
       location: location || undefined,
       logo: logo || null,
-      coinBalance: 100,
       status: "active",
     });
 

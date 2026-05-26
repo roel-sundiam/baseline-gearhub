@@ -8,7 +8,6 @@ export interface Club {
   location?: string;
   logo?: string | null;
   createdAt?: string;
-  coinBalance?: number;
   status?: 'active' | 'suspended';
 }
 
@@ -16,7 +15,11 @@ export interface Club {
 export class ClubService {
   private readonly CLUB_KEY = 'activeClubId';
 
-  private _selectedClubId = signal<string | null>(localStorage.getItem(this.CLUB_KEY));
+  private _selectedClubId = signal<string | null>(this.loadClubId());
+
+  private loadClubId(): string | null {
+    try { return localStorage.getItem(this.CLUB_KEY); } catch { return null; }
+  }
   readonly selectedClubId = this._selectedClubId.asReadonly();
 
   constructor(private http: HttpClient) {}
@@ -46,7 +49,7 @@ export class ClubService {
   }
 
   setSelectedClubId(id: string) {
-    localStorage.setItem(this.CLUB_KEY, id);
+    try { localStorage.setItem(this.CLUB_KEY, id); } catch { /* Safari restricted storage */ }
     this._selectedClubId.set(id);
   }
 
@@ -55,7 +58,7 @@ export class ClubService {
   }
 
   clearSelectedClub() {
-    localStorage.removeItem(this.CLUB_KEY);
+    try { localStorage.removeItem(this.CLUB_KEY); } catch { /* Safari restricted storage */ }
     this._selectedClubId.set(null);
   }
 }

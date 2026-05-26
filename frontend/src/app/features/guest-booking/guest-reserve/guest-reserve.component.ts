@@ -864,8 +864,6 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
         this.booking = false;
         if (err?.status === 409) {
           this.errorMsg = 'That slot was just booked by someone else. Please choose another time.';
-        } else if (err?.status === 402) {
-          this.errorMsg = 'This club is temporarily unable to accept bookings. Please contact them directly.';
         } else {
           this.errorMsg = err?.error?.error || 'Failed to submit booking. Please try again.';
         }

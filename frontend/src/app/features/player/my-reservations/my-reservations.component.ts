@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { ReservationService, Reservation } from '../../../core/services/reservation.service';
-import { CoinsService } from '../../../core/services/coins.service';
 import { UsersService } from '../../../core/services/users.service';
 import { RatesService } from '../../../core/services/rates.service';
 import { SoundService } from '../../../core/services/sound.service';
@@ -1286,7 +1285,6 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
     private reservationService: ReservationService,
     private usersService: UsersService,
     private ratesService: RatesService,
-    private coinsService: CoinsService,
     private router: Router,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
@@ -1296,7 +1294,6 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
-    this.coinsService.trackVisit('my-reservations').subscribe({ error: () => {} });
     this.load();
   }
 

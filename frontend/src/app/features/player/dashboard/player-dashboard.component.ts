@@ -6,7 +6,6 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ReservationService, Reservation, ReservationPlayer } from '../../../core/services/reservation.service';
 import { ClubService } from '../../../core/services/club.service';
 import { TournamentService, Tournament } from '../../../core/services/tournament.service';
-import { CoinsService } from '../../../core/services/coins.service';
 import { NewsService, ClubNews } from '../../../core/services/news.service';
 
 @Component({
@@ -837,7 +836,6 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     private reservationService: ReservationService,
     private clubService: ClubService,
     private tournamentService: TournamentService,
-    private coinsService: CoinsService,
     private newsService: NewsService,
     private cdr: ChangeDetectorRef,
     private router: Router,
@@ -847,7 +845,6 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
-    this.coinsService.trackVisit('player-dashboard').subscribe({ error: () => {} });
 
     this.chargesService.getMyCharges().subscribe({
       next: (charges) => {
