@@ -1,7 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ClubService, Club } from '../../../core/services/club.service';
 import { UsersService } from '../../../core/services/users.service';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
@@ -42,6 +42,9 @@ interface AdminUser {
           </span>
           <a routerLink="/player/dashboard" class="btn btn-purple">
             <i class="fas fa-user"></i> Player Dashboard
+          </a>
+          <a routerLink="/admin/dev-finance" class="btn btn-dev">
+            <i class="fas fa-code"></i> Dev Finance
           </a>
           <a routerLink="/admin/clubs/new" class="btn btn-primary">
             <i class="fas fa-plus"></i> New Club
@@ -135,11 +138,26 @@ interface AdminUser {
                     <i class="fas fa-location-dot"></i> {{ club.location }}
                   </span>
                 }
+                @if (club.mobile) {
+                  <span class="pill pill-default">
+                    <i class="fas fa-phone"></i> {{ club.mobile }}
+                  </span>
+                }
+                @if (club.email) {
+                  <span class="pill pill-default">
+                    <i class="fas fa-envelope"></i> {{ club.email }}
+                  </span>
+                }
                 @if (club.createdAt) {
                   <span class="pill pill-default">
                     <i class="fas fa-calendar-days"></i> {{ formatDate(club.createdAt) }}
                   </span>
                 }
+                <span class="pill pill-fee">
+                  <i class="fas fa-percentage"></i>
+                  {{ ((club.convenienceFeeRate ?? 0.10) * 100) | number:'1.0-1' }}%
+                  · {{ club.convenienceFeeMode === 'per_transaction' ? 'per txn' : 'per hr' }}
+                </span>
                 @if (club.status === 'suspended') {
                   <span class="pill pill-suspended">
                     <i class="fas fa-ban"></i> Suspended
@@ -154,7 +172,7 @@ interface AdminUser {
                 <a [routerLink]="['/admin/clubs', club._id, 'edit']" class="btn btn-sm btn-outline" (click)="$event.stopPropagation()">
                   <i class="fas fa-pen"></i> Edit
                 </a>
-                <button type="button" class="btn btn-sm btn-copy" (click)="$event.stopPropagation(); copyBookingLink(club._id)">
+                <button type="button" class="btn btn-sm btn-copy" (click)="$event.stopPropagation(); copyBookingLink(club)">
                   <i class="fas" [class.fa-copy]="copiedClubId !== club._id" [class.fa-check]="copiedClubId === club._id"></i>
                   {{ copiedClubId === club._id ? 'Copied!' : 'Copy Link' }}
                 </button>
@@ -279,6 +297,10 @@ interface AdminUser {
                         <div class="admin-badges">
                           <span class="badge badge-role">{{ admin.role }}</span>
                           <span class="badge" [class.badge-active]="admin.status === 'active'" [class.badge-inactive]="admin.status !== 'active'">{{ admin.status }}</span>
+                          <button type="button" class="btn-mirror" (click)="loginAs(admin)" [disabled]="mirroringUserId === admin._id">
+                            <i class="fas fa-user-secret"></i>
+                            {{ mirroringUserId === admin._id ? 'Logging in…' : 'Login as' }}
+                          </button>
                         </div>
                       </div>
                     }
@@ -342,6 +364,63 @@ interface AdminUser {
             <!-- ── APP SERVICE FEES TAB ── -->
             @if (activeTab === 'appfees' && auth.isSuperAdmin()) {
               <div class="list-card">
+
+                <!-- Convenience Fee Settings Card -->
+                <div class="cfs-card">
+                  <div class="cfs-header">
+                    <div class="cfs-header-left">
+                      <span class="cfs-icon"><i class="fas fa-percentage"></i></span>
+                      <div>
+                        <div class="cfs-title">Convenience Fee Settings</div>
+                        <div class="cfs-subtitle">Charged to players on every booking</div>
+                      </div>
+                    </div>
+                    <span class="cfs-current-badge">
+                      Currently {{ ((selectedClub?.convenienceFeeRate ?? 0.10) * 100) | number:'1.0-1' }}%
+                    </span>
+                  </div>
+
+                  <div class="cfs-body">
+                    <div class="cfs-field">
+                      <label class="cfs-field-label">Fee Rate</label>
+                      <div class="cfs-rate-row">
+                        <input type="number" class="cfs-rate-input" [(ngModel)]="editConvenienceFeeRate" min="0" max="100" step="0.1" />
+                        <span class="cfs-pct">%</span>
+                        <span class="cfs-rate-hint">of total court fee per booking</span>
+                      </div>
+                    </div>
+
+                    <div class="cfs-field">
+                      <label class="cfs-field-label">Fee Mode</label>
+                      <div class="cfs-mode-grid">
+                        <button type="button" class="cfs-mode-opt" [class.cfs-mode-opt-active]="editConvenienceFeeMode === 'per_hour'" (click)="editConvenienceFeeMode = 'per_hour'">
+                          <i class="fas fa-clock"></i>
+                          <span class="cfs-mode-name">Per Hour</span>
+                          <span class="cfs-mode-desc">Fee × duration hours</span>
+                        </button>
+                        <button type="button" class="cfs-mode-opt" [class.cfs-mode-opt-active]="editConvenienceFeeMode === 'per_transaction'" (click)="editConvenienceFeeMode = 'per_transaction'">
+                          <i class="fas fa-receipt"></i>
+                          <span class="cfs-mode-name">Per Booking</span>
+                          <span class="cfs-mode-desc">Fixed, 1× hourly rate</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="cfs-footer">
+                    @if (feeModeSaveMsg) {
+                      <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ feeModeSaveMsg }}</span>
+                    }
+                    <button type="button" class="cfs-save-btn" (click)="saveConvenienceFeeMode()" [disabled]="savingFeeMode">
+                      @if (savingFeeMode) {
+                        <i class="fas fa-circle-notch fa-spin"></i> Saving…
+                      } @else {
+                        <i class="fas fa-save"></i> Save Settings
+                      }
+                    </button>
+                  </div>
+                </div>
+
                 @if (aspLoading) {
                   <p class="state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading data…</p>
                 } @else if (aspError) {
@@ -362,6 +441,12 @@ interface AdminUser {
                       <span class="asp-lbl">Paid to Dev</span>
                       <span class="asp-val">₱{{ aspTotalPaid | number:'1.2-2' }}</span>
                     </div>
+                    @if (aspTotalWaived > 0) {
+                      <div class="asp-stat asp-stat-waived">
+                        <span class="asp-lbl">Waived</span>
+                        <span class="asp-val">₱{{ aspTotalWaived | number:'1.2-2' }}</span>
+                      </div>
+                    }
                     <div class="asp-stat" [class.asp-stat-outstanding]="aspBalance > 0">
                       <span class="asp-lbl">Outstanding</span>
                       <span class="asp-val">₱{{ aspBalance | number:'1.2-2' }}</span>
@@ -383,7 +468,7 @@ interface AdminUser {
                             <span class="asp-player">{{ getPlayerName(c) }}</span>
                             <span class="asp-date">{{ formatDate(c.createdAt) }}</span>
                             <span class="asp-amount-val">₱{{ c.amount | number:'1.2-2' }}</span>
-                            <span class="asp-fee-chip">10% = ₱{{ (c.amount * 0.10) | number:'1.2-2' }}</span>
+                            <span class="asp-fee-chip">Conv. Fee = ₱{{ (c.breakdown?.convenienceFee ?? 0) | number:'1.2-2' }}</span>
                           </div>
                         }
                       </div>
@@ -393,7 +478,7 @@ interface AdminUser {
                   <!-- Payments to developer -->
                   <div class="asp-section">
                     <div class="asp-section-title">
-                      <i class="fas fa-paper-plane"></i> Payments to Developer
+                      <i class="fas fa-paper-plane"></i> App Service History
                       @if (aspPayments.length > 0) { <span class="asp-count">{{ aspPayments.length }}</span> }
                     </div>
                     @if (aspPayments.length === 0) {
@@ -401,14 +486,20 @@ interface AdminUser {
                     } @else {
                       <div class="asp-pay-list">
                         @for (p of aspPayments; track p._id) {
-                          <div class="asp-pay-row">
+                          <div class="asp-pay-row" [class.asp-pay-row-waived]="p.type === 'waiver'">
                             <div class="asp-pay-left">
-                              <span class="asp-pay-amount">₱{{ p.amount | number:'1.2-2' }}</span>
-                              <span class="badge badge-purple">{{ p.paymentMethod }}</span>
+                              <span class="asp-pay-amount" [class.asp-pay-amount-waived]="p.type === 'waiver'">
+                                ₱{{ p.amount | number:'1.2-2' }}
+                              </span>
+                              @if (p.type === 'waiver') {
+                                <span class="badge badge-waived"><i class="fas fa-hand-holding-usd"></i> Waived</span>
+                              } @else {
+                                <span class="badge badge-purple">{{ p.paymentMethod }}</span>
+                              }
                               @if (p.note) { <span class="asp-note">{{ p.note }}</span> }
                             </div>
                             <div class="asp-pay-right">
-                              <span>{{ p.paidBy?.name ?? '—' }}</span>
+                              <span>{{ p.type === 'waiver' ? 'Waived by' : 'Paid by' }} {{ p.paidBy?.name ?? '—' }}</span>
                               <span>{{ formatDate(p.createdAt) }}</span>
                             </div>
                           </div>
@@ -464,6 +555,10 @@ interface AdminUser {
                         <div class="admin-badges">
                           <span class="badge badge-role">{{ member.role }}</span>
                           <span class="badge" [class.badge-active]="member.status === 'active'" [class.badge-inactive]="member.status !== 'active'">{{ member.status }}</span>
+                          <button type="button" class="btn-mirror" (click)="loginAs(member)" [disabled]="mirroringUserId === member._id">
+                            <i class="fas fa-user-secret"></i>
+                            {{ mirroringUserId === member._id ? 'Logging in…' : 'Login as' }}
+                          </button>
                         </div>
                       </div>
                     }
@@ -623,8 +718,7 @@ interface AdminUser {
             <label class="form-label">Payment Method
               <select class="form-input" [(ngModel)]="aspModal.method" name="aspMethod">
                 <option value="GCash">GCash</option>
-                <option value="Cash">Cash</option>
-                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="QRPh">QRPh</option>
               </select>
             </label>
             <label class="form-label">Note <span class="form-hint">optional</span>
@@ -754,6 +848,13 @@ interface AdminUser {
       box-shadow: 0 2px 8px rgba(124,58,237,0.25);
     }
     .btn-purple:hover:not(:disabled) { background: #6d28d9; transform: translateY(-1px); }
+
+    .btn-dev {
+      background: rgba(139,92,246,0.16);
+      color: #c4b5fd;
+      border-color: rgba(139,92,246,0.36);
+    }
+    .btn-dev:hover:not(:disabled) { background: rgba(139,92,246,0.26); transform: translateY(-1px); }
 
     .btn-outline {
       background: #ffffff;
@@ -1041,6 +1142,7 @@ interface AdminUser {
     }
 
     .pill-default { background: #f6f5f0; border: 1px solid rgba(17,24,39,0.1); color: rgba(17,24,39,0.65); }
+    .pill-fee { background: rgba(184,137,66,0.1); border: 1px solid rgba(184,137,66,0.3); color: #b88942; font-weight: 700; }
 
     .pill-pending {
       background: #fff7ed;
@@ -1272,6 +1374,22 @@ interface AdminUser {
     .admin-email { font-size: 0.75rem; color: rgba(17,24,39,0.45); }
 
     .admin-badges { display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end; }
+    .btn-mirror {
+      background: rgba(99,102,241,0.10);
+      color: #818cf8;
+      border: 1px solid rgba(99,102,241,0.28);
+      border-radius: 6px;
+      padding: 0.25rem 0.6rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: background 0.15s;
+    }
+    .btn-mirror:hover:not(:disabled) { background: rgba(99,102,241,0.22); }
+    .btn-mirror:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .badge {
       border-radius: 999px;
@@ -1343,6 +1461,77 @@ interface AdminUser {
     .item-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
 
     .charge-amount { font-weight: 800; font-size: 0.92rem; color: #111827; }
+
+    /* Convenience Fee Settings Card */
+    .cfs-card {
+      border: 1px solid rgba(163,230,53,0.16); border-radius: 14px; overflow: hidden;
+      background: rgba(163,230,53,0.03); margin-bottom: 1.25rem;
+    }
+    .cfs-header {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;
+      padding: 1rem 1.1rem; border-bottom: 1px solid rgba(163,230,53,0.12);
+      background: rgba(163,230,53,0.06);
+    }
+    .cfs-header-left { display: flex; align-items: center; gap: 0.75rem; }
+    .cfs-icon {
+      width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+      background: rgba(163,230,53,0.16); border: 1px solid rgba(163,230,53,0.28);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--dm-accent); font-size: 1rem;
+    }
+    .cfs-title { font-size: 0.9rem; font-weight: 800; color: var(--dm-text); }
+    .cfs-subtitle { font-size: 0.72rem; color: var(--dm-muted); margin-top: 0.1rem; }
+    .cfs-current-badge {
+      background: rgba(163,230,53,0.12); border: 1px solid rgba(163,230,53,0.26);
+      color: var(--dm-accent); font-size: 0.75rem; font-weight: 700;
+      padding: 0.25rem 0.7rem; border-radius: 999px;
+    }
+    .cfs-body { padding: 1.1rem; display: flex; flex-direction: column; gap: 1.1rem; }
+    .cfs-field { display: flex; flex-direction: column; gap: 0.5rem; }
+    .cfs-field-label {
+      font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--dm-muted);
+    }
+    .cfs-rate-row { display: flex; align-items: center; gap: 0.55rem; }
+    .cfs-rate-input {
+      width: 80px; padding: 0.5rem 0.65rem; border-radius: 10px; text-align: center;
+      border: 1px solid rgba(163,230,53,0.28); font-size: 1.2rem; font-weight: 800;
+      background: rgba(163,230,53,0.08); color: var(--dm-accent);
+      font-family: inherit; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .cfs-rate-input:focus { border-color: rgba(163,230,53,0.54); box-shadow: 0 0 0 3px rgba(163,230,53,0.14); }
+    .cfs-rate-input::-webkit-inner-spin-button, .cfs-rate-input::-webkit-outer-spin-button { opacity: 1; }
+    .cfs-pct { font-size: 1.2rem; font-weight: 800; color: var(--dm-accent); }
+    .cfs-rate-hint { font-size: 0.75rem; color: var(--dm-muted); margin-left: 0.2rem; }
+    .cfs-mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    .cfs-mode-opt {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem;
+      padding: 0.85rem 0.9rem; border-radius: 10px; cursor: pointer;
+      background: rgba(255,255,255,0.04); border: 1.5px solid rgba(255,255,255,0.1);
+      transition: all 0.15s; font-family: inherit; text-align: left;
+    }
+    .cfs-mode-opt i { font-size: 1rem; color: rgba(255,255,255,0.35); margin-bottom: 0.2rem; transition: color 0.15s; }
+    .cfs-mode-opt:hover { background: rgba(255,255,255,0.08); border-color: rgba(163,230,53,0.24); }
+    .cfs-mode-opt:hover i { color: var(--dm-accent); }
+    .cfs-mode-opt-active { background: rgba(163,230,53,0.12) !important; border-color: rgba(163,230,53,0.42) !important; }
+    .cfs-mode-opt-active i { color: var(--dm-accent) !important; }
+    .cfs-mode-name { font-size: 0.85rem; font-weight: 700; color: var(--dm-text); }
+    .cfs-mode-opt-active .cfs-mode-name { color: var(--dm-accent); }
+    .cfs-mode-desc { font-size: 0.72rem; color: var(--dm-muted); }
+    .cfs-footer {
+      display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;
+      padding: 0.85rem 1.1rem; border-top: 1px solid rgba(163,230,53,0.1);
+      background: rgba(163,230,53,0.02);
+    }
+    .cfs-save-msg { font-size: 0.8rem; font-weight: 700; color: var(--dm-accent); display: flex; align-items: center; gap: 0.35rem; margin-right: auto; }
+    .cfs-save-btn {
+      padding: 0.55rem 1.2rem; border-radius: 10px; font-size: 0.875rem; font-weight: 700;
+      background: rgba(163,230,53,0.16); color: var(--dm-accent);
+      border: 1px solid rgba(163,230,53,0.32); cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 0.45rem; transition: all 0.15s;
+    }
+    .cfs-save-btn:hover:not(:disabled) { background: rgba(163,230,53,0.26); transform: translateY(-1px); }
+    .cfs-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* App service fees */
     .asp-summary {
@@ -1599,12 +1788,12 @@ interface AdminUser {
     .admin-username,
     .admin-email,
     .modal-desc,
-    .asp-date,
     .asp-note,
-    .asp-pay-right,
-    .asp-lbl {
+    .asp-pay-right {
       color: var(--dm-muted);
     }
+    .asp-lbl { color: rgba(255,255,255,0.80); letter-spacing: 0.07em; }
+    .asp-date { color: rgba(255,255,255,0.70); }
 
     .count-chip {
       background: rgba(163,230,53,0.14);
@@ -1801,11 +1990,11 @@ interface AdminUser {
     }
 
     .form-label,
-    .asp-section-title,
     .asp-player,
     .item-note {
       color: var(--dm-text);
     }
+    .asp-section-title { color: var(--dm-accent); border-bottom-color: rgba(163,230,53,0.22); }
 
     .form-input::placeholder,
     .modal-textarea::placeholder {
@@ -1845,20 +2034,40 @@ interface AdminUser {
       color: var(--dm-accent);
     }
 
+    .asp-stat { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.20); }
+    .asp-val { color: var(--dm-text); }
+
     .asp-stat-due {
-      background: rgba(245,158,11,0.11);
-      border-color: rgba(245,158,11,0.28);
+      background: rgba(245,158,11,0.22);
+      border-color: rgba(245,158,11,0.42);
     }
+    .asp-stat-due .asp-val { color: #fcd34d; }
 
     .asp-stat-paid {
-      background: rgba(34,197,94,0.11);
-      border-color: rgba(34,197,94,0.28);
+      background: rgba(34,197,94,0.18);
+      border-color: rgba(34,197,94,0.36);
     }
+    .asp-stat-paid .asp-val { color: #86efac; }
 
     .asp-stat-outstanding {
-      background: rgba(244,63,94,0.1);
-      border-color: rgba(244,63,94,0.24);
+      background: rgba(244,63,94,0.18);
+      border-color: rgba(244,63,94,0.36);
     }
+    .asp-stat-outstanding .asp-val { color: #fda4af; }
+
+    .asp-stat-waived {
+      background: rgba(139,92,246,0.18);
+      border-color: rgba(139,92,246,0.36);
+    }
+    .asp-stat-waived .asp-val { color: #c4b5fd; }
+
+    .asp-pay-row-waived { background: rgba(139,92,246,0.07) !important; border-color: rgba(139,92,246,0.2) !important; }
+    .asp-pay-amount-waived { color: #c4b5fd !important; }
+    .badge-waived { background: rgba(139,92,246,0.18); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.34); display: inline-flex; align-items: center; gap: 4px; }
+
+    .asp-charge-row { border-left: 3px solid rgba(163,230,53,0.50); padding-left: 0.85rem; }
+    .asp-amount-val { color: var(--dm-text); }
+    .asp-pay-row { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.18); }
 
     .detail-header {
       border-bottom-color: var(--dm-border);
@@ -2068,23 +2277,35 @@ export class AdminClubsComponent implements OnInit {
   aspPayments: AppServicePayment[] = [];
   aspLoading = false;
   aspError = '';
-  aspModal = { show: false, amount: 0, method: 'GCash' as 'GCash' | 'Cash' | 'Bank Transfer', note: '', submitting: false, error: '' };
+  aspModal = { show: false, amount: 0, method: 'GCash' as 'GCash' | 'QRPh', note: '', submitting: false, error: '' };
+
+  editConvenienceFeeMode: 'per_transaction' | 'per_hour' = 'per_hour';
+  editConvenienceFeeRate = 10;
+  savingFeeMode = false;
+  feeModeSaveMsg = '';
 
   get reservationCharges(): Charge[] {
-    return this.approvedCharges.filter(c => c.chargeType === 'reservation');
+    return this.approvedCharges.filter(c =>
+      c.chargeType === 'reservation' && c.reservationId?.status === 'confirmed'
+    );
   }
   get reservationTotal(): number {
     return this.reservationCharges.reduce((sum, c) => sum + c.amount, 0);
   }
   get appServiceDue(): number {
-    return this.reservationTotal * 0.10;
+    return this.reservationCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0);
   }
   get aspTotalPaid(): number {
-    return this.aspPayments.reduce((sum, p) => sum + p.amount, 0);
+    return this.aspPayments.filter(p => p.type !== 'waiver').reduce((sum, p) => sum + p.amount, 0);
+  }
+  get aspTotalWaived(): number {
+    return this.aspPayments.filter(p => p.type === 'waiver').reduce((sum, p) => sum + p.amount, 0);
   }
   get aspBalance(): number {
-    return Math.max(0, this.appServiceDue - this.aspTotalPaid);
+    return Math.max(0, this.appServiceDue - this.aspTotalPaid - this.aspTotalWaived);
   }
+
+  mirroringUserId: string | null = null;
 
   constructor(
     private clubService: ClubService,
@@ -2093,7 +2314,20 @@ export class AdminClubsComponent implements OnInit {
     private aspService: AppServicePaymentsService,
     readonly auth: AuthService,
     private inquiriesService: InquiriesService,
+    private router: Router,
   ) {}
+
+  loginAs(user: AdminUser): void {
+    if (this.mirroringUserId) return;
+    this.mirroringUserId = user._id;
+    this.auth.impersonateUser(user._id).subscribe({
+      next: () => {
+        this.mirroringUserId = null;
+        this.router.navigate(['/player/dashboard']);
+      },
+      error: () => { this.mirroringUserId = null; },
+    });
+  }
 
   ngOnInit() {
     this.loadClubs();
@@ -2139,6 +2373,9 @@ export class AdminClubsComponent implements OnInit {
     this.chargesError = '';
     this.aspError = '';
     this.membersError = '';
+    this.editConvenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
+    this.editConvenienceFeeRate = Math.round((club.convenienceFeeRate ?? 0.10) * 1000) / 10;
+    this.feeModeSaveMsg = '';
 
     this.loadClubAdmins();
   }
@@ -2329,6 +2566,23 @@ export class AdminClubsComponent implements OnInit {
     });
   }
 
+  saveConvenienceFeeMode() {
+    if (!this.selectedClub?._id) return;
+    this.savingFeeMode = true;
+    this.feeModeSaveMsg = '';
+    const rate = Math.max(0, Math.min(100, this.editConvenienceFeeRate)) / 100;
+    this.clubService.patchConvenienceFee(this.selectedClub._id, rate, this.editConvenienceFeeMode).subscribe({
+      next: (updated) => {
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, convenienceFeeRate: updated.convenienceFeeRate, convenienceFeeMode: updated.convenienceFeeMode } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, convenienceFeeRate: updated.convenienceFeeRate, convenienceFeeMode: updated.convenienceFeeMode };
+        this.savingFeeMode = false;
+        this.feeModeSaveMsg = 'Saved!';
+        setTimeout(() => { this.feeModeSaveMsg = ''; }, 2500);
+      },
+      error: () => { this.savingFeeMode = false; this.feeModeSaveMsg = 'Failed to save.'; },
+    });
+  }
+
   openAspModal() {
     this.aspModal = { show: true, amount: parseFloat(this.aspBalance.toFixed(2)), method: 'GCash', note: '', submitting: false, error: '' };
   }
@@ -2348,19 +2602,20 @@ export class AdminClubsComponent implements OnInit {
 
   // ── Utilities ──
   getPlayerName(charge: Charge): string {
-    if (!charge.playerId) return 'Unknown';
+    if (!charge.playerId) return charge.guestName || 'Unknown';
     if (typeof charge.playerId === 'string') return charge.playerId;
-    return charge.playerId.name || 'Unknown';
+    return charge.playerId.name || charge.guestName || 'Unknown';
   }
 
   getInitials(name: string) {
     return name.split(' ').filter(p => p.trim().length > 0).map(p => p.charAt(0)).slice(0, 2).join('');
   }
 
-  copyBookingLink(clubId: string) {
-    const link = `${window.location.origin}/book/${clubId}`;
+  copyBookingLink(club: { _id: string; slug?: string }) {
+    const identifier = club.slug || club._id;
+    const link = `${window.location.origin}/book/${identifier}`;
     navigator.clipboard.writeText(link).then(() => {
-      this.copiedClubId = clubId;
+      this.copiedClubId = club._id;
       setTimeout(() => { this.copiedClubId = null; }, 2000);
     });
   }

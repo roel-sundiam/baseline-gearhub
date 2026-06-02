@@ -7,14 +7,14 @@ export interface Charge {
   _id: string;
   playerId: string | { _id: string; name: string; email: string; username: string } | null;
   guestName?: string;
-  reservationId?: { _id: string; date: string; court: number; timeSlot: string };
+  reservationId?: { _id: string; date: string; court: number; timeSlot: string; durationHours?: number; status?: string };
   sessionId?: { _id: string; date: string; startTime: string; ballBoyUsed: boolean };
   amount: number;
-  breakdown: { withoutLightFee: number; lightFee: number; ballBoyFee: number };
+  breakdown: { withoutLightFee: number; lightFee: number; ballBoyFee: number; guestFee?: number; rentalFee?: number; convenienceFee?: number };
   chargeType: 'reservation' | 'session';
   status: 'unpaid' | 'paid';
   approvalStatus?: 'none' | 'pending' | 'approved' | 'rejected';
-  paymentMethod?: 'GCash' | 'Cash' | 'Bank Transfer';
+  paymentMethod?: 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme';
   paidAt?: string;
   adminNote?: string;
   createdAt: string;
@@ -43,7 +43,7 @@ export class ChargesService {
   }
 
   // Mark charge as paid
-  markAsPaid(id: string, paymentMethod: 'GCash' | 'Cash' | 'Bank Transfer') {
+  markAsPaid(id: string, paymentMethod: 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme') {
     console.log(`ChargesService: Calling PATCH /api/charges/${id}/pay with method:`, paymentMethod);
     return this.http.patch<{ message: string; charge: Charge }>(
       `${environment.apiUrl}/charges/${id}/pay`,
@@ -76,6 +76,21 @@ export class ChargesService {
     let params = new HttpParams().set('status', 'approved');
     if (clubId) params = params.set('clubId', clubId);
     return this.http.get<Charge[]>(`${environment.apiUrl}/charges/pending-approval`, { params });
+  }
+
+  // Get all charges regardless of approval status (for app service fee owed calculation)
+  getAllCharges(clubId?: string) {
+    let params = new HttpParams().set('status', 'all');
+    if (clubId) params = params.set('clubId', clubId);
+    return this.http.get<Charge[]>(`${environment.apiUrl}/charges/pending-approval`, { params });
+  }
+
+  // Admin: directly mark an admin-entered charge as paid
+  markAsPaidByAdmin(id: string, paymentMethod: 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme') {
+    return this.http.patch<{ message: string; charge: Charge }>(
+      `${environment.apiUrl}/charges/${id}/mark-paid`,
+      { paymentMethod }
+    );
   }
 
   // Admin: approve a payment

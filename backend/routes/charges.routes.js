@@ -4,6 +4,7 @@ const admin = require("../middleware/admin");
 const Charge = require("../models/Charge");
 const Reservation = require("../models/Reservation");
 const Session = require("../models/Session");
+const { sendPushToUser, sendPushToClubAdmins } = require("../utils/push");
 
 const router = express.Router();
 
@@ -13,7 +14,8 @@ router.get("/my", auth, async (req, res) => {
     const clubId = req.user.clubId;
     console.log("Fetching charges for user:", req.user.userId);
     const charges = await Charge.find({ clubId, playerId: req.user.userId })
-      .populate("reservationId", "date court timeSlot")
+      .populate("playerId", "name")
+      .populate("reservationId", "date court timeSlot durationHours")
       .populate("sessionId", "date startTime ballBoyUsed")
       .sort({ createdAt: -1 })
       .lean();
@@ -42,13 +44,13 @@ router.get("/pending-approval", auth, admin, async (req, res) => {
     } else if (status === "rejected") {
       filter = { ...cf, approvalStatus: "rejected" };
     } else {
-      // "all" — return every charge that has entered the approval workflow
-      filter = { ...cf, approvalStatus: { $ne: "none" } };
+      // "all" — return every charge for the club
+      filter = { ...cf };
     }
 
     const charges = await Charge.find(filter)
       .populate("playerId", "name email username")
-      .populate("reservationId", "date court timeSlot")
+      .populate("reservationId", "date court timeSlot durationHours status")
       .populate("sessionId", "date startTime ballBoyUsed")
       .sort({ paidAt: -1 })
       .lean();
@@ -96,6 +98,13 @@ router.patch("/:id/approve", auth, admin, async (req, res) => {
       );
     }
 
+    sendPushToUser(charge.playerId, {
+      title: 'Payment Approved ✓',
+      body: `Your payment of ₱${charge.amount.toLocaleString()} has been approved!`,
+      url: '/player/payments',
+      tag: 'payment-approved',
+    }).catch(() => {});
+
     res.json({ message: "Payment approved", charge });
   } catch (err) {
     console.error(err);
@@ -138,6 +147,13 @@ router.patch("/:id/reject", auth, admin, async (req, res) => {
       );
     }
 
+    sendPushToUser(charge.playerId, {
+      title: 'Payment Rejected',
+      body: adminNote ? `Payment rejected: ${adminNote}` : 'Your payment submission was rejected. Please re-submit.',
+      url: '/player/payments',
+      tag: 'payment-rejected',
+    }).catch(() => {});
+
     res.json({ message: "Payment rejected", charge });
   } catch (err) {
     console.error(err);
@@ -150,7 +166,7 @@ router.get("/:id", auth, async (req, res) => {
   try {
     const charge = await Charge.findById(req.params.id)
       .populate("playerId", "name email")
-      .populate("reservationId", "date court timeSlot")
+      .populate("reservationId", "date court timeSlot durationHours")
       .populate("sessionId", "date startTime endTime ballBoyUsed");
 
     if (!charge) {
@@ -171,6 +187,32 @@ router.get("/:id", auth, async (req, res) => {
   }
 });
 
+// PATCH /api/charges/:id/mark-paid - admin directly marks a charge as paid (admin-entered/guest charges)
+router.patch("/:id/mark-paid", auth, admin, async (req, res) => {
+  try {
+    const { paymentMethod } = req.body;
+    if (!paymentMethod) {
+      return res.status(400).json({ error: "paymentMethod is required" });
+    }
+    const charge = await Charge.findById(req.params.id);
+    if (!charge) return res.status(404).json({ error: "Charge not found" });
+    if (charge.status === "paid") {
+      return res.status(400).json({ error: "Charge is already paid" });
+    }
+
+    charge.status = "paid";
+    charge.approvalStatus = "approved";
+    charge.paymentMethod = paymentMethod;
+    charge.paidAt = new Date();
+    await charge.save();
+
+    res.json({ message: "Charge marked as paid", charge });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // PATCH /api/charges/:id/pay - player logs a payment (enters pending approval)
 router.patch("/:id/pay", auth, async (req, res) => {
   try {
@@ -181,9 +223,9 @@ router.patch("/:id/pay", auth, async (req, res) => {
 
     const { paymentMethod } = req.body;
 
-    if (!paymentMethod || !["GCash", "Cash", "Bank Transfer"].includes(paymentMethod)) {
+    if (!paymentMethod || !["GCash", "Cash", "Bank Transfer", "GoTyme"].includes(paymentMethod)) {
       console.error("Invalid payment method:", paymentMethod);
-      return res.status(400).json({ error: "Valid paymentMethod required (GCash, Cash, Bank Transfer)" });
+      return res.status(400).json({ error: "Valid paymentMethod required (GCash, Cash, Bank Transfer, GoTyme)" });
     }
 
     const charge = await Charge.findById(req.params.id);
@@ -216,6 +258,13 @@ router.patch("/:id/pay", auth, async (req, res) => {
     await charge.save();
     console.log("Charge saved successfully:", charge._id);
 
+    sendPushToClubAdmins(charge.clubId, {
+      title: 'Payment Submitted',
+      body: `A player submitted a ${paymentMethod} payment of ₱${charge.amount.toLocaleString()} — awaiting your approval.`,
+      url: '/admin/payment-approvals',
+      tag: 'payment-submitted',
+    }).catch(() => {});
+
     res.json({ message: "Payment submitted for approval", charge });
   } catch (err) {
     console.error("Error in PATCH /charges/:id/pay:", err);
@@ -239,7 +288,7 @@ router.get("/", auth, admin, async (req, res) => {
 
     const charges = await Charge.find(filter)
       .populate("playerId", "name email username")
-      .populate("reservationId", "date court timeSlot")
+      .populate("reservationId", "date court timeSlot durationHours")
       .populate("sessionId", "date startTime ballBoyUsed")
       .sort({ createdAt: -1 })
       .lean();

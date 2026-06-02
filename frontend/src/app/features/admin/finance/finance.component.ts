@@ -6,8 +6,6 @@ import { forkJoin } from 'rxjs';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AppServicePaymentsService, AppServicePayment } from '../../../core/services/app-service-payments.service';
 
-const APP_SERVICE_RATE = 0.10;
-
 @Component({
   selector: 'app-finance',
   standalone: true,
@@ -154,12 +152,18 @@ const APP_SERVICE_RATE = 0.10;
               </div>
               <div class="summary-item highlight-blue">
                 <div class="summary-value">{{ appServiceTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
-                <div class="summary-label">Total Due (10%)</div>
+                <div class="summary-label">Conv. Fees Owed</div>
               </div>
               <div class="summary-item">
                 <div class="summary-value">{{ totalPaid | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
                 <div class="summary-label">Paid to Dev</div>
               </div>
+              @if (totalWaived > 0) {
+                <div class="summary-item highlight-purple">
+                  <div class="summary-value">{{ totalWaived | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
+                  <div class="summary-label">Waived</div>
+                </div>
+              }
               <div class="summary-item" [class.highlight-red]="balance > 0" [class.highlight-green]="balance <= 0">
                 <div class="summary-value">{{ balance | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
                 <div class="summary-label">Outstanding</div>
@@ -168,7 +172,7 @@ const APP_SERVICE_RATE = 0.10;
 
             <!-- Pay Action -->
             <div class="pay-action-row">
-              <p class="rate-note">App Service Fee = 10% of approved court reservation charges, paid to the Developer.</p>
+              <p class="rate-note">App Service Fee = convenience fee collected from clients per booking, remitted to the Developer.</p>
               <button class="btn-pay" (click)="openPayForm()" [disabled]="balance <= 0">
                 <i class="fas fa-paper-plane"></i> Record Payment to Developer
               </button>
@@ -179,7 +183,7 @@ const APP_SERVICE_RATE = 0.10;
             @if (reservationCharges.length === 0) {
               <div class="empty-state">
                 <span>🎾</span>
-                <p>No approved reservation charges found.</p>
+                <p>No reservation charges found.</p>
               </div>
             } @else {
               <div class="table-wrap">
@@ -188,10 +192,11 @@ const APP_SERVICE_RATE = 0.10;
                     <tr>
                       <th>Player</th>
                       <th>Date</th>
+                      <th>Time</th>
                       <th>Court</th>
                       <th>Method</th>
                       <th class="col-amount">Court Fee</th>
-                      <th class="col-amount">App Service (10%)</th>
+                      <th class="col-amount">Conv. Fee</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -202,6 +207,9 @@ const APP_SERVICE_RATE = 0.10;
                           @if (charge.reservationId) {
                             {{ charge.reservationId.date | date: 'MMM d, yyyy' : 'UTC' }}
                           }
+                        </td>
+                        <td class="col-date">
+                          {{ formatTimeSlot(charge.reservationId?.timeSlot, charge.reservationId?.durationHours ?? 1) }}
                         </td>
                         <td>
                           @if (charge.reservationId) {
@@ -214,13 +222,13 @@ const APP_SERVICE_RATE = 0.10;
                           </span>
                         </td>
                         <td class="col-amount">{{ charge.amount | currency: 'PHP' : 'symbol' }}</td>
-                        <td class="col-amount col-service">{{ charge.amount * 0.10 | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                        <td class="col-amount col-service">{{ (charge.breakdown?.convenienceFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       </tr>
                     }
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colspan="4" class="foot-label">Total ({{ reservationCharges.length }} reservations)</td>
+                      <td colspan="5" class="foot-label">Total ({{ reservationCharges.length }} reservations)</td>
                       <td class="col-amount foot-total">{{ reservationTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       <td class="col-amount foot-total col-service">{{ appServiceTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     </tr>
@@ -234,13 +242,16 @@ const APP_SERVICE_RATE = 0.10;
               <div class="paid-fees-header">
                 <div class="paid-fees-title-row">
                   <i class="fas fa-receipt paid-fees-icon"></i>
-                  <h4 class="paid-fees-title">Paid App Service Fees</h4>
+                  <h4 class="paid-fees-title">App Service History</h4>
                   @if (appServicePayments.length > 0) {
                     <span class="paid-fees-count">{{ appServicePayments.length }}</span>
                   }
                 </div>
                 <div class="paid-fees-total">
-                  Total Paid: <strong>{{ totalPaid | currency: 'PHP' : 'symbol' : '1.2-2' }}</strong>
+                  Paid: <strong>{{ totalPaid | currency: 'PHP' : 'symbol' : '1.2-2' }}</strong>
+                  @if (totalWaived > 0) {
+                    &nbsp;· Waived: <strong class="waived-total">{{ totalWaived | currency: 'PHP' : 'symbol' : '1.2-2' }}</strong>
+                  }
                 </div>
               </div>
 
@@ -252,24 +263,34 @@ const APP_SERVICE_RATE = 0.10;
               } @else {
                 <div class="paid-fees-list">
                   @for (p of appServicePayments; track p._id) {
-                    <div class="paid-fee-card">
+                    <div class="paid-fee-card" [class.paid-fee-card-waived]="p.type === 'waiver'">
                       <div class="paid-fee-left">
-                        <div class="paid-fee-icon-wrap">
-                          <i class="fas fa-check-circle"></i>
+                        <div class="paid-fee-icon-wrap" [class.paid-fee-icon-waived]="p.type === 'waiver'">
+                          <i class="fas" [class.fa-check-circle]="p.type !== 'waiver'" [class.fa-hand-holding-usd]="p.type === 'waiver'"></i>
                         </div>
                         <div class="paid-fee-info">
                           <div class="paid-fee-date">{{ p.createdAt | date: 'MMM d, yyyy' : 'UTC' }}</div>
-                          <div class="paid-fee-by">Paid by {{ p.paidBy?.name }}</div>
+                          <div class="paid-fee-by">
+                            {{ p.type === 'waiver' ? 'Waived by' : 'Paid by' }} {{ p.paidBy?.name }}
+                          </div>
                           @if (p.note) {
                             <div class="paid-fee-note">📝 {{ p.note }}</div>
                           }
                         </div>
                       </div>
                       <div class="paid-fee-right">
-                        <span class="method-badge" [ngClass]="methodClass(p.paymentMethod)">
-                          {{ p.paymentMethod }}
-                        </span>
-                        <div class="paid-fee-amount">{{ p.amount | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
+                        @if (p.type === 'waiver') {
+                          <span class="method-badge method-waived">
+                            <i class="fas fa-hand-holding-usd"></i> Waived
+                          </span>
+                        } @else {
+                          <span class="method-badge" [ngClass]="methodClass(p.paymentMethod)">
+                            {{ p.paymentMethod }}
+                          </span>
+                        }
+                        <div class="paid-fee-amount" [class.paid-fee-amount-waived]="p.type === 'waiver'">
+                          {{ p.amount | currency: 'PHP' : 'symbol' : '1.2-2' }}
+                        </div>
                       </div>
                     </div>
                   }
@@ -297,12 +318,27 @@ const APP_SERVICE_RATE = 0.10;
             </div>
             <div class="modal-field">
               <label>Payment Method</label>
-              <select [(ngModel)]="payMethod">
-                <option value="GCash">GCash</option>
-                <option value="Cash">Cash</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-              </select>
+              <div class="method-selector">
+                <button type="button" class="method-opt" [class.method-opt-gcash]="payMethod === 'GCash'" (click)="payMethod = 'GCash'">
+                  <i class="fas fa-mobile-alt"></i> GCash
+                </button>
+                <button type="button" class="method-opt" [class.method-opt-qrph]="payMethod === 'QRPh'" (click)="payMethod = 'QRPh'">
+                  <i class="fas fa-qrcode"></i> QRPh
+                </button>
+              </div>
             </div>
+            @if (payMethod === 'GCash') {
+              <div class="qr-block qr-block-gcash">
+                <p class="qr-label"><i class="fas fa-mobile-alt"></i> Scan to pay via GCash</p>
+                <img [src]="gcashQrCode" alt="Developer GCash QR Code" class="qr-img" />
+              </div>
+            }
+            @if (payMethod === 'QRPh') {
+              <div class="qr-block qr-block-qrph">
+                <p class="qr-label"><i class="fas fa-qrcode"></i> Scan to pay via QRPh</p>
+                <img [src]="qrphQrCode" alt="Developer QRPh QR Code" class="qr-img" />
+              </div>
+            }
             <div class="modal-field">
               <label>Note <span class="optional">(optional)</span></label>
               <input type="text" [(ngModel)]="payNote" placeholder="e.g. April 2025 app service" />
@@ -380,6 +416,9 @@ const APP_SERVICE_RATE = 0.10;
     .summary-item.highlight-green { background: rgba(163,230,53,0.14); border-radius: 8px; }
     .summary-item.highlight-green .summary-value { color: var(--dm-accent); font-size: 1.1rem; }
     .summary-item.highlight-green .summary-label { color: rgba(255,255,255,0.7); }
+    .summary-item.highlight-purple { background: rgba(139,92,246,0.14); border-radius: 8px; }
+    .summary-item.highlight-purple .summary-value { color: #c4b5fd; font-size: 1.1rem; }
+    .summary-item.highlight-purple .summary-label { color: rgba(196,181,253,0.8); }
     .summary-value { font-size: 1.1rem; font-weight: 700; color: #ffffff; }
     .summary-label { font-size: 0.72rem; color: rgba(255,255,255,0.62); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
 
@@ -452,6 +491,27 @@ const APP_SERVICE_RATE = 0.10;
     }
     .btn-cancel-pay:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
     .pay-error { color: #fca5a5; font-size: 0.82rem; }
+    .method-selector { display: flex; gap: 8px; }
+    .method-opt {
+      flex: 1; padding: 10px 6px; border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px; background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.55);
+      cursor: pointer; font-size: 0.8rem; font-weight: 600; font-family: inherit;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: all 0.15s;
+    }
+    .method-opt:hover { background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.85); }
+    .method-opt-gcash { background: rgba(139,92,246,0.18) !important; border-color: rgba(139,92,246,0.48) !important; color: #c4b5fd !important; }
+    .method-opt-qrph  { background: rgba(20,184,166,0.18) !important; border-color: rgba(20,184,166,0.46) !important; color: #5eead4 !important; }
+    .qr-block {
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      padding: 14px 12px; border-radius: 10px;
+    }
+    .qr-block-gcash { background: rgba(139,92,246,0.10); border: 1px solid rgba(139,92,246,0.28); }
+    .qr-block-gcash .qr-label { color: #c4b5fd; }
+    .qr-block-qrph  { background: rgba(20,184,166,0.10); border: 1px solid rgba(20,184,166,0.28); }
+    .qr-block-qrph .qr-label  { color: #5eead4; }
+    .qr-label { margin: 0; font-size: 0.78rem; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .qr-img { width: 180px; height: 180px; object-fit: contain; border-radius: 8px; background: #ffffff; padding: 6px; display: block; }
 
     .section-heading {
       font-size: 0.85rem; font-weight: 700; color: rgba(255,255,255,0.72); text-transform: uppercase;
@@ -501,6 +561,11 @@ const APP_SERVICE_RATE = 0.10;
       display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0;
     }
     .paid-fee-amount { font-size: 1rem; font-weight: 700; color: var(--dm-accent); }
+    .paid-fee-amount-waived { color: #c4b5fd !important; }
+    .paid-fee-card-waived { background: rgba(139,92,246,0.04); border-color: rgba(139,92,246,0.14) !important; }
+    .paid-fee-icon-waived { background: rgba(139,92,246,0.16) !important; color: #c4b5fd !important; }
+    .method-waived { background: rgba(139,92,246,0.16); color: #c4b5fd; display: inline-flex; align-items: center; gap: 4px; }
+    .waived-total { color: #c4b5fd; }
 
     .filter-bar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: flex-end; }
     .filter-group { display: flex; flex-direction: column; gap: 4px; }
@@ -559,6 +624,7 @@ const APP_SERVICE_RATE = 0.10;
 })
 export class FinanceComponent implements OnInit {
   charges: Charge[] = [];
+  allReservationCharges: Charge[] = [];
   filtered: Charge[] = [];
   appServicePayments: AppServicePayment[] = [];
   loading = true;
@@ -570,10 +636,12 @@ export class FinanceComponent implements OnInit {
 
   showPayForm = false;
   payAmount: number | null = null;
-  payMethod: 'GCash' | 'Cash' | 'Bank Transfer' = 'GCash';
+  payMethod: 'GCash' | 'QRPh' = 'GCash';
   payNote = '';
   saving = false;
   payError = '';
+  readonly gcashQrCode = 'dev-gcash-qr.png';
+  readonly qrphQrCode = 'dev-qrph-qr.png';
 
   get total() { return this.charges.reduce((s, c) => s + c.amount, 0); }
   get filteredTotal() { return this.filtered.reduce((s, c) => s + c.amount, 0); }
@@ -581,11 +649,12 @@ export class FinanceComponent implements OnInit {
   get cashTotal() { return this.charges.filter(c => c.paymentMethod === 'Cash').reduce((s, c) => s + c.amount, 0); }
   get bankTotal() { return this.charges.filter(c => c.paymentMethod === 'Bank Transfer').reduce((s, c) => s + c.amount, 0); }
 
-  get reservationCharges() { return this.charges.filter(c => c.chargeType === 'reservation'); }
+  get reservationCharges() { return this.allReservationCharges; }
   get reservationTotal() { return this.reservationCharges.reduce((s, c) => s + c.amount, 0); }
-  get appServiceTotal() { return this.reservationTotal * APP_SERVICE_RATE; }
-  get totalPaid() { return this.appServicePayments.reduce((s, p) => s + p.amount, 0); }
-  get balance() { return this.appServiceTotal - this.totalPaid; }
+  get appServiceTotal() { return this.reservationCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
+  get totalPaid() { return this.appServicePayments.filter(p => p.type !== 'waiver').reduce((s, p) => s + p.amount, 0); }
+  get totalWaived() { return this.appServicePayments.filter(p => p.type === 'waiver').reduce((s, p) => s + p.amount, 0); }
+  get balance() { return this.appServiceTotal - this.totalPaid - this.totalWaived; }
 
   constructor(
     private chargesService: ChargesService,
@@ -597,10 +666,14 @@ export class FinanceComponent implements OnInit {
   ngOnInit() {
     forkJoin({
       charges: this.chargesService.getApprovedCharges(),
+      allCharges: this.chargesService.getAllCharges(),
       payments: this.appServicePaymentsService.getAll(),
     }).subscribe({
-      next: ({ charges, payments }) => {
+      next: ({ charges, allCharges, payments }) => {
         this.charges = charges.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        this.allReservationCharges = allCharges
+          .filter(c => c.chargeType === 'reservation' && c.reservationId?.status === 'confirmed')
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         this.appServicePayments = payments;
         this.applyFilter();
         this.loading = false;
@@ -670,9 +743,24 @@ export class FinanceComponent implements OnInit {
 
   getPlayerName(charge: Charge): string {
     if (charge.playerId && typeof charge.playerId === 'object') {
-      return (charge.playerId as any).name || 'Unknown';
+      return (charge.playerId as any).name || charge.guestName || 'Unknown';
     }
-    return 'Unknown';
+    return charge.guestName || 'Unknown';
+  }
+
+  formatTimeSlot(slot?: string, durationHours = 1): string {
+    if (!slot) return '';
+    const match = slot.match(/^(\d+)(am|pm)$/i);
+    if (!match) return slot;
+    const h = parseInt(match[1]);
+    const period = match[2].toLowerCase();
+    const start24 = period === 'am' ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
+    const end24 = start24 + durationHours;
+    const fmt = (h: number) => {
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return `${h12}:00 ${h < 12 ? 'AM' : 'PM'}`;
+    };
+    return `${fmt(start24)} - ${fmt(end24)}`;
   }
 
   goBack() {
