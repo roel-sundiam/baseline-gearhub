@@ -10,9 +10,10 @@ export interface ReservationPlayer {
 
 export interface Reservation {
   _id: string;
-  court: 1 | 2;
+  court: number;
   date: string;
   timeSlot: string;
+  durationHours?: number;
   hasLights: boolean;
   player: ReservationPlayer | string | null;
   players: ReservationPlayer[];
@@ -29,6 +30,7 @@ export interface Reservation {
 
 export interface AvailabilityResult {
   bookedSlots: string[];
+  pendingSlots: string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -37,13 +39,13 @@ export class ReservationService {
 
   constructor(private http: HttpClient) {}
 
-  getAvailability(court: 1 | 2, date: string) {
+  getAvailability(court: number, date: string) {
     const params = new HttpParams().set('court', court).set('date', date);
     return this.http.get<AvailabilityResult>(`${this.base}/availability`, { params });
   }
 
   create(payload: {
-    court: 1 | 2; date: string; timeSlot: string; players?: string[];
+    court: number; date: string; timeSlot: string; durationHours?: number; players?: string[];
     lightsRequested?: boolean; ballBoy?: boolean; isHoliday?: boolean; guestCount?: number;
     rentals?: { balls50?: number; balls100?: number; ballMachine?: boolean; rackets?: number };
   }) {
@@ -66,9 +68,10 @@ export class ReservationService {
   }
 
   update(id: string, payload: {
-    court: 1 | 2; date: string; timeSlot: string; players?: string[];
+    court: number; date: string; timeSlot: string; durationHours?: number; players?: string[];
     lightsRequested?: boolean; ballBoy?: boolean; isHoliday?: boolean; guestCount?: number;
     rentals?: { balls50?: number; balls100?: number; ballMachine?: boolean; rackets?: number };
+    guestInfo?: { name?: string; email?: string; phone?: string };
   }) {
     return this.http.patch<Reservation>(`${this.base}/${id}`, payload);
   }

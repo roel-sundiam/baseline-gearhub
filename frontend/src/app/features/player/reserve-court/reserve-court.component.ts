@@ -7,13 +7,30 @@ import { UsersService } from '../../../core/services/users.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { RatesService } from '../../../core/services/rates.service';
 import { SoundService } from '../../../core/services/sound.service';
+import { ClubService } from '../../../core/services/club.service';
 
-const ALL_SLOTS = [
-  '5am','6am','7am','8am','9am','10am','11am',
-  '12pm','1pm','2pm','3pm','4pm','5pm',
-  '6pm','7pm','8pm','9pm','10pm',
-];
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm']);
+
+function slotToHour(slot: string): number {
+  const m = slot.match(/^(\d+)(am|pm)$/);
+  if (!m) return 0;
+  const h = parseInt(m[1], 10);
+  return m[2] === 'am' ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
+}
+function hourToSlot(h: number): string {
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${h < 12 ? 'am' : 'pm'}`;
+}
+
+function hoursToSlots(openingHour: number, closingHour: number): string[] {
+  const slots: string[] = [];
+  for (let h = openingHour; h <= closingHour; h++) {
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const period = h < 12 ? 'am' : 'pm';
+    slots.push(`${h12}${period}`);
+  }
+  return slots;
+}
 
 interface ActivePlayer { _id: string; name: string; email: string; }
 
@@ -36,6 +53,27 @@ interface ActivePlayer { _id: string; name: string; email: string; }
         @if (successMsg) {
           <div class="dm-alert dm-alert-success"><i class="fas fa-check-circle"></i> {{ successMsg }}</div>
         }
+        @if (showPaymentInfo && paymentMethods.length > 0) {
+          <div class="dm-payment-notice">
+            @if (paymentMethods[0] === 'GoTyme') {
+              <img src="/goTyme.jpg" alt="GoTyme" class="dm-payment-method-logo" />
+            } @else {
+              <i class="fas fa-wallet"></i>
+            }
+            <div>
+              <strong>Pay via {{ paymentMethods[0] }}</strong>
+              @if (paymentQrCodes[paymentMethods[0]]) {
+                <img [src]="paymentQrCodes[paymentMethods[0]]" alt="Payment QR Code" class="dm-qr-code" />
+                <p>Scan the QR code to pay. Your booking will be confirmed once payment is verified.</p>
+              } @else if (paymentAccounts[paymentMethods[0]]) {
+                <p class="dm-payment-account">{{ paymentAccounts[paymentMethods[0]] }}</p>
+                <p>Send the exact amount and keep your reference. Your booking will be confirmed once payment is verified.</p>
+              } @else {
+                <p>Send the exact amount and keep your reference. Your booking will be confirmed once payment is verified.</p>
+              }
+            </div>
+          </div>
+        }
         @if (errorMsg) {
           <div class="dm-alert dm-alert-error"><i class="fas fa-exclamation-triangle"></i> {{ errorMsg }}</div>
         }
@@ -56,12 +94,11 @@ interface ActivePlayer { _id: string; name: string; email: string; }
         <div class="dm-section">
           <div class="dm-section-label">Court</div>
           <div class="dm-court-toggle">
-            <button class="dm-court-btn" [class.active]="selectedCourt === 1" (click)="selectCourt(1)">
-              <i class="fas fa-table-tennis"></i> Court 1
-            </button>
-            <button class="dm-court-btn" [class.active]="selectedCourt === 2" (click)="selectCourt(2)">
-              <i class="fas fa-table-tennis"></i> Court 2
-            </button>
+            @for (n of courtNumbers; track n) {
+              <button class="dm-court-btn" [class.active]="selectedCourt === n" (click)="selectCourt(n)">
+                <i class="fas fa-table-tennis"></i> Court {{ n }}
+              </button>
+            }
           </div>
         </div>
 
@@ -81,8 +118,9 @@ interface ActivePlayer { _id: string; name: string; email: string; }
                     class="dm-slot-btn"
                     [class.selected]="selectedSlot === slot"
                     [class.booked]="bookedSlots.has(slot)"
+                    [class.in-range]="isInRange(slot)"
                     [class.has-lights]="lightSlots.has(slot)"
-                    [disabled]="bookedSlots.has(slot)"
+                    [disabled]="bookedSlots.has(slot) || isInRange(slot)"
                     (click)="selectSlot(slot)"
                   >
                     {{ slot }}
@@ -91,6 +129,25 @@ interface ActivePlayer { _id: string; name: string; email: string; }
                 }
               </div>
             }
+          </div>
+        }
+
+        <!-- Duration -->
+        @if (selectedSlot && availableDurations.length > 1) {
+          <div class="dm-section">
+            <div class="dm-section-label">Duration</div>
+            <div class="dm-duration-row">
+              @for (d of availableDurations; track d) {
+                <button
+                  type="button"
+                  class="dm-duration-btn"
+                  [class.active]="selectedDuration === d"
+                  (click)="setDuration(d)"
+                >
+                  {{ d }} hr{{ d > 1 ? 's' : '' }}
+                </button>
+              }
+            </div>
           </div>
         }
 
@@ -246,7 +303,7 @@ interface ActivePlayer { _id: string; name: string; email: string; }
               <span>Date</span>
               <strong>{{ selectedDate | date: 'EEE, MMM d, y' : 'UTC' }}</strong>
             </div>
-            <div class="dm-summary-row"><span>Time</span><strong class="dm-summary-time">{{ selectedSlot }}</strong></div>
+            <div class="dm-summary-row"><span>Time</span><strong class="dm-summary-time">{{ selectedSlot }}{{ selectedDuration > 1 ? ' – ' + endSlotLabel : '' }}</strong></div>
             <div class="dm-summary-row">
               <span>Lights</span>
               <strong>{{ lightsRequested ? 'Yes 💡' : 'No 🌙' }}</strong>
@@ -270,19 +327,19 @@ interface ActivePlayer { _id: string; name: string; email: string; }
             <div class="dm-summary-divider"></div>
 
             <div class="dm-summary-row">
-              <span>Court Fee</span>
+              <span>Court Fee{{ selectedDuration > 1 ? ' (' + selectedDuration + ' hrs × ' + (baseHourlyRate | currency: 'PHP' : 'symbol') + ')' : '' }}</span>
               <strong>@if (loadingRates) { — } @else { {{ baseCourtFee | currency: 'PHP' : 'symbol' }} }</strong>
             </div>
             @if (lightsRequested) {
               <div class="dm-summary-row">
-                <span>Lights Fee</span>
-                <strong>@if (loadingRates) { — } @else { {{ lightsRate | currency: 'PHP' : 'symbol' }} }</strong>
+                <span>Lights Fee{{ selectedDuration > 1 ? ' × ' + selectedDuration : '' }}</span>
+                <strong>@if (loadingRates) { — } @else { {{ lightsRate * selectedDuration | currency: 'PHP' : 'symbol' }} }</strong>
               </div>
             }
             @if (ballBoyRequested) {
               <div class="dm-summary-row">
-                <span>Ball Boy Fee</span>
-                <strong>@if (loadingRates) { — } @else { {{ ballBoyRate | currency: 'PHP' : 'symbol' }} }</strong>
+                <span>Ball Boy Fee{{ selectedDuration > 1 ? ' × ' + selectedDuration : '' }}</span>
+                <strong>@if (loadingRates) { — } @else { {{ ballBoyRate * selectedDuration | currency: 'PHP' : 'symbol' }} }</strong>
               </div>
             }
             @if (totalRentalFee > 0) {
@@ -298,6 +355,11 @@ interface ActivePlayer { _id: string; name: string; email: string; }
               </div>
             }
 
+            <div class="dm-summary-row">
+              <span>Convenience Fee <span class="dm-summary-sub">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
+              <strong>@if (loadingRates) { — } @else { {{ convenienceFee | currency: 'PHP' : 'symbol' }} }</strong>
+            </div>
+
             <div class="dm-summary-divider"></div>
 
             <div class="dm-summary-row dm-summary-total">
@@ -307,12 +369,6 @@ interface ActivePlayer { _id: string; name: string; email: string; }
               </strong>
             </div>
 
-            <div class="dm-summary-divider"></div>
-
-            <div class="dm-summary-row dm-coin-row">
-              <span><i class="fas fa-coins" style="color:#f59e0b;margin-right:4px"></i> Coin Cost</span>
-              <strong class="dm-coin-cost">5 coins</strong>
-            </div>
           </div>
 
           <button class="dm-confirm-btn" [disabled]="booking" (click)="confirm()">
@@ -438,6 +494,22 @@ interface ActivePlayer { _id: string; name: string; email: string; }
       border: 1px solid rgba(239,68,68,0.25);
       color: #ef4444;
     }
+
+    .dm-payment-notice {
+      display: flex;
+      gap: 0.75rem;
+      background: rgba(163,230,53,0.08);
+      border: 1px solid rgba(163,230,53,0.25);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .dm-payment-notice i { color: #a3e635; font-size: 1.1rem; margin-top: 2px; flex-shrink: 0; }
+    .dm-payment-notice strong { font-size: 0.88rem; color: #a3e635; display: block; margin-bottom: 0.3rem; }
+    .dm-payment-notice p { font-size: 0.8rem; color: rgba(255,255,255,0.55); margin: 0; line-height: 1.5; }
+    .dm-payment-account { color: #ffffff !important; font-size: 0.92rem !important; font-weight: 600; margin-bottom: 0.4rem !important; }
+    .dm-payment-method-logo { width: 32px; height: 32px; object-fit: contain; border-radius: 6px; flex-shrink: 0; margin-top: 2px; }
+    .dm-qr-code { display: block; width: 160px; height: 160px; object-fit: contain; border-radius: 10px; background: #fff; padding: 6px; margin: 0.6rem 0; }
 
     /* Sections */
     .dm-section { margin-bottom: 1.1rem; }
@@ -577,11 +649,17 @@ interface ActivePlayer { _id: string; name: string; email: string; }
       border-color: rgba(255,255,255,0.05);
       text-decoration: line-through;
     }
-    .dm-slot-btn:hover:not(.booked):not(.selected) {
-      border-color: rgba(163,230,53,0.35);
-      background: rgba(163,230,53,0.07);
-    }
+    .dm-slot-btn.in-range { border-color: rgba(163,230,53,0.4); background: rgba(163,230,53,0.08); color: rgba(163,230,53,0.6); cursor: not-allowed; }
+    .dm-slot-btn:hover:not(.booked):not(.selected):not(.in-range) { border-color: rgba(163,230,53,0.35); background: rgba(163,230,53,0.07); }
 
+    .dm-duration-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .dm-duration-btn {
+      padding: 0.45rem 1rem; border-radius: 8px; border: 1.5px solid rgba(255,255,255,0.15);
+      background: #1b3028; color: rgba(255,255,255,0.6); font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; font-family: inherit;
+    }
+    .dm-duration-btn:hover { border-color: rgba(163,230,53,0.4); color: rgba(163,230,53,0.9); }
+    .dm-duration-btn.active { border-color: #a3e635; background: rgba(163,230,53,0.15); color: #a3e635; }
     .dm-light-dot { font-size: 0.7rem; }
 
     /* Player search */
@@ -807,9 +885,6 @@ interface ActivePlayer { _id: string; name: string; email: string; }
       color: #a3e635 !important;
     }
 
-    .dm-coin-row { color: rgba(255,255,255,0.55); }
-    .dm-coin-cost { color: #f59e0b !important; font-size: 0.9rem; }
-
     /* Confirm button */
     .dm-confirm-btn {
       width: 100%;
@@ -876,18 +951,26 @@ interface ActivePlayer { _id: string; name: string; email: string; }
 export class ReserveCourtComponent implements OnInit, OnDestroy {
   @ViewChild('searchWrap') searchWrapRef!: ElementRef<HTMLElement>;
 
-  allSlots = ALL_SLOTS;
+  allSlots = hoursToSlots(5, 22);
   lightSlots = LIGHT_SLOTS;
 
+  courtCount = 2;
   selectedDate = '';
-  selectedCourt: 1 | 2 | null = null;
+  selectedCourt: number | null = null;
   selectedSlot = '';
+  selectedDuration = 1;
+  availableDurations: number[] = [];
+  closingHour = 22;
   bookedSlots = new Set<string>();
   loadingSlots = false;
   booking = false;
   successMsg = '';
   errorMsg = '';
   today = new Date().toISOString().split('T')[0];
+  showPaymentInfo = false;
+  paymentMethods: string[] = [];
+  paymentAccounts: Record<string, string> = {};
+  paymentQrCodes: Record<string, string> = {};
 
   allActivePlayers: ActivePlayer[] = [];
   filteredPlayers: ActivePlayer[] = [];
@@ -895,6 +978,8 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   playerSearch = '';
   showDropdown = false;
 
+  convenienceFeeRate = 0.10;
+  convenienceFeeMode: 'per_transaction' | 'per_hour' = 'per_hour';
   weekdayRate = 0;
   weekendRate = 0;
   holidayRate = 0;
@@ -917,6 +1002,8 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
 
   private readonly WEEKEND_DAYS = new Set([0, 5, 6]);
 
+  get courtNumbers(): number[] { return Array.from({ length: this.courtCount }, (_, i) => i + 1); }
+
   get hasLights(): boolean { return LIGHT_SLOTS.has(this.selectedSlot); }
 
   get hasAnyRental(): boolean {
@@ -931,7 +1018,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     return this.WEEKEND_DAYS.has(day) ? 'weekend' : 'weekday';
   }
 
-  get baseCourtFee(): number {
+  get baseHourlyRate(): number {
     if (!this.selectedSlot) return 0;
     switch (this.dayType) {
       case 'holiday': return this.holidayRate;
@@ -940,7 +1027,11 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     }
   }
 
-  get lightsFee(): number { return this.lightsRequested ? this.lightsRate : 0; }
+  get baseCourtFee(): number {
+    return this.baseHourlyRate * this.selectedDuration;
+  }
+
+  get lightsFee(): number { return this.lightsRequested ? this.lightsRate * this.selectedDuration : 0; }
 
   get totalGuestFee(): number { return this.guestCount * this.guestFeeRate; }
 
@@ -950,11 +1041,20 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
       this.rentalBalls100 * this.rentalBalls100Rate +
       (this.rentalBallMachine ? this.rentalBallMachineRate : 0) +
       this.rentalRackets * this.rentalRacketRate
-    );
+    ) * this.selectedDuration;
+  }
+
+  get subtotal(): number {
+    return this.baseCourtFee + this.lightsFee + (this.ballBoyRequested ? this.ballBoyRate * this.selectedDuration : 0) + this.totalGuestFee + this.totalRentalFee;
+  }
+
+  get convenienceFee(): number {
+    const base = this.convenienceFeeMode === 'per_transaction' ? this.baseHourlyRate : this.subtotal;
+    return parseFloat((base * this.convenienceFeeRate).toFixed(2));
   }
 
   get computedFee(): number {
-    return this.baseCourtFee + this.lightsFee + (this.ballBoyRequested ? this.ballBoyRate : 0) + this.totalGuestFee + this.totalRentalFee;
+    return this.subtotal + this.convenienceFee;
   }
 
   constructor(
@@ -962,6 +1062,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     private usersService: UsersService,
     private ratesService: RatesService,
     private auth: AuthService,
+    private clubService: ClubService,
     private router: Router,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
@@ -997,6 +1098,23 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
       },
       error: () => { this.loadingRates = false; this.cdr.detectChanges(); },
     });
+
+    const clubId = this.auth.user()?.clubId;
+    if (clubId) {
+      this.clubService.getClub(clubId).subscribe({
+        next: (club) => {
+          this.courtCount = club.courtCount ?? 2;
+          this.closingHour = club.closingHour ?? 22;
+          this.allSlots = hoursToSlots(club.openingHour ?? 5, this.closingHour);
+          this.paymentMethods = club.paymentMethods ?? [];
+          this.paymentAccounts = club.paymentAccounts ?? {};
+          this.paymentQrCodes = club.paymentQrCodes ?? {};
+          this.convenienceFeeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10;
+          this.convenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
+          this.cdr.detectChanges();
+        },
+      });
+    }
 
     document.addEventListener('click', this.onDocClick);
   }
@@ -1058,7 +1176,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  selectCourt(court: 1 | 2) {
+  selectCourt(court: number) {
     this.selectedCourt = court;
     this.selectedSlot = '';
     this.onDateOrCourtChange();
@@ -1066,6 +1184,8 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
 
   onDateOrCourtChange() {
     this.selectedSlot = '';
+    this.selectedDuration = 1;
+    this.availableDurations = [];
     this.bookedSlots = new Set();
     if (!this.selectedDate || !this.selectedCourt) return;
     this.loadingSlots = true;
@@ -1083,10 +1203,43 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   }
 
   selectSlot(slot: string) {
-    if (this.bookedSlots.has(slot)) return;
+    if (this.bookedSlots.has(slot) || this.isInRange(slot)) return;
     this.selectedSlot = slot;
+    this.selectedDuration = 1;
+    this.computeAvailableDurations();
     this.successMsg = '';
     this.errorMsg = '';
+    this.showPaymentInfo = false;
+  }
+
+  computeAvailableDurations() {
+    if (!this.selectedSlot) { this.availableDurations = []; return; }
+    const startH = slotToHour(this.selectedSlot);
+    const durations: number[] = [];
+    for (let d = 1; d <= 12; d++) {
+      const endH = startH + d - 1;
+      if (endH > this.closingHour) break;
+      if (d > 1 && this.bookedSlots.has(hourToSlot(endH))) break;
+      durations.push(d);
+    }
+    this.availableDurations = durations;
+  }
+
+  setDuration(d: number) {
+    this.selectedDuration = d;
+    this.cdr.detectChanges();
+  }
+
+  isInRange(slot: string): boolean {
+    if (!this.selectedSlot || this.selectedDuration <= 1) return false;
+    const startH = slotToHour(this.selectedSlot);
+    const h = slotToHour(slot);
+    return h > startH && h < startH + this.selectedDuration;
+  }
+
+  get endSlotLabel(): string {
+    if (!this.selectedSlot) return '';
+    return hourToSlot(slotToHour(this.selectedSlot) + this.selectedDuration);
   }
 
   confirm() {
@@ -1098,6 +1251,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
       court: this.selectedCourt,
       date: this.selectedDate,
       timeSlot: this.selectedSlot,
+      durationHours: this.selectedDuration,
       players: this.addedPlayers.map((p) => p._id),
       lightsRequested: this.lightsRequested,
       ballBoy: this.ballBoyRequested,
@@ -1115,10 +1269,18 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
         const withStr = this.addedPlayers.length
           ? ` with ${this.addedPlayers.map((p) => p.name).join(', ')}`
           : '';
-        this.successMsg = `Court ${this.selectedCourt} reserved for ${this.selectedSlot}${withStr}!`;
+        const timeStr = this.selectedDuration > 1 ? `${this.selectedSlot} – ${this.endSlotLabel}` : this.selectedSlot;
+        this.successMsg = `Court ${this.selectedCourt} reserved for ${timeStr}${withStr}!`;
+        this.showPaymentInfo = this.paymentMethods.length > 0;
         this.sound.success();
-        this.bookedSlots = new Set([...this.bookedSlots, this.selectedSlot]);
+        const newBooked = new Set(this.bookedSlots);
+        for (let i = 0; i < this.selectedDuration; i++) {
+          newBooked.add(hourToSlot(slotToHour(this.selectedSlot) + i));
+        }
+        this.bookedSlots = newBooked;
         this.selectedSlot = '';
+        this.selectedDuration = 1;
+        this.availableDurations = [];
         this.addedPlayers = [];
         this.lightsRequested = false;
         this.ballBoyRequested = false;

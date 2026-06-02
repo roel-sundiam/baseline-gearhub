@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { ClubService } from '../../../core/services/club.service';
 
 type FilterTab = 'all' | 'unpaid' | 'paid';
 
@@ -90,13 +91,17 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                   </div>
 
                   <div class="dm-charge-details">
+                    <div class="dm-detail-row">
+                      <span class="dm-detail-icon"><i class="fas fa-user"></i></span>
+                      <span>{{ getReserverName(charge) }}</span>
+                    </div>
                     @if (charge.chargeType === 'reservation' && charge.reservationId) {
                       <div class="dm-detail-row">
                         <span class="dm-detail-icon"><i class="fas fa-calendar-alt"></i></span>
                         <span>{{ charge.reservationId.date | date: 'MMM d, yyyy' : 'UTC' }}</span>
                         @if (charge.reservationId.timeSlot) {
                           <span class="dm-detail-sep">·</span>
-                          <span>{{ formatTimeSlot(charge.reservationId.timeSlot) }}</span>
+                          <span>{{ formatTimeSlot(charge.reservationId.timeSlot, charge.reservationId.durationHours ?? 1) }}</span>
                         }
                       </div>
                       <div class="dm-detail-row">
@@ -179,7 +184,7 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                     @if (selectedCharge.reservationId.timeSlot) {
                       <div class="dm-modal-detail">
                         <span class="dm-modal-detail-label">Time</span>
-                        <span class="dm-modal-detail-value">{{ formatTimeSlot(selectedCharge.reservationId.timeSlot) }}</span>
+                        <span class="dm-modal-detail-value">{{ formatTimeSlot(selectedCharge.reservationId.timeSlot, selectedCharge.reservationId.durationHours ?? 1) }}</span>
                       </div>
                     }
                   }
@@ -188,6 +193,9 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                 <div class="dm-amount-box">
                   <span class="dm-amount-label">Amount Due</span>
                   <span class="dm-amount-display">{{ selectedCharge.amount | currency: 'PHP' : 'symbol' }}</span>
+                  @if ((selectedCharge.breakdown?.convenienceFee ?? 0) > 0) {
+                    <span class="dm-amount-fee-note">includes {{ selectedCharge.breakdown?.convenienceFee | currency: 'PHP' : 'symbol' }} convenience fee</span>
+                  }
                 </div>
 
                 <div class="dm-payment-methods">
@@ -200,10 +208,28 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                           @case ('GCash') { 📱 }
                           @case ('Cash') { 💵 }
                           @case ('Bank Transfer') { 🏦 }
+                          @case ('GoTyme') { <img src="/goTyme.jpg" alt="GoTyme" class="dm-method-logo" /> }
+                          @default { 💰 }
                         }
                       </span>
                       <span class="dm-method-name">{{ method }}</span>
                     </label>
+                    @if (selectedPaymentMethod === method && paymentQrCodes[method]) {
+                      <div class="dm-qr-block">
+                        <div class="dm-qr-label">Scan to pay via {{ method }}</div>
+                        <img [src]="paymentQrCodes[method]" alt="Payment QR Code" class="dm-qr-code" />
+                      </div>
+                    } @else if (selectedPaymentMethod === method && paymentAccounts[method]) {
+                      <div class="dm-account-info">
+                        @if (method === 'GoTyme') {
+                          <img src="/goTyme.jpg" alt="GoTyme" class="dm-account-logo" />
+                        }
+                        <div>
+                          <div class="dm-account-label">Send payment to</div>
+                          <div class="dm-account-value">{{ paymentAccounts[method] }}</div>
+                        </div>
+                      </div>
+                    }
                   }
                 </div>
 
@@ -696,7 +722,39 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
       letter-spacing: -0.5px;
     }
 
-    .dm-payment-methods { margin-bottom: 1.25rem; }
+    .dm-amount-fee-note {
+      display: block;
+      font-size: 0.7rem;
+      color: rgba(163,230,53,0.6);
+      margin-top: 0.3rem;
+    }
+
+    .dm-payment-methods { margin-bottom: 1rem; }
+
+    .dm-account-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(163,230,53,0.08);
+      border: 1px solid rgba(163,230,53,0.25);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .dm-account-logo { width: 36px; height: 36px; object-fit: contain; border-radius: 6px; flex-shrink: 0; }
+    .dm-account-label { font-size: 0.72rem; font-weight: 600; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+    .dm-account-value { font-size: 1rem; font-weight: 700; color: #ffffff; }
+    .dm-account-info-qr { justify-content: center; text-align: center; }
+    .dm-qr-block {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(163,230,53,0.2);
+      border-radius: 10px;
+      padding: 1rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .dm-qr-label { font-size: 0.75rem; font-weight: 600; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
+    .dm-qr-code { display: block; width: 180px; height: 180px; object-fit: contain; border-radius: 10px; background: #fff; padding: 8px; margin: 0 auto; }
 
     .dm-methods-label {
       font-size: 0.75rem;
@@ -726,7 +784,8 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
       background: rgba(163,230,53,0.08);
     }
 
-    .dm-method-icon { font-size: 1.2rem; }
+    .dm-method-icon { font-size: 1.2rem; display: flex; align-items: center; }
+    .dm-method-logo { width: 24px; height: 24px; object-fit: contain; border-radius: 4px; }
 
     .dm-method-name {
       font-size: 0.88rem;
@@ -830,24 +889,43 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
 
   showPaymentModal = false;
   selectedCharge: Charge | null = null;
-  selectedPaymentMethod: 'GCash' | 'Cash' | 'Bank Transfer' | '' = '';
-  paymentMethods: Array<'GCash' | 'Cash' | 'Bank Transfer'> = ['GCash', 'Cash', 'Bank Transfer'];
+  selectedPaymentMethod: string = '';
+  paymentMethods: string[] = ['GCash', 'Cash', 'Bank Transfer'];
+  paymentAccounts: Record<string, string> = {};
+  paymentQrCodes: Record<string, string> = {};
   payingChargeId: string | null = null;
   submittingPayment = false;
   paymentSuccessful = false;
 
   constructor(
     private chargesService: ChargesService,
-    private auth: AuthService,
+    public auth: AuthService,
     private router: Router,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
+    private clubService: ClubService,
   ) {}
 
   ngOnInit() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
     this.loadCharges();
+    this.loadClubPaymentMethods();
+  }
+
+  private loadClubPaymentMethods() {
+    const clubId = this.clubService.getSelectedClubId() || this.auth.user()?.clubId;
+    if (!clubId) return;
+    this.clubService.getClub(clubId).subscribe({
+      next: (club) => {
+        if (club.paymentMethods && club.paymentMethods.length > 0) {
+          this.paymentMethods = club.paymentMethods;
+        }
+        this.paymentAccounts = club.paymentAccounts ?? {};
+        this.paymentQrCodes = club.paymentQrCodes ?? {};
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   ngOnDestroy() {
@@ -905,29 +983,31 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
     }
   }
 
-  formatTimeSlot(timeSlot: string | undefined): string {
+  getReserverName(charge: Charge): string {
+    if (charge.guestName) return charge.guestName;
+    if (charge.playerId && typeof charge.playerId === 'object') return (charge.playerId as any).name || '—';
+    return '—';
+  }
+
+  formatTimeSlot(timeSlot: string | undefined, durationHours = 1): string {
     if (!timeSlot) return 'N/A';
     const match = timeSlot.match(/^(\d{1,2})([ap]m)$/i);
     if (!match) return timeSlot;
     const hour = parseInt(match[1], 10);
     const period = match[2].toLowerCase();
-    const startTime = `${hour}:00`;
-    const startPeriod = period === 'am' ? 'AM' : 'PM';
-    let endHour = hour + 1;
-    let endPeriod = period;
-    if (hour === 12) {
-      endHour = 1;
-      endPeriod = period === 'am' ? 'am' : 'pm';
-    } else if (endHour === 12 || endHour === 24) {
-      endPeriod = period === 'am' ? 'pm' : 'am';
-    }
-    if (endHour > 12) endHour = endHour - 12;
-    return `${startTime} ${startPeriod} - ${endHour}:00 ${endPeriod === 'am' ? 'AM' : 'PM'}`;
+    let startH = period === 'am' ? (hour === 12 ? 0 : hour) : (hour === 12 ? 12 : hour + 12);
+    const endH = startH + durationHours;
+    const fmt = (h: number) => {
+      const p = h >= 12 ? 'PM' : 'AM';
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return `${h12}:00 ${p}`;
+    };
+    return `${fmt(startH)} - ${fmt(endH)}`;
   }
 
   openPaymentModal(charge: Charge) {
     this.selectedCharge = charge;
-    this.selectedPaymentMethod = '';
+    this.selectedPaymentMethod = this.paymentMethods.length === 1 ? this.paymentMethods[0] : '';
     this.showPaymentModal = true;
   }
 
@@ -943,7 +1023,7 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
     this.submittingPayment = true;
     this.payingChargeId = this.selectedCharge._id;
     console.log('Submitting payment for charge:', this.selectedCharge._id, 'Method:', this.selectedPaymentMethod);
-    this.chargesService.markAsPaid(this.selectedCharge._id, this.selectedPaymentMethod).subscribe({
+    this.chargesService.markAsPaid(this.selectedCharge._id, this.selectedPaymentMethod as 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme').subscribe({
       next: (res) => {
         console.log('Payment successful:', res);
         if (res.charge) {

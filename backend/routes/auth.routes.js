@@ -4,8 +4,20 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Club = require("../models/Club");
 const LoginHistory = require("../models/LoginHistory");
+const authMiddleware = require("../middleware/auth");
+const superadminMiddleware = require("../middleware/superadmin");
 
 const router = express.Router();
+
+function generateSlug(name) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
@@ -172,8 +184,13 @@ router.post("/register-club", async (req, res) => {
       }
     }
 
+    let slug = generateSlug(clubName);
+    const slugExists = await Club.findOne({ slug }).lean();
+    if (slugExists) slug = slug + '-' + Math.random().toString(36).slice(2, 6);
+
     const club = await Club.create({
       name: clubName,
+      slug,
       location: location || undefined,
       logo: logo || null,
       status: "active",
@@ -199,6 +216,35 @@ router.post("/register-club", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/auth/impersonate/:userId  (superadmin only)
+router.post('/impersonate/:userId', authMiddleware, superadminMiddleware, async (req, res) => {
+  try {
+    const target = await User.findById(req.params.userId).lean();
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (target.role === 'superadmin') return res.status(400).json({ error: 'Cannot impersonate another superadmin' });
+
+    const token = jwt.sign(
+      { userId: target._id, role: target.role, name: target.name, username: target.username, clubId: target.clubId },
+      process.env.JWT_SECRET,
+      { expiresIn: '2h' },
+    );
+    res.json({
+      token,
+      user: {
+        id: target._id,
+        name: target.name,
+        username: target.username,
+        role: target.role,
+        profileImage: target.profileImage || null,
+        clubId: target.clubId,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

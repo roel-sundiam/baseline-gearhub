@@ -1,6 +1,30 @@
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const Club = require("./models/Club");
+
+function _slugify(name) {
+  return name.toLowerCase().trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+async function backfillClubSlugs() {
+  try {
+    const clubs = await Club.find({ slug: { $exists: false } }).lean();
+    for (const club of clubs) {
+      let slug = _slugify(club.name);
+      const conflict = await Club.findOne({ slug, _id: { $ne: club._id } }).lean();
+      if (conflict) slug = slug + '-' + club._id.toString().slice(-4);
+      await Club.updateOne({ _id: club._id }, { $set: { slug } });
+    }
+    if (clubs.length) console.log(`=> backfilled slugs for ${clubs.length} club(s)`);
+  } catch (err) {
+    console.error('=> slug backfill error:', err);
+  }
+}
 
 mongoose.set('strictQuery', true);
 
@@ -17,6 +41,8 @@ const clubsRoutes = require("./routes/clubs.routes");
 const newsRoutes = require("./routes/news.routes");
 const publicRoutes = require("./routes/public.routes");
 const inquiriesRoutes = require("./routes/inquiries.routes");
+const pushRoutes = require("./routes/push.routes");
+const openPlayRoutes = require("./routes/open-play.routes");
 
 const app = express();
 
@@ -72,6 +98,7 @@ async function connectDB() {
       isConnected = true;
       connectingPromise = null;
       console.log('=> database connected');
+      backfillClubSlugs();
     })
     .catch((err) => {
       connectingPromise = null;
@@ -111,5 +138,7 @@ app.use("/api/clubs", clubsRoutes);
 app.use("/api/news", newsRoutes);
 app.use("/api/public", publicRoutes);
 app.use("/api/inquiries", inquiriesRoutes);
+app.use("/api/push", pushRoutes);
+app.use("/api/open-play", openPlayRoutes);
 
 module.exports = app;

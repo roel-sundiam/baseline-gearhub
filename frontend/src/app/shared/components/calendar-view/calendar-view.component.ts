@@ -12,6 +12,12 @@ interface CalDay {
   court2Count: number;
 }
 
+const SLOT_ORDER: Record<string, number> = {
+  '5am':1,'6am':2,'7am':3,'8am':4,'9am':5,'10am':6,'11am':7,
+  '12pm':8,'1pm':9,'2pm':10,'3pm':11,'4pm':12,'5pm':13,
+  '6pm':14,'7pm':15,'8pm':16,'9pm':17,'10pm':18,
+};
+
 @Component({
   selector: 'app-calendar-view',
   standalone: true,
@@ -72,7 +78,7 @@ interface CalDay {
       <!-- Selected day detail panel -->
       @if (selectedDate() && selectedDayItems().length > 0) {
         <div class="cal-panel">
-          <div class="cal-panel-date">{{ selectedDate()! | date: 'EEEE, MMMM d, y' : 'UTC' }}</div>
+          <div class="cal-panel-date">{{ (selectedDate()! + 'T00:00:00Z') | date: 'EEEE, MMMM d, y' : 'UTC' }}</div>
           <div class="cal-panel-list">
             @for (r of selectedDayItems(); track r._id) {
               <div class="cal-res-card" [class.cal-res-mine]="myIds().includes(r._id)">
@@ -80,7 +86,7 @@ interface CalDay {
                 <div class="cal-res-info">
                   <div class="cal-res-top">
                     <strong class="cal-res-court">Court {{ r.court }}</strong>
-                    <span class="cal-res-time">{{ r.timeSlot }}</span>
+                    <span class="cal-res-time">{{ formatSlot(r.timeSlot) }}</span>
                     @if (r.hasLights) { <span class="cal-lights">💡</span> }
                     @if (myIds().includes(r._id)) { <span class="cal-you-tag">you</span> }
                   </div>
@@ -449,7 +455,10 @@ export class CalendarViewComponent {
   selectedDayItems = computed(() => {
     const date = this.selectedDate();
     if (!date) return [];
-    return this.reservationsByDate().get(date) ?? [];
+    const items = this.reservationsByDate().get(date) ?? [];
+    return [...items].sort((a, b) =>
+      a.court - b.court || (SLOT_ORDER[a.timeSlot] ?? 99) - (SLOT_ORDER[b.timeSlot] ?? 99)
+    );
   });
 
   prevMonth() {
@@ -480,5 +489,20 @@ export class CalendarViewComponent {
 
   playerNamesSlice(players: { name: string }[]): string {
     return players.slice(0, 2).map(p => p.name).join(', ');
+  }
+
+  formatSlot(slot: string): string {
+    const isPM = slot.endsWith('pm');
+    const hour = parseInt(slot.replace('am', '').replace('pm', ''), 10);
+    let startH = hour;
+    if (isPM && hour !== 12) startH = hour + 12;
+    if (!isPM && hour === 12) startH = 0;
+    const endH = (startH + 1) % 24;
+    const fmt = (h: number) => {
+      const period = h >= 12 ? 'PM' : 'AM';
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return `${h12}:00 ${period}`;
+    };
+    return `${fmt(startH)} – ${fmt(endH)}`;
   }
 }

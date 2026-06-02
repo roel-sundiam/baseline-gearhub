@@ -20,6 +20,7 @@ import { APP_VERSION } from '../../version';
       <!-- Navbar -->
       <header class="navbar">
         <img src="/CourtGo.png" alt="CourtGo" class="nav-logo" />
+        <a routerLink="/book" class="nav-find">Search Courts / Clubs</a>
         <a routerLink="/login" class="nav-signin">Sign In</a>
       </header>
 
@@ -36,8 +37,9 @@ import { APP_VERSION } from '../../version';
             all in one place. For tennis, pickleball, squash, and more.
           </p>
           <div class="hero-ctas">
-            <a routerLink="/register" class="btn-primary">Register for Free</a>
+            <a routerLink="/register-club" class="btn-primary">Register for Free</a>
             <a routerLink="/login" class="btn-ghost">Sign In &rarr;</a>
+            <a routerLink="/book" class="btn-guest">Book as Guest</a>
           </div>
         </div>
       </section>
@@ -89,7 +91,7 @@ import { APP_VERSION } from '../../version';
       <section class="cta-strip">
         <h2>Ready to get started?</h2>
         <p>Join your club today — free for players, any sport.</p>
-        <a routerLink="/register" class="btn-primary btn-large">Register for Free</a>
+        <a routerLink="/register-club" class="btn-primary btn-large">Register for Free</a>
       </section>
 
       <!-- Footer -->
@@ -158,6 +160,22 @@ import { APP_VERSION } from '../../version';
     .nav-logo {
       height: 36px;
       width: auto;
+    }
+
+    .nav-find {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #a3e635;
+      text-decoration: none;
+      padding: 0.5rem 1.1rem;
+      border: 1px solid rgba(163,230,53,0.28);
+      border-radius: 8px;
+      margin-right: 0.5rem;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .nav-find:hover {
+      background: rgba(163,230,53,0.08);
+      border-color: rgba(163,230,53,0.5);
     }
 
     .nav-signin {
@@ -268,6 +286,22 @@ import { APP_VERSION } from '../../version';
       color: #a3e635;
       border-color: rgba(163,230,53,0.35);
       background: rgba(163,230,53,0.06);
+    }
+
+    .btn-guest {
+      display: inline-block;
+      padding: 0.85rem 1.75rem;
+      color: rgba(255,255,255,0.5);
+      font-weight: 600;
+      font-size: 0.95rem;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      text-decoration: none;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-guest:hover {
+      color: #a3e635;
+      border-color: rgba(163,230,53,0.3);
     }
 
     /* ── Features ────────────────────────────────────────── */

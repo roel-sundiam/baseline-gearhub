@@ -7,12 +7,34 @@ import { ReservationService, Reservation } from '../../../core/services/reservat
 import { UsersService } from '../../../core/services/users.service';
 import { RatesService } from '../../../core/services/rates.service';
 import { SoundService } from '../../../core/services/sound.service';
+import { AuthService } from '../../../core/services/auth.service';
+import { ClubService } from '../../../core/services/club.service';
 import { CalendarViewComponent } from '../../../shared/components/calendar-view/calendar-view.component';
 
 interface ActivePlayer { _id: string; name: string; email: string; }
 
-const ALL_SLOTS = ['5am','6am','7am','8am','9am','10am','11am','12pm','1pm','2pm','3pm','4pm','5pm','6pm','7pm','8pm','9pm','10pm'];
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm']);
+
+function slotToHour(slot: string): number {
+  const m = slot.match(/^(\d+)(am|pm)$/);
+  if (!m) return 0;
+  const h = parseInt(m[1], 10);
+  return m[2] === 'am' ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
+}
+function hourToSlot(h: number): string {
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${h < 12 ? 'am' : 'pm'}`;
+}
+
+function hoursToSlots(openingHour: number, closingHour: number): string[] {
+  const slots: string[] = [];
+  for (let h = openingHour; h <= closingHour; h++) {
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const period = h < 12 ? 'am' : 'pm';
+    slots.push(`${h12}${period}`);
+  }
+  return slots;
+}
 const WEEKEND_DAYS = new Set([0, 5, 6]);
 
 type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
@@ -81,7 +103,7 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
                       </div>
                       <div class="dm-res-date">{{ r.date | date: 'EEE, MMM d, y' : 'UTC' }}</div>
                       <div class="dm-res-time">
-                        <i class="far fa-clock"></i> {{ formatSlot(r.timeSlot) }}
+                        <i class="far fa-clock"></i> {{ formatSlot(r.timeSlot, r.durationHours ?? 1) }}
                         @if (r.hasLights) { <span class="dm-lights-tag"><i class="fas fa-lightbulb"></i> Lights</span> }
                       </div>
                       @if (r.players && r.players.length > 0) {
@@ -134,7 +156,7 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
                       </div>
                       <div class="dm-res-date">{{ r.date | date: 'EEE, MMM d, y' : 'UTC' }}</div>
                       <div class="dm-res-time">
-                        <i class="far fa-clock"></i> {{ formatSlot(r.timeSlot) }}
+                        <i class="far fa-clock"></i> {{ formatSlot(r.timeSlot, r.durationHours ?? 1) }}
                         @if (r.hasLights) { <span class="dm-lights-tag"><i class="fas fa-lightbulb"></i> Lights</span> }
                       </div>
                       @if (r.players && r.players.length > 0) {
@@ -157,7 +179,7 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
             } @else {
               @for (group of groupedAll; track group.date) {
                 <div class="dm-date-group">
-                  <div class="dm-date-label">{{ group.date | date: 'EEEE, MMMM d' : 'UTC' }}</div>
+                  <div class="dm-date-label">{{ (group.date + 'T00:00:00Z') | date: 'EEEE, MMMM d' : 'UTC' }}</div>
                   <div class="dm-res-list">
                     @for (r of group.items; track r._id) {
                       <div class="dm-res-card" [class.dm-res-mine]="isMine(r)">
@@ -172,7 +194,7 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
                             }
                           </div>
                           <div class="dm-res-time">
-                            <i class="far fa-clock"></i> {{ formatSlot(r.timeSlot) }}
+                            <i class="far fa-clock"></i> {{ formatSlot(r.timeSlot, r.durationHours ?? 1) }}
                             @if (r.hasLights) { <span class="dm-lights-tag"><i class="fas fa-lightbulb"></i></span> }
                           </div>
                           <div class="dm-res-booker">
@@ -236,7 +258,7 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
           <div class="dm-modal-details">
             <div class="dm-modal-row"><i class="fas fa-border-all"></i> Court {{ modalReservation.court }}</div>
             <div class="dm-modal-row"><i class="fas fa-calendar"></i> {{ modalReservation.date | date: 'EEEE, MMMM d, y' : 'UTC' }}</div>
-            <div class="dm-modal-row"><i class="fas fa-clock"></i> {{ formatSlot(modalReservation.timeSlot) }}</div>
+            <div class="dm-modal-row"><i class="fas fa-clock"></i> {{ formatSlot(modalReservation.timeSlot, modalReservation.durationHours ?? 1) }}</div>
             @if (modalReservation.hasLights) {
               <div class="dm-modal-row"><i class="fas fa-lightbulb"></i> With Lights</div>
             }
@@ -282,12 +304,11 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
             <div class="dm-edit-section">
               <div class="dm-edit-label">Court</div>
               <div class="dm-court-row">
-                <button class="dm-court-opt" [class.active]="editCourt === 1" (click)="setEditCourt(1)">
-                  <i class="fas fa-table-tennis"></i> Court 1
-                </button>
-                <button class="dm-court-opt" [class.active]="editCourt === 2" (click)="setEditCourt(2)">
-                  <i class="fas fa-table-tennis"></i> Court 2
-                </button>
+                @for (n of courtNumbers; track n) {
+                  <button class="dm-court-opt" [class.active]="editCourt === n" (click)="setEditCourt(n)">
+                    <i class="fas fa-table-tennis"></i> Court {{ n }}
+                  </button>
+                }
               </div>
             </div>
 
@@ -306,8 +327,9 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
                       class="dm-edit-slot"
                       [class.selected]="editSlot === slot"
                       [class.booked]="editBookedSlots.has(slot)"
+                      [class.in-range]="isEditInRange(slot)"
                       [class.has-lights]="lightSlots.has(slot)"
-                      [disabled]="editBookedSlots.has(slot)"
+                      [disabled]="editBookedSlots.has(slot) || isEditInRange(slot)"
                       (click)="selectEditSlot(slot)"
                     >
                       {{ slot }}
@@ -315,6 +337,15 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
                     </button>
                   }
                 </div>
+                @if (editSlot && editAvailableDurations.length > 1) {
+                  <div class="dm-edit-duration-row">
+                    @for (d of editAvailableDurations; track d) {
+                      <button type="button" class="dm-edit-duration-btn" [class.active]="editDuration === d" (click)="setEditDuration(d)">
+                        {{ d }} hr{{ d > 1 ? 's' : '' }}
+                      </button>
+                    }
+                  </div>
+                }
               }
             </div>
 
@@ -408,11 +439,6 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
                 <span>Court Fee</span>
                 <span>₱ {{ editComputedFee | number:'1.0-0' }}</span>
               </div>
-              @if (editCoreChanged) {
-                <div class="dm-edit-coin-notice">
-                  <i class="fas fa-coins"></i> Changing date/court/time costs <strong>3 coins</strong>
-                </div>
-              }
             </div>
 
           </div><!-- end edit body -->
@@ -887,9 +913,14 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
     }
     .dm-edit-slot.selected { background: rgba(163,230,53,0.2); border-color: #a3e635; color: #a3e635; }
     .dm-edit-slot.booked { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.05); color: rgba(255,255,255,0.2); cursor: not-allowed; text-decoration: line-through; }
+    .dm-edit-slot.in-range { border-color: rgba(163,230,53,0.3); background: rgba(163,230,53,0.07); color: rgba(163,230,53,0.6); cursor: not-allowed; }
     .dm-edit-slot.has-lights { border-color: rgba(245,158,11,0.3); }
-    .dm-edit-slot:hover:not(:disabled):not(.selected):not(.booked) { background: rgba(255,255,255,0.1); color: #fff; }
+    .dm-edit-slot:hover:not(:disabled):not(.selected):not(.booked):not(.in-range) { background: rgba(255,255,255,0.1); color: #fff; }
     .dm-slot-light { font-size: 0.55rem; position: absolute; top: 2px; right: 3px; }
+    .dm-edit-duration-row { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.6rem; }
+    .dm-edit-duration-btn { padding: 0.35rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.6); font-size: 0.8rem; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+    .dm-edit-duration-btn:hover { border-color: #a3e635; color: #a3e635; }
+    .dm-edit-duration-btn.active { background: rgba(163,230,53,0.2); border-color: #a3e635; color: #a3e635; }
 
     /* Player search */
     .dm-edit-search-wrap { position: relative; }
@@ -982,18 +1013,6 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
       color: rgba(255,255,255,0.75);
       font-weight: 600;
     }
-    .dm-edit-coin-notice {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-size: 0.78rem;
-      color: #f59e0b;
-      background: rgba(245,158,11,0.1);
-      border-radius: 6px;
-      padding: 0.4rem 0.6rem;
-    }
-    .dm-edit-coin-notice i { font-size: 0.72rem; }
-
     /* Date groups (All tab) */
     .dm-date-group { margin-bottom: 1.25rem; }
     .dm-date-label {
@@ -1195,18 +1214,29 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
     }
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, items]) => ({ date, items }));
+      .map(([date, items]) => ({
+        date,
+        items: [...items].sort((a, b) => {
+          const courtDiff = a.court - b.court;
+          if (courtDiff !== 0) return courtDiff;
+          return slotToHour(a.timeSlot) - slotToHour(b.timeSlot);
+        }),
+      }));
   }
 
   // ── Edit modal state ──────────────────────────────────
   editingReservation: Reservation | null = null;
   readonly today = new Date().toISOString().split('T')[0];
-  readonly allSlots = ALL_SLOTS;
+  allSlots = hoursToSlots(5, 22);
   readonly lightSlots = LIGHT_SLOTS;
 
+  courtCount = 2;
   editDate = '';
-  editCourt: 1 | 2 = 1;
+  editCourt: number = 1;
   editSlot = '';
+  editDuration = 1;
+  editAvailableDurations: number[] = [];
+  editClosingHour = 22;
   editLightsRequested = false;
   editBallBoy = false;
   editIsHoliday = false;
@@ -1237,6 +1267,8 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
   editRentalRacketRate = 0;
   editRatesLoaded = false;
   // ─────────────────────────────────────────────────────
+
+  get courtNumbers(): number[] { return Array.from({ length: this.courtCount }, (_, i) => i + 1); }
 
   get editHasLights(): boolean { return LIGHT_SLOTS.has(this.editSlot); }
 
@@ -1277,7 +1309,8 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
     return (
       this.editCourt !== this.editingReservation.court ||
       this.editDate !== this.editingReservation.date.split('T')[0] ||
-      this.editSlot !== this.editingReservation.timeSlot
+      this.editSlot !== this.editingReservation.timeSlot ||
+      this.editDuration !== (this.editingReservation.durationHours ?? 1)
     );
   }
 
@@ -1285,6 +1318,8 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
     private reservationService: ReservationService,
     private usersService: UsersService,
     private ratesService: RatesService,
+    private auth: AuthService,
+    private clubService: ClubService,
     private router: Router,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
@@ -1295,6 +1330,17 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
     this.load();
+    const clubId = this.auth.user()?.clubId;
+    if (clubId) {
+      this.clubService.getClub(clubId).subscribe({
+        next: (club) => {
+          this.courtCount = club.courtCount ?? 2;
+          this.editClosingHour = club.closingHour ?? 22;
+          this.allSlots = hoursToSlots(club.openingHour ?? 5, this.editClosingHour);
+          this.cdr.detectChanges();
+        },
+      });
+    }
   }
 
   ngOnDestroy() {
@@ -1321,13 +1367,9 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
     });
   }
 
-  formatSlot(slot: string): string {
-    const isPM = slot.endsWith('pm');
-    const hour = parseInt(slot.replace('am', '').replace('pm', ''), 10);
-    let startH = hour;
-    if (isPM && hour !== 12) startH = hour + 12;
-    if (!isPM && hour === 12) startH = 0;
-    const endH = (startH + 1) % 24;
+  formatSlot(slot: string, durationHours = 1): string {
+    const startH = slotToHour(slot);
+    const endH = startH + durationHours;
     const fmt = (h: number) => {
       const period = h >= 12 ? 'PM' : 'AM';
       const h12 = h % 12 === 0 ? 12 : h % 12;
@@ -1402,6 +1444,8 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
     this.editDate = r.date.split('T')[0];
     this.editCourt = r.court;
     this.editSlot = r.timeSlot;
+    this.editDuration = r.durationHours ?? 1;
+    this.editAvailableDurations = [];
     this.editLightsRequested = r.lightsRequested ?? false;
     this.editBallBoy = r.ballBoy ?? false;
     this.editIsHoliday = r.isHoliday ?? false;
@@ -1460,14 +1504,16 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
     this.reservationService.getAvailability(this.editCourt, this.editDate).subscribe({
       next: (res) => {
         const slots = new Set(res.bookedSlots);
-        // Remove the reservation's own current slot so it isn't shown as blocked
         if (this.editingReservation &&
             this.editDate === this.editingReservation.date.split('T')[0] &&
             this.editCourt === this.editingReservation.court) {
-          slots.delete(this.editingReservation.timeSlot);
+          const ownStart = slotToHour(this.editingReservation.timeSlot);
+          const ownDur = this.editingReservation.durationHours ?? 1;
+          for (let i = 0; i < ownDur; i++) slots.delete(hourToSlot(ownStart + i));
         }
         this.editBookedSlots = slots;
         this.editLoadingSlots = false;
+        this.computeEditAvailableDurations();
         this.cdr.detectChanges();
       },
       error: () => { this.editLoadingSlots = false; this.cdr.detectChanges(); },
@@ -1476,20 +1522,56 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
 
   onEditDateOrCourtChange() {
     this.editSlot = '';
+    this.editDuration = 1;
+    this.editAvailableDurations = [];
     this.loadEditAvailability();
   }
 
-  setEditCourt(court: 1 | 2) {
+  setEditCourt(court: number) {
     this.editCourt = court;
     this.editSlot = '';
+    this.editDuration = 1;
+    this.editAvailableDurations = [];
     this.loadEditAvailability();
   }
 
   selectEditSlot(slot: string) {
-    if (this.editBookedSlots.has(slot)) return;
+    if (this.editBookedSlots.has(slot) || this.isEditInRange(slot)) return;
     this.editSlot = slot;
+    this.editDuration = 1;
     if (!LIGHT_SLOTS.has(slot)) this.editLightsRequested = false;
+    this.computeEditAvailableDurations();
     this.cdr.detectChanges();
+  }
+
+  computeEditAvailableDurations() {
+    if (!this.editSlot) { this.editAvailableDurations = []; return; }
+    const startH = slotToHour(this.editSlot);
+    const durations: number[] = [];
+    for (let d = 1; d <= 12; d++) {
+      const endH = startH + d - 1;
+      if (endH > this.editClosingHour) break;
+      if (d > 1 && this.editBookedSlots.has(hourToSlot(endH))) break;
+      durations.push(d);
+    }
+    this.editAvailableDurations = durations;
+  }
+
+  setEditDuration(d: number) {
+    this.editDuration = d;
+    this.cdr.detectChanges();
+  }
+
+  isEditInRange(slot: string): boolean {
+    if (!this.editSlot || this.editDuration <= 1) return false;
+    const startH = slotToHour(this.editSlot);
+    const h = slotToHour(slot);
+    return h > startH && h < startH + this.editDuration;
+  }
+
+  get editEndSlotLabel(): string {
+    if (!this.editSlot) return '';
+    return hourToSlot(slotToHour(this.editSlot) + this.editDuration);
   }
 
   onEditSearch() {
@@ -1525,6 +1607,7 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
       court: this.editCourt,
       date: this.editDate,
       timeSlot: this.editSlot,
+      durationHours: this.editDuration,
       players: this.editAddedPlayers.map(p => p._id),
       lightsRequested: this.editLightsRequested,
       ballBoy: this.editBallBoy,
@@ -1546,11 +1629,7 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.editSaving = false;
         this.sound.error();
-        if (err?.status === 402) {
-          this.editError = `Insufficient coins. Need 3 coins to change the slot.`;
-        } else {
-          this.editError = err?.error?.error || 'Failed to save. Please try again.';
-        }
+        this.editError = err?.error?.error || 'Failed to save. Please try again.';
         this.cdr.detectChanges();
       },
     });

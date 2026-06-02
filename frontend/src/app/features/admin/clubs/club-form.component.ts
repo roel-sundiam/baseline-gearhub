@@ -54,6 +54,58 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
               />
             </div>
 
+            <div class="cf-group">
+              <label class="cf-label" for="mobile">Mobile Number <span class="cf-optional">optional</span></label>
+              <input
+                id="mobile" type="tel" class="cf-input" [(ngModel)]="mobile" name="mobile"
+                placeholder="e.g. 09171234567"
+              />
+            </div>
+
+            <div class="cf-group">
+              <label class="cf-label" for="clubEmail">Email <span class="cf-optional">optional</span></label>
+              <input
+                id="clubEmail" type="email" class="cf-input" [(ngModel)]="email" name="clubEmail"
+                placeholder="e.g. club@example.com"
+              />
+            </div>
+
+            <div class="cf-group">
+              <label class="cf-label" for="courtCount">Number of Courts <span class="cf-required">*</span></label>
+              <input
+                id="courtCount" type="number" class="cf-input" [(ngModel)]="courtCount"
+                name="courtCount" required min="1" max="20"
+                #courtCountField="ngModel"
+                [class.cf-input-invalid]="courtCountField.invalid && courtCountField.touched"
+              />
+              @if (courtCountField.invalid && courtCountField.touched) {
+                <span class="cf-field-error"><i class="fas fa-circle-exclamation"></i> Must be between 1 and 20.</span>
+              }
+            </div>
+
+            <div class="cf-group">
+              <label class="cf-label">Operating Hours</label>
+              <div class="cf-hours-row">
+                <div class="cf-hours-col">
+                  <label class="cf-sublabel">Opens</label>
+                  <select class="cf-input" [(ngModel)]="openingHour" name="openingHour">
+                    @for (opt of hourOptions; track opt.value) {
+                      <option [value]="opt.value">{{ opt.label }}</option>
+                    }
+                  </select>
+                </div>
+                <span class="cf-hours-sep">to</span>
+                <div class="cf-hours-col">
+                  <label class="cf-sublabel">Closes (last slot starts at)</label>
+                  <select class="cf-input" [(ngModel)]="closingHour" name="closingHour">
+                    @for (opt of hourOptions; track opt.value) {
+                      <option [value]="opt.value">{{ opt.label }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <!-- Logo upload -->
             <div class="cf-group">
               <label class="cf-label">Club Logo <span class="cf-optional">optional</span></label>
@@ -101,6 +153,55 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                 style="display:none"
                 (change)="onFileSelected($event)"
               />
+            </div>
+
+            <!-- Payment Methods -->
+            <div class="cf-group">
+              <label class="cf-label">Payment Methods <span class="cf-optional">optional</span></label>
+              <div class="cf-pm-list">
+                @for (method of availablePaymentMethods; track method) {
+                  <div class="cf-pm-row">
+                    <label class="cf-pm-check-label">
+                      <input
+                        type="checkbox"
+                        class="cf-pm-checkbox"
+                        [checked]="paymentMethods.includes(method)"
+                        (change)="togglePaymentMethod(method, $any($event.target).checked)"
+                      />
+                      <span class="cf-pm-name">{{ method }}</span>
+                    </label>
+                    @if (paymentMethods.includes(method)) {
+                      <input
+                        type="text"
+                        class="cf-input cf-pm-account-input"
+                        [placeholder]="method + ' account / number (optional)'"
+                        [value]="paymentAccounts[method] || ''"
+                        (input)="setPaymentAccount(method, $any($event.target).value)"
+                      />
+                      <div class="cf-pm-qr-row">
+                        @if (paymentQrCodes[method]) {
+                          <img [src]="paymentQrCodes[method]" alt="QR Code" class="cf-pm-qr-preview" />
+                          <button type="button" class="cf-pm-qr-remove" (click)="removeQrCode(method)">
+                            <i class="fas fa-trash"></i> Remove QR
+                          </button>
+                        } @else {
+                          <label class="cf-pm-qr-upload">
+                            <i class="fas {{ uploadingQr === method ? 'fa-circle-notch fa-spin' : 'fa-qrcode' }}"></i>
+                            {{ uploadingQr === method ? 'Uploading…' : 'Upload QR Code' }}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              style="display:none"
+                              (change)="onQrFileSelected(method, $event)"
+                              [disabled]="uploadingQr === method"
+                            />
+                          </label>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
             </div>
 
             <div class="cf-actions">
@@ -246,6 +347,29 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
       margin-top: 0.35rem;
     }
 
+    .cf-hours-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.75rem;
+    }
+    .cf-hours-col { flex: 1; }
+    .cf-hours-sep {
+      padding-bottom: 0.7rem;
+      color: var(--dm-muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+    .cf-sublabel {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: rgba(255,255,255,0.4);
+      margin-bottom: 0.3rem;
+    }
+    select.cf-input { cursor: pointer; }
+    select.cf-input option { background: #1e2a1e; color: var(--dm-text); }
+
     .cf-upload-zone {
       position: relative;
       width: 110px;
@@ -365,6 +489,86 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     }
     .cf-btn-cancel:hover { background: rgba(255,255,255,0.1); color: var(--dm-text); }
 
+    .cf-pm-list { display: flex; flex-direction: column; gap: 0.65rem; }
+
+    .cf-pm-row { display: flex; flex-direction: column; gap: 0.4rem; }
+
+    .cf-pm-check-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .cf-pm-checkbox {
+      width: 16px;
+      height: 16px;
+      accent-color: #a3e635;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .cf-pm-name {
+      font-size: 0.9rem;
+      color: var(--dm-text);
+      font-weight: 500;
+    }
+
+    .cf-pm-account-input {
+      margin-top: 0;
+      font-size: 0.85rem;
+    }
+
+    .cf-pm-qr-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .cf-pm-qr-preview {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      border-radius: 8px;
+      background: #fff;
+      padding: 4px;
+      border: 1px solid var(--dm-border);
+    }
+
+    .cf-pm-qr-upload {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.42rem 0.85rem;
+      background: rgba(163,230,53,0.08);
+      border: 1px dashed rgba(163,230,53,0.35);
+      border-radius: 8px;
+      color: var(--dm-accent);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .cf-pm-qr-upload:hover { background: rgba(163,230,53,0.15); }
+
+    .cf-pm-qr-remove {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: none;
+      border: none;
+      color: rgba(244,63,94,0.7);
+      font-size: 0.78rem;
+      cursor: pointer;
+      font-family: inherit;
+      padding: 0;
+      transition: color 0.15s;
+    }
+    .cf-pm-qr-remove:hover { color: #fb7185; }
+
     @media (max-width: 480px) {
       .cf-card { padding: 1.25rem 1rem; }
       .cf-btn-primary, .cf-btn-cancel { width: 100%; justify-content: center; }
@@ -374,9 +578,25 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
 export class ClubFormComponent implements OnInit {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
+  readonly availablePaymentMethods = ['GCash', 'Cash', 'Bank Transfer', 'GoTyme'];
+  readonly hourOptions = Array.from({ length: 24 }, (_, h) => {
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const period = h < 12 ? 'AM' : 'PM';
+    return { value: h, label: `${h12}:00 ${period}` };
+  });
+
   name = '';
   location = '';
+  mobile = '';
+  email = '';
   logo = '';
+  courtCount = 2;
+  openingHour = 5;
+  closingHour = 22;
+  paymentMethods: string[] = [];
+  paymentAccounts: Record<string, string> = {};
+  paymentQrCodes: Record<string, string> = {};
+  uploadingQr: string | null = null;
   saving = false;
   uploading = false;
   uploadError = '';
@@ -396,10 +616,18 @@ export class ClubFormComponent implements OnInit {
     this.editId = this.route.snapshot.paramMap.get('id');
     if (this.editId) {
       this.clubService.getClub(this.editId).subscribe({
-        next: (club) => {
+        next: (club: any) => {
           this.name = club.name;
           this.location = club.location ?? '';
+          this.mobile = club.mobile ?? '';
+          this.email = club.email ?? '';
           this.logo = club.logo ?? '';
+          this.courtCount = club.courtCount ?? 2;
+          this.openingHour = club.openingHour ?? 5;
+          this.closingHour = club.closingHour ?? 22;
+          this.paymentMethods = club.paymentMethods ?? [];
+          this.paymentAccounts = club.paymentAccounts ?? {};
+          this.paymentQrCodes = club.paymentQrCodes ?? {};
         },
         error: () => {
           this.error = 'Failed to load club data.';
@@ -441,10 +669,64 @@ export class ClubFormComponent implements OnInit {
     if (this.fileInput) this.fileInput.nativeElement.value = '';
   }
 
+  togglePaymentMethod(method: string, checked: boolean) {
+    if (checked) {
+      if (!this.paymentMethods.includes(method)) {
+        this.paymentMethods = [...this.paymentMethods, method];
+      }
+    } else {
+      this.paymentMethods = this.paymentMethods.filter(m => m !== method);
+      const updated = { ...this.paymentAccounts };
+      delete updated[method];
+      this.paymentAccounts = updated;
+      const updatedQr = { ...this.paymentQrCodes };
+      delete updatedQr[method];
+      this.paymentQrCodes = updatedQr;
+    }
+  }
+
+  setPaymentAccount(method: string, value: string) {
+    this.paymentAccounts = { ...this.paymentAccounts, [method]: value };
+  }
+
+  async onQrFileSelected(method: string, event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const validationError = this.cloudinary.validateImage(file);
+    if (validationError) { this.uploadError = validationError; return; }
+    this.uploadingQr = method;
+    try {
+      const url = await this.cloudinary.uploadImage(file);
+      this.paymentQrCodes = { ...this.paymentQrCodes, [method]: url };
+    } catch {
+      this.uploadError = 'QR upload failed. Please try again.';
+    } finally {
+      this.uploadingQr = null;
+    }
+  }
+
+  removeQrCode(method: string) {
+    const updated = { ...this.paymentQrCodes };
+    delete updated[method];
+    this.paymentQrCodes = updated;
+  }
+
   onSubmit() {
     this.saving = true;
     this.error = '';
-    const data = { name: this.name, location: this.location || undefined, logo: this.logo || undefined };
+    const data = {
+      name: this.name,
+      location: this.location || undefined,
+      mobile: this.mobile || undefined,
+      email: this.email || undefined,
+      logo: this.logo || undefined,
+      courtCount: this.courtCount,
+      openingHour: this.openingHour,
+      closingHour: this.closingHour,
+      paymentMethods: this.paymentMethods,
+      paymentAccounts: this.paymentAccounts,
+      paymentQrCodes: this.paymentQrCodes,
+    };
     const request = this.editId
       ? this.clubService.updateClub(this.editId, data)
       : this.clubService.createClub(data);

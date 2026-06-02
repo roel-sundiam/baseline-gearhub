@@ -8,11 +8,27 @@ import { LiveVisitorsWidgetComponent } from './features/admin/live-visitors-widg
 import { AuthService } from './core/services/auth.service';
 import { SwUpdateService } from './core/services/sw-update.service';
 import { SoundService } from './core/services/sound.service';
+import { PushNotificationService } from './core/services/push-notification.service';
 
 @Component({
   selector: 'app-root',
   imports: [RouterOutlet, NavbarComponent, LiveVisitorsWidgetComponent],
   template: `
+    <!-- Impersonation banner -->
+    @if (auth.isImpersonating()) {
+      <div class="impersonation-banner">
+        <div class="impersonation-info">
+          <i class="fas fa-user-secret"></i>
+          <span>Mirroring <strong>{{ auth.user()?.name }}</strong>
+            <span class="impersonation-role-chip">{{ auth.user()?.role }}</span>
+          </span>
+        </div>
+        <button type="button" class="impersonation-exit-btn" (click)="exitImpersonation()">
+          <i class="fas fa-arrow-left"></i> Return to Superadmin
+        </button>
+      </div>
+    }
+
     @if (!isAuthRoute()) {
       <app-navbar />
     }
@@ -139,6 +155,33 @@ import { SoundService } from './core/services/sound.service';
       }
       .update-btn-later:hover { color: rgba(255,255,255,0.8); }
 
+      /* ── Impersonation banner ── */
+      .impersonation-banner {
+        position: sticky; top: 0; z-index: 1500;
+        background: #1e1035;
+        border-bottom: 2px solid rgba(129,140,248,0.5);
+        padding: 0.55rem 1.25rem;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 1rem; flex-wrap: wrap; font-size: 0.85rem; color: #c7d2fe;
+      }
+      .impersonation-info { display: flex; align-items: center; gap: 0.6rem; }
+      .impersonation-info i { color: #818cf8; font-size: 1rem; }
+      .impersonation-role-chip {
+        background: rgba(129,140,248,0.18); color: #a5b4fc;
+        border: 1px solid rgba(129,140,248,0.35); border-radius: 999px;
+        padding: 0.1rem 0.5rem; font-size: 0.72rem; font-weight: 700;
+        margin-left: 0.35rem; text-transform: capitalize;
+      }
+      .impersonation-exit-btn {
+        background: rgba(129,140,248,0.14); color: #a5b4fc;
+        border: 1px solid rgba(129,140,248,0.35); border-radius: 8px;
+        padding: 0.4rem 0.85rem; font-size: 0.8rem; font-weight: 700;
+        cursor: pointer; font-family: inherit;
+        display: flex; align-items: center; gap: 0.4rem;
+        transition: background 0.15s;
+      }
+      .impersonation-exit-btn:hover { background: rgba(129,140,248,0.26); }
+
       /* ── Global nav loader ── */
       .cg-loader-overlay {
         position: fixed;
@@ -228,12 +271,29 @@ export class App {
   protected auth = inject(AuthService);
   protected swUpdate = inject(SwUpdateService);
   private sound = inject(SoundService);
+  private push = inject(PushNotificationService);
   protected navigating = signal(false);
 
   constructor() {
     effect(() => {
       if (this.swUpdate.updateAvailable()) this.sound.notification();
     });
+
+    // Subscribe to push notifications once user is logged in
+    effect(() => {
+      if (this.auth.user()) {
+        this.push.init();
+      }
+    });
+
+    // Handle navigation from push notification click (SW posts NAVIGATE message)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (e) => {
+        if (e.data?.type === 'NAVIGATE' && e.data.url) {
+          this.router.navigateByUrl(e.data.url);
+        }
+      });
+    }
 
     this.router.events.subscribe(e => {
       if (e instanceof NavigationStart) this.navigating.set(true);
@@ -248,8 +308,12 @@ export class App {
     }
   }
 
+  exitImpersonation(): void {
+    this.auth.exitImpersonation();
+  }
+
   isAuthRoute(): boolean {
     const url = this.router.url;
-    return url === '/' || url === '' || url.includes('/login') || url.includes('/register') || url.startsWith('/book/');
+    return url === '/' || url === '' || url.includes('/login') || url.includes('/register') || url.startsWith('/book');
   }
 }

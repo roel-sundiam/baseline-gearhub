@@ -139,16 +139,23 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
               <span class="action-title">Manage Users</span>
               <span class="action-sub">Approve and maintain member accounts</span>
             </a>
+            <a routerLink="/admin/reservations" class="action-card">
+              <span class="action-icon"><i class="fas fa-calendar-check"></i></span>
+              <span class="action-title">Court Reservations</span>
+              <span class="action-sub">View, edit, and manage court bookings</span>
+            </a>
             <a routerLink="/admin/rates" class="action-card">
               <span class="action-icon"><i class="fas fa-money-bill-wave"></i></span>
               <span class="action-title">Update Rates</span>
               <span class="action-sub">Adjust pricing and billing baselines</span>
             </a>
+            <!-- Tournaments hidden until feature is ready
             <a routerLink="/admin/tournaments" class="action-card">
               <span class="action-icon"><i class="fas fa-trophy"></i></span>
               <span class="action-title">Tournaments</span>
               <span class="action-sub">Schedule and manage upcoming events</span>
             </a>
+            -->
             <a routerLink="/admin/news" class="action-card">
               <span class="action-icon"><i class="fas fa-newspaper"></i></span>
               <span class="action-title">Club News</span>
@@ -158,6 +165,11 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
               <span class="action-icon"><i class="fas fa-envelope"></i></span>
               <span class="action-title">Inquiries</span>
               <span class="action-sub">View and reply to guest messages</span>
+            </a>
+            <a routerLink="/admin/open-play" class="action-card">
+              <span class="action-icon"><i class="fas fa-table-tennis-paddle-ball"></i></span>
+              <span class="action-title">Open Play</span>
+              <span class="action-sub">Run skill-balanced sessions and track CRI ratings</span>
             </a>
           </div>
         </section>

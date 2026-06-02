@@ -1,8 +1,9 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { ClubService } from './club.service';
 
 export interface AuthUser {
   id: string;
@@ -17,6 +18,11 @@ export interface AuthUser {
 export class AuthService {
   private readonly TOKEN_KEY = 'pv_tennis_token';
   private readonly USER_KEY = 'pv_tennis_user';
+  private readonly BACKUP_TOKEN_KEY = 'pv_tennis_superadmin_backup_token';
+  private readonly BACKUP_USER_KEY  = 'pv_tennis_superadmin_backup_user';
+  private readonly BACKUP_CLUB_KEY  = 'pv_tennis_superadmin_backup_club';
+
+  private clubService = inject(ClubService);
 
   private _user = signal<AuthUser | null>(this.loadUser());
   readonly user = this._user.asReadonly();
@@ -25,6 +31,9 @@ export class AuthService {
     () => this._user()?.role === 'admin' || this._user()?.role === 'superadmin',
   );
   readonly isSuperAdmin = computed(() => this._user()?.role === 'superadmin');
+
+  private _isImpersonating = signal<boolean>(!!localStorage.getItem('pv_tennis_superadmin_backup_token'));
+  readonly isImpersonating = this._isImpersonating.asReadonly();
 
   constructor(
     private http: HttpClient,
@@ -82,8 +91,56 @@ export class AuthService {
   logout() {
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.USER_KEY);
+    localStorage.removeItem(this.BACKUP_TOKEN_KEY);
+    localStorage.removeItem(this.BACKUP_USER_KEY);
+    localStorage.removeItem(this.BACKUP_CLUB_KEY);
     this._user.set(null);
+    this._isImpersonating.set(false);
     this.router.navigate(['/login']);
+  }
+
+  impersonate(token: string, user: AuthUser): void {
+    try {
+      localStorage.setItem(this.BACKUP_TOKEN_KEY, localStorage.getItem(this.TOKEN_KEY) ?? '');
+      localStorage.setItem(this.BACKUP_USER_KEY, localStorage.getItem(this.USER_KEY) ?? '');
+      localStorage.setItem(this.BACKUP_CLUB_KEY, this.clubService.getSelectedClubId() ?? '');
+      localStorage.setItem(this.TOKEN_KEY, token);
+      localStorage.setItem(this.USER_KEY, JSON.stringify(user));
+    } catch {}
+    this._user.set(user);
+    this._isImpersonating.set(true);
+    if (user.clubId) {
+      this.clubService.setSelectedClubId(user.clubId);
+    } else {
+      this.clubService.clearSelectedClub();
+    }
+  }
+
+  exitImpersonation(): void {
+    try {
+      const backupToken = localStorage.getItem(this.BACKUP_TOKEN_KEY);
+      const backupUser  = localStorage.getItem(this.BACKUP_USER_KEY);
+      const backupClub  = localStorage.getItem(this.BACKUP_CLUB_KEY);
+      if (backupToken) localStorage.setItem(this.TOKEN_KEY, backupToken);
+      if (backupUser)  localStorage.setItem(this.USER_KEY, backupUser);
+      localStorage.removeItem(this.BACKUP_TOKEN_KEY);
+      localStorage.removeItem(this.BACKUP_USER_KEY);
+      localStorage.removeItem(this.BACKUP_CLUB_KEY);
+      this._user.set(backupUser ? JSON.parse(backupUser) : null);
+      if (backupClub) {
+        this.clubService.setSelectedClubId(backupClub);
+      } else {
+        this.clubService.clearSelectedClub();
+      }
+    } catch {}
+    this._isImpersonating.set(false);
+    this.router.navigate(['/admin/clubs']);
+  }
+
+  impersonateUser(userId: string) {
+    return this.http
+      .post<{ token: string; user: AuthUser }>(`${environment.apiUrl}/auth/impersonate/${userId}`, {})
+      .pipe(tap((res) => this.impersonate(res.token, res.user)));
   }
 
   getToken(): string | null {

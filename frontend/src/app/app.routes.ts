@@ -131,6 +131,20 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/inquiries/inquiries.component').then((m) => m.InquiriesComponent),
       },
+      {
+        path: 'dev-finance',
+        loadComponent: () =>
+          import('./features/admin/dev-finance/dev-finance.component').then(
+            (m) => m.DevFinanceComponent,
+          ),
+      },
+      {
+        path: 'open-play',
+        loadComponent: () =>
+          import('./features/admin/open-play/open-play.component').then(
+            (m) => m.OpenPlayComponent,
+          ),
+      },
     ],
   },
   {
@@ -201,6 +215,20 @@ export const routes: Routes = [
             (m) => m.PlayerRulesComponent,
           ),
       },
+      {
+        path: 'open-play',
+        loadComponent: () =>
+          import('./features/player/open-play/player-open-play.component').then(
+            (m) => m.PlayerOpenPlayComponent,
+          ),
+      },
+      {
+        path: 'open-play/:id',
+        loadComponent: () =>
+          import('./features/player/open-play/player-open-play-detail.component').then(
+            (m) => m.PlayerOpenPlayDetailComponent,
+          ),
+      },
     ],
   },
   {
@@ -209,6 +237,13 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/player/payments/payments.component').then(
         (m) => m.PlayerPaymentsComponent,
+      ),
+  },
+  {
+    path: 'book',
+    loadComponent: () =>
+      import('./features/guest-booking/club-picker/club-picker.component').then(
+        (m) => m.ClubPickerComponent
       ),
   },
   {

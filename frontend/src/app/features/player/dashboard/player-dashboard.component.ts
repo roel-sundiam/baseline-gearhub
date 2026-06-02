@@ -3,10 +3,11 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { ReservationService, Reservation, ReservationPlayer } from '../../../core/services/reservation.service';
+import { ReservationService, Reservation, ReservationPlayer, AvailabilityResult } from '../../../core/services/reservation.service';
 import { ClubService } from '../../../core/services/club.service';
 import { TournamentService, Tournament } from '../../../core/services/tournament.service';
 import { NewsService, ClubNews } from '../../../core/services/news.service';
+import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'app-player-dashboard',
@@ -69,7 +70,7 @@ import { NewsService, ClubNews } from '../../../core/services/news.service';
           <div class="dm-hero-text">
             <div class="dm-hero-icon"><i class="fas fa-calendar-alt"></i></div>
             <h3 class="dm-hero-title">Book a Court</h3>
-            <p class="dm-hero-hours">5:00 AM – 10:00 PM</p>
+            <p class="dm-hero-hours">{{ operatingHours }}</p>
             <p class="dm-hero-desc">Find and book your preferred time.</p>
             <button class="dm-hero-cta">Book Now</button>
           </div>
@@ -127,6 +128,7 @@ import { NewsService, ClubNews } from '../../../core/services/news.service';
               <span class="dm-ac-title">Members</span>
               <span class="dm-ac-sub">Club community</span>
             </button>
+            <!-- Tournaments & Rankings hidden until feature is ready
             <button class="dm-action-card" (click)="navigateTo('/player/tournaments')">
               <div class="dm-ac-icon dm-ac-yellow"><i class="fas fa-trophy"></i></div>
               <span class="dm-ac-title">Tournaments</span>
@@ -137,18 +139,81 @@ import { NewsService, ClubNews } from '../../../core/services/news.service';
               <span class="dm-ac-title">Rankings</span>
               <span class="dm-ac-sub">Leaderboard</span>
             </button>
+            -->
             <button class="dm-action-card" (click)="navigateTo('/player/payment-approvals')">
               <div class="dm-ac-icon dm-ac-rose"><i class="fas fa-clipboard-check"></i></div>
               <span class="dm-ac-title">Approvals</span>
               <span class="dm-ac-sub">My requests</span>
+            </button>
+            <button class="dm-action-card" (click)="navigateTo('/player/open-play')">
+              <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-table-tennis-paddle-ball"></i></div>
+              <span class="dm-ac-title">Open Play</span>
+              <span class="dm-ac-sub">Join a session</span>
             </button>
             <button class="dm-action-card" (click)="navigateTo('/player/rules')">
               <div class="dm-ac-icon dm-ac-orange"><i class="fas fa-gavel"></i></div>
               <span class="dm-ac-title">Rules</span>
               <span class="dm-ac-sub">Club guidelines</span>
             </button>
+            <button class="dm-action-card" (click)="toggleAvailability()">
+              <div class="dm-ac-icon dm-ac-teal"><i class="fas fa-th"></i></div>
+              <span class="dm-ac-title">Court Schedule</span>
+              <span class="dm-ac-sub">Check availability</span>
+            </button>
           </div>
         </div>
+
+        <!-- Court Availability (toggled by Quick Action) -->
+        @if (showAvailability) {
+          <div class="dm-section">
+            <div class="av-header">
+              <h4 class="dm-section-label" style="margin:0">Court Availability</h4>
+              <input
+                type="date"
+                class="av-date-input"
+                [value]="availabilityDate"
+                (change)="availabilityDate = $any($event.target).value; loadAvailability()"
+              />
+            </div>
+
+            @if (availabilityLoading) {
+              <div class="dm-card av-loading">Loading availability…</div>
+            } @else if (courtCount === 0) {
+              <div class="dm-card av-loading">Club data not loaded.</div>
+            } @else {
+              <div class="av-table-wrap">
+                <div class="av-row av-header-row">
+                  <div class="av-cell av-cell-time">⏱ TIME</div>
+                  @for (n of courtNumbers; track n) {
+                    <div class="av-cell av-cell-court">⊞ COURT {{ n }}</div>
+                  }
+                </div>
+                @for (slot of availabilitySlots; track slot) {
+                  <div class="av-row">
+                    <div class="av-cell av-cell-time av-time-label">{{ formatSlotShort(slot) }}</div>
+                    @for (n of courtNumbers; track n) {
+                      <div class="av-cell av-cell-status"
+                           [class.av-booked]="isBooked(n, slot)"
+                           [class.av-pending]="!isBooked(n, slot) && isPending(n, slot)"
+                           [class.av-open]="!isBooked(n, slot) && !isPending(n, slot)">
+                        @if (isBooked(n, slot)) {
+                          <span class="av-icon">🔒</span>
+                          <span class="av-status-text">BOOKED</span>
+                        } @else if (isPending(n, slot)) {
+                          <span class="av-icon">⏳</span>
+                          <span class="av-status-text">PENDING</span>
+                        } @else {
+                          <span class="av-icon">✓</span>
+                          <span class="av-status-text">OPEN</span>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
 
         <!-- Admin Cards -->
         @if (auth.isAdmin()) {
@@ -165,11 +230,13 @@ import { NewsService, ClubNews } from '../../../core/services/news.service';
                 <span class="dm-ac-title">Finance</span>
                 <span class="dm-ac-sub">Payments report</span>
               </button>
+              <!-- Tournaments hidden until feature is ready
               <button class="dm-action-card" (click)="navigateTo('/admin/tournaments')">
                 <div class="dm-ac-icon dm-ac-yellow"><i class="fas fa-trophy"></i></div>
                 <span class="dm-ac-title">Tournaments</span>
                 <span class="dm-ac-sub">Manage events</span>
               </button>
+              -->
               <button class="dm-action-card" (click)="navigateTo('/admin/dashboard')">
                 <div class="dm-ac-icon dm-ac-purple"><i class="fas fa-cogs"></i></div>
                 <span class="dm-ac-title">Dashboard</span>
@@ -781,7 +848,30 @@ import { NewsService, ClubNews } from '../../../core/services/news.service';
       .dm-section-label { font-size: 0.82rem; }
       .dm-booking-date { font-size: 0.95rem; }
       .dm-booking-time { font-size: 0.85rem; }
+      .av-cell { padding: 0.6rem 0.5rem; font-size: 0.72rem; }
+      .av-cell-time { padding-left: 1rem; }
+      .av-status-text { font-size: 0.65rem; }
     }
+
+    /* ── Court Availability ── */
+    .av-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.55rem; }
+    .av-date-input { background:#1b3028; border:1px solid rgba(163,230,53,0.25); border-radius:8px; color:#a3e635; font-size:0.78rem; font-weight:600; padding:0.3rem 0.6rem; cursor:pointer; font-family:inherit; outline:none; }
+    .av-date-input::-webkit-calendar-picker-indicator { filter:invert(1) sepia(1) saturate(5) hue-rotate(50deg); cursor:pointer; }
+    .av-loading { color:rgba(255,255,255,0.35); font-size:0.85rem; text-align:center; padding:1rem; }
+    .av-table-wrap { background:#1b3028; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.3); overflow-x:auto; }
+    .av-row { display:flex; border-bottom:1px solid rgba(255,255,255,0.05); }
+    .av-row:last-child { border-bottom:none; }
+    .av-header-row { background:#213830; border-bottom:1px solid rgba(255,255,255,0.1); }
+    .av-cell { flex:1; padding:0.55rem 0.4rem; font-size:0.68rem; font-weight:700; text-align:center; display:flex; align-items:center; justify-content:center; gap:0.25rem; min-width:0; }
+    .av-cell-time { flex:1.5; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:0.04em; justify-content:flex-start; padding-left:0.75rem; }
+    .av-time-label { color:rgba(255,255,255,0.8); font-size:0.67rem; font-weight:600; text-transform:none; letter-spacing:0; }
+    .av-cell-court { color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:0.04em; font-size:0.65rem; }
+    .av-cell-status { flex-direction:column; gap:0.1rem; font-size:0.62rem; font-weight:800; letter-spacing:0.04em; }
+    .av-booked { background:rgba(192,57,43,0.18); color:#e74c3c; }
+    .av-pending { background:rgba(245,158,11,0.15); color:#f59e0b; }
+    .av-open { color:#4ade80; }
+    .av-icon { font-size:0.75rem; line-height:1; }
+    .av-status-text { font-size:0.58rem; }
   `],
 })
 export class PlayerDashboardComponent implements OnInit, OnDestroy {
@@ -793,6 +883,17 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   nextReservation: Reservation | null = null;
   nextTournament: Tournament | null = null;
   newsItems: ClubNews[] = [];
+
+  availabilityDate    = '';
+  availabilitySlots   : string[] = [];
+  bookedByCourtMap    = new Map<number, Set<string>>();
+  pendingByCourtMap   = new Map<number, Set<string>>();
+  availabilityLoading = false;
+  showAvailability    = false;
+  courtCount          = 0;
+  openingHour         = 5;
+  closingHour         = 22;
+  courtNumbers        : number[] = [];
 
   get pendingApprovalCharges(): Charge[] {
     return this.charges.filter((c) => c.approvalStatus === 'pending');
@@ -821,6 +922,14 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   get firstName(): string {
     return this.auth.user()?.name?.split(' ')[0] ?? 'Player';
   }
+  get operatingHours(): string {
+    const fmt = (h: number) => {
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return `${h12}:00 ${h < 12 ? 'AM' : 'PM'}`;
+    };
+    return `${fmt(this.openingHour)} – ${fmt(this.closingHour)}`;
+  }
+
   get activeTab(): string {
     const url = this.router.url;
     if (url.includes('/player/reserve')) return 'courts';
@@ -828,6 +937,66 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     if (url.includes('/player/tournaments')) return 'rankings';
     if (url.includes('/player/profile')) return 'profile';
     return 'home';
+  }
+
+  private buildAvailabilitySlots(): void {
+    const slots: string[] = [];
+    for (let h = this.openingHour; h < this.closingHour; h++) {
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      slots.push(`${h12}${h < 12 ? 'am' : 'pm'}`);
+    }
+    this.availabilitySlots = slots;
+    this.courtNumbers = Array.from({ length: this.courtCount }, (_, i) => i + 1);
+  }
+
+  toggleAvailability(): void {
+    this.showAvailability = !this.showAvailability;
+    if (this.showAvailability && this.bookedByCourtMap.size === 0) {
+      this.loadAvailability();
+    }
+  }
+
+  loadAvailability(): void {
+    if (!this.availabilityDate || this.courtCount === 0) return;
+    this.availabilityLoading = true;
+    this.cdr.detectChanges();
+    forkJoin(
+      this.courtNumbers.map(n => this.reservationService.getAvailability(n, this.availabilityDate))
+    ).subscribe({
+      next: (results) => {
+        const booked  = new Map<number, Set<string>>();
+        const pending = new Map<number, Set<string>>();
+        this.courtNumbers.forEach((n, idx) => {
+          booked.set(n,  new Set(results[idx]?.bookedSlots  ?? []));
+          pending.set(n, new Set(results[idx]?.pendingSlots ?? []));
+        });
+        this.bookedByCourtMap  = booked;
+        this.pendingByCourtMap = pending;
+        this.availabilityLoading = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.availabilityLoading = false; this.cdr.detectChanges(); },
+    });
+  }
+
+  formatSlotShort(slot: string): string {
+    const match = slot.match(/^(\d{1,2})(am|pm)$/i);
+    if (!match) return slot;
+    const hour = parseInt(match[1], 10);
+    const isPm = match[2].toLowerCase() === 'pm';
+    const hour24 = isPm ? (hour === 12 ? 12 : hour + 12) : (hour === 12 ? 0 : hour);
+    const next24 = hour24 + 1;
+    const nextH12 = next24 % 12 === 0 ? 12 : next24 % 12;
+    const nextPeriod = next24 < 12 ? 'AM' : 'PM';
+    return `${hour}${match[2].toUpperCase()}–${nextH12}${nextPeriod}`;
+  }
+
+  isBooked(court: number, slot: string): boolean {
+    return this.bookedByCourtMap.get(court)?.has(slot) ?? false;
+  }
+
+  isPending(court: number, slot: string): boolean {
+    return this.pendingByCourtMap.get(court)?.has(slot) ?? false;
   }
 
   constructor(
@@ -877,12 +1046,18 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
       },
     });
 
+    this.availabilityDate = new Date().toISOString().slice(0, 10);
+
     const clubId = this.auth.user()?.clubId;
     if (clubId) {
       this.clubService.getClub(clubId).subscribe({
         next: (club) => {
-          this.clubName = club.name;
-          this.clubLogo = club.logo ?? '';
+          this.clubName    = club.name;
+          this.clubLogo    = club.logo ?? '';
+          this.courtCount  = club.courtCount  ?? 2;
+          this.openingHour = club.openingHour ?? 5;
+          this.closingHour = club.closingHour ?? 22;
+          this.buildAvailabilitySlots();
           this.cdr.detectChanges();
         },
         error: () => {},

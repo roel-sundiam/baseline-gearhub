@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { timeout } from 'rxjs/operators';
 import { RatesService } from '../../../core/services/rates.service';
+import { ClubService } from '../../../core/services/club.service';
+import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
   selector: 'app-admin-rates',
@@ -32,7 +34,7 @@ import { RatesService } from '../../../core/services/rates.service';
 
             <div class="info-banner">
               <i class="fas fa-circle-info"></i>
-              <p>Session rates are charged <strong>per game per player</strong>. Reservation rates are charged <strong>per court hour</strong>.</p>
+              <p>Session rates are charged <strong>per hour</strong>. Reservation rates are charged <strong>per court hour</strong>.</p>
             </div>
 
             <div class="section-divider"><span>Session Billing Rates</span></div>
@@ -41,39 +43,39 @@ import { RatesService } from '../../../core/services/rates.service';
               <div class="rate-item">
                 <div class="rate-icon">🌙</div>
                 <div class="form-group">
-                  <label for="withoutLightRate">Without Light Rate (per game per player)</label>
+                  <label for="withoutLightRate">Without Light Rate (per hour)</label>
                   <div class="input-prefix">
                     <span>₱</span>
                     <input id="withoutLightRate" type="number" [(ngModel)]="withoutLightRate"
                       name="withoutLightRate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
-                  <p class="field-help">Applied when the game is played without lights.</p>
+                  <p class="field-help">Applied when the session is played without lights.</p>
                 </div>
               </div>
 
               <div class="rate-item">
                 <div class="rate-icon">💡</div>
                 <div class="form-group">
-                  <label for="lightRate">With Light Rate (per game per player)</label>
+                  <label for="lightRate">With Light Rate (per hour)</label>
                   <div class="input-prefix">
                     <span>₱</span>
                     <input id="lightRate" type="number" [(ngModel)]="lightRate"
                       name="lightRate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
-                  <p class="field-help">Applied when lights are turned on during gameplay.</p>
+                  <p class="field-help">Applied when lights are turned on during the session.</p>
                 </div>
               </div>
 
               <div class="rate-item">
                 <div class="rate-icon">🙋</div>
                 <div class="form-group">
-                  <label for="ballBoyRate">Ball Boy Fee (per game per player)</label>
+                  <label for="ballBoyRate">Ball Boy Fee (per hour)</label>
                   <div class="input-prefix">
                     <span>₱</span>
                     <input id="ballBoyRate" type="number" [(ngModel)]="ballBoyRate"
                       name="ballBoyRate" required min="0" step="0.01" placeholder="0.00" />
                   </div>
-                  <p class="field-help">Optional per-game fee when a ball boy is requested.</p>
+                  <p class="field-help">Optional hourly fee when a ball boy is requested.</p>
                 </div>
               </div>
             </div>
@@ -204,6 +206,20 @@ import { RatesService } from '../../../core/services/rates.service';
             @if (successMsg()) {
               <div class="alert alert-success"><i class="fas fa-check-circle"></i> {{ successMsg() }}</div>
             }
+            <div class="section-divider"><span>Court Configuration</span></div>
+
+            <div class="rates-grid">
+              <div class="rate-item">
+                <div class="rate-icon">🎾</div>
+                <div class="form-group">
+                  <label for="courtCount">Number of Courts</label>
+                  <input id="courtCount" type="number" [(ngModel)]="courtCount"
+                    name="courtCount" required min="1" max="20" step="1" placeholder="2" />
+                  <p class="field-help">How many courts are available for reservation at your club.</p>
+                </div>
+              </div>
+            </div>
+
             @if (errorMsg()) {
               <div class="alert alert-error"><i class="fas fa-triangle-exclamation"></i> {{ errorMsg() }}</div>
             }
@@ -225,15 +241,15 @@ import { RatesService } from '../../../core/services/rates.service';
           <div class="formula-card">
             <div class="formula-row">
               <span>🌙 Without Light Fee</span>
-              <span>= games × {{ withoutLightRate | currency: 'PHP' : 'symbol' }}</span>
+              <span>= {{ withoutLightRate | currency: 'PHP' : 'symbol' }} / hr</span>
             </div>
             <div class="formula-row">
               <span>💡 With Light Fee</span>
-              <span>= games × {{ lightRate | currency: 'PHP' : 'symbol' }}</span>
+              <span>= {{ lightRate | currency: 'PHP' : 'symbol' }} / hr</span>
             </div>
             <div class="formula-row">
               <span>🙋 Ball Boy Fee</span>
-              <span>= total games × {{ ballBoyRate | currency: 'PHP' : 'symbol' }}</span>
+              <span>= {{ ballBoyRate | currency: 'PHP' : 'symbol' }} / hr</span>
             </div>
             <div class="formula-row accent-green">
               <span>📅 Reservation — Weekday (Mon–Thu)</span>
@@ -643,15 +659,27 @@ export class AdminRatesComponent implements OnInit {
   rentalBalls100Rate = 0;
   rentalBallMachineRate = 0;
   rentalRacketRate = 0;
+  courtCount = 2;
   readonly lastUpdated = signal<string | null>(null);
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly successMsg = signal('');
   readonly errorMsg = signal('');
 
-  constructor(private ratesService: RatesService) {}
+  constructor(
+    private ratesService: RatesService,
+    private clubService: ClubService,
+    private auth: AuthService,
+  ) {}
 
   ngOnInit() {
+    const clubId = this.auth.user()?.clubId;
+    if (clubId) {
+      this.clubService.getClub(clubId).subscribe({
+        next: (club) => { this.courtCount = club.courtCount ?? 2; },
+      });
+    }
+
     this.ratesService.getRates()
       .pipe(timeout(10000))
       .subscribe({
@@ -685,43 +713,47 @@ export class AdminRatesComponent implements OnInit {
   }
 
   onSave() {
+    const clubId = this.auth.user()?.clubId;
     this.saving.set(true);
     this.successMsg.set('');
     this.errorMsg.set('');
 
-    this.ratesService
-      .updateRates({
-        withoutLightRate: Number(this.withoutLightRate),
-        lightRate: Number(this.lightRate),
-        training2WithoutLightRate: Number(this.training2WithoutLightRate),
-        training2LightRate: Number(this.training2LightRate),
-        ballBoyRate: Number(this.ballBoyRate),
-        reservationWeekdayRate: Number(this.reservationWeekdayRate),
-        reservationWeekendRate: Number(this.reservationWeekendRate),
-        reservationHolidayRate: Number(this.reservationHolidayRate),
-        reservationGuestFee: Number(this.reservationGuestFee),
-        rentalBalls50Rate: Number(this.rentalBalls50Rate),
-        rentalBalls100Rate: Number(this.rentalBalls100Rate),
-        rentalBallMachineRate: Number(this.rentalBallMachineRate),
-        rentalRacketRate: Number(this.rentalRacketRate),
-      })
-      .pipe(timeout(10000))
-      .subscribe({
-        next: (rates) => {
-          this.saving.set(false);
-          this.lastUpdated.set(rates.updatedAt);
-          this.successMsg.set('Rates updated successfully!');
-          setTimeout(() => { this.successMsg.set(''); }, 3000);
-        },
-        error: (err) => {
-          this.saving.set(false);
-          this.errorMsg.set(
-            err.name === 'TimeoutError'
-              ? 'Request timed out — check backend connection.'
-              : (err.error?.error || err.message || 'Failed to update rates.'),
-          );
-          console.error('Rates save error:', err);
-        },
-      });
+    const saveRates$ = this.ratesService.updateRates({
+      withoutLightRate: Number(this.withoutLightRate),
+      lightRate: Number(this.lightRate),
+      training2WithoutLightRate: Number(this.training2WithoutLightRate),
+      training2LightRate: Number(this.training2LightRate),
+      ballBoyRate: Number(this.ballBoyRate),
+      reservationWeekdayRate: Number(this.reservationWeekdayRate),
+      reservationWeekendRate: Number(this.reservationWeekendRate),
+      reservationHolidayRate: Number(this.reservationHolidayRate),
+      reservationGuestFee: Number(this.reservationGuestFee),
+      rentalBalls50Rate: Number(this.rentalBalls50Rate),
+      rentalBalls100Rate: Number(this.rentalBalls100Rate),
+      rentalBallMachineRate: Number(this.rentalBallMachineRate),
+      rentalRacketRate: Number(this.rentalRacketRate),
+    }).pipe(timeout(10000));
+
+    if (clubId) {
+      this.clubService.updateClub(clubId, { courtCount: Number(this.courtCount) }).subscribe();
+    }
+
+    saveRates$.subscribe({
+      next: (rates) => {
+        this.saving.set(false);
+        this.lastUpdated.set(rates.updatedAt);
+        this.successMsg.set('Rates updated successfully!');
+        setTimeout(() => { this.successMsg.set(''); }, 3000);
+      },
+      error: (err) => {
+        this.saving.set(false);
+        this.errorMsg.set(
+          err.name === 'TimeoutError'
+            ? 'Request timed out — check backend connection.'
+            : (err.error?.error || err.message || 'Failed to update rates.'),
+        );
+        console.error('Rates save error:', err);
+      },
+    });
   }
 }

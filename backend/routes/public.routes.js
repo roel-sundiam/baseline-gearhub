@@ -1,12 +1,91 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const Reservation = require("../models/Reservation");
 const Charge = require("../models/Charge");
 const Rates = require("../models/Rates");
 const Club = require("../models/Club");
 const Inquiry = require("../models/Inquiry");
+const { sendPushToClubAdmins } = require("../utils/push");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
 
+function buildSlots(openingHour, closingHour) {
+  const slots = new Set();
+  for (let h = openingHour; h <= closingHour; h++) {
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const period = h < 12 ? 'am' : 'pm';
+    slots.add(`${h12}${period}`);
+  }
+  return slots;
+}
+
+function slotToHour(slot) {
+  const m = slot.match(/^(\d+)(am|pm)$/);
+  if (!m) return 0;
+  const h = parseInt(m[1], 10);
+  return m[2] === 'am' ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
+}
+
+function hourToSlot(h) {
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${h < 12 ? 'am' : 'pm'}`;
+}
+
+function expandSlots(startSlot, durationHours) {
+  const startH = slotToHour(startSlot);
+  const slots = [];
+  for (let i = 0; i < durationHours; i++) slots.push(hourToSlot(startH + i));
+  return slots;
+}
+
 const router = express.Router();
+
+// Resolve club by ObjectId OR readable slug
+async function findClub(identifier, lean = true) {
+  const q = mongoose.isValidObjectId(identifier)
+    ? Club.findById(identifier)
+    : Club.findOne({ slug: identifier });
+  return lean ? q.lean() : q;
+}
+
+// GET /api/public/clubs — list all active clubs
+router.get("/clubs", async (req, res) => {
+  try {
+    const clubs = await Club.find({ status: "active" })
+      .select("name slug location logo")
+      .lean();
+    res.json(clubs);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /api/public/:clubId — basic club info (accepts ObjectId or slug)
+router.get("/:clubId", async (req, res) => {
+  try {
+    const club = await findClub(req.params.clubId);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json({
+      _id: club._id,
+      name: club.name,
+      slug: club.slug,
+      location: club.location,
+      logo: club.logo,
+      status: club.status,
+      courtCount: club.courtCount ?? 2,
+      openingHour: club.openingHour ?? 5,
+      closingHour: club.closingHour ?? 22,
+      paymentMethods: club.paymentMethods ?? [],
+      paymentAccounts: club.paymentAccounts instanceof Map ? Object.fromEntries(club.paymentAccounts) : (club.paymentAccounts ?? {}),
+      paymentQrCodes: club.paymentQrCodes instanceof Map ? Object.fromEntries(club.paymentQrCodes) : (club.paymentQrCodes ?? {}),
+      convenienceFeeRate: typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10,
+      convenienceFeeMode: club.convenienceFeeMode ?? 'per_hour',
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 // GET /api/public/:clubId/availability?court=1&date=YYYY-MM-DD
 router.get("/:clubId/availability", async (req, res) => {
@@ -14,16 +93,18 @@ router.get("/:clubId/availability", async (req, res) => {
     const { clubId } = req.params;
     const { court, date } = req.query;
 
-    const club = await Club.findById(clubId).lean();
+    const club = await findClub(clubId);
     if (!club) return res.status(404).json({ error: "Club not found" });
     if (club.status === "suspended") return res.status(403).json({ error: "club_suspended" });
+    const resolvedClubId = club._id.toString();
 
     if (!court || !date) {
       return res.status(400).json({ error: "court and date are required" });
     }
     const courtNum = Number(court);
-    if (courtNum !== 1 && courtNum !== 2) {
-      return res.status(400).json({ error: "court must be 1 or 2" });
+    const courtCount = club.courtCount ?? 2;
+    if (!Number.isInteger(courtNum) || courtNum < 1 || courtNum > courtCount) {
+      return res.status(400).json({ error: `court must be between 1 and ${courtCount}` });
     }
 
     const start = new Date(date);
@@ -32,13 +113,13 @@ router.get("/:clubId/availability", async (req, res) => {
     end.setUTCHours(23, 59, 59, 999);
 
     const booked = await Reservation.find({
-      clubId,
+      clubId: resolvedClubId,
       court: courtNum,
       date: { $gte: start, $lte: end },
       status: { $in: ["confirmed", "pending_payment"] },
-    }).select("timeSlot -_id");
+    }).select("timeSlot durationHours -_id");
 
-    res.json({ bookedSlots: booked.map((r) => r.timeSlot) });
+    res.json({ bookedSlots: booked.flatMap((r) => expandSlots(r.timeSlot, r.durationHours ?? 1)) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -50,11 +131,12 @@ router.get("/:clubId/rates", async (req, res) => {
   try {
     const { clubId } = req.params;
 
-    const club = await Club.findById(clubId).lean();
+    const club = await findClub(clubId);
     if (!club) return res.status(404).json({ error: "Club not found" });
     if (club.status === "suspended") return res.status(403).json({ error: "club_suspended" });
+    const resolvedClubId = club._id.toString();
 
-    const rates = await Rates.findOne({ clubId }).lean();
+    const rates = await Rates.findOne({ clubId: resolvedClubId }).lean();
     if (!rates) return res.json({});
 
     res.json({
@@ -86,6 +168,7 @@ router.post("/:clubId/reserve", async (req, res) => {
       rentals = {},
       guestInfo = {},
     } = req.body;
+    const durationHours = Math.max(1, Math.min(12, Math.floor(Number(req.body.durationHours) || 1)));
 
     if (!guestInfo.name || !guestInfo.email) {
       return res.status(400).json({ error: "guestInfo.name and guestInfo.email are required" });
@@ -94,13 +177,27 @@ router.post("/:clubId/reserve", async (req, res) => {
       return res.status(400).json({ error: "court, date, and timeSlot are required" });
     }
     const courtNum = Number(court);
-    if (courtNum !== 1 && courtNum !== 2) {
-      return res.status(400).json({ error: "court must be 1 or 2" });
+    if (!Number.isInteger(courtNum) || courtNum < 1) {
+      return res.status(400).json({ error: "court must be a positive integer" });
     }
 
-    const club = await Club.findById(clubId);
+    const club = await findClub(clubId, false);
     if (!club) return res.status(404).json({ error: "Club not found" });
     if (club.status === "suspended") return res.status(403).json({ error: "club_suspended" });
+    const resolvedClubId = club._id.toString();
+    const publicCourtCount = club.courtCount ?? 2;
+    const autoPaymentMethod = (club.paymentMethods?.length === 1) ? club.paymentMethods[0] : undefined;
+    if (courtNum > publicCourtCount) {
+      return res.status(400).json({ error: `court must be between 1 and ${publicCourtCount}` });
+    }
+    const publicClosingHour = club.closingHour ?? 22;
+    const allowedSlots = buildSlots(club.openingHour ?? 5, publicClosingHour);
+    if (!allowedSlots.has(timeSlot)) {
+      return res.status(400).json({ error: `timeSlot is outside this club's operating hours` });
+    }
+    if (slotToHour(timeSlot) + durationHours - 1 > publicClosingHour) {
+      return res.status(400).json({ error: `Booking duration exceeds closing hour` });
+    }
 
     const parsedDate = new Date(date);
     parsedDate.setUTCHours(0, 0, 0, 0);
@@ -110,7 +207,21 @@ router.post("/:clubId/reserve", async (req, res) => {
       return res.status(400).json({ error: "Cannot book a past date" });
     }
 
-    const rawRates = await Rates.findOne({ clubId }).lean();
+    const existingForDay = await Reservation.find({
+      clubId: resolvedClubId, court: courtNum, date: parsedDate,
+      status: { $in: ["confirmed", "pending_payment"] },
+    }).select("timeSlot durationHours").lean();
+
+    const newStart = slotToHour(timeSlot);
+    const newEnd = newStart + durationHours;
+    const conflict = existingForDay.some(r => {
+      const rStart = slotToHour(r.timeSlot);
+      const rEnd = rStart + (r.durationHours ?? 1);
+      return rStart < newEnd && rEnd > newStart;
+    });
+    if (conflict) return res.status(409).json({ error: "One or more of those slots is already booked" });
+
+    const rawRates = await Rates.findOne({ clubId: resolvedClubId }).lean();
     const ratesUsed = {
       weekdayRate: Number(rawRates?.reservationWeekdayRate ?? 0),
       weekendRate: Number(rawRates?.reservationWeekendRate ?? 0),
@@ -130,7 +241,7 @@ router.post("/:clubId/reserve", async (req, res) => {
       ballMachine: Boolean(rentals.ballMachine),
       rackets: Math.max(0, Math.floor(Number(rentals.rackets) || 0)),
     };
-    const rentalFee =
+    const rentalFeePerHour =
       sanitizedRentals.balls50 * ratesUsed.rentalBalls50Rate +
       sanitizedRentals.balls100 * ratesUsed.rentalBalls100Rate +
       (sanitizedRentals.ballMachine ? ratesUsed.rentalBallMachineRate : 0) +
@@ -139,26 +250,34 @@ router.post("/:clubId/reserve", async (req, res) => {
     const dayOfWeek = parsedDate.getUTCDay();
     const isWeekend = WEEKEND_DAYS.has(dayOfWeek);
 
-    let baseCourtFee;
+    let hourlyRate;
     if (isHoliday) {
-      baseCourtFee = ratesUsed.holidayRate;
+      hourlyRate = ratesUsed.holidayRate;
     } else if (isWeekend) {
-      baseCourtFee = ratesUsed.weekendRate;
+      hourlyRate = ratesUsed.weekendRate;
     } else {
-      baseCourtFee = ratesUsed.weekdayRate;
+      hourlyRate = ratesUsed.weekdayRate;
     }
 
     const sanitizedGuestCount = Math.max(0, Math.floor(Number(guestCount) || 0));
-    const lightsFee = lightsRequested ? ratesUsed.lightsRate : 0;
-    const ballBoyFee = ballBoy ? ratesUsed.ballBoyRate : 0;
+    const baseCourtFee = hourlyRate * durationHours;
+    const lightsFee = lightsRequested ? ratesUsed.lightsRate * durationHours : 0;
+    const ballBoyFee = ballBoy ? ratesUsed.ballBoyRate * durationHours : 0;
+    const rentalFee = rentalFeePerHour * durationHours;
     const guestTotalFee = sanitizedGuestCount * ratesUsed.guestFee;
     const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;
+    const feeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10;
+    const feeMode = club.convenienceFeeMode ?? 'per_hour';
+    const convenienceFeeBase = feeMode === 'per_transaction' ? hourlyRate : courtFee;
+    const convenienceFee = parseFloat((convenienceFeeBase * feeRate).toFixed(2));
+    const totalAmount = courtFee + convenienceFee;
 
     const reservation = await Reservation.create({
-      clubId,
+      clubId: resolvedClubId,
       court: courtNum,
       date: parsedDate,
       timeSlot,
+      durationHours,
       player: null,
       players: [],
       guestInfo: {
@@ -172,32 +291,41 @@ router.post("/:clubId/reserve", async (req, res) => {
       guestCount: sanitizedGuestCount,
       rentals: sanitizedRentals,
       courtFee,
+      convenienceFee,
+      convenienceFeeRate: feeRate,
       ratesUsed,
       status: "pending_payment",
     });
 
     const charge = await Charge.create({
-      clubId,
+      clubId: resolvedClubId,
       playerId: null,
       guestName: guestInfo.name.trim(),
       reservationId: reservation._id,
-      amount: courtFee,
+      amount: totalAmount,
       breakdown: {
         withoutLightFee: baseCourtFee,
         lightFee: lightsFee,
         ballBoyFee,
         guestFee: guestTotalFee,
         rentalFee,
+        convenienceFee,
       },
       chargeType: "reservation",
       approvalStatus: "pending",
+      paymentMethod: autoPaymentMethod,
     });
+
+    const dateLabel = parsedDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    sendPushToClubAdmins(club._id, {
+      title: 'New Guest Booking',
+      body: `${guestInfo.name} booked Court ${courtNum} on ${dateLabel} at ${timeSlot}${durationHours > 1 ? ` (${durationHours} hrs)` : ''}`,
+      url: '/admin/reservations',
+      tag: 'new-guest-booking',
+    }).catch(() => {});
 
     res.status(201).json({ reservation, charge });
   } catch (err) {
-    if (err.code === 11000) {
-      return res.status(409).json({ error: "That slot is already booked" });
-    }
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
@@ -213,11 +341,12 @@ router.post("/:clubId/inquiries", async (req, res) => {
     if (!senderEmail?.trim()) return res.status(400).json({ error: "senderEmail is required" });
     if (!message?.trim()) return res.status(400).json({ error: "message is required" });
 
-    const club = await Club.findById(clubId).lean();
+    const club = await findClub(clubId);
     if (!club) return res.status(404).json({ error: "Club not found" });
+    const resolvedClubId = club._id.toString();
 
     const inquiry = await Inquiry.create({
-      clubId,
+      clubId: resolvedClubId,
       senderName: senderName.trim(),
       senderEmail: senderEmail.trim(),
       messages: [{ sender: "guest", name: senderName.trim(), body: message.trim() }],
@@ -249,7 +378,9 @@ function normalizeInquiry(inq) {
 router.get("/:clubId/inquiries/:inquiryId", async (req, res) => {
   try {
     const { clubId, inquiryId } = req.params;
-    const inquiry = await Inquiry.findOne({ _id: inquiryId, clubId }).lean();
+    const club = await findClub(clubId);
+    const resolvedClubId = club ? club._id.toString() : clubId;
+    const inquiry = await Inquiry.findOne({ _id: inquiryId, clubId: resolvedClubId }).lean();
     if (!inquiry) return res.status(404).json({ error: "Inquiry not found" });
     res.json(normalizeInquiry(inquiry));
   } catch (err) {
@@ -266,7 +397,9 @@ router.post("/:clubId/inquiries/:inquiryId/message", async (req, res) => {
 
     if (!body?.trim()) return res.status(400).json({ error: "body is required" });
 
-    const inquiry = await Inquiry.findOne({ _id: inquiryId, clubId });
+    const club = await findClub(clubId);
+    const resolvedClubId = club ? club._id.toString() : clubId;
+    const inquiry = await Inquiry.findOne({ _id: inquiryId, clubId: resolvedClubId });
     if (!inquiry) return res.status(404).json({ error: "Inquiry not found" });
 
     inquiry.messages.push({ sender: "guest", name: inquiry.senderName, body: body.trim() });

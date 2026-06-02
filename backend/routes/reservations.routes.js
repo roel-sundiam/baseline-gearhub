@@ -5,7 +5,37 @@ const Reservation = require("../models/Reservation");
 const Charge = require("../models/Charge");
 const Rates = require("../models/Rates");
 const Club = require("../models/Club");
+const { sendPushToClubAdmins } = require("../utils/push");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
+
+function buildSlots(openingHour, closingHour) {
+  const slots = new Set();
+  for (let h = openingHour; h <= closingHour; h++) {
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const period = h < 12 ? 'am' : 'pm';
+    slots.add(`${h12}${period}`);
+  }
+  return slots;
+}
+
+function slotToHour(slot) {
+  const m = slot.match(/^(\d+)(am|pm)$/);
+  if (!m) return 0;
+  const h = parseInt(m[1], 10);
+  return m[2] === 'am' ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
+}
+
+function hourToSlot(h) {
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${h < 12 ? 'am' : 'pm'}`;
+}
+
+function expandSlots(startSlot, durationHours) {
+  const startH = slotToHour(startSlot);
+  const slots = [];
+  for (let i = 0; i < durationHours; i++) slots.push(hourToSlot(startH + i));
+  return slots;
+}
 
 const router = express.Router();
 
@@ -18,22 +48,36 @@ router.get("/availability", auth, async (req, res) => {
       return res.status(400).json({ error: "court and date are required" });
     }
     const courtNum = Number(court);
-    if (courtNum !== 1 && courtNum !== 2) {
-      return res.status(400).json({ error: "court must be 1 or 2" });
+    if (!Number.isInteger(courtNum) || courtNum < 1) {
+      return res.status(400).json({ error: "court must be a positive integer" });
+    }
+    const club = await Club.findById(clubId).select('courtCount').lean();
+    const courtCount = club?.courtCount ?? 2;
+    if (courtNum > courtCount) {
+      return res.status(400).json({ error: `court must be between 1 and ${courtCount}` });
     }
     const start = new Date(date);
     start.setUTCHours(0, 0, 0, 0);
     const end = new Date(date);
     end.setUTCHours(23, 59, 59, 999);
 
-    const booked = await Reservation.find({
-      clubId,
-      court: courtNum,
-      date: { $gte: start, $lte: end },
-      status: "confirmed",
-    }).select("timeSlot -_id");
+    const [booked, pending] = await Promise.all([
+      Reservation.find({
+        clubId, court: courtNum,
+        date: { $gte: start, $lte: end },
+        status: "confirmed",
+      }).select("timeSlot durationHours -_id"),
+      Reservation.find({
+        clubId, court: courtNum,
+        date: { $gte: start, $lte: end },
+        status: "pending_payment",
+      }).select("timeSlot durationHours -_id"),
+    ]);
 
-    res.json({ bookedSlots: booked.map((r) => r.timeSlot) });
+    res.json({
+      bookedSlots: booked.flatMap((r) => expandSlots(r.timeSlot, r.durationHours ?? 1)),
+      pendingSlots: pending.flatMap((r) => expandSlots(r.timeSlot, r.durationHours ?? 1)),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -44,11 +88,18 @@ router.get("/availability", auth, async (req, res) => {
 router.get("/schedule", auth, async (req, res) => {
   try {
     const clubId = req.user.clubId;
-    const reservations = await Reservation.find({ clubId, status: "confirmed" })
+    const reservations = (await Reservation.find({ clubId, status: "confirmed" })
       .populate("player", "name")
       .populate("players", "name")
-      .sort({ date: 1, court: 1, timeSlot: 1 })
-      .lean();
+      .sort({ date: 1, court: 1 })
+      .lean())
+      .sort((a, b) => {
+        const dateDiff = new Date(a.date) - new Date(b.date);
+        if (dateDiff !== 0) return dateDiff;
+        const courtDiff = a.court - b.court;
+        if (courtDiff !== 0) return courtDiff;
+        return slotToHour(a.timeSlot) - slotToHour(b.timeSlot);
+      });
     res.json(reservations);
   } catch (err) {
     console.error(err);
@@ -69,9 +120,14 @@ router.get("/my", auth, async (req, res) => {
     })
       .populate("player", "name email")
       .populate("players", "name email")
-      .sort({ date: -1, timeSlot: 1 })
+      .sort({ date: -1 })
       .lean();
-    res.json(reservations);
+    const sorted = reservations.sort((a, b) => {
+      const dateDiff = new Date(b.date) - new Date(a.date);
+      if (dateDiff !== 0) return dateDiff;
+      return slotToHour(a.timeSlot) - slotToHour(b.timeSlot);
+    });
+    res.json(sorted);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -93,13 +149,20 @@ router.get("/", auth, admin, async (req, res) => {
     }
     if (court) {
       const courtNum = Number(court);
-      if (courtNum === 1 || courtNum === 2) filter.court = courtNum;
+      if (Number.isInteger(courtNum) && courtNum >= 1) filter.court = courtNum;
     }
-    const reservations = await Reservation.find(filter)
+    const reservations = (await Reservation.find(filter)
       .populate("player", "name email")
       .populate("players", "name email")
-      .sort({ date: -1, court: 1, timeSlot: 1 })
-      .lean();
+      .sort({ date: -1, court: 1 })
+      .lean())
+      .sort((a, b) => {
+        const dateDiff = new Date(b.date) - new Date(a.date);
+        if (dateDiff !== 0) return dateDiff;
+        const courtDiff = a.court - b.court;
+        if (courtDiff !== 0) return courtDiff;
+        return slotToHour(a.timeSlot) - slotToHour(b.timeSlot);
+      });
     res.json(reservations);
   } catch (err) {
     console.error(err);
@@ -117,12 +180,26 @@ router.post("/", auth, async (req, res) => {
       guestCount = 0,
       rentals = {},
     } = req.body;
+    const durationHours = Math.max(1, Math.min(12, Math.floor(Number(req.body.durationHours) || 1)));
     if (!court || !date || !timeSlot) {
       return res.status(400).json({ error: "court, date, and timeSlot are required" });
     }
     const courtNum = Number(court);
-    if (courtNum !== 1 && courtNum !== 2) {
-      return res.status(400).json({ error: "court must be 1 or 2" });
+    if (!Number.isInteger(courtNum) || courtNum < 1) {
+      return res.status(400).json({ error: "court must be a positive integer" });
+    }
+    const clubDoc = await Club.findById(clubId).select('courtCount openingHour closingHour convenienceFeeRate convenienceFeeMode').lean();
+    const courtCount = clubDoc?.courtCount ?? 2;
+    if (courtNum > courtCount) {
+      return res.status(400).json({ error: `court must be between 1 and ${courtCount}` });
+    }
+    const closingHour = clubDoc?.closingHour ?? 22;
+    const allowedSlots = buildSlots(clubDoc?.openingHour ?? 5, closingHour);
+    if (!allowedSlots.has(timeSlot)) {
+      return res.status(400).json({ error: `timeSlot is outside this club's operating hours` });
+    }
+    if (slotToHour(timeSlot) + durationHours - 1 > closingHour) {
+      return res.status(400).json({ error: `Booking duration exceeds closing hour` });
     }
 
     const parsedDate = new Date(date);
@@ -132,6 +209,20 @@ router.post("/", auth, async (req, res) => {
     if (parsedDate < today) {
       return res.status(400).json({ error: "Cannot book a past date" });
     }
+
+    const existingForDay = await Reservation.find({
+      clubId, court: courtNum, date: parsedDate,
+      status: { $in: ["confirmed", "pending_payment"] },
+    }).select("timeSlot durationHours").lean();
+
+    const newStart = slotToHour(timeSlot);
+    const newEnd = newStart + durationHours;
+    const conflict = existingForDay.some(r => {
+      const rStart = slotToHour(r.timeSlot);
+      const rEnd = rStart + (r.durationHours ?? 1);
+      return rStart < newEnd && rEnd > newStart;
+    });
+    if (conflict) return res.status(409).json({ error: "One or more of those slots is already booked" });
 
     const additionalPlayers = [...new Set(
       (Array.isArray(players) ? players : [])
@@ -159,7 +250,7 @@ router.post("/", auth, async (req, res) => {
       ballMachine: Boolean(rentals.ballMachine),
       rackets: Math.max(0, Math.floor(Number(rentals.rackets) || 0)),
     };
-    const rentalFee =
+    const rentalFeePerHour =
       sanitizedRentals.balls50 * ratesUsed.rentalBalls50Rate +
       sanitizedRentals.balls100 * ratesUsed.rentalBalls100Rate +
       (sanitizedRentals.ballMachine ? ratesUsed.rentalBallMachineRate : 0) +
@@ -168,26 +259,34 @@ router.post("/", auth, async (req, res) => {
     const dayOfWeek = parsedDate.getUTCDay();
     const isWeekend = WEEKEND_DAYS.has(dayOfWeek);
 
-    let baseCourtFee;
+    let hourlyRate;
     if (isHoliday) {
-      baseCourtFee = ratesUsed.holidayRate;
+      hourlyRate = ratesUsed.holidayRate;
     } else if (isWeekend) {
-      baseCourtFee = ratesUsed.weekendRate;
+      hourlyRate = ratesUsed.weekendRate;
     } else {
-      baseCourtFee = ratesUsed.weekdayRate;
+      hourlyRate = ratesUsed.weekdayRate;
     }
 
     const sanitizedGuestCount = Math.max(0, Math.floor(Number(guestCount) || 0));
-    const lightsFee = lightsRequested ? ratesUsed.lightsRate : 0;
-    const ballBoyFee = ballBoy ? ratesUsed.ballBoyRate : 0;
+    const baseCourtFee = hourlyRate * durationHours;
+    const lightsFee = lightsRequested ? ratesUsed.lightsRate * durationHours : 0;
+    const ballBoyFee = ballBoy ? ratesUsed.ballBoyRate * durationHours : 0;
+    const rentalFee = rentalFeePerHour * durationHours;
     const guestTotalFee = sanitizedGuestCount * ratesUsed.guestFee;
     const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;
+    const feeRate = typeof clubDoc?.convenienceFeeRate === 'number' ? clubDoc.convenienceFeeRate : 0.10;
+    const feeMode = clubDoc?.convenienceFeeMode ?? 'per_hour';
+    const convenienceFeeBase = feeMode === 'per_transaction' ? hourlyRate : courtFee;
+    const convenienceFee = parseFloat((convenienceFeeBase * feeRate).toFixed(2));
+    const totalAmount = courtFee + convenienceFee;
 
     const reservation = await Reservation.create({
       clubId,
       court: courtNum,
       date: parsedDate,
       timeSlot,
+      durationHours,
       player: req.user.userId,
       players: additionalPlayers,
       lightsRequested: Boolean(lightsRequested),
@@ -196,6 +295,8 @@ router.post("/", auth, async (req, res) => {
       guestCount: sanitizedGuestCount,
       rentals: sanitizedRentals,
       courtFee,
+      convenienceFee,
+      convenienceFeeRate: feeRate,
       ratesUsed,
     });
 
@@ -203,73 +304,100 @@ router.post("/", auth, async (req, res) => {
       clubId,
       playerId: req.user.userId,
       reservationId: reservation._id,
-      amount: courtFee,
+      amount: totalAmount,
       breakdown: {
         withoutLightFee: baseCourtFee,
         lightFee: lightsFee,
         ballBoyFee,
         guestFee: guestTotalFee,
         rentalFee,
+        convenienceFee,
       },
       chargeType: "reservation",
     });
 
+    const dateLabel = parsedDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    sendPushToClubAdmins(clubId, {
+      title: 'New Court Reservation',
+      body: `Court ${courtNum} booked for ${dateLabel} at ${timeSlot}${durationHours > 1 ? ` (${durationHours} hrs)` : ''}`,
+      url: '/admin/reservations',
+      tag: 'new-reservation',
+    }).catch(() => {});
+
     res.status(201).json({ reservation, charge });
   } catch (err) {
-    if (err.code === 11000) {
-      return res.status(409).json({ error: "That slot is already booked" });
-    }
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// PATCH /api/reservations/:id — edit a reservation (owner only, confirmed + future)
+// PATCH /api/reservations/:id — edit a reservation (owner for confirmed+future; admin for any)
 router.patch("/:id", auth, async (req, res) => {
   try {
     const reservation = await Reservation.findById(req.params.id);
     if (!reservation) return res.status(404).json({ error: "Reservation not found" });
 
-    if (reservation.player.toString() !== req.user.userId)
+    const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
+    const isOwner = reservation.player && reservation.player.toString() === req.user.userId;
+
+    if (!isAdmin && !isOwner)
       return res.status(403).json({ error: "Access denied" });
-    if (reservation.status !== "confirmed")
+    if (!isAdmin && reservation.status !== "confirmed")
       return res.status(400).json({ error: "Only confirmed reservations can be edited" });
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
-    if (reservation.date < today)
+    if (!isAdmin && reservation.date < today)
       return res.status(400).json({ error: "Cannot edit past reservations" });
 
     const {
       court, date, timeSlot, players = [],
       lightsRequested = false, ballBoy = false, isHoliday = false,
       guestCount = 0, rentals = {},
+      guestInfo,
     } = req.body;
+    const durationHours = Math.max(1, Math.min(12, Math.floor(Number(req.body.durationHours) || 1)));
 
     const courtNum = Number(court);
-    if (courtNum !== 1 && courtNum !== 2)
-      return res.status(400).json({ error: "court must be 1 or 2" });
+    if (!Number.isInteger(courtNum) || courtNum < 1)
+      return res.status(400).json({ error: "court must be a positive integer" });
+    const editClub = await Club.findById(reservation.clubId).select('courtCount closingHour convenienceFeeRate convenienceFeeMode').lean();
+    const editCourtCount = editClub?.courtCount ?? 2;
+    if (courtNum > editCourtCount)
+      return res.status(400).json({ error: `court must be between 1 and ${editCourtCount}` });
 
     const parsedDate = new Date(date);
     parsedDate.setUTCHours(0, 0, 0, 0);
     if (parsedDate < today)
       return res.status(400).json({ error: "Cannot edit to a past date" });
 
+    const editClosingHour = editClub?.closingHour ?? 22;
+    if (slotToHour(timeSlot) + durationHours - 1 > editClosingHour)
+      return res.status(400).json({ error: "Booking duration exceeds closing hour" });
+
     const coreChanged =
       courtNum !== reservation.court ||
       parsedDate.getTime() !== reservation.date.getTime() ||
-      timeSlot !== reservation.timeSlot;
+      timeSlot !== reservation.timeSlot ||
+      durationHours !== (reservation.durationHours ?? 1);
 
     if (coreChanged) {
-      const conflict = await Reservation.findOne({
+      const existingForDay = await Reservation.find({
         _id: { $ne: reservation._id },
         clubId: reservation.clubId,
         court: courtNum,
         date: parsedDate,
-        timeSlot,
-        status: "confirmed",
+        status: { $in: ["confirmed", "pending_payment"] },
+      }).select("timeSlot durationHours").lean();
+
+      const newStart = slotToHour(timeSlot);
+      const newEnd = newStart + durationHours;
+      const conflict = existingForDay.some(r => {
+        const rStart = slotToHour(r.timeSlot);
+        const rEnd = rStart + (r.durationHours ?? 1);
+        return rStart < newEnd && rEnd > newStart;
       });
-      if (conflict) return res.status(409).json({ error: "That slot is already booked" });
+      if (conflict) return res.status(409).json({ error: "One or more of those slots is already booked" });
     }
 
     const rawRates = await Rates.findOne({ clubId: reservation.clubId }).lean();
@@ -296,41 +424,56 @@ router.patch("/:id", auth, async (req, res) => {
 
     const dayOfWeek = parsedDate.getUTCDay();
     const isWeekend = WEEKEND_DAYS.has(dayOfWeek);
-    let baseCourtFee = Boolean(isHoliday) ? ratesUsed.holidayRate
+    const hourlyRate = Boolean(isHoliday) ? ratesUsed.holidayRate
       : isWeekend ? ratesUsed.weekendRate : ratesUsed.weekdayRate;
 
-    const lightsFee  = Boolean(lightsRequested) ? ratesUsed.lightsRate : 0;
-    const ballBoyFee = Boolean(ballBoy) ? ratesUsed.ballBoyRate : 0;
+    const baseCourtFee = hourlyRate * durationHours;
+    const lightsFee    = Boolean(lightsRequested) ? ratesUsed.lightsRate * durationHours : 0;
+    const ballBoyFee   = Boolean(ballBoy) ? ratesUsed.ballBoyRate * durationHours : 0;
     const guestTotalFee = sanitizedGuestCount * ratesUsed.guestFee;
-    const rentalFee =
+    const rentalFeePerHour =
       sanitizedRentals.balls50   * ratesUsed.rentalBalls50Rate +
       sanitizedRentals.balls100  * ratesUsed.rentalBalls100Rate +
       (sanitizedRentals.ballMachine ? ratesUsed.rentalBallMachineRate : 0) +
       sanitizedRentals.rackets   * ratesUsed.rentalRacketRate;
+    const rentalFee = rentalFeePerHour * durationHours;
     const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;
+    const editFeeRate = typeof editClub?.convenienceFeeRate === 'number' ? editClub.convenienceFeeRate : 0.10;
+    const editFeeMode = editClub?.convenienceFeeMode ?? 'per_hour';
+    const editConvFeeBase = editFeeMode === 'per_transaction' ? hourlyRate : courtFee;
+    const editConvenienceFee = parseFloat((editConvFeeBase * editFeeRate).toFixed(2));
+    const editTotalAmount = courtFee + editConvenienceFee;
 
     const additionalPlayers = [...new Set(
       (Array.isArray(players) ? players : []).map(String)
         .filter((id) => id && id !== String(req.user.userId)),
     )];
 
-    reservation.court          = courtNum;
-    reservation.date           = parsedDate;
-    reservation.timeSlot       = timeSlot;
-    reservation.players        = additionalPlayers;
+    reservation.court           = courtNum;
+    reservation.date            = parsedDate;
+    reservation.timeSlot        = timeSlot;
+    reservation.durationHours   = durationHours;
+    reservation.players         = additionalPlayers;
     reservation.lightsRequested = Boolean(lightsRequested);
-    reservation.isHoliday      = Boolean(isHoliday);
-    reservation.ballBoy        = Boolean(ballBoy);
-    reservation.guestCount     = sanitizedGuestCount;
-    reservation.rentals        = sanitizedRentals;
-    reservation.courtFee       = courtFee;
-    reservation.ratesUsed      = ratesUsed;
+    reservation.isHoliday       = Boolean(isHoliday);
+    reservation.ballBoy         = Boolean(ballBoy);
+    reservation.guestCount      = sanitizedGuestCount;
+    reservation.rentals         = sanitizedRentals;
+    reservation.courtFee        = courtFee;
+    reservation.convenienceFee  = editConvenienceFee;
+    reservation.convenienceFeeRate = editFeeRate;
+    reservation.ratesUsed       = ratesUsed;
+    if (isAdmin && guestInfo && reservation.guestInfo) {
+      if (guestInfo.name  !== undefined) reservation.guestInfo.name  = guestInfo.name;
+      if (guestInfo.email !== undefined) reservation.guestInfo.email = guestInfo.email;
+      if (guestInfo.phone !== undefined) reservation.guestInfo.phone = guestInfo.phone;
+    }
     await reservation.save();
 
     const charge = await Charge.findOne({ reservationId: reservation._id });
     if (charge) {
-      charge.amount = courtFee;
-      charge.breakdown = { withoutLightFee: baseCourtFee, lightFee: lightsFee, ballBoyFee, guestFee: guestTotalFee, rentalFee };
+      charge.amount = editTotalAmount;
+      charge.breakdown = { withoutLightFee: baseCourtFee, lightFee: lightsFee, ballBoyFee, guestFee: guestTotalFee, rentalFee, convenienceFee: editConvenienceFee };
       await charge.save();
     }
 
@@ -338,7 +481,6 @@ router.patch("/:id", auth, async (req, res) => {
     await reservation.populate("players", "name email");
     res.json(reservation);
   } catch (err) {
-    if (err.code === 11000) return res.status(409).json({ error: "That slot is already booked" });
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }

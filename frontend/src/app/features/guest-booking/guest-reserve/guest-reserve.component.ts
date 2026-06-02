@@ -4,12 +4,28 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { PublicBookingService, PublicRates, GuestBookingResult } from '../../../core/services/public-booking.service';
 
-const ALL_SLOTS = [
-  '5am','6am','7am','8am','9am','10am','11am',
-  '12pm','1pm','2pm','3pm','4pm','5pm',
-  '6pm','7pm','8pm','9pm','10pm',
-];
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm']);
+
+function slotToHour(slot: string): number {
+  const m = slot.match(/^(\d+)(am|pm)$/);
+  if (!m) return 0;
+  const h = parseInt(m[1], 10);
+  return m[2] === 'am' ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
+}
+function hourToSlot(h: number): string {
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${h < 12 ? 'am' : 'pm'}`;
+}
+
+function hoursToSlots(openingHour: number, closingHour: number): string[] {
+  const slots: string[] = [];
+  for (let h = openingHour; h <= closingHour; h++) {
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const period = h < 12 ? 'am' : 'pm';
+    slots.push(`${h12}${period}`);
+  }
+  return slots;
+}
 const WEEKEND_DAYS = new Set([0, 5, 6]);
 
 @Component({
@@ -66,7 +82,7 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
               </div>
               <div class="gb-confirm-row">
                 <span>Time</span>
-                <strong class="gb-green">{{ confirmationData!.reservation.timeSlot }}</strong>
+                <strong class="gb-green">{{ confirmTimeLabel }}</strong>
               </div>
               <div class="gb-confirm-row">
                 <span>Total Fee</span>
@@ -74,13 +90,35 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
               </div>
             </div>
 
-            <div class="gb-payment-notice">
-              <i class="fas fa-info-circle"></i>
-              <div>
-                <strong>Next step: Pay the court fee</strong>
-                <p>Please settle the fee with the club admin. Your slot will be confirmed once payment is verified. Keep your reference number for follow-up.</p>
+            @if (paymentMethods.length > 0) {
+              <div class="gb-payment-notice gb-payment-notice-method">
+                @if (paymentMethods[0] === 'GoTyme') {
+                  <img src="/goTyme.jpg" alt="GoTyme" class="gb-payment-method-logo" />
+                } @else {
+                  <i class="fas fa-wallet"></i>
+                }
+                <div>
+                  <strong>Pay via {{ paymentMethods[0] }}</strong>
+                  @if (paymentQrCodes[paymentMethods[0]]) {
+                    <img [src]="paymentQrCodes[paymentMethods[0]]" alt="Payment QR Code" class="gb-qr-code" />
+                    <p>Scan the QR code to pay. Your slot will be confirmed once payment is verified.</p>
+                  } @else if (paymentAccounts[paymentMethods[0]]) {
+                    <p class="gb-payment-account">{{ paymentAccounts[paymentMethods[0]] }}</p>
+                    <p>Send the exact amount and keep your reference number. Your slot will be confirmed once payment is verified.</p>
+                  } @else {
+                    <p>Send the exact amount and keep your reference number. Your slot will be confirmed once payment is verified.</p>
+                  }
+                </div>
               </div>
-            </div>
+            } @else {
+              <div class="gb-payment-notice">
+                <i class="fas fa-info-circle"></i>
+                <div>
+                  <strong>Next step: Pay the court fee</strong>
+                  <p>Please settle the fee with the club admin. Your slot will be confirmed once payment is verified. Keep your reference number for follow-up.</p>
+                </div>
+              </div>
+            }
           </div>
         }
 
@@ -129,12 +167,11 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
           <div class="gb-section">
             <div class="gb-section-label">Court</div>
             <div class="gb-court-toggle">
-              <button class="gb-court-btn" [class.active]="selectedCourt === 1" (click)="selectCourt(1)">
-                <i class="fas fa-table-tennis"></i> Court 1
-              </button>
-              <button class="gb-court-btn" [class.active]="selectedCourt === 2" (click)="selectCourt(2)">
-                <i class="fas fa-table-tennis"></i> Court 2
-              </button>
+              @for (n of courtNumbers; track n) {
+                <button class="gb-court-btn" [class.active]="selectedCourt === n" (click)="selectCourt(n)">
+                  <i class="fas fa-table-tennis"></i> Court {{ n }}
+                </button>
+              }
             </div>
           </div>
 
@@ -154,8 +191,9 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
                       class="gb-slot-btn"
                       [class.selected]="selectedSlot === slot"
                       [class.booked]="bookedSlots.has(slot)"
+                      [class.in-range]="isInRange(slot)"
                       [class.has-lights]="lightSlots.has(slot)"
-                      [disabled]="bookedSlots.has(slot)"
+                      [disabled]="bookedSlots.has(slot) || isInRange(slot)"
                       (click)="selectSlot(slot)"
                     >
                       {{ slot }}
@@ -164,6 +202,25 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
                   }
                 </div>
               }
+            </div>
+          }
+
+          <!-- Duration -->
+          @if (selectedSlot && availableDurations.length > 1) {
+            <div class="gb-section">
+              <div class="gb-section-label">Duration</div>
+              <div class="gb-duration-row">
+                @for (d of availableDurations; track d) {
+                  <button
+                    type="button"
+                    class="gb-duration-btn"
+                    [class.active]="selectedDuration === d"
+                    (click)="setDuration(d)"
+                  >
+                    {{ d }} hr{{ d > 1 ? 's' : '' }}
+                  </button>
+                }
+              </div>
             </div>
           }
 
@@ -276,7 +333,7 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
               <div class="gb-summary-row"><span>Name</span><strong>{{ guestName || '—' }}</strong></div>
               <div class="gb-summary-row"><span>Court</span><strong>Court {{ selectedCourt }}</strong></div>
               <div class="gb-summary-row"><span>Date</span><strong>{{ selectedDate | date: 'EEE, MMM d, y' : 'UTC' }}</strong></div>
-              <div class="gb-summary-row"><span>Time</span><strong class="gb-green">{{ selectedSlot }}</strong></div>
+              <div class="gb-summary-row"><span>Time</span><strong class="gb-green">{{ selectedSlot }}{{ selectedDuration > 1 ? ' – ' + endSlotLabel : '' }}</strong></div>
               <div class="gb-summary-row">
                 <span>Day Type</span>
                 <strong>
@@ -286,12 +343,21 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
                 </strong>
               </div>
               <div class="gb-summary-divider"></div>
-              <div class="gb-summary-row"><span>Court Fee</span><strong>{{ baseCourtFee | currency: 'PHP' : 'symbol' }}</strong></div>
+              <div class="gb-summary-row">
+                <span>Court Fee{{ selectedDuration > 1 ? ' (' + selectedDuration + ' hrs × ' + (baseHourlyRate | currency: 'PHP' : 'symbol') + ')' : '' }}</span>
+                <strong>{{ baseCourtFee | currency: 'PHP' : 'symbol' }}</strong>
+              </div>
               @if (lightsRequested) {
-                <div class="gb-summary-row"><span>Lights Fee</span><strong>{{ lightsRate | currency: 'PHP' : 'symbol' }}</strong></div>
+                <div class="gb-summary-row">
+                  <span>Lights Fee{{ selectedDuration > 1 ? ' × ' + selectedDuration : '' }}</span>
+                  <strong>{{ lightsRate * selectedDuration | currency: 'PHP' : 'symbol' }}</strong>
+                </div>
               }
               @if (ballBoyRequested) {
-                <div class="gb-summary-row"><span>Ball Boy Fee</span><strong>{{ ballBoyRate | currency: 'PHP' : 'symbol' }}</strong></div>
+                <div class="gb-summary-row">
+                  <span>Ball Boy Fee{{ selectedDuration > 1 ? ' × ' + selectedDuration : '' }}</span>
+                  <strong>{{ ballBoyRate * selectedDuration | currency: 'PHP' : 'symbol' }}</strong>
+                </div>
               }
               @if (totalRentalFee > 0) {
                 <div class="gb-summary-row"><span>Rentals</span><strong>{{ totalRentalFee | currency: 'PHP' : 'symbol' }}</strong></div>
@@ -302,6 +368,10 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
                   <strong>{{ totalGuestFee | currency: 'PHP' : 'symbol' }}</strong>
                 </div>
               }
+              <div class="gb-summary-row">
+                <span>Convenience Fee <span style="font-size:0.72rem;opacity:0.5">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
+                <strong>{{ convenienceFee | currency: 'PHP' : 'symbol' }}</strong>
+              </div>
               <div class="gb-summary-divider"></div>
               <div class="gb-summary-row gb-summary-total">
                 <span>Total</span>
@@ -519,8 +589,19 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
     .gb-slot-btn.has-lights { border-color: rgba(245,158,11,0.35); background: rgba(245,158,11,0.07); }
     .gb-slot-btn.selected { border-color: #a3e635; background: rgba(163,230,53,0.15); color: #a3e635; }
     .gb-slot-btn.booked { background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.2); cursor: not-allowed; border-color: rgba(255,255,255,0.05); text-decoration: line-through; }
-    .gb-slot-btn:hover:not(.booked):not(.selected) { border-color: rgba(163,230,53,0.35); background: rgba(163,230,53,0.07); }
+    .gb-slot-btn.in-range { border-color: rgba(163,230,53,0.4); background: rgba(163,230,53,0.08); color: rgba(163,230,53,0.6); cursor: not-allowed; }
+    .gb-slot-btn:hover:not(.booked):not(.selected):not(.in-range) { border-color: rgba(163,230,53,0.35); background: rgba(163,230,53,0.07); }
     .gb-light-dot { font-size: 0.7rem; }
+
+    /* Duration picker */
+    .gb-duration-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .gb-duration-btn {
+      padding: 0.45rem 1rem; border-radius: 8px; border: 1.5px solid rgba(255,255,255,0.15);
+      background: #1b3028; color: rgba(255,255,255,0.6); font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; font-family: inherit;
+    }
+    .gb-duration-btn:hover { border-color: rgba(163,230,53,0.4); color: rgba(163,230,53,0.9); }
+    .gb-duration-btn.active { border-color: #a3e635; background: rgba(163,230,53,0.15); color: #a3e635; }
 
     /* Toggle */
     .gb-toggle-row { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; user-select: none; }
@@ -648,10 +729,16 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
     .gb-payment-notice i { color: #f59e0b; font-size: 1.1rem; margin-top: 2px; flex-shrink: 0; }
     .gb-payment-notice strong { font-size: 0.88rem; color: #f59e0b; display: block; margin-bottom: 0.3rem; }
     .gb-payment-notice p { font-size: 0.8rem; color: rgba(255,255,255,0.55); margin: 0; line-height: 1.5; }
+    .gb-payment-notice-method { background: rgba(163,230,53,0.08); border-color: rgba(163,230,53,0.25); }
+    .gb-payment-notice-method i { color: #a3e635; }
+    .gb-payment-notice-method strong { color: #a3e635; }
+    .gb-payment-account { color: #ffffff !important; font-size: 0.92rem !important; font-weight: 600; margin-bottom: 0.4rem !important; }
+    .gb-payment-method-logo { width: 32px; height: 32px; object-fit: contain; border-radius: 6px; flex-shrink: 0; margin-top: 2px; }
+    .gb-qr-code { display: block; width: 160px; height: 160px; object-fit: contain; border-radius: 10px; background: #fff; padding: 6px; margin: 0.6rem 0; }
   `],
 })
 export class GuestReserveComponent implements OnInit, OnDestroy {
-  allSlots = ALL_SLOTS;
+  allSlots = hoursToSlots(5, 22);
   lightSlots = LIGHT_SLOTS;
 
   clubId = '';
@@ -664,14 +751,20 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   guestPhone = '';
 
   selectedDate = '';
-  selectedCourt: 1 | 2 | null = null;
+  courtCount = 2;
+  selectedCourt: number | null = null;
   selectedSlot = '';
+  selectedDuration = 1;
+  availableDurations: number[] = [];
+  closingHour = 22;
   bookedSlots = new Set<string>();
   loadingSlots = false;
   booking = false;
   errorMsg = '';
   today = new Date().toISOString().split('T')[0];
 
+  convenienceFeeRate = 0.10;
+  convenienceFeeMode: 'per_transaction' | 'per_hour' = 'per_hour';
   weekdayRate = 0;
   weekendRate = 0;
   holidayRate = 0;
@@ -695,6 +788,12 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   confirmed = false;
   confirmationData: GuestBookingResult | null = null;
 
+  paymentMethods: string[] = [];
+  paymentAccounts: Record<string, string> = {};
+  paymentQrCodes: Record<string, string> = {};
+
+  get courtNumbers(): number[] { return Array.from({ length: this.courtCount }, (_, i) => i + 1); }
+
   get hasAnyRental(): boolean {
     return this.rentalBalls50Rate > 0 || this.rentalBalls100Rate > 0
       || this.rentalBallMachineRate > 0 || this.rentalRacketRate > 0;
@@ -707,12 +806,16 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     return WEEKEND_DAYS.has(day) ? 'weekend' : 'weekday';
   }
 
-  get baseCourtFee(): number {
+  get baseHourlyRate(): number {
     switch (this.dayType) {
       case 'holiday': return this.holidayRate;
       case 'weekend': return this.weekendRate;
       default:        return this.weekdayRate;
     }
+  }
+
+  get baseCourtFee(): number {
+    return this.baseHourlyRate * this.selectedDuration;
   }
 
   get totalGuestFee(): number { return this.guestCount * this.guestFeeRate; }
@@ -723,15 +826,24 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
       this.rentalBalls100 * this.rentalBalls100Rate +
       (this.rentalBallMachine ? this.rentalBallMachineRate : 0) +
       this.rentalRackets * this.rentalRacketRate
-    );
+    ) * this.selectedDuration;
+  }
+
+  get subtotal(): number {
+    return this.baseCourtFee
+      + (this.lightsRequested ? this.lightsRate * this.selectedDuration : 0)
+      + (this.ballBoyRequested ? this.ballBoyRate * this.selectedDuration : 0)
+      + this.totalGuestFee
+      + this.totalRentalFee;
+  }
+
+  get convenienceFee(): number {
+    const base = this.convenienceFeeMode === 'per_transaction' ? this.baseHourlyRate : this.subtotal;
+    return parseFloat((base * this.convenienceFeeRate).toFixed(2));
   }
 
   get computedFee(): number {
-    return this.baseCourtFee
-      + (this.lightsRequested ? this.lightsRate : 0)
-      + (this.ballBoyRequested ? this.ballBoyRate : 0)
-      + this.totalGuestFee
-      + this.totalRentalFee;
+    return this.subtotal + this.convenienceFee;
   }
 
   constructor(
@@ -759,6 +871,14 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
         } else {
           this.clubName = club.name;
           this.clubLogo = club.logo ?? null;
+          this.courtCount = club.courtCount ?? 2;
+          this.closingHour = club.closingHour ?? 22;
+          this.allSlots = hoursToSlots(club.openingHour ?? 5, this.closingHour);
+          this.paymentMethods = club.paymentMethods ?? [];
+          this.paymentAccounts = club.paymentAccounts ?? {};
+          this.paymentQrCodes = club.paymentQrCodes ?? {};
+          this.convenienceFeeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10;
+          this.convenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
         }
         this.cdr.detectChanges();
       },
@@ -794,7 +914,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     this.router.navigate(['/book', this.clubId]);
   }
 
-  selectCourt(court: 1 | 2) {
+  selectCourt(court: number) {
     this.selectedCourt = court;
     this.selectedSlot = '';
     this.onDateOrCourtChange();
@@ -802,6 +922,8 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
 
   onDateOrCourtChange() {
     this.selectedSlot = '';
+    this.selectedDuration = 1;
+    this.availableDurations = [];
     this.bookedSlots = new Set();
     if (!this.selectedDate || !this.selectedCourt) return;
     this.loadingSlots = true;
@@ -819,9 +941,49 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   }
 
   selectSlot(slot: string) {
-    if (this.bookedSlots.has(slot)) return;
+    if (this.bookedSlots.has(slot) || this.isInRange(slot)) return;
     this.selectedSlot = slot;
+    this.selectedDuration = 1;
+    this.computeAvailableDurations();
     this.errorMsg = '';
+  }
+
+  computeAvailableDurations() {
+    if (!this.selectedSlot) { this.availableDurations = []; return; }
+    const startH = slotToHour(this.selectedSlot);
+    const durations: number[] = [];
+    for (let d = 1; d <= 12; d++) {
+      const endH = startH + d - 1;
+      if (endH > this.closingHour) break;
+      if (d > 1 && this.bookedSlots.has(hourToSlot(endH))) break;
+      durations.push(d);
+    }
+    this.availableDurations = durations;
+  }
+
+  setDuration(d: number) {
+    this.selectedDuration = d;
+    this.cdr.detectChanges();
+  }
+
+  isInRange(slot: string): boolean {
+    if (!this.selectedSlot || this.selectedDuration <= 1) return false;
+    const startH = slotToHour(this.selectedSlot);
+    const h = slotToHour(slot);
+    return h > startH && h < startH + this.selectedDuration;
+  }
+
+  get endSlotLabel(): string {
+    if (!this.selectedSlot) return '';
+    return hourToSlot(slotToHour(this.selectedSlot) + this.selectedDuration);
+  }
+
+  get confirmTimeLabel(): string {
+    if (!this.confirmationData) return '';
+    const slot = this.confirmationData.reservation.timeSlot;
+    const d = this.confirmationData.reservation.durationHours ?? 1;
+    if (d <= 1) return slot;
+    return `${slot} – ${hourToSlot(slotToHour(slot) + d)}`;
   }
 
   submit() {
@@ -838,6 +1000,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
       court: this.selectedCourt,
       date: this.selectedDate,
       timeSlot: this.selectedSlot,
+      durationHours: this.selectedDuration,
       lightsRequested: this.lightsRequested,
       ballBoy: this.ballBoyRequested,
       isHoliday: this.isHoliday,
@@ -858,6 +1021,8 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
         this.booking = false;
         this.confirmationData = result;
         this.confirmed = true;
+        this.selectedDuration = 1;
+        this.availableDurations = [];
         this.cdr.detectChanges();
       },
       error: (err) => {

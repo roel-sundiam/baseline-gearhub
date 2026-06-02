@@ -1,9 +1,8 @@
-const CACHE = 'courtgo-v4';
+const CACHE = 'courtgo-v5';
 const PRECACHE = ['/', '/index.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE)));
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
@@ -17,6 +16,34 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('message', e => {
   if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
+self.addEventListener('push', e => {
+  const data = e.data?.json() ?? {};
+  const title = data.title || 'CourtGo';
+  const options = {
+    body: data.body || '',
+    icon: '/icons/icon-192.webp',
+    badge: '/icons/icon-96.webp',
+    data: { url: data.url || '/' },
+    vibrate: [100, 50, 100],
+    tag: data.tag || 'courtgo',
+    renotify: true,
+  };
+  e.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = e.notification.data?.url || '/';
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      for (const c of list) {
+        if ('focus' in c) { c.focus(); c.postMessage({ type: 'NAVIGATE', url }); return; }
+      }
+      if (clients.openWindow) return clients.openWindow(url);
+    })
+  );
 });
 
 self.addEventListener('fetch', e => {

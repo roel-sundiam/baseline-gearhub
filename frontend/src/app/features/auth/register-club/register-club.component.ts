@@ -52,14 +52,20 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
             </div>
 
             <div class="form-group">
-              <label for="location">Location <span class="optional">(optional)</span></label>
+              <label for="location">Location *</label>
               <input
                 id="location"
                 type="text"
                 [(ngModel)]="location"
                 name="location"
+                required
                 placeholder="e.g. Manila, Philippines"
+                #locationField="ngModel"
+                [class.input-invalid]="locationField.invalid && locationField.touched"
               />
+              @if (locationField.invalid && locationField.touched) {
+                <span class="field-error">Location is required.</span>
+              }
             </div>
 
             <div class="form-group">
@@ -177,14 +183,20 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
             </div>
 
             <div class="form-group">
-              <label for="contactNumber">Contact Number <span class="optional">(optional)</span></label>
+              <label for="contactNumber">Contact Number *</label>
               <input
                 id="contactNumber"
                 type="tel"
                 [(ngModel)]="contactNumber"
                 name="contactNumber"
+                required
                 placeholder="+63 912 345 6789"
+                #contactNumberField="ngModel"
+                [class.input-invalid]="contactNumberField.invalid && contactNumberField.touched"
               />
+              @if (contactNumberField.invalid && contactNumberField.touched) {
+                <span class="field-error">Contact number is required.</span>
+              }
             </div>
 
             @if (errorMsg) {
@@ -478,7 +490,7 @@ export class RegisterClubComponent {
   }
 
   onSubmit() {
-    if (!this.clubName || !this.adminName || !this.adminUsername || !this.adminPassword) return;
+    if (!this.clubName || !this.location || !this.adminName || !this.adminUsername || !this.adminPassword || !this.contactNumber) return;
     if (!this.logo) return;
     this.loading = true;
     this.errorMsg = '';
@@ -489,7 +501,7 @@ export class RegisterClubComponent {
         adminName: this.adminName,
         adminUsername: this.adminUsername,
         adminPassword: this.adminPassword,
-        location: this.location || undefined,
+        location: this.location,
         logo: this.logo || undefined,
         email: this.email || undefined,
         contactNumber: this.contactNumber || undefined,

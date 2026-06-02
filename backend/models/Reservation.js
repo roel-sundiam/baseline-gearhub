@@ -2,19 +2,31 @@ const mongoose = require("mongoose");
 
 const LIGHT_SLOTS = new Set(["5am", "6pm", "7pm", "8pm", "9pm"]);
 
+function slotToHour(slot) {
+  const m = slot.match(/^(\d+)(am|pm)$/);
+  if (!m) return 0;
+  const h = parseInt(m[1], 10);
+  return m[2] === "am" ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
+}
+
+function hourToSlot(h) {
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${h < 12 ? "am" : "pm"}`;
+}
+
 const reservationSchema = new mongoose.Schema(
   {
-    court: { type: Number, required: true, enum: [1, 2] },
+    court: { type: Number, required: true, min: 1 },
     date: { type: Date, required: true },
     timeSlot: {
       type: String,
       required: true,
       enum: [
-        "5am", "6am", "7am", "8am", "9am", "10am", "11am",
-        "12pm", "1pm", "2pm", "3pm", "4pm", "5pm",
-        "6pm", "7pm", "8pm", "9pm", "10pm",
+        "12am", "1am", "2am", "3am", "4am", "5am", "6am", "7am", "8am", "9am", "10am", "11am",
+        "12pm", "1pm", "2pm", "3pm", "4pm", "5pm", "6pm", "7pm", "8pm", "9pm", "10pm", "11pm",
       ],
     },
+    durationHours: { type: Number, default: 1, min: 1, max: 12 },
     hasLights: { type: Boolean, required: true },
     player: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     players: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
@@ -29,6 +41,8 @@ const reservationSchema = new mongoose.Schema(
       rackets: { type: Number, default: 0, min: 0 },
     },
     courtFee: { type: Number, required: true, min: 0, default: 0 },
+    convenienceFee: { type: Number, default: 0, min: 0 },
+    convenienceFeeRate: { type: Number, default: 0.10, min: 0 },
     ratesUsed: {
       weekdayRate: { type: Number, required: true, default: 0 },
       weekendRate: { type: Number, required: true, default: 0 },
@@ -52,10 +66,13 @@ const reservationSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-reservationSchema.index({ clubId: 1, court: 1, date: 1, timeSlot: 1 }, { unique: true });
-
 reservationSchema.pre("validate", function (next) {
-  this.hasLights = LIGHT_SLOTS.has(this.timeSlot);
+  const start = slotToHour(this.timeSlot);
+  let lit = false;
+  for (let i = 0; i < (this.durationHours ?? 1); i++) {
+    if (LIGHT_SLOTS.has(hourToSlot(start + i))) { lit = true; break; }
+  }
+  this.hasLights = lit;
   next();
 });
 

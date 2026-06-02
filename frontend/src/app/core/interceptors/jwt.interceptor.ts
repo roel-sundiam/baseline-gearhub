@@ -1,10 +1,12 @@
 import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 
 export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
+  const router = inject(Router);
   const token = auth.getToken();
 
   if (token && !req.url.includes('/api/public/')) {
@@ -17,6 +19,14 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((err: HttpErrorResponse) => {
       if (err.status === 403 && err.error?.error === 'club_suspended') {
         auth.logout();
+      }
+      if (err.status === 401) {
+        if (auth.isImpersonating()) {
+          auth.exitImpersonation();
+        } else if (auth.isLoggedIn()) {
+          auth.logout();
+          router.navigate(['/login']);
+        }
       }
       return throwError(() => err);
     })

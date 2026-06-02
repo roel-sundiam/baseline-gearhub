@@ -22,9 +22,10 @@ export interface GuestInfo {
 }
 
 export interface GuestBookingPayload {
-  court: 1 | 2;
+  court: number;
   date: string;
   timeSlot: string;
+  durationHours?: number;
   lightsRequested?: boolean;
   ballBoy?: boolean;
   isHoliday?: boolean;
@@ -36,9 +37,10 @@ export interface GuestBookingPayload {
 export interface GuestBookingResult {
   reservation: {
     _id: string;
-    court: 1 | 2;
+    court: number;
     date: string;
     timeSlot: string;
+    durationHours?: number;
     courtFee: number;
     status: string;
     guestInfo: GuestInfo;
@@ -52,9 +54,15 @@ export class PublicBookingService {
 
   constructor(private http: HttpClient) {}
 
+  getClubs() {
+    return this.http.get<Array<{ _id: string; name: string; slug?: string; location?: string; logo?: string }>>(
+      `${this.base}/clubs`
+    );
+  }
+
   getClub(clubId: string) {
-    return this.http.get<{ _id: string; name: string; location?: string; logo?: string; status: string }>(
-      `${environment.apiUrl}/clubs/${clubId}`
+    return this.http.get<{ _id: string; name: string; slug?: string; location?: string; logo?: string; status: string; courtCount?: number; openingHour?: number; closingHour?: number; paymentMethods?: string[]; paymentAccounts?: Record<string, string>; paymentQrCodes?: Record<string, string>; convenienceFeeRate?: number; convenienceFeeMode?: 'per_transaction' | 'per_hour' }>(
+      `${this.base}/${clubId}`
     );
   }
 
@@ -62,7 +70,7 @@ export class PublicBookingService {
     return this.http.get<PublicRates>(`${this.base}/${clubId}/rates`);
   }
 
-  getAvailability(clubId: string, court: 1 | 2, date: string) {
+  getAvailability(clubId: string, court: number, date: string) {
     const params = new HttpParams().set('court', court).set('date', date);
     return this.http.get<{ bookedSlots: string[] }>(`${this.base}/${clubId}/availability`, { params });
   }

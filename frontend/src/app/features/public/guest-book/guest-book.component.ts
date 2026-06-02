@@ -4,12 +4,17 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { PublicBookingService, PublicRates, GuestBookingResult } from '../../../core/services/public-booking.service';
 
-const ALL_SLOTS = [
-  '5am','6am','7am','8am','9am','10am','11am',
-  '12pm','1pm','2pm','3pm','4pm','5pm',
-  '6pm','7pm','8pm','9pm','10pm',
-];
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm']);
+
+function hoursToSlots(openingHour: number, closingHour: number): string[] {
+  const slots: string[] = [];
+  for (let h = openingHour; h <= closingHour; h++) {
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const period = h < 12 ? 'am' : 'pm';
+    slots.push(`${h12}${period}`);
+  }
+  return slots;
+}
 const WEEKEND_DAYS = new Set([0, 5, 6]);
 
 @Component({
@@ -122,12 +127,11 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
           <div class="gb-section">
             <div class="gb-section-label">Court</div>
             <div class="gb-court-toggle">
-              <button class="gb-court-btn" [class.active]="selectedCourt === 1" (click)="selectCourt(1)">
-                <i class="fas fa-table-tennis"></i> Court 1
-              </button>
-              <button class="gb-court-btn" [class.active]="selectedCourt === 2" (click)="selectCourt(2)">
-                <i class="fas fa-table-tennis"></i> Court 2
-              </button>
+              @for (n of courtNumbers; track n) {
+                <button class="gb-court-btn" [class.active]="selectedCourt === n" (click)="selectCourt(n)">
+                  <i class="fas fa-table-tennis"></i> Court {{ n }}
+                </button>
+              }
             </div>
           </div>
 
@@ -624,7 +628,7 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
   `],
 })
 export class GuestBookComponent implements OnInit, OnDestroy {
-  allSlots = ALL_SLOTS;
+  allSlots = hoursToSlots(5, 22);
   lightSlots = LIGHT_SLOTS;
 
   clubId = '';
@@ -636,7 +640,8 @@ export class GuestBookComponent implements OnInit, OnDestroy {
   guestPhone = '';
 
   selectedDate = '';
-  selectedCourt: 1 | 2 | null = null;
+  courtCount = 2;
+  selectedCourt: number | null = null;
   selectedSlot = '';
   bookedSlots = new Set<string>();
   loadingSlots = false;
@@ -666,6 +671,8 @@ export class GuestBookComponent implements OnInit, OnDestroy {
 
   confirmed = false;
   confirmationData: GuestBookingResult | null = null;
+
+  get courtNumbers(): number[] { return Array.from({ length: this.courtCount }, (_, i) => i + 1); }
 
   get hasAnyRental(): boolean {
     return this.rentalBalls50Rate > 0 || this.rentalBalls100Rate > 0
@@ -729,6 +736,8 @@ export class GuestBookComponent implements OnInit, OnDestroy {
           this.clubError = 'This club is currently unavailable for bookings.';
         } else {
           this.clubName = club.name;
+          this.courtCount = club.courtCount ?? 2;
+          this.allSlots = hoursToSlots(club.openingHour ?? 5, club.closingHour ?? 22);
         }
         this.cdr.detectChanges();
       },
@@ -760,7 +769,7 @@ export class GuestBookComponent implements OnInit, OnDestroy {
     this.renderer.removeClass(document.body, 'dark-player-page');
   }
 
-  selectCourt(court: 1 | 2) {
+  selectCourt(court: number) {
     this.selectedCourt = court;
     this.selectedSlot = '';
     this.onDateOrCourtChange();
