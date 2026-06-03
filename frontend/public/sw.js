@@ -1,4 +1,4 @@
-const CACHE = 'courtgo-v5';
+const CACHE = 'courtgo-v63';
 const PRECACHE = ['/', '/index.html'];
 
 self.addEventListener('install', e => {

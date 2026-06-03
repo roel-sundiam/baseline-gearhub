@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1280px;height:720px;overflow:hidden;background:#0a1610;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#fff}
+/* Background */
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+.orb{position:absolute;border-radius:50%;filter:blur(40px)}
+.o1{width:560px;height:560px;top:-160px;left:-130px;background:radial-gradient(circle,rgba(124,255,78,.18) 0%,transparent 70%);animation:fOrb 13s ease-in-out infinite alternate}
+.o2{width:380px;height:380px;bottom:-100px;right:-80px;background:radial-gradient(circle,rgba(124,255,78,.12) 0%,transparent 70%);animation:fOrb 10s ease-in-out infinite alternate;animation-delay:-5s}
+@keyframes fOrb{from{transform:translateY(0) scale(1)}to{transform:translateY(-40px) scale(1.05)}}
+.grid{position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,rgba(124,255,78,.022) 0,rgba(124,255,78,.022) 1px,transparent 1px,transparent 80px),repeating-linear-gradient(90deg,rgba(124,255,78,.022) 0,rgba(124,255,78,.022) 1px,transparent 1px,transparent 80px)}
+/* Watermark */
+.wm{position:fixed;top:22px;left:36px;z-index:200}.wm img{height:26px;display:block}
+/* Progress dots */
+.progress{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:7px;z-index:200}
+.dot{width:7px;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
+/* Slides — ALL start invisible, CSS animations reveal them */
+.slide{position:absolute;inset:0;opacity:0;display:flex;align-items:center;z-index:1}
+/* Title */
+.title-slide{justify-content:center}
+.ti{display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center}
+.t-logo{height:50px}.t-badge{display:inline-flex;align-items:center;gap:8px;font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.65);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);padding:.3rem .85rem;border-radius:100px}
+.tdot{width:7px;height:7px;border-radius:50%;background:#7cff4e;box-shadow:0 0 8px #7cff4e;flex-shrink:0}
+.t-h1{font-size:3.8rem;font-weight:800;letter-spacing:-.04em;line-height:1.07}.ac{color:#7cff4e}
+.t-sub{font-size:1rem;color:rgba(255,255,255,.4)}
+/* Feature */
+.feature-slide{padding:0 68px;gap:68px}.feature-slide.rev{flex-direction:row-reverse}
+.phone-col{flex:0 0 auto;position:relative}
+.phone-glow{position:absolute;width:290px;height:290px;border-radius:50%;background:radial-gradient(ellipse,rgba(124,255,78,.3) 0%,rgba(124,255,78,.07) 42%,transparent 68%);top:50%;left:50%;transform:translate(-50%,-50%);filter:blur(10px);pointer-events:none;z-index:0}
+.phone-frame{width:232px;height:502px;border-radius:38px;border:1.5px solid rgba(255,255,255,.14);overflow:hidden;position:relative;z-index:1;box-shadow:0 28px 70px rgba(0,0,0,.65),0 0 0 1px rgba(124,255,78,.07);background:#0f1e14}
+.phone-frame img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
+.pnotch{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:68px;height:21px;background:#0a1610;border-radius:100px;z-index:10}
+.text-col{flex:1;min-width:0}
+.f-tag{display:inline-flex;align-items:center;font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7cff4e;background:rgba(124,255,78,.08);border:1px solid rgba(124,255,78,.2);padding:.26rem .7rem;border-radius:100px;margin-bottom:13px}
+.f-title{font-size:2.8rem;font-weight:800;letter-spacing:-.03em;line-height:1.1;color:#fff;margin-bottom:13px}
+.f-desc{font-size:.97rem;color:rgba(255,255,255,.48);line-height:1.7;margin-bottom:18px;max-width:440px}
+.f-bullets{list-style:none;display:flex;flex-direction:column;gap:10px}
+.f-bullets li{display:flex;align-items:center;gap:10px;font-size:.9rem;color:rgba(255,255,255,.75);font-weight:500}
+/* CTA */
+.cta-slide{flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:16px}
+.cta-logo{height:42px}.cta-h2{font-size:3.1rem;font-weight:800;letter-spacing:-.03em}
+.cta-sub{font-size:1rem;color:rgba(255,255,255,.45)}
+.cta-btn{display:inline-block;padding:.9rem 2.6rem;background:#7cff4e;color:#081209;font-weight:700;font-size:1rem;border-radius:12px;box-shadow:0 0 28px rgba(124,255,78,.5)}
+.cta-url{font-size:.82rem;color:rgba(255,255,255,.28);letter-spacing:.06em}
+/* ── CSS Keyframes ── */
+@keyframes showSlide{0%{opacity:0}6%{opacity:1}88%{opacity:1}100%{opacity:0}}
+@keyframes showLast{0%{opacity:0}6%{opacity:1}100%{opacity:1}}
+@keyframes fUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+@keyframes sInR{from{opacity:0;transform:translateX(65px) scale(.92)}to{opacity:1;transform:translateX(0) scale(1)}}
+@keyframes sInL{from{opacity:0;transform:translateX(-65px) scale(.92)}to{opacity:1;transform:translateX(0) scale(1)}}
+@keyframes dotOn{0%{background:rgba(255,255,255,.18);width:7px}6%{background:#7cff4e;width:22px;border-radius:4px}88%{background:#7cff4e;width:22px}100%{background:rgba(255,255,255,.18);width:7px}}
+/* ── Per-slide dynamic CSS ── */
+#s0{animation:showSlide 5.000s 0.000s both}
+#d0{animation:dotOn 5.000s 0.000s both}
+#s0 .t-logo{animation:fUp .8s 0.100s both}
+#s0 .t-badge{animation:fUp .8s 0.400s both}
+#s0 .t-h1{animation:fUp .8s 0.700s both}
+#s0 .t-sub{animation:fUp .8s 1.000s both}
+#s1{animation:showSlide 6.000s 5.000s both}
+#d1{animation:dotOn 6.000s 5.000s both}
+#s1 .phone-col{animation:sInR .8s 5.150s both}
+#s1 .f-tag{animation:fUp .6s 5.350s both}
+#s1 .f-title{animation:fUp .6s 5.550s both}
+#s1 .f-desc{animation:fUp .6s 5.750s both}
+#s1 .f-bullets li:nth-child(1){animation:fUp .5s 5.950s both}
+#s1 .f-bullets li:nth-child(2){animation:fUp .5s 6.100s both}
+#s1 .f-bullets li:nth-child(3){animation:fUp .5s 6.250s both}
+#s1 .f-bullets li:nth-child(4){animation:fUp .5s 6.400s both}
+#s2{animation:showSlide 6.000s 11.000s both}
+#d2{animation:dotOn 6.000s 11.000s both}
+#s2 .phone-col{animation:sInL .8s 11.150s both}
+#s2 .f-tag{animation:fUp .6s 11.350s both}
+#s2 .f-title{animation:fUp .6s 11.550s both}
+#s2 .f-desc{animation:fUp .6s 11.750s both}
+#s2 .f-bullets li:nth-child(1){animation:fUp .5s 11.950s both}
+#s2 .f-bullets li:nth-child(2){animation:fUp .5s 12.100s both}
+#s2 .f-bullets li:nth-child(3){animation:fUp .5s 12.250s both}
+#s2 .f-bullets li:nth-child(4){animation:fUp .5s 12.400s both}
+#s3{animation:showSlide 6.000s 17.000s both}
+#d3{animation:dotOn 6.000s 17.000s both}
+#s3 .phone-col{animation:sInR .8s 17.150s both}
+#s3 .f-tag{animation:fUp .6s 17.350s both}
+#s3 .f-title{animation:fUp .6s 17.550s both}
+#s3 .f-desc{animation:fUp .6s 17.750s both}
+#s3 .f-bullets li:nth-child(1){animation:fUp .5s 17.950s both}
+#s3 .f-bullets li:nth-child(2){animation:fUp .5s 18.100s both}
+#s3 .f-bullets li:nth-child(3){animation:fUp .5s 18.250s both}
+#s3 .f-bullets li:nth-child(4){animation:fUp .5s 18.400s both}
+#s4{animation:showSlide 6.000s 23.000s both}
+#d4{animation:dotOn 6.000s 23.000s both}
+#s4 .phone-col{animation:sInL .8s 23.150s both}
+#s4 .f-tag{animation:fUp .6s 23.350s both}
+#s4 .f-title{animation:fUp .6s 23.550s both}
+#s4 .f-desc{animation:fUp .6s 23.750s both}
+#s4 .f-bullets li:nth-child(1){animation:fUp .5s 23.950s both}
+#s4 .f-bullets li:nth-child(2){animation:fUp .5s 24.100s both}
+#s4 .f-bullets li:nth-child(3){animation:fUp .5s 24.250s both}
+#s4 .f-bullets li:nth-child(4){animation:fUp .5s 24.400s both}
+#s5{animation:showSlide 6.000s 29.000s both}
+#d5{animation:dotOn 6.000s 29.000s both}
+#s5 .phone-col{animation:sInR .8s 29.150s both}
+#s5 .f-tag{animation:fUp .6s 29.350s both}
+#s5 .f-title{animation:fUp .6s 29.550s both}
+#s5 .f-desc{animation:fUp .6s 29.750s both}
+#s5 .f-bullets li:nth-child(1){animation:fUp .5s 29.950s both}
+#s5 .f-bullets li:nth-child(2){animation:fUp .5s 30.100s both}
+#s5 .f-bullets li:nth-child(3){animation:fUp .5s 30.250s both}
+#s5 .f-bullets li:nth-child(4){animation:fUp .5s 30.400s both}
+#s6{animation:showSlide 6.000s 35.000s both}
+#d6{animation:dotOn 6.000s 35.000s both}
+#s6 .phone-col{animation:sInL .8s 35.150s both}
+#s6 .f-tag{animation:fUp .6s 35.350s both}
+#s6 .f-title{animation:fUp .6s 35.550s both}
+#s6 .f-desc{animation:fUp .6s 35.750s both}
+#s6 .f-bullets li:nth-child(1){animation:fUp .5s 35.950s both}
+#s6 .f-bullets li:nth-child(2){animation:fUp .5s 36.100s both}
+#s6 .f-bullets li:nth-child(3){animation:fUp .5s 36.250s both}
+#s6 .f-bullets li:nth-child(4){animation:fUp .5s 36.400s both}
+#s7{animation:showSlide 5.500s 41.000s both}
+#d7{animation:dotOn 5.500s 41.000s both}
+#s7 .phone-col{animation:sInR .8s 41.150s both}
+#s7 .f-tag{animation:fUp .6s 41.350s both}
+#s7 .f-title{animation:fUp .6s 41.550s both}
+#s7 .f-desc{animation:fUp .6s 41.750s both}
+#s7 .f-bullets li:nth-child(1){animation:fUp .5s 41.950s both}
+#s7 .f-bullets li:nth-child(2){animation:fUp .5s 42.100s both}
+#s7 .f-bullets li:nth-child(3){animation:fUp .5s 42.250s both}
+#s7 .f-bullets li:nth-child(4){animation:fUp .5s 42.400s both}
+#s8{animation:showLast 5.500s 46.500s both}
+#d8{animation:dotOn 5.500s 46.500s both}
+#s8 .cta-logo{animation:fUp .8s 46.700s both}
+#s8 .cta-h2{animation:fUp .8s 47.000s both}
+#s8 .cta-sub{animation:fUp .8s 47.250s both}
+#s8 .cta-btn{animation:fUp .8s 47.500s both}
+#s8 .cta-url{animation:fUp .8s 47.750s both}
+
+</style>
+</head>
+<body>
+<div class="bg"><div class="orb o1"></div><div class="orb o2"></div><div class="grid"></div></div>
+<div class="wm"><img src="http://localhost:4200/CourtGo.png"/></div>
+<div class="progress"><div class="dot" id="d0"></div><div class="dot" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div><div class="dot" id="d4"></div><div class="dot" id="d5"></div><div class="dot" id="d6"></div><div class="dot" id="d7"></div><div class="dot" id="d8"></div></div>
+
+  <div class="slide title-slide" id="s0">
+    <div class="ti">
+      <img src="http://localhost:4200/CourtGo.png" class="t-logo"/>
+      <div class="t-badge"><span class="tdot"></span>Full Feature Walkthrough</div>
+      <h1 class="t-h1">The modern way to<br><span class="ac">MANAGE &amp; BOOK</span><br>COURTS.</h1>
+      <p class="t-sub">Real-time reservations · Club management · Open play · Payments</p>
+    </div>
+  </div>
+  <div class="slide feature-slide" id="s1">
+    
+      <div class="phone-col">
+        <div class="phone-glow"></div>
+        <div class="phone-frame"><div class="pnotch"></div><img src="http://localhost:4200/features/dashboard.png"/></div>
+      </div>
+      <div class="text-col">
+        <div class="f-tag">Home Base</div>
+        <h2 class="f-title">Your personal<br>dashboard</h2>
+        <p class="f-desc">See upcoming bookings, quick shortcuts, and club updates the moment you open the app.</p>
+        <ul class="f-bullets"><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Upcoming booking with one-tap access</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Quick action shortcuts</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Club hours at a glance</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Club notifications</li></ul>
+      </div>
+  </div>
+  <div class="slide feature-slide rev" id="s2">
+    
+      <div class="text-col">
+        <div class="f-tag">Court Booking</div>
+        <h2 class="f-title">Reserve courts<br>in seconds</h2>
+        <p class="f-desc">Pick a date, select your court, add a partner, toggle lights, and include guests.</p>
+        <ul class="f-bullets"><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Real-time court availability</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Select court by name</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Invite members to your session</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Light rental & guest options</li></ul>
+      </div>
+      <div class="phone-col">
+        <div class="phone-glow"></div>
+        <div class="phone-frame"><div class="pnotch"></div><img src="http://localhost:4200/features/reserve.png"/></div>
+      </div>
+  </div>
+  <div class="slide feature-slide" id="s3">
+    
+      <div class="phone-col">
+        <div class="phone-glow"></div>
+        <div class="phone-frame"><div class="pnotch"></div><img src="http://localhost:4200/features/reservations.png"/></div>
+      </div>
+      <div class="text-col">
+        <div class="f-tag">Reservations</div>
+        <h2 class="f-title">All bookings<br>in one place</h2>
+        <p class="f-desc">Admins see every confirmed booking — player name, court, time, and status — in real time.</p>
+        <ul class="f-bullets"><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Table and calendar view toggle</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Filter by court or date</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Confirmed and past bookings</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Edit or cancel instantly</li></ul>
+      </div>
+  </div>
+  <div class="slide feature-slide rev" id="s4">
+    
+      <div class="text-col">
+        <div class="f-tag">Open Play</div>
+        <h2 class="f-title">Join community<br>sessions</h2>
+        <p class="f-desc">Drop into open play sessions, compete with fellow members, and build your rating.</p>
+        <ul class="f-bullets"><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Browse sessions by sport</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>View your session history</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>CRI leaderboard & rankings</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Skill-balanced sessions</li></ul>
+      </div>
+      <div class="phone-col">
+        <div class="phone-glow"></div>
+        <div class="phone-frame"><div class="pnotch"></div><img src="http://localhost:4200/features/open-play.png"/></div>
+      </div>
+  </div>
+  <div class="slide feature-slide" id="s5">
+    
+      <div class="phone-col">
+        <div class="phone-glow"></div>
+        <div class="phone-frame"><div class="pnotch"></div><img src="http://localhost:4200/features/payment-approvals.png"/></div>
+      </div>
+      <div class="text-col">
+        <div class="f-tag">Payment Process</div>
+        <h2 class="f-title">Seamless<br>payment approvals</h2>
+        <p class="f-desc">Players submit GCash or cash payments. Admins approve with a full audit trail.</p>
+        <ul class="f-bullets"><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>104 payments approved</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>GCash and cash support</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Per-booking charge breakdown</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Instant notifications</li></ul>
+      </div>
+  </div>
+  <div class="slide feature-slide rev" id="s6">
+    
+      <div class="text-col">
+        <div class="f-tag">Member Management</div>
+        <h2 class="f-title">Grow and manage<br>your roster</h2>
+        <p class="f-desc">Full member control panel — approve registrations, manage 39+ active members.</p>
+        <ul class="f-bullets"><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>41 total · 39 active · 2 pending</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Approve or reject registrations</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Member profiles & contact info</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Search and filter roster</li></ul>
+      </div>
+      <div class="phone-col">
+        <div class="phone-glow"></div>
+        <div class="phone-frame"><div class="pnotch"></div><img src="http://localhost:4200/features/admin-users.png"/></div>
+      </div>
+  </div>
+  <div class="slide feature-slide" id="s7">
+    
+      <div class="phone-col">
+        <div class="phone-glow"></div>
+        <div class="phone-frame"><div class="pnotch"></div><img src="http://localhost:4200/features/book.png"/></div>
+      </div>
+      <div class="text-col">
+        <div class="f-tag">Guest Access</div>
+        <h2 class="f-title">Book without<br>an account</h2>
+        <p class="f-desc">Guests can browse all clubs and book courts instantly — no sign-up required.</p>
+        <ul class="f-bullets"><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Search any club by location</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>No login required</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Multiple clubs & sports</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Easy upgrade to membership</li></ul>
+      </div>
+  </div>
+  <div class="slide cta-slide" id="s8">
+    <img src="http://localhost:4200/CourtGo.png" class="cta-logo"/>
+    <h2 class="cta-h2">Ready to <span class="ac">get started?</span></h2>
+    <p class="cta-sub">Join your club today — free for players, affordable for clubs.</p>
+    <div class="cta-btn">Register for Free</div>
+    <p class="cta-url">courtgo.app</p>
+  </div>
+</body></html>

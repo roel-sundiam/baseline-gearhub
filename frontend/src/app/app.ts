@@ -314,6 +314,6 @@ export class App {
 
   isAuthRoute(): boolean {
     const url = this.router.url;
-    return url === '/' || url === '' || url.includes('/login') || url.includes('/register') || url.startsWith('/book');
+    return url === '/' || url === '' || url.includes('/login') || url.includes('/register') || url.startsWith('/book') || url.startsWith('/features');
   }
 }

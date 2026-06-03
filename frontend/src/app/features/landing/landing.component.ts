@@ -9,7 +9,7 @@ import { APP_VERSION } from '../../version';
   template: `
     <div class="page">
 
-      <!-- Animated background -->
+      <!-- Background -->
       <div class="bg-layer">
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
@@ -20,68 +20,135 @@ import { APP_VERSION } from '../../version';
       <!-- Navbar -->
       <header class="navbar">
         <img src="/CourtGo.png" alt="CourtGo" class="nav-logo" />
-        <a routerLink="/book" class="nav-find">Search Courts / Clubs</a>
-        <a routerLink="/login" class="nav-signin">Sign In</a>
+
+        <div class="nav-center">
+          <a routerLink="/book" class="nav-search">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <span class="nav-search-full">Find Clubs</span>
+            <span class="nav-search-short">Find Clubs</span>
+          </a>
+          <nav class="nav-links">
+            <a href="#features" class="nav-link">Features</a>
+            <a href="#" class="nav-link">Pricing</a>
+            <a href="#" class="nav-link">How It Works</a>
+            <a href="#" class="nav-link nav-link-drop">Resources
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+            </a>
+          </nav>
+        </div>
+
+        <div class="nav-right">
+          <a routerLink="/login" class="nav-signin">Login as Player</a>
+          <a routerLink="/register-club" class="btn-primary nav-register">Register your Club</a>
+        </div>
       </header>
+
+      <!-- Mobile quick-links (hidden on desktop) -->
+      <div class="mobile-quicklinks">
+        <a routerLink="/book" class="mql-link">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          Find Clubs
+        </a>
+        <a routerLink="/login" class="mql-link">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Login as Player
+        </a>
+      </div>
 
       <!-- Hero -->
       <section class="hero">
-        <div class="hero-inner">
-          <span class="hero-badge">Racket Sports Club Platform</span>
+        <div class="hero-left">
+          <div class="hero-badge">
+            <span class="badge-dot"></span>
+            Racket Sports Club Platform
+          </div>
           <h1 class="hero-headline">
             The modern way to<br>
-            <span class="accent">manage &amp; book courts.</span>
+            <span class="accent">MANAGE &amp; BOOK</span><br>
+            COURTS.
           </h1>
           <p class="hero-sub">
-            Real-time reservations, club management, tournaments, and live support —
-            all in one place. For tennis, pickleball, squash, and more.
+            Real-time reservations, club management, tournaments,
+            and live support — all in one place. For tennis, pickleball,
+            squash, and more.
           </p>
           <div class="hero-ctas">
-            <a routerLink="/register-club" class="btn-primary">Register for Free</a>
-            <a routerLink="/login" class="btn-ghost">Sign In &rarr;</a>
-            <a routerLink="/book" class="btn-guest">Book as Guest</a>
+            <a routerLink="/register-club" class="btn-primary btn-hero">
+              Register your Club
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="m12 8 4 4-4 4M8 12h8"/></svg>
+            </a>
+            <a routerLink="/book" class="btn-ghost">Book as Guest</a>
+          </div>
+          <div class="hero-proof">
+            <div class="avatars">
+              <div class="av av-1"></div>
+              <div class="av av-2"></div>
+              <div class="av av-3"></div>
+            </div>
+            <p class="proof-text">Join <strong>1,000+</strong> clubs &amp; players already using CourtGo</p>
+          </div>
+        </div>
+
+        <div class="hero-right">
+          <div class="phone-glow"></div>
+          <div class="rings">
+            <div class="ring r1"></div>
+            <div class="ring r2"></div>
+            <div class="ring r3"></div>
+            <div class="ring r4"></div>
+          </div>
+          <div class="deco-arrows">
+            <svg width="48" height="28" viewBox="0 0 48 28" fill="none" stroke="rgba(124,255,78,0.65)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 25L24 3L45 25"/></svg>
+            <svg width="48" height="28" viewBox="0 0 48 28" fill="none" stroke="rgba(124,255,78,0.4)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 25L24 3L45 25"/></svg>
+            <svg width="48" height="28" viewBox="0 0 48 28" fill="none" stroke="rgba(124,255,78,0.2)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 25L24 3L45 25"/></svg>
+          </div>
+          <div class="hero-phones">
+            <div class="phone phone-1">
+              <img src="/mockup-home.png" alt="CourtGo home screen" />
+            </div>
+            <div class="phone phone-2">
+              <img src="/mockup-courts.png" alt="CourtGo find courts" />
+            </div>
           </div>
         </div>
       </section>
 
       <!-- Features -->
-      <section class="features">
+      <section class="features" id="features">
         <div class="features-grid">
 
           <div class="feature-card">
-            <div class="feature-icon">&#127922;</div>
+            <div class="fi">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
             <h3>Instant Reservations</h3>
-            <p>Book any court in seconds — tennis, pickleball, squash, or padel — with real-time availability.</p>
+            <p>Book any court in seconds with real-time availability.</p>
           </div>
 
           <div class="feature-card">
-            <div class="feature-icon">&#127970;</div>
+            <div class="fi">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
             <h3>Club Management</h3>
-            <p>Full admin tools for members, courts, rates, sessions, payments, and analytics.</p>
+            <p>Powerful tools for members, courts, payments, and analytics.</p>
           </div>
 
           <div class="feature-card">
-            <div class="feature-icon">&#128241;</div>
-            <h3>Works on Any Device</h3>
-            <p>Native iOS and Android apps alongside a full-featured web experience.</p>
-          </div>
-
-          <div class="feature-card">
-            <div class="feature-icon">&#128172;</div>
-            <h3>Live Support Chat</h3>
-            <p>Built-in inquiry and live chat so members can reach club staff instantly.</p>
-          </div>
-
-          <div class="feature-card">
-            <div class="feature-icon">&#127941;</div>
+            <div class="fi">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+            </div>
             <h3>Tournaments</h3>
-            <p>Organize and manage tournaments with brackets, results, and member sign-ups — any sport.</p>
+            <p>Organize and manage tournaments with ease.</p>
           </div>
 
           <div class="feature-card">
-            <div class="feature-icon">&#128200;</div>
-            <h3>Finance &amp; Analytics</h3>
-            <p>Track payments, revenue, and court utilization across all your sports with a clear dashboard.</p>
+            <div class="fi">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="11" x="2" y="3" rx="1"/><rect width="5" height="7" x="17" y="3" rx="1"/><path d="M9 3h6M9 21h6M2 14h5M17 10h5M7 21v-1a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1"/></svg>
+            </div>
+            <h3>Works Everywhere</h3>
+            <p>Native iOS &amp; Android apps with a seamless web experience.</p>
           </div>
 
         </div>
@@ -91,7 +158,7 @@ import { APP_VERSION } from '../../version';
       <section class="cta-strip">
         <h2>Ready to get started?</h2>
         <p>Join your club today — free for players, any sport.</p>
-        <a routerLink="/register-club" class="btn-primary btn-large">Register for Free</a>
+        <a routerLink="/register-club" class="btn-primary btn-large">Register your Club</a>
       </section>
 
       <!-- Footer -->
@@ -103,306 +170,428 @@ import { APP_VERSION } from '../../version';
     </div>
   `,
   styles: [`
-    /* ── Reset & page ───────────────────────────────────── */
     :host { display: block; }
 
     .page {
       min-height: 100vh;
-      background: var(--dm-bg, #0c1a11);
+      background: #0a1610;
       color: #fff;
       position: relative;
       overflow-x: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
 
-    /* ── Animated background ─────────────────────────────── */
-    .bg-layer {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 0;
-    }
+    /* ── Background ─────────────────────────── */
+    .bg-layer { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
 
     .orb {
-      position: absolute;
-      border-radius: 50%;
-      background: radial-gradient(circle at 30% 30%, rgba(163,230,53,0.5), rgba(163,230,53,0.04));
-      filter: blur(22px);
-      animation: float ease-in-out infinite alternate;
+      position: absolute; border-radius: 50%; filter: blur(32px);
+      animation: floatOrb ease-in-out infinite alternate;
     }
-    .orb-1 { width: 360px; height: 360px; top: -80px; left: -100px; opacity: 0.22; animation-duration: 11s; }
-    .orb-2 { width: 240px; height: 240px; top: 35%; right: -60px; opacity: 0.16; animation-duration: 8s; animation-delay: -3s; }
-    .orb-3 { width: 160px; height: 160px; bottom: 10%; left: 20%; opacity: 0.14; animation-duration: 13s; animation-delay: -6s; }
-
-    @keyframes float {
+    .orb-1 {
+      width: 560px; height: 560px; top: -180px; left: -180px;
+      background: radial-gradient(circle, rgba(124,255,78,0.18) 0%, transparent 70%);
+      animation-duration: 13s;
+    }
+    .orb-2 {
+      width: 320px; height: 320px; top: 38%; right: -90px;
+      background: radial-gradient(circle, rgba(124,255,78,0.12) 0%, transparent 70%);
+      animation-duration: 10s; animation-delay: -4s;
+    }
+    .orb-3 {
+      width: 220px; height: 220px; bottom: 12%; left: 22%;
+      background: radial-gradient(circle, rgba(124,255,78,0.09) 0%, transparent 70%);
+      animation-duration: 15s; animation-delay: -7s;
+    }
+    @keyframes floatOrb {
       from { transform: translateY(0) scale(1); }
-      to   { transform: translateY(-36px) scale(1.08); }
+      to   { transform: translateY(-44px) scale(1.07); }
     }
 
     .grid-overlay {
-      position: absolute;
-      inset: 0;
+      position: absolute; inset: 0;
       background-image:
-        repeating-linear-gradient(0deg,   rgba(163,230,53,0.045) 0, rgba(163,230,53,0.045) 1px, transparent 1px, transparent 80px),
-        repeating-linear-gradient(90deg,  rgba(163,230,53,0.045) 0, rgba(163,230,53,0.045) 1px, transparent 1px, transparent 80px);
+        repeating-linear-gradient(0deg,  rgba(124,255,78,0.032) 0, rgba(124,255,78,0.032) 1px, transparent 1px, transparent 80px),
+        repeating-linear-gradient(90deg, rgba(124,255,78,0.032) 0, rgba(124,255,78,0.032) 1px, transparent 1px, transparent 80px);
     }
 
-    /* ── Navbar ──────────────────────────────────────────── */
+    /* ── Navbar ─────────────────────────────── */
     .navbar {
-      position: relative;
-      z-index: 10;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 1.25rem 3rem;
+      position: relative; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2.5rem;
       border-bottom: 1px solid rgba(255,255,255,0.06);
+      gap: 1rem;
     }
 
-    .nav-logo {
-      height: 36px;
-      width: auto;
+    .nav-logo { height: 34px; width: auto; flex-shrink: 0; }
+
+    .nav-center {
+      display: flex; align-items: center; gap: 0.75rem;
+      flex: 1; justify-content: center;
     }
 
-    .nav-find {
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: #a3e635;
+    .nav-search {
+      display: flex; align-items: center; gap: 0.45rem;
+      font-size: 0.8rem; font-weight: 600; color: #7cff4e;
       text-decoration: none;
-      padding: 0.5rem 1.1rem;
-      border: 1px solid rgba(163,230,53,0.28);
-      border-radius: 8px;
-      margin-right: 0.5rem;
-      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      padding: 0.44rem 1rem;
+      border: 1px solid rgba(124,255,78,0.3);
+      border-radius: 100px; white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
     }
-    .nav-find:hover {
-      background: rgba(163,230,53,0.08);
-      border-color: rgba(163,230,53,0.5);
+    .nav-search:hover { background: rgba(124,255,78,0.08); border-color: rgba(124,255,78,0.5); }
+    .nav-search-short { display: none; }
+
+    .nav-links { display: flex; align-items: center; gap: 0.1rem; }
+    .nav-link {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 0.85rem; font-weight: 500; color: rgba(255,255,255,0.62);
+      text-decoration: none; padding: 0.4rem 0.7rem; border-radius: 6px;
+      white-space: nowrap; transition: color 0.15s, background 0.15s;
     }
+    .nav-link:hover { color: #fff; background: rgba(255,255,255,0.06); }
+
+    .nav-right { display: flex; align-items: center; gap: 0.65rem; flex-shrink: 0; }
 
     .nav-signin {
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: rgba(255,255,255,0.7);
-      text-decoration: none;
-      padding: 0.5rem 1.1rem;
-      border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 8px;
-      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.72);
+      text-decoration: none; padding: 0.44rem 1rem;
+      border: 1px solid rgba(255,255,255,0.14); border-radius: 8px;
+      white-space: nowrap; transition: color 0.15s, border-color 0.15s;
     }
-    .nav-signin:hover {
-      color: #a3e635;
-      border-color: rgba(163,230,53,0.35);
-      background: rgba(163,230,53,0.06);
-    }
+    .nav-signin:hover { color: #7cff4e; border-color: rgba(124,255,78,0.35); }
 
-    /* ── Hero ────────────────────────────────────────────── */
-    .hero {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      justify-content: center;
-      padding: 6rem 2rem 5rem;
-      text-align: center;
-    }
+    .nav-register { font-size: 0.83rem; padding: 0.44rem 1.05rem; }
 
-    .hero-inner {
-      max-width: 720px;
-    }
-
-    .hero-badge {
-      display: inline-block;
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: #a3e635;
-      background: rgba(163,230,53,0.1);
-      border: 1px solid rgba(163,230,53,0.22);
-      padding: 0.35rem 1rem;
-      border-radius: 100px;
-      margin-bottom: 1.75rem;
-    }
-
-    .hero-headline {
-      font-size: clamp(2.4rem, 5vw, 3.8rem);
-      font-weight: 800;
-      line-height: 1.12;
-      letter-spacing: -0.025em;
-      color: #fff;
-      margin: 0 0 1.5rem;
-    }
-    .hero-headline .accent { color: #a3e635; }
-
-    .hero-sub {
-      font-size: 1.1rem;
-      color: rgba(255,255,255,0.5);
-      line-height: 1.7;
-      margin: 0 auto 2.5rem;
-      max-width: 560px;
-    }
-
-    .hero-ctas {
-      display: flex;
-      gap: 1rem;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-
-    /* ── Buttons ─────────────────────────────────────────── */
+    /* ── Buttons ─────────────────────────────── */
     .btn-primary {
-      display: inline-block;
-      padding: 0.85rem 2rem;
-      background: #a3e635;
-      color: #0c1a11;
-      font-weight: 700;
-      font-size: 0.95rem;
-      border-radius: 10px;
-      text-decoration: none;
-      letter-spacing: 0.02em;
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.78rem 1.7rem;
+      background: #7cff4e; color: #081209;
+      font-weight: 700; font-size: 0.9rem;
+      border-radius: 10px; text-decoration: none;
+      letter-spacing: 0.01em;
       transition: background 0.15s, box-shadow 0.15s, transform 0.12s;
-      box-shadow: 0 4px 20px rgba(163,230,53,0.3);
+      box-shadow: 0 0 22px rgba(124,255,78,0.38), 0 4px 14px rgba(0,0,0,0.3);
     }
     .btn-primary:hover {
-      background: #b5f040;
-      box-shadow: 0 6px 28px rgba(163,230,53,0.45);
+      background: #8fff5e;
+      box-shadow: 0 0 36px rgba(124,255,78,0.58), 0 4px 18px rgba(0,0,0,0.3);
       transform: translateY(-1px);
-    }
-    .btn-large {
-      padding: 1rem 2.5rem;
-      font-size: 1rem;
     }
 
     .btn-ghost {
-      display: inline-block;
-      padding: 0.85rem 1.75rem;
-      color: rgba(255,255,255,0.75);
-      font-weight: 600;
-      font-size: 0.95rem;
-      border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 10px;
-      text-decoration: none;
-      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      display: inline-flex; align-items: center;
+      padding: 0.78rem 1.7rem;
+      background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.82);
+      font-weight: 600; font-size: 0.9rem;
+      border-radius: 10px; text-decoration: none;
+      border: 1px solid rgba(255,255,255,0.13);
+      transition: background 0.15s, border-color 0.15s;
     }
-    .btn-ghost:hover {
-      color: #a3e635;
-      border-color: rgba(163,230,53,0.35);
-      background: rgba(163,230,53,0.06);
+    .btn-ghost:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.22); }
+
+    .btn-hero { padding: 0.9rem 2rem; font-size: 0.95rem; }
+    .btn-large { padding: 1rem 2.5rem; font-size: 1rem; }
+
+    /* ── Mobile quick-links ─────────────────────── */
+    .mobile-quicklinks {
+      display: none;
     }
 
-    .btn-guest {
-      display: inline-block;
-      padding: 0.85rem 1.75rem;
-      color: rgba(255,255,255,0.5);
-      font-weight: 600;
-      font-size: 0.95rem;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 10px;
-      text-decoration: none;
-      transition: color 0.15s, border-color 0.15s;
-    }
-    .btn-guest:hover {
-      color: #a3e635;
-      border-color: rgba(163,230,53,0.3);
+    @media (max-width: 768px) {
+      .mobile-quicklinks {
+        display: flex;
+        position: relative; z-index: 10;
+        padding: 0.55rem 1.25rem 0.7rem;
+        gap: 0.6rem;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        background: rgba(10,22,16,0.6);
+      }
+
+      .mql-link {
+        flex: 1;
+        display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+        font-size: 0.82rem; font-weight: 600;
+        color: rgba(255,255,255,0.7);
+        text-decoration: none;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        transition: color 0.15s, border-color 0.15s, background 0.15s;
+      }
+      .mql-link:hover {
+        color: #7cff4e;
+        border-color: rgba(124,255,78,0.3);
+        background: rgba(124,255,78,0.05);
+      }
     }
 
-    /* ── Features ────────────────────────────────────────── */
-    .features {
+    /* ── Hero ─────────────────────────────────── */
+    .hero {
+      position: relative; z-index: 1;
+      display: flex; align-items: center;
+      padding: 4rem 3.5rem 4rem 3.5rem;
+      gap: 2.5rem;
+      min-height: calc(100vh - 65px);
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .hero-left { flex: 1; min-width: 0; }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.11em;
+      text-transform: uppercase; color: rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.11);
+      padding: 0.32rem 0.85rem; border-radius: 100px;
+      margin-bottom: 1.75rem;
+    }
+    .badge-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #7cff4e;
+      box-shadow: 0 0 7px rgba(124,255,78,0.9);
+      flex-shrink: 0;
+    }
+
+    .hero-headline {
+      font-size: clamp(2.4rem, 3.8vw, 4.2rem);
+      font-weight: 800; line-height: 1.08;
+      letter-spacing: -0.03em; color: #fff;
+      margin: 0 0 1.5rem;
+    }
+    .accent { color: #7cff4e; display: block; }
+
+    .hero-sub {
+      font-size: 1.05rem; color: rgba(255,255,255,0.48);
+      line-height: 1.72; margin: 0 0 2.5rem;
+      max-width: 490px;
+    }
+
+    .hero-ctas {
+      display: flex; align-items: center; gap: 1rem;
+      flex-wrap: wrap; margin-bottom: 2.25rem;
+    }
+
+    .hero-proof { display: flex; align-items: center; gap: 0.85rem; }
+
+    .avatars { display: flex; }
+    .av {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 2px solid #0a1610;
+      margin-right: -10px;
+    }
+    .av-1 { background: linear-gradient(135deg, #1e4a28, #3d8a48); z-index: 3; }
+    .av-2 { background: linear-gradient(135deg, #2a3a22, #4a6838); z-index: 2; }
+    .av-3 { background: linear-gradient(135deg, #182e1c, #2e5a34); z-index: 1; }
+
+    .proof-text {
+      font-size: 0.82rem; color: rgba(255,255,255,0.42);
+      margin: 0; padding-left: 10px;
+    }
+    .proof-text strong { color: rgba(255,255,255,0.72); font-weight: 600; }
+
+    /* ── Hero phones ─────────────────────────── */
+    .hero-right {
+      flex: 0 0 500px;
       position: relative;
+      display: flex; align-items: center; justify-content: center;
+      height: 560px;
+      overflow: visible;
+    }
+
+    .phone-glow {
+      position: absolute; width: 360px; height: 360px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center, rgba(124,255,78,0.42) 0%, rgba(124,255,78,0.18) 30%, rgba(124,255,78,0.05) 60%, transparent 75%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none; z-index: 0;
+      filter: blur(8px);
+    }
+
+    .rings {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 0; pointer-events: none;
+    }
+
+    .ring {
+      position: absolute; border-radius: 50%;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      border: 1px solid rgba(124,255,78,0.14);
+    }
+    .r1 { width: 380px; height: 380px; border-color: rgba(124,255,78,0.18); }
+    .r2 { width: 480px; height: 480px; border-color: rgba(124,255,78,0.11); }
+    .r3 { width: 580px; height: 580px; border-color: rgba(124,255,78,0.07); }
+    .r4 { width: 680px; height: 680px; border-color: rgba(124,255,78,0.04); }
+
+    .deco-arrows {
+      position: absolute;
+      right: -30px; top: 50%;
+      transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 6px;
+      z-index: 2;
+    }
+
+    .hero-phones {
+      position: relative;
+      width: 460px; height: 540px;
       z-index: 1;
-      padding: 2rem 2rem 5rem;
-      max-width: 1100px;
+    }
+
+    .phone {
+      position: absolute;
+      border-radius: 36px; overflow: hidden;
+      border: 1.5px solid rgba(255,255,255,0.13);
+      box-shadow: 0 28px 70px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,255,78,0.07), inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    .phone img {
+      width: 100%; height: 100%;
+      object-fit: cover; object-position: top center;
+      display: block;
+    }
+
+    .phone-1 {
+      width: 228px; height: 494px;
+      top: 16px; left: 24px; z-index: 2;
+      animation: float1 5s ease-in-out infinite alternate;
+    }
+
+    .phone-2 {
+      width: 202px; height: 438px;
+      top: 66px; right: 6px; z-index: 3;
+      animation: float2 5s ease-in-out 2.5s infinite alternate;
+    }
+
+    @keyframes float1 {
+      from { transform: rotate(-9deg) translateY(0px); }
+      to   { transform: rotate(-9deg) translateY(-22px); }
+    }
+
+    @keyframes float2 {
+      from { transform: rotate(6deg) translateY(0px); }
+      to   { transform: rotate(6deg) translateY(-22px); }
+    }
+
+    /* ── Features ────────────────────────────── */
+    .features {
+      position: relative; z-index: 1;
+      padding: 1.5rem 3.5rem 5rem;
+      max-width: 1280px;
       margin: 0 auto;
     }
 
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 1.25rem;
     }
 
     .feature-card {
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 16px;
-      padding: 1.75rem 1.5rem;
-      transition: border-color 0.2s, background 0.2s;
+      border-radius: 16px; padding: 1.75rem 1.5rem;
+      transition: border-color 0.2s, background 0.2s, transform 0.2s;
     }
     .feature-card:hover {
-      border-color: rgba(163,230,53,0.2);
-      background: rgba(163,230,53,0.04);
+      border-color: rgba(124,255,78,0.22);
+      background: rgba(124,255,78,0.04);
+      transform: translateY(-4px);
     }
 
-    .feature-icon {
-      font-size: 1.75rem;
-      margin-bottom: 1rem;
+    .fi {
+      width: 46px; height: 46px; border-radius: 12px;
+      background: rgba(124,255,78,0.1); border: 1px solid rgba(124,255,78,0.18);
+      display: flex; align-items: center; justify-content: center;
+      color: #7cff4e; margin-bottom: 1.1rem; flex-shrink: 0;
     }
 
     .feature-card h3 {
-      font-size: 1rem;
-      font-weight: 700;
-      color: #fff;
-      margin: 0 0 0.6rem;
+      font-size: 1rem; font-weight: 700; color: #fff;
+      margin: 0 0 0.55rem;
     }
 
     .feature-card p {
-      font-size: 0.875rem;
-      color: rgba(255,255,255,0.45);
-      line-height: 1.65;
-      margin: 0;
+      font-size: 0.855rem; color: rgba(255,255,255,0.4);
+      line-height: 1.65; margin: 0;
     }
 
-    /* ── CTA strip ───────────────────────────────────────── */
+    /* ── CTA strip ────────────────────────────── */
     .cta-strip {
-      position: relative;
-      z-index: 1;
-      text-align: center;
-      padding: 5rem 2rem;
+      position: relative; z-index: 1;
+      text-align: center; padding: 5rem 2rem;
       border-top: 1px solid rgba(255,255,255,0.06);
     }
-
     .cta-strip h2 {
       font-size: clamp(1.75rem, 3vw, 2.5rem);
-      font-weight: 800;
-      margin: 0 0 0.75rem;
-      color: #fff;
+      font-weight: 800; margin: 0 0 0.75rem; color: #fff;
     }
+    .cta-strip p { font-size: 1rem; color: rgba(255,255,255,0.42); margin: 0 0 2rem; }
 
-    .cta-strip p {
-      font-size: 1rem;
-      color: rgba(255,255,255,0.45);
-      margin: 0 0 2rem;
-    }
-
-    /* ── Footer ──────────────────────────────────────────── */
+    /* ── Footer ────────────────────────────────── */
     .footer {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      position: relative; z-index: 1;
+      display: flex; justify-content: space-between; align-items: center;
       padding: 1.25rem 3rem;
       border-top: 1px solid rgba(255,255,255,0.06);
-      font-size: 0.78rem;
-      color: rgba(255,255,255,0.25);
+      font-size: 0.78rem; color: rgba(255,255,255,0.24);
     }
-
     .version { letter-spacing: 0.06em; }
 
-    /* ── Mobile ──────────────────────────────────────────── */
+    /* ── Responsive ──────────────────────────── */
+    @media (max-width: 1100px) {
+      .hero { padding: 3.5rem 2rem; gap: 2rem; }
+      .hero-right { flex: 0 0 430px; height: 500px; }
+      .hero-phones { width: 400px; height: 480px; }
+      .phone-1 { width: 200px; height: 433px; }
+      .phone-2 { width: 178px; height: 385px; top: 55px; }
+      .phone-glow { width: 380px; height: 380px; }
+      .features { padding: 1.5rem 2rem 4.5rem; }
+      .nav-link:nth-child(n+3) { display: none; }
+    }
+
+    @media (max-width: 900px) {
+      .hero {
+        flex-direction: column-reverse; text-align: center;
+        padding: 3rem 1.5rem 2rem; min-height: auto; gap: 2rem;
+      }
+      .hero-sub { max-width: 100%; }
+      .hero-ctas { justify-content: center; }
+      .hero-proof { justify-content: center; }
+      .hero-left { order: 2; }
+      .hero-right { flex: none; width: 100%; height: 380px; order: 1; }
+      .hero-phones { width: 360px; height: 380px; }
+      .phone-1 { width: 178px; height: 385px; top: 0; left: 16px; }
+      .phone-2 { width: 158px; height: 342px; top: 36px; right: 16px; }
+      .phone-glow { width: 320px; height: 320px; }
+      .deco-arrows { display: none; }
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
     @media (max-width: 768px) {
-      .navbar { padding: 1rem 1.25rem; }
-
-      .hero { padding: 4rem 1.25rem 3.5rem; }
-
-      .features { padding: 1.5rem 1.25rem 4rem; }
-      .features-grid { grid-template-columns: 1fr; gap: 1rem; }
-
-      .cta-strip { padding: 3.5rem 1.25rem; }
-
+      .navbar { padding: 0.9rem 1.25rem; }
+      .nav-center { display: none; }
+      .nav-signin { display: none; }
       .footer { padding: 1rem 1.25rem; }
     }
 
-    @media (min-width: 769px) and (max-width: 1024px) {
-      .features-grid { grid-template-columns: repeat(2, 1fr); }
+    @media (max-width: 480px) {
+      .hero { padding: 2.5rem 1rem 1.5rem; }
+      .hero-right { height: 330px; }
+      .hero-phones { width: 300px; height: 330px; }
+      .phone-1 { width: 152px; height: 329px; left: 8px; }
+      .phone-2 { width: 135px; height: 292px; right: 8px; top: 30px; }
+      .phone-glow { width: 270px; height: 270px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .features { padding: 1rem 1rem 3.5rem; }
+      .cta-strip { padding: 3.5rem 1.25rem; }
     }
   `],
 })

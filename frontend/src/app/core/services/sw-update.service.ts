@@ -26,6 +26,9 @@ export class SwUpdateService {
           }
         });
       });
+
+      // Poll for updates every hour so long-running tabs are notified
+      setInterval(() => reg.update(), 60 * 60 * 1000);
     });
 
     // New SW activated after skipWaiting → reload to apply update

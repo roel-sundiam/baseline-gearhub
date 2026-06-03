@@ -9,6 +9,11 @@ export const routes: Routes = [
       import('./features/landing/landing.component').then((m) => m.LandingComponent),
   },
   {
+    path: 'features',
+    loadComponent: () =>
+      import('./features/landing/features-showcase.component').then((m) => m.FeaturesShowcaseComponent),
+  },
+  {
     path: 'login',
     loadComponent: () =>
       import('./features/auth/login/login.component').then((m) => m.LoginComponent),
