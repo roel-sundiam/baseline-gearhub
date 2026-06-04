@@ -104,6 +104,56 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
               }
             </div>
 
+            <div class="form-group">
+              <label for="description">About Your Club <span class="optional">(optional)</span></label>
+              <textarea
+                id="description"
+                [(ngModel)]="description"
+                name="description"
+                placeholder="Briefly describe your club — courts, vibe, what makes you unique…"
+                rows="3"
+                class="rc-textarea"
+              ></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Court Photos <span class="optional">(optional · up to 4)</span></label>
+              <div class="rc-photos-grid"
+                   [class.rc-photos-dragging]="isDraggingPhotos"
+                   (dragover)="onPhotosDragOver($event)"
+                   (dragleave)="onPhotosDragLeave()"
+                   (drop)="onPhotosDrop($event)">
+                @for (url of photos; track url; let i = $index) {
+                  <div class="rc-photo-thumb">
+                    <img [src]="url" alt="Court photo" class="rc-photo-img" />
+                    <button type="button" class="btn-remove-image rc-photo-remove" (click)="removePhoto(i)">✕</button>
+                  </div>
+                }
+                @if (photos.length < 4) {
+                  <label class="rc-photo-add" [class.rc-photo-add-busy]="uploadingPhotoCount > 0">
+                    @if (uploadingPhotoCount > 0) {
+                      <span class="rc-photo-spinner">⏳</span>
+                      <span class="rc-photo-count">{{ uploadingPhotoCount }}</span>
+                    } @else {
+                      <span class="rc-photo-plus">＋</span>
+                    }
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      class="image-input"
+                      (change)="onPhotoSelected($event)"
+                      [disabled]="uploadingPhotoCount > 0"
+                    />
+                  </label>
+                }
+              </div>
+              <p class="rc-photos-hint">Drag &amp; drop up to 4 images, or click <strong>＋</strong> to browse</p>
+              @if (photoUploadError) {
+                <span class="field-error">{{ photoUploadError }}</span>
+              }
+            </div>
+
             <div class="section-label">Admin Account</div>
 
             <div class="form-group">
@@ -206,10 +256,10 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
             <button
               type="submit"
               class="btn-primary btn-full"
-              [disabled]="loading || uploadingLogo"
+              [disabled]="loading || uploadingLogo || uploadingPhotoCount > 0"
               (click)="formSubmitted = true"
             >
-              {{ loading ? 'Registering...' : uploadingLogo ? 'Uploading logo...' : 'Register Club' }}
+              {{ loading ? 'Registering...' : uploadingLogo ? 'Uploading logo...' : uploadingPhotoCount > 0 ? 'Uploading photos...' : 'Register Club' }}
             </button>
           </form>
 
@@ -405,6 +455,66 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
         transition: color 0.2s;
       }
       .auth-footer a:hover { color: rgba(163,230,53,0.9); }
+      .rc-textarea {
+        padding: 0.75rem 1rem;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 8px;
+        font-size: 0.95rem;
+        background: rgba(255,255,255,0.04);
+        color: #ffffff;
+        font-family: inherit;
+        resize: vertical;
+        min-height: 72px;
+        width: 100%;
+        box-sizing: border-box;
+        outline: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+      .rc-textarea::placeholder { color: rgba(255,255,255,0.4); }
+      .rc-textarea:focus {
+        border-color: rgba(163,230,53,0.28) !important;
+        box-shadow: 0 0 0 3px rgba(163,230,53,0.12) !important;
+      }
+      .rc-photos-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        margin-top: 0.35rem;
+      }
+      .rc-photo-thumb {
+        position: relative;
+        width: 80px; height: 80px;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid rgba(163,230,53,0.25);
+      }
+      .rc-photo-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .rc-photo-remove {
+        position: absolute;
+        top: 3px; right: 3px;
+        width: 22px; height: 22px;
+        padding: 0;
+        border-radius: 50%;
+        font-size: 0.65rem;
+      }
+      .rc-photo-add {
+        width: 80px; height: 80px;
+        border-radius: 10px;
+        border: 2px dashed rgba(163,230,53,0.25);
+        background: rgba(163,230,53,0.04);
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer;
+        transition: border-color 0.2s, background 0.2s;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+      .rc-photo-add:hover { border-color: rgba(163,230,53,0.5); background: rgba(163,230,53,0.08); }
+      .rc-photo-add-busy { opacity: 0.6; cursor: wait; }
+      .rc-photo-plus { font-size: 1.4rem; color: rgba(163,230,53,0.6); line-height: 1; }
+      .rc-photo-spinner { font-size: 1rem; }
+      .rc-photo-count { font-size: 0.6rem; color: rgba(163,230,53,0.7); }
+      .rc-photos-dragging { outline: 2px dashed rgba(163,230,53,0.6); outline-offset: 4px; background: rgba(163,230,53,0.05); border-radius: 12px; }
+      .rc-photos-hint { font-size: 0.72rem; color: rgba(255,255,255,0.3); margin: 0.4rem 0 0; }
       @media (max-width: 600px) {
         .header-banner { padding: 1.5rem 1.5rem 1.25rem; }
         form { padding: 1.25rem 1.5rem; }
@@ -426,6 +536,11 @@ export class RegisterClubComponent {
   logoPreview: string | null = null;
   uploadingLogo = false;
   logoUploadError = '';
+  description = '';
+  photos: string[] = [];
+  uploadingPhotoCount = 0;
+  isDraggingPhotos = false;
+  photoUploadError = '';
 
   adminName = '';
   adminUsername = '';
@@ -440,6 +555,52 @@ export class RegisterClubComponent {
 
   onAdminNameChange() {
     this.adminUsername = this.adminName.trim().toLowerCase().replace(/\s+/g, '-');
+  }
+
+  onPhotosDragOver(event: DragEvent) {
+    event.preventDefault();
+    if (this.photos.length < 4) this.isDraggingPhotos = true;
+  }
+
+  onPhotosDragLeave() { this.isDraggingPhotos = false; }
+
+  async onPhotosDrop(event: DragEvent) {
+    event.preventDefault();
+    this.isDraggingPhotos = false;
+    const files = Array.from(event.dataTransfer?.files ?? []).filter(f => f.type.startsWith('image/'));
+    await this.uploadPhotoBatch(files);
+  }
+
+  async onPhotoSelected(event: Event) {
+    const files = Array.from((event.target as HTMLInputElement).files ?? []);
+    (event.target as HTMLInputElement).value = '';
+    await this.uploadPhotoBatch(files);
+  }
+
+  private async uploadPhotoBatch(files: File[]) {
+    const slots = 4 - this.photos.length;
+    if (slots <= 0 || files.length === 0) return;
+    const batch = files.slice(0, slots);
+    const valid = batch.filter(f => !this.cloudinary.validateImage(f));
+    if (valid.length === 0) { this.photoUploadError = 'No valid images (max 5 MB each, JPG/PNG/WebP).'; this.cdr.detectChanges(); return; }
+    this.photoUploadError = '';
+    this.uploadingPhotoCount = valid.length;
+    this.cdr.detectChanges();
+    const results = await Promise.allSettled(valid.map(f => this.cloudinary.uploadImage(f)));
+    const urls: string[] = [];
+    let failed = 0;
+    for (const r of results) {
+      if (r.status === 'fulfilled') urls.push(r.value); else failed++;
+    }
+    if (urls.length) this.photos = [...this.photos, ...urls];
+    if (failed) this.photoUploadError = `${failed} photo(s) failed to upload.`;
+    this.uploadingPhotoCount = 0;
+    this.cdr.detectChanges();
+  }
+
+  removePhoto(index: number) {
+    this.photos = this.photos.filter((_, i) => i !== index);
+    this.cdr.detectChanges();
   }
 
   onLogoSelected(event: Event) {
@@ -505,6 +666,8 @@ export class RegisterClubComponent {
         logo: this.logo || undefined,
         email: this.email || undefined,
         contactNumber: this.contactNumber || undefined,
+        description: this.description || undefined,
+        photos: this.photos.length > 0 ? this.photos : undefined,
       })
       .subscribe({
         next: () => {

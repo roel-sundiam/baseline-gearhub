@@ -1,9 +1,10 @@
-import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { ClubService } from '../../../core/services/club.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
+import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
   selector: 'app-club-form',
@@ -14,7 +15,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
       <div class="cf-wrap">
 
         <div class="cf-header">
-          <a routerLink="/admin/clubs" class="cf-back">
+          <a [routerLink]="backRoute" class="cf-back">
             <i class="fas fa-arrow-left"></i>
           </a>
           <div class="cf-title-block">
@@ -68,6 +69,14 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                 id="clubEmail" type="email" class="cf-input" [(ngModel)]="email" name="clubEmail"
                 placeholder="e.g. club@example.com"
               />
+            </div>
+
+            <div class="cf-group">
+              <label class="cf-label" for="description">About the Club <span class="cf-optional">optional</span></label>
+              <textarea
+                id="description" class="cf-input cf-textarea" [(ngModel)]="description" name="description"
+                placeholder="Short description shown on the public booking page…" rows="3"
+              ></textarea>
             </div>
 
             <div class="cf-group">
@@ -155,6 +164,77 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
               />
             </div>
 
+            <!-- Court Photos -->
+            <div class="cf-group">
+              <label class="cf-label">Court Photos <span class="cf-optional">optional · up to 4</span></label>
+              <div class="cf-photos-grid"
+                   [class.cf-photos-dragging]="isDraggingPhotos"
+                   (dragover)="onPhotosDragOver($event)"
+                   (dragleave)="onPhotosDragLeave()"
+                   (drop)="onPhotosDrop($event)">
+                @for (url of photos; track url; let i = $index) {
+                  <div class="cf-photo-thumb">
+                    <img [src]="url" alt="Court photo" class="cf-photo-img" />
+                    <button type="button" class="cf-photo-remove" (click)="removePhoto(i)">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                }
+                @if (photos.length < 4) {
+                  <label class="cf-photo-add" [class.cf-photo-add-uploading]="uploadingPhotoCount > 0">
+                    @if (uploadingPhotoCount > 0) {
+                      <i class="fas fa-circle-notch fa-spin"></i>
+                      <span class="cf-photo-add-count">{{ uploadingPhotoCount }}</span>
+                    } @else {
+                      <i class="fas fa-plus"></i>
+                    }
+                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none"
+                      (change)="onPhotoSelected($event)" [disabled]="uploadingPhotoCount > 0" />
+                  </label>
+                }
+              </div>
+              <p class="cf-photos-hint">Drag &amp; drop up to 4 images here, or click <strong>+</strong> to browse</p>
+            </div>
+
+            <!-- Social Links -->
+            <div class="cf-group">
+              <label class="cf-label">Social Media Links <span class="cf-optional">optional</span></label>
+              <div class="cf-social-inputs">
+                <div class="cf-social-row">
+                  <span class="cf-social-icon cf-social-fb"><i class="fab fa-facebook"></i></span>
+                  <input class="cf-input" type="url" [(ngModel)]="socialFacebook" name="socialFacebook"
+                    placeholder="https://facebook.com/yourpage" />
+                </div>
+                <div class="cf-social-row">
+                  <span class="cf-social-icon cf-social-ig"><i class="fab fa-instagram"></i></span>
+                  <input class="cf-input" type="url" [(ngModel)]="socialInstagram" name="socialInstagram"
+                    placeholder="https://instagram.com/yourhandle" />
+                </div>
+                <div class="cf-social-row">
+                  <span class="cf-social-icon cf-social-rc"><i class="fas fa-link"></i></span>
+                  <input class="cf-input" type="url" [(ngModel)]="socialReclub" name="socialReclub"
+                    placeholder="https://reclub.co/clubs/yourclub" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Rating -->
+            <div class="cf-group">
+              <label class="cf-label">Rating &amp; Reviews <span class="cf-optional">shown on public page</span></label>
+              <div class="cf-rating-row">
+                <div class="cf-rating-col">
+                  <label class="cf-sublabel">Rating (0–5)</label>
+                  <input class="cf-input" type="number" [(ngModel)]="rating" name="rating"
+                    min="0" max="5" step="0.1" placeholder="e.g. 4.8" />
+                </div>
+                <div class="cf-rating-col">
+                  <label class="cf-sublabel">Review count</label>
+                  <input class="cf-input" type="number" [(ngModel)]="reviewCount" name="reviewCount"
+                    min="0" placeholder="e.g. 126" />
+                </div>
+              </div>
+            </div>
+
             <!-- Payment Methods -->
             <div class="cf-group">
               <label class="cf-label">Payment Methods <span class="cf-optional">optional</span></label>
@@ -209,7 +289,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                 <i class="fas" [class.fa-floppy-disk]="!saving" [class.fa-circle-notch]="saving" [class.fa-spin]="saving"></i>
                 {{ saving ? 'Saving…' : (editId ? 'Save Changes' : 'Create Club') }}
               </button>
-              <a routerLink="/admin/clubs" class="cf-btn-cancel">Cancel</a>
+              <a [routerLink]="backRoute" class="cf-btn-cancel">Cancel</a>
             </div>
 
           </form>
@@ -569,6 +649,70 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     }
     .cf-pm-qr-remove:hover { color: #fb7185; }
 
+    /* Photos grid */
+    .cf-textarea { resize: vertical; min-height: 70px; }
+
+    .cf-photos-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-top: 0.5rem;
+    }
+    .cf-photo-thumb {
+      position: relative;
+      width: 80px; height: 80px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .cf-photo-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cf-photo-remove {
+      position: absolute;
+      top: 3px; right: 3px;
+      width: 20px; height: 20px;
+      background: rgba(0,0,0,0.7);
+      border: none;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 0.6rem;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cf-photo-add {
+      width: 80px; height: 80px;
+      border-radius: 10px;
+      border: 1px dashed rgba(163,230,53,0.3);
+      background: rgba(163,230,53,0.04);
+      display: flex; align-items: center; justify-content: center;
+      color: #a3e635;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .cf-photo-add:hover { background: rgba(163,230,53,0.1); }
+    .cf-photo-add-uploading { opacity: 0.6; cursor: wait; }
+    .cf-photo-add-count { font-size: 0.65rem; color: rgba(163,230,53,0.7); margin-top: 2px; }
+    .cf-photos-dragging { outline: 2px dashed #a3e635; outline-offset: 4px; background: rgba(163,230,53,0.04); border-radius: 12px; }
+    .cf-photos-hint { font-size: 0.72rem; color: rgba(255,255,255,0.3); margin: 0.4rem 0 0; }
+
+    /* Social links */
+    .cf-social-inputs { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.4rem; }
+    .cf-social-row { display: flex; align-items: center; gap: 0.5rem; }
+    .cf-social-icon {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.95rem;
+      flex-shrink: 0;
+    }
+    .cf-social-fb { background: rgba(24,119,242,0.15); color: #4a90d9; border: 1px solid rgba(24,119,242,0.25); }
+    .cf-social-ig { background: rgba(228,64,95,0.12); color: #e4405f; border: 1px solid rgba(228,64,95,0.2); }
+    .cf-social-rc { background: rgba(163,230,53,0.1); color: #a3e635; border: 1px solid rgba(163,230,53,0.2); }
+
+    /* Rating row */
+    .cf-rating-row { display: flex; gap: 1rem; }
+    .cf-rating-col { flex: 1; }
+
     @media (max-width: 480px) {
       .cf-card { padding: 1.25rem 1rem; }
       .cf-btn-primary, .cf-btn-cancel { width: 100%; justify-content: center; }
@@ -596,7 +740,17 @@ export class ClubFormComponent implements OnInit {
   paymentMethods: string[] = [];
   paymentAccounts: Record<string, string> = {};
   paymentQrCodes: Record<string, string> = {};
+  description = '';
+  photos: string[] = [];
+  socialFacebook = '';
+  socialInstagram = '';
+  socialReclub = '';
+  rating = 0;
+  reviewCount = 0;
   uploadingQr: string | null = null;
+  uploadingPhoto = false;
+  uploadingPhotoCount = 0;
+  isDraggingPhotos = false;
   saving = false;
   uploading = false;
   uploadError = '';
@@ -610,7 +764,13 @@ export class ClubFormComponent implements OnInit {
     private cloudinary: CloudinaryService,
     private router: Router,
     private route: ActivatedRoute,
+    private cdr: ChangeDetectorRef,
+    private auth: AuthService,
   ) {}
+
+  get backRoute() {
+    return this.auth.isSuperAdmin() ? '/admin/clubs' : '/player/dashboard';
+  }
 
   ngOnInit() {
     this.editId = this.route.snapshot.paramMap.get('id');
@@ -628,9 +788,18 @@ export class ClubFormComponent implements OnInit {
           this.paymentMethods = club.paymentMethods ?? [];
           this.paymentAccounts = club.paymentAccounts ?? {};
           this.paymentQrCodes = club.paymentQrCodes ?? {};
+          this.description = (club as any).description ?? '';
+          this.photos = (club as any).photos ?? [];
+          this.socialFacebook = (club as any).socialLinks?.facebook ?? '';
+          this.socialInstagram = (club as any).socialLinks?.instagram ?? '';
+          this.socialReclub = (club as any).socialLinks?.reclub ?? '';
+          this.rating = (club as any).rating ?? 0;
+          this.reviewCount = (club as any).reviewCount ?? 0;
+          this.cdr.detectChanges();
         },
         error: () => {
           this.error = 'Failed to load club data.';
+          this.cdr.detectChanges();
         },
       });
     }
@@ -650,9 +819,10 @@ export class ClubFormComponent implements OnInit {
 
   private async uploadFile(file: File) {
     const validationError = this.cloudinary.validateImage(file);
-    if (validationError) { this.uploadError = validationError; return; }
+    if (validationError) { this.uploadError = validationError; this.cdr.detectChanges(); return; }
     this.uploadError = '';
     this.uploading = true;
+    this.cdr.detectChanges();
     try {
       this.logo = await this.cloudinary.uploadImage(file);
     } catch {
@@ -660,6 +830,7 @@ export class ClubFormComponent implements OnInit {
     } finally {
       this.uploading = false;
       if (this.fileInput) this.fileInput.nativeElement.value = '';
+      this.cdr.detectChanges();
     }
   }
 
@@ -693,8 +864,9 @@ export class ClubFormComponent implements OnInit {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     const validationError = this.cloudinary.validateImage(file);
-    if (validationError) { this.uploadError = validationError; return; }
+    if (validationError) { this.uploadError = validationError; this.cdr.detectChanges(); return; }
     this.uploadingQr = method;
+    this.cdr.detectChanges();
     try {
       const url = await this.cloudinary.uploadImage(file);
       this.paymentQrCodes = { ...this.paymentQrCodes, [method]: url };
@@ -702,6 +874,7 @@ export class ClubFormComponent implements OnInit {
       this.uploadError = 'QR upload failed. Please try again.';
     } finally {
       this.uploadingQr = null;
+      this.cdr.detectChanges();
     }
   }
 
@@ -711,10 +884,59 @@ export class ClubFormComponent implements OnInit {
     this.paymentQrCodes = updated;
   }
 
+  onPhotosDragOver(event: DragEvent) {
+    event.preventDefault();
+    if (this.photos.length < 4) this.isDraggingPhotos = true;
+  }
+
+  onPhotosDragLeave() { this.isDraggingPhotos = false; }
+
+  async onPhotosDrop(event: DragEvent) {
+    event.preventDefault();
+    this.isDraggingPhotos = false;
+    const files = Array.from(event.dataTransfer?.files ?? []).filter(f => f.type.startsWith('image/'));
+    await this.uploadPhotoBatch(files);
+  }
+
+  async onPhotoSelected(event: Event) {
+    const files = Array.from((event.target as HTMLInputElement).files ?? []);
+    (event.target as HTMLInputElement).value = '';
+    await this.uploadPhotoBatch(files);
+  }
+
+  private async uploadPhotoBatch(files: File[]) {
+    const slots = 4 - this.photos.length;
+    if (slots <= 0 || files.length === 0) return;
+    const batch = files.slice(0, slots);
+    const valid = batch.filter(f => !this.cloudinary.validateImage(f));
+    if (valid.length === 0) { this.uploadError = 'No valid images selected (max 5 MB each, JPG/PNG/WebP).'; this.cdr.detectChanges(); return; }
+    this.uploadError = '';
+    this.uploadingPhotoCount = valid.length;
+    this.cdr.detectChanges();
+    const results = await Promise.allSettled(valid.map(f => this.cloudinary.uploadImage(f)));
+    const urls: string[] = [];
+    let failed = 0;
+    for (const r of results) {
+      if (r.status === 'fulfilled') urls.push(r.value); else failed++;
+    }
+    if (urls.length) this.photos = [...this.photos, ...urls];
+    if (failed) this.uploadError = `${failed} photo(s) failed to upload.`;
+    this.uploadingPhotoCount = 0;
+    this.cdr.detectChanges();
+  }
+
+  removePhoto(index: number) {
+    this.photos = this.photos.filter((_, i) => i !== index);
+  }
+
   onSubmit() {
     this.saving = true;
     this.error = '';
-    const data = {
+    const socialLinks: Record<string, string> = {};
+    if (this.socialFacebook.trim()) socialLinks['facebook'] = this.socialFacebook.trim();
+    if (this.socialInstagram.trim()) socialLinks['instagram'] = this.socialInstagram.trim();
+    if (this.socialReclub.trim()) socialLinks['reclub'] = this.socialReclub.trim();
+    const data: any = {
       name: this.name,
       location: this.location || undefined,
       mobile: this.mobile || undefined,
@@ -726,6 +948,11 @@ export class ClubFormComponent implements OnInit {
       paymentMethods: this.paymentMethods,
       paymentAccounts: this.paymentAccounts,
       paymentQrCodes: this.paymentQrCodes,
+      description: this.description || undefined,
+      photos: this.photos,
+      socialLinks,
+      rating: this.rating,
+      reviewCount: this.reviewCount,
     };
     const request = this.editId
       ? this.clubService.updateClub(this.editId, data)
@@ -734,11 +961,12 @@ export class ClubFormComponent implements OnInit {
     request.subscribe({
       next: () => {
         this.saving = false;
-        this.router.navigate(['/admin/clubs']);
+        this.router.navigate([this.auth.isSuperAdmin() ? '/admin/clubs' : '/player/dashboard']);
       },
       error: (err) => {
         this.saving = false;
         this.error = err?.error?.error || 'Failed to save club.';
+        this.cdr.detectChanges();
       },
     });
   }

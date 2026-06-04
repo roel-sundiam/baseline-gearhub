@@ -5,6 +5,8 @@ const Charge = require("../models/Charge");
 const Rates = require("../models/Rates");
 const Club = require("../models/Club");
 const Inquiry = require("../models/Inquiry");
+const OpenPlaySession = require("../models/OpenPlaySession");
+const OpenPlaySessionPlayer = require("../models/OpenPlaySessionPlayer");
 const { sendPushToClubAdmins } = require("../utils/push");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
 
@@ -80,7 +82,62 @@ router.get("/:clubId", async (req, res) => {
       paymentQrCodes: club.paymentQrCodes instanceof Map ? Object.fromEntries(club.paymentQrCodes) : (club.paymentQrCodes ?? {}),
       convenienceFeeRate: typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10,
       convenienceFeeMode: club.convenienceFeeMode ?? 'per_hour',
+      mobile: club.mobile,
+      email: club.email,
+      description: club.description,
+      photos: club.photos ?? [],
+      socialLinks: club.socialLinks ?? {},
+      rating: club.rating ?? 0,
+      reviewCount: club.reviewCount ?? 0,
+      totalBookings: club.totalBookings ?? 0,
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /api/public/:clubId/slots?date=YYYY-MM-DD — per-hour availability across all courts
+router.get("/:clubId/slots", async (req, res) => {
+  try {
+    const { clubId } = req.params;
+    const club = await findClub(clubId);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    if (club.status === "suspended") return res.status(403).json({ error: "club_suspended" });
+    const resolvedClubId = club._id.toString();
+
+    const courtCount = club.courtCount ?? 2;
+    const openingHour = club.openingHour ?? 5;
+    const closingHour = club.closingHour ?? 22;
+
+    const queryDate = req.query.date ? new Date(req.query.date) : new Date();
+    queryDate.setUTCHours(0, 0, 0, 0);
+    const endDate = new Date(queryDate);
+    endDate.setUTCHours(23, 59, 59, 999);
+
+    const reservations = await Reservation.find({
+      clubId: resolvedClubId,
+      date: { $gte: queryDate, $lte: endDate },
+      status: { $in: ["confirmed", "pending_payment"] },
+    }).select("timeSlot durationHours -_id").lean();
+
+    const bookedCount = {};
+    for (const r of reservations) {
+      for (const slot of expandSlots(r.timeSlot, r.durationHours ?? 1)) {
+        bookedCount[slot] = (bookedCount[slot] || 0) + 1;
+      }
+    }
+
+    const result = [];
+    for (let h = openingHour; h <= closingHour; h++) {
+      const slot = hourToSlot(h);
+      const booked = bookedCount[slot] || 0;
+      const available = Math.max(0, courtCount - booked);
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      const period = h < 12 ? 'AM' : 'PM';
+      result.push({ time: `${h12}:00 ${period}`, slot, available, total: courtCount });
+    }
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -316,6 +373,8 @@ router.post("/:clubId/reserve", async (req, res) => {
       paymentMethod: autoPaymentMethod,
     });
 
+    Club.findByIdAndUpdate(club._id, { $inc: { totalBookings: 1 } }).catch(() => {});
+
     const dateLabel = parsedDate.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'UTC' });
     sendPushToClubAdmins(club._id, {
       title: 'New Guest Booking',
@@ -325,6 +384,47 @@ router.post("/:clubId/reserve", async (req, res) => {
     }).catch(() => {});
 
     res.status(201).json({ reservation, charge });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /api/public/:clubId/open-play — upcoming open sessions (no auth required)
+router.get("/:clubId/open-play", async (req, res) => {
+  try {
+    const club = await findClub(req.params.clubId);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    const resolvedClubId = club._id.toString();
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const sessions = await OpenPlaySession.find({
+      clubId: resolvedClubId,
+      status: "open",
+      sessionDate: { $gte: today },
+    }).sort({ sessionDate: 1, startTime: 1 }).lean();
+
+    const sessionIds = sessions.map(s => s._id);
+    const playerCounts = await OpenPlaySessionPlayer.aggregate([
+      { $match: { sessionId: { $in: sessionIds } } },
+      { $group: { _id: "$sessionId", count: { $sum: 1 } } },
+    ]);
+    const countMap = {};
+    for (const p of playerCounts) countMap[p._id.toString()] = p.count;
+
+    res.json(sessions.map(s => ({
+      _id: s._id,
+      title: s.title,
+      sport: s.sport,
+      sessionDate: s.sessionDate,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      matchType: s.matchType,
+      maxPlayers: s.maxPlayers,
+      joinedPlayers: countMap[s._id.toString()] ?? 0,
+    })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

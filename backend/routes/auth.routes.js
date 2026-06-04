@@ -164,6 +164,8 @@ router.post("/register-club", async (req, res) => {
       logo,
       email,
       contactNumber,
+      description,
+      photos,
     } = req.body;
 
     if (!clubName || !adminName || !adminUsername || !adminPassword || !logo) {
@@ -194,6 +196,8 @@ router.post("/register-club", async (req, res) => {
       location: location || undefined,
       logo: logo || null,
       status: "active",
+      description: description || undefined,
+      photos: Array.isArray(photos) ? photos.slice(0, 4) : [],
     });
 
     const passwordHash = await bcrypt.hash(adminPassword, 12);

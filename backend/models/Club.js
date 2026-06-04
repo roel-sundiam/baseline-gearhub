@@ -17,6 +17,16 @@ const clubSchema = new mongoose.Schema(
     paymentQrCodes: { type: Map, of: String, default: {} },
     convenienceFeeRate: { type: Number, default: 0.10, min: 0, max: 1 },
     convenienceFeeMode: { type: String, enum: ['per_transaction', 'per_hour'], default: 'per_hour' },
+    description: { type: String, trim: true },
+    photos: { type: [String], default: [] },
+    socialLinks: {
+      facebook:  { type: String, trim: true },
+      instagram: { type: String, trim: true },
+      reclub:    { type: String, trim: true },
+    },
+    rating:       { type: Number, default: 0, min: 0, max: 5 },
+    reviewCount:  { type: Number, default: 0, min: 0 },
+    totalBookings:{ type: Number, default: 0, min: 0 },
   },
   { timestamps: true },
 );

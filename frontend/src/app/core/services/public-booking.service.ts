@@ -61,8 +61,29 @@ export class PublicBookingService {
   }
 
   getClub(clubId: string) {
-    return this.http.get<{ _id: string; name: string; slug?: string; location?: string; logo?: string; status: string; courtCount?: number; openingHour?: number; closingHour?: number; paymentMethods?: string[]; paymentAccounts?: Record<string, string>; paymentQrCodes?: Record<string, string>; convenienceFeeRate?: number; convenienceFeeMode?: 'per_transaction' | 'per_hour' }>(
-      `${this.base}/${clubId}`
+    return this.http.get<{
+      _id: string; name: string; slug?: string; location?: string; logo?: string; status: string;
+      courtCount?: number; openingHour?: number; closingHour?: number;
+      paymentMethods?: string[]; paymentAccounts?: Record<string, string>; paymentQrCodes?: Record<string, string>;
+      convenienceFeeRate?: number; convenienceFeeMode?: 'per_transaction' | 'per_hour';
+      mobile?: string; email?: string;
+      description?: string; photos?: string[];
+      socialLinks?: { facebook?: string; instagram?: string; reclub?: string };
+      rating?: number; reviewCount?: number; totalBookings?: number;
+    }>(`${this.base}/${clubId}`);
+  }
+
+  getOpenPlaySessions(clubId: string) {
+    return this.http.get<{
+      _id: string; title: string; sport: string;
+      sessionDate: string; startTime: string; endTime: string;
+      matchType: string; maxPlayers: number; joinedPlayers: number;
+    }[]>(`${this.base}/${clubId}/open-play`);
+  }
+
+  getSlots(clubId: string, date: string) {
+    return this.http.get<{ time: string; slot: string; available: number; total: number }[]>(
+      `${this.base}/${clubId}/slots?date=${date}`
     );
   }
 

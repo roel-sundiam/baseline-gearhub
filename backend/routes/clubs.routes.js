@@ -36,9 +36,9 @@ router.get("/:id", async (req, res) => {
 // POST /api/clubs — create a club (admin only)
 router.post("/", auth, admin, async (req, res) => {
   try {
-    const { name, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes } = req.body;
+    const { name, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount } = req.body;
     if (!name) return res.status(400).json({ error: "Club name is required" });
-    const club = await Club.create({ name, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes });
+    const club = await Club.create({ name, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount });
     res.status(201).json(club);
   } catch (err) {
     console.error(err);
@@ -49,10 +49,10 @@ router.post("/", auth, admin, async (req, res) => {
 // PUT /api/clubs/:id — update a club (admin only)
 router.put("/:id", auth, admin, async (req, res) => {
   try {
-    const { name, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes } = req.body;
+    const { name, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount } = req.body;
     const club = await Club.findByIdAndUpdate(
       req.params.id,
-      { name, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes },
+      { name, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount },
       { new: true, runValidators: true },
     );
     if (!club) return res.status(404).json({ error: "Club not found" });

@@ -259,6 +259,15 @@ import { forkJoin } from 'rxjs';
                   <span class="dm-ac-sub">Manage clubs</span>
                 </button>
               }
+              @if (auth.user()?.clubId) {
+                <button class="dm-action-card" (click)="copyPublicLink()">
+                  <div class="dm-ac-icon" [class]="copiedPublicLink ? 'dm-ac-lime' : 'dm-ac-indigo'">
+                    <i class="fas" [class.fa-check]="copiedPublicLink" [class.fa-share-nodes]="!copiedPublicLink"></i>
+                  </div>
+                  <span class="dm-ac-title">{{ copiedPublicLink ? 'Copied!' : 'Share Club' }}</span>
+                  <span class="dm-ac-sub">{{ copiedPublicLink ? 'Link copied' : 'Copy public link' }}</span>
+                </button>
+              }
             </div>
           </div>
         }
@@ -646,6 +655,7 @@ import { forkJoin } from 'rxjs';
     .dm-ac-orange { background: rgba(249,115,22,0.14);  color: #fb923c; }
     .dm-ac-sky    { background: rgba(14,165,233,0.14);  color: #38bdf8; }
     .dm-ac-green  { background: rgba(34,197,94,0.14);   color: #4ade80; }
+    .dm-ac-indigo { background: rgba(99,102,241,0.14);  color: #818cf8; }
     .dm-ac-title {
       font-size: 0.82rem;
       font-weight: 700;
@@ -878,6 +888,8 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   charges: Charge[] = [];
   loading = true;
   outstanding = 0;
+  copiedPublicLink = false;
+  clubSlug = '';
   clubName = 'Baseline Club';
   clubLogo = '';
   nextReservation: Reservation | null = null;
@@ -1053,6 +1065,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
       this.clubService.getClub(clubId).subscribe({
         next: (club) => {
           this.clubName    = club.name;
+          this.clubSlug    = club.slug ?? '';
           this.clubLogo    = club.logo ?? '';
           this.courtCount  = club.courtCount  ?? 2;
           this.openingHour = club.openingHour ?? 5;
@@ -1084,6 +1097,17 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.renderer.removeClass(document.documentElement, 'dark-player-page');
     this.renderer.removeClass(document.body, 'dark-player-page');
+  }
+
+  copyPublicLink() {
+    const identifier = this.clubSlug || this.auth.user()?.clubId;
+    if (!identifier) return;
+    const link = `${window.location.origin}/book/${identifier}`;
+    navigator.clipboard.writeText(link).then(() => {
+      this.copiedPublicLink = true;
+      this.cdr.detectChanges();
+      setTimeout(() => { this.copiedPublicLink = false; this.cdr.detectChanges(); }, 2500);
+    });
   }
 
   navigateTo(route: string) {

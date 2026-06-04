@@ -49,10 +49,21 @@ router.post("/create-admin", auth, superadmin, async (req, res) => {
   }
 });
 
-// GET /api/users/admins — list all admin/superadmin users (superadmin only)
-router.get("/admins", auth, superadmin, async (req, res) => {
+// GET /api/users/admins — list admin users
+// Superadmins: can query any club or all clubs
+// Regular admins: can only query their own clubId
+router.get("/admins", auth, async (req, res) => {
   try {
     const { clubId } = req.query;
+    const isSuperadmin = req.user.role === 'superadmin';
+
+    if (!isSuperadmin) {
+      const ownClubId = req.user.clubId?.toString();
+      if (!clubId || clubId !== ownClubId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+    }
+
     const filter = { role: { $in: ["admin", "superadmin"] } };
     if (clubId) filter.clubId = clubId;
     const users = await User.find(filter)

@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -2315,6 +2315,7 @@ export class AdminClubsComponent implements OnInit {
     readonly auth: AuthService,
     private inquiriesService: InquiriesService,
     private router: Router,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   loginAs(user: AdminUser): void {
@@ -2323,9 +2324,10 @@ export class AdminClubsComponent implements OnInit {
     this.auth.impersonateUser(user._id).subscribe({
       next: () => {
         this.mirroringUserId = null;
+        this.cdr.detectChanges();
         this.router.navigate(['/player/dashboard']);
       },
-      error: () => { this.mirroringUserId = null; },
+      error: () => { this.mirroringUserId = null; this.cdr.detectChanges(); },
     });
   }
 
@@ -2349,8 +2351,9 @@ export class AdminClubsComponent implements OnInit {
           if (!stillExists) this.selectClub(clubs[0]);
         }
         this.loading = false;
+        this.cdr.detectChanges();
       },
-      error: () => { this.error = 'Failed to load clubs.'; this.loading = false; },
+      error: () => { this.error = 'Failed to load clubs.'; this.loading = false; this.cdr.detectChanges(); },
     });
   }
 
@@ -2394,8 +2397,8 @@ export class AdminClubsComponent implements OnInit {
     this.chatError = '';
     this.expandedChatId = null;
     this.inquiriesService.getInquiriesByClub(this.selectedClub._id).subscribe({
-      next: (data) => { this.clubInquiries = data; this.chatLoading = false; },
-      error: () => { this.chatError = 'Failed to load chats.'; this.chatLoading = false; },
+      next: (data) => { this.clubInquiries = data; this.chatLoading = false; this.cdr.detectChanges(); },
+      error: () => { this.chatError = 'Failed to load chats.'; this.chatLoading = false; this.cdr.detectChanges(); },
     });
   }
 
@@ -2455,8 +2458,8 @@ export class AdminClubsComponent implements OnInit {
     this.adminsLoading = true;
     this.adminsError = '';
     this.usersService.getAdmins(this.selectedClub._id).subscribe({
-      next: (admins) => { this.clubAdmins = admins.filter(a => a.role === 'admin'); this.adminsLoading = false; },
-      error: (err) => { this.adminsLoading = false; this.adminsError = err?.error?.error || 'Failed to load club admins.'; },
+      next: (admins) => { this.clubAdmins = admins.filter(a => a.role === 'admin'); this.adminsLoading = false; this.cdr.detectChanges(); },
+      error: (err) => { this.adminsLoading = false; this.adminsError = err?.error?.error || 'Failed to load club admins.'; this.cdr.detectChanges(); },
     });
   }
 
@@ -2467,9 +2470,10 @@ export class AdminClubsComponent implements OnInit {
     this.usersService.getClubUsers(this.selectedClub._id).subscribe({
       next: (users) => {
         this.clubMembers = users.filter(u => u.role === 'player');
+        this.cdr.detectChanges();
         this.membersLoading = false;
       },
-      error: () => { this.membersError = 'Failed to load members.'; this.membersLoading = false; },
+      error: () => { this.membersError = 'Failed to load members.'; this.membersLoading = false; this.cdr.detectChanges(); },
     });
   }
 
@@ -2483,8 +2487,8 @@ export class AdminClubsComponent implements OnInit {
       password: this.adminForm.password, clubId: this.selectedClub._id,
       email: this.adminForm.email || undefined,
     }).subscribe({
-      next: () => { this.creatingAdmin = false; this.adminFormSuccess = `Admin "${this.adminForm.username}" created.`; this.resetAdminForm(); this.loadClubAdmins(); },
-      error: (err) => { this.creatingAdmin = false; this.adminFormError = err?.error?.error || 'Failed to create admin.'; },
+      next: () => { this.creatingAdmin = false; this.adminFormSuccess = `Admin "${this.adminForm.username}" created.`; this.resetAdminForm(); this.loadClubAdmins(); this.cdr.detectChanges(); },
+      error: (err) => { this.creatingAdmin = false; this.adminFormError = err?.error?.error || 'Failed to create admin.'; this.cdr.detectChanges(); },
     });
   }
 
@@ -2510,8 +2514,8 @@ export class AdminClubsComponent implements OnInit {
     this.chargesLoading = true;
     this.chargesError = '';
     this.chargesService.getAllApprovalCharges(this.selectedClub._id).subscribe({
-      next: (charges) => { this.allApprovalCharges = charges; this.chargesLoading = false; },
-      error: () => { this.chargesError = 'Failed to load payment approvals.'; this.chargesLoading = false; },
+      next: (charges) => { this.allApprovalCharges = charges; this.chargesLoading = false; this.cdr.detectChanges(); },
+      error: () => { this.chargesError = 'Failed to load payment approvals.'; this.chargesLoading = false; this.cdr.detectChanges(); },
     });
   }
 
@@ -2522,10 +2526,11 @@ export class AdminClubsComponent implements OnInit {
     this.chargesService.approvePayment(charge._id).subscribe({
       next: (res) => {
         const next = new Set(this.processingCharge); next.delete(charge._id); this.processingCharge = next;
+        this.cdr.detectChanges();
         const idx = this.allApprovalCharges.findIndex(c => c._id === charge._id);
         if (idx !== -1) this.allApprovalCharges = [...this.allApprovalCharges.slice(0, idx), res.charge, ...this.allApprovalCharges.slice(idx + 1)];
       },
-      error: () => { const next = new Set(this.processingCharge); next.delete(charge._id); this.processingCharge = next; },
+      error: () => { const next = new Set(this.processingCharge); next.delete(charge._id); this.processingCharge = next; this.cdr.detectChanges(); },
     });
   }
 
@@ -2540,8 +2545,9 @@ export class AdminClubsComponent implements OnInit {
         const idx = this.allApprovalCharges.findIndex(c => c._id === this.rejectChargeModal.chargeId);
         if (idx !== -1) this.allApprovalCharges = [...this.allApprovalCharges.slice(0, idx), res.charge, ...this.allApprovalCharges.slice(idx + 1)];
         this.closeRejectChargeModal();
+        this.cdr.detectChanges();
       },
-      error: () => { this.rejectChargeModal = { ...this.rejectChargeModal, submitting: false }; },
+      error: () => { this.rejectChargeModal = { ...this.rejectChargeModal, submitting: false }; this.cdr.detectChanges(); },
     });
   }
 
@@ -2553,16 +2559,16 @@ export class AdminClubsComponent implements OnInit {
     const clubId = this.selectedClub._id;
     let chargesLoaded = false;
     let paymentsLoaded = false;
-    const check = () => { if (chargesLoaded && paymentsLoaded) this.aspLoading = false; };
+    const check = () => { if (chargesLoaded && paymentsLoaded) { this.aspLoading = false; this.cdr.detectChanges(); } };
 
     this.chargesService.getApprovedCharges(clubId).subscribe({
       next: (c) => { this.approvedCharges = c; chargesLoaded = true; check(); },
-      error: () => { this.aspError = 'Failed to load charge data.'; this.aspLoading = false; },
+      error: () => { this.aspError = 'Failed to load charge data.'; this.aspLoading = false; this.cdr.detectChanges(); },
     });
 
     this.aspService.getAll(clubId).subscribe({
       next: (p) => { this.aspPayments = p; paymentsLoaded = true; check(); },
-      error: () => { this.aspError = 'Failed to load payment data.'; this.aspLoading = false; },
+      error: () => { this.aspError = 'Failed to load payment data.'; this.aspLoading = false; this.cdr.detectChanges(); },
     });
   }
 
@@ -2577,9 +2583,10 @@ export class AdminClubsComponent implements OnInit {
         if (this.selectedClub) this.selectedClub = { ...this.selectedClub, convenienceFeeRate: updated.convenienceFeeRate, convenienceFeeMode: updated.convenienceFeeMode };
         this.savingFeeMode = false;
         this.feeModeSaveMsg = 'Saved!';
-        setTimeout(() => { this.feeModeSaveMsg = ''; }, 2500);
+        this.cdr.detectChanges();
+        setTimeout(() => { this.feeModeSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
       },
-      error: () => { this.savingFeeMode = false; this.feeModeSaveMsg = 'Failed to save.'; },
+      error: () => { this.savingFeeMode = false; this.feeModeSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
     });
   }
 
@@ -2595,8 +2602,9 @@ export class AdminClubsComponent implements OnInit {
       next: (res) => {
         this.aspPayments = [res.payment, ...this.aspPayments];
         this.closeAspModal();
+        this.cdr.detectChanges();
       },
-      error: (err) => { this.aspModal = { ...this.aspModal, submitting: false, error: err?.error?.error || 'Failed to record payment.' }; },
+      error: (err) => { this.aspModal = { ...this.aspModal, submitting: false, error: err?.error?.error || 'Failed to record payment.' }; this.cdr.detectChanges(); },
     });
   }
 

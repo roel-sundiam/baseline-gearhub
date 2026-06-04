@@ -51,6 +51,13 @@ import { InquiriesService } from '../../../core/services/inquiries.service';
             </button>
           }
 
+          @if (auth.isAdmin() && !auth.isSuperAdmin() && auth.user()?.clubId) {
+            <button class="btn-club-settings" (click)="goToClubSettings()" title="Club Settings">
+              <i class="fas fa-cog"></i>
+              <span class="icon-label">Club Settings</span>
+            </button>
+          }
+
           <button class="btn-mute" (click)="sound.toggleMute()" [title]="sound.muted() ? 'Unmute sounds' : 'Mute sounds'">
             <i class="fas" [class.fa-bell]="!sound.muted()" [class.fa-bell-slash]="sound.muted()"></i>
           </button>
@@ -81,6 +88,12 @@ import { InquiriesService } from '../../../core/services/inquiries.service';
                   <span class="avatar-initials">{{ getInitials() }}</span>
                 }
               </div>
+            </button>
+          }
+
+          @if (auth.isAdmin() && !auth.isSuperAdmin() && auth.user()?.clubId) {
+            <button class="btn-club-settings btn-club-settings-mobile" (click)="goToClubSettings()" title="Club Settings">
+              <i class="fas fa-cog"></i>
             </button>
           }
 
@@ -236,6 +249,26 @@ import { InquiriesService } from '../../../core/services/inquiries.service';
       .btn-logout:hover {
         background: rgba(255, 255, 255, 0.2);
         border-color: rgba(255, 255, 255, 0.4);
+      }
+      .btn-club-settings {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 0.4rem 0.75rem;
+        border-radius: 6px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .btn-club-settings:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.4);
+      }
+      .btn-club-settings-mobile {
+        padding: 0.4rem 0.75rem;
       }
       .icon-label { display: none; }
       .profile-section {
@@ -496,6 +529,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   navigate(path: string) {
     this.router.navigate([path]);
+  }
+
+  goToClubSettings() {
+    const clubId = this.auth.user()?.clubId;
+    if (clubId) this.router.navigate(['/admin/clubs', clubId, 'edit']);
   }
 
   goToDashboard() {

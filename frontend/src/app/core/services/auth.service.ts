@@ -62,6 +62,8 @@ export class AuthService {
     logo?: string;
     email?: string;
     contactNumber?: string;
+    description?: string;
+    photos?: string[];
   }) {
     return this.http.post<{ message: string; clubId: string; adminId: string }>(
       `${environment.apiUrl}/auth/register-club`,

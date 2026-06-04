@@ -20,6 +20,12 @@ export interface Club {
   paymentQrCodes?: Record<string, string>;
   convenienceFeeRate?: number;
   convenienceFeeMode?: 'per_transaction' | 'per_hour';
+  description?: string;
+  photos?: string[];
+  socialLinks?: { facebook?: string; instagram?: string; reclub?: string };
+  rating?: number;
+  reviewCount?: number;
+  totalBookings?: number;
 }
 
 @Injectable({ providedIn: 'root' })
