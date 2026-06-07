@@ -8,6 +8,9 @@ const OpenPlayMatch = require("../models/OpenPlayMatch");
 const OpenPlayRating = require("../models/OpenPlayRating");
 const Club = require("../models/Club");
 const User = require("../models/User");
+const Charge = require("../models/Charge");
+const Rates = require("../models/Rates");
+const WEEKEND_DAYS = new Set([0, 5, 6]);
 
 // ── Shared helper: attach player names to match documents ─────────────────────
 
@@ -330,7 +333,7 @@ router.get("/sessions", auth, admin, async (req, res) => {
 // POST /api/open-play/sessions
 router.post("/sessions", auth, admin, async (req, res) => {
   try {
-    const { sport, title, sessionDate, startTime, endTime, maxPlayers, maxMatches, matchType } = req.body;
+    const { sport, title, sessionDate, startTime, endTime, maxPlayers, maxMatches, matchType, courts } = req.body;
     if (!sport || !title || !sessionDate || !startTime || !endTime) {
       return res.status(400).json({ error: "sport, title, sessionDate, startTime, endTime are required" });
     }
@@ -344,7 +347,31 @@ router.post("/sessions", auth, admin, async (req, res) => {
       maxPlayers: maxPlayers || 16,
       maxMatches: maxMatches || 8,
       matchType: matchType || "doubles",
+      courts: Array.isArray(courts) ? courts.map(Number).filter(n => n > 0) : [],
     });
+
+    const [club, rates] = await Promise.all([
+      Club.findById(req.user.clubId).select("convenienceFeeRate").lean(),
+      Rates.findOne({ clubId: req.user.clubId }).lean(),
+    ]);
+    const sessionDay = new Date(sessionDate).getUTCDay();
+    const hourlyRate = WEEKEND_DAYS.has(sessionDay)
+      ? (rates?.reservationWeekendRate ?? 0)
+      : (rates?.reservationWeekdayRate ?? 0);
+    const sessionHours = parseInt(endTime.split(":")[0], 10) - parseInt(startTime.split(":")[0], 10);
+    const feeRate = typeof club?.convenienceFeeRate === "number" ? club.convenienceFeeRate : 0.10;
+    const fee = parseFloat((hourlyRate * Math.max(sessionHours, 0) * feeRate).toFixed(2));
+
+    await Charge.create({
+      openPlaySessionId: session._id,
+      amount: fee,
+      breakdown: { convenienceFee: fee },
+      chargeType: "open_play_session",
+      status: "unpaid",
+      approvalStatus: "none",
+      clubId: req.user.clubId,
+    });
+
     res.status(201).json(session);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -354,10 +381,12 @@ router.post("/sessions", auth, admin, async (req, res) => {
 // PUT /api/open-play/sessions/:id
 router.put("/sessions/:id", auth, admin, async (req, res) => {
   try {
-    const { title, sessionDate, startTime, endTime, maxPlayers, maxMatches, matchType } = req.body;
+    const { title, sessionDate, startTime, endTime, maxPlayers, maxMatches, matchType, courts } = req.body;
+    const update = { title, sessionDate, startTime, endTime, maxPlayers, maxMatches, matchType };
+    if (Array.isArray(courts)) update.courts = courts.map(Number).filter(n => n > 0);
     const session = await OpenPlaySession.findOneAndUpdate(
       { _id: req.params.id, clubId: req.user.clubId },
-      { title, sessionDate, startTime, endTime, maxPlayers, maxMatches, matchType },
+      update,
       { new: true, runValidators: true },
     );
     if (!session) return res.status(404).json({ error: "Session not found" });
@@ -379,6 +408,9 @@ router.patch("/sessions/:id/status", auth, admin, async (req, res) => {
       { new: true },
     );
     if (!session) return res.status(404).json({ error: "Session not found" });
+    if (status === "cancelled") {
+      await Charge.deleteOne({ openPlaySessionId: session._id, chargeType: "open_play_session", status: "unpaid" });
+    }
     res.json(session);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -390,8 +422,11 @@ router.delete("/sessions/:id", auth, admin, async (req, res) => {
   try {
     const session = await OpenPlaySession.findOneAndDelete({ _id: req.params.id, clubId: req.user.clubId });
     if (!session) return res.status(404).json({ error: "Session not found" });
-    await OpenPlaySessionPlayer.deleteMany({ sessionId: session._id });
-    await OpenPlayMatch.deleteMany({ sessionId: session._id });
+    await Promise.all([
+      OpenPlaySessionPlayer.deleteMany({ sessionId: session._id }),
+      OpenPlayMatch.deleteMany({ sessionId: session._id }),
+      Charge.deleteOne({ openPlaySessionId: session._id, chargeType: "open_play_session", status: "unpaid" }),
+    ]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

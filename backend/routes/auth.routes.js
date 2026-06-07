@@ -4,8 +4,22 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Club = require("../models/Club");
 const LoginHistory = require("../models/LoginHistory");
+const Notification = require("../models/Notification");
 const authMiddleware = require("../middleware/auth");
 const superadminMiddleware = require("../middleware/superadmin");
+const { sendPushToUser } = require("../utils/push");
+
+async function notifySuperadmins(title, body, data = {}) {
+  try {
+    const superadmins = await User.find({ role: "superadmin" }, "_id").lean();
+    await Promise.all(superadmins.map(async (sa) => {
+      await Notification.create({ userId: sa._id, type: data.type || "info", title, body, data });
+      await sendPushToUser(sa._id, { title, body, data });
+    }));
+  } catch (err) {
+    console.error("notifySuperadmins error:", err.message);
+  }
+}
 
 const router = express.Router();
 
@@ -196,6 +210,8 @@ router.post("/register-club", async (req, res) => {
       location: location || undefined,
       logo: logo || null,
       status: "active",
+      email: email || undefined,
+      mobile: contactNumber || undefined,
       description: description || undefined,
       photos: Array.isArray(photos) ? photos.slice(0, 4) : [],
     });
@@ -217,6 +233,12 @@ router.post("/register-club", async (req, res) => {
       clubId: club._id,
       adminId: admin._id,
     });
+
+    notifySuperadmins(
+      "New Club Registered",
+      `${clubName} has joined Baseline Gearhub.`,
+      { type: "club_registered", clubId: club._id.toString(), clubName },
+    );
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

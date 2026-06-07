@@ -296,6 +296,14 @@ export class LiveVisitorsWidgetComponent implements OnInit, OnDestroy {
           this.allVisitorsHistory = data.visitors.filter(v => v.role !== 'superadmin');
           this.visitorCount = this.allVisitorsHistory.length;
 
+          if ('setAppBadge' in navigator) {
+            if (this.visitorCount > 0) {
+              (navigator as any).setAppBadge(this.visitorCount);
+            } else {
+              (navigator as any).clearAppBadge();
+            }
+          }
+
           // Only sound when non-superadmin count increases
           if (this.visitorCount > this.previousCount) {
             this.playNotificationSound();
@@ -308,6 +316,9 @@ export class LiveVisitorsWidgetComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if ('clearAppBadge' in navigator) {
+      (navigator as any).clearAppBadge();
+    }
     this.destroy$.next();
     this.destroy$.complete();
     this.liveVisitorsService.cleanup();

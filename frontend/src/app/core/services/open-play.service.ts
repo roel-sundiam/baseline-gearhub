@@ -18,6 +18,7 @@ export interface OpenPlaySession {
   maxPlayers: number;
   maxMatches: number;
   matchType: 'doubles' | 'singles';
+  courts: number[];
   status: SessionStatus;
   createdAt: string;
   registeredCount?: number;
@@ -76,6 +77,7 @@ export class OpenPlayService {
     sport: Sport; title: string; sessionDate: string;
     startTime: string; endTime: string;
     maxPlayers?: number; maxMatches?: number; matchType?: 'doubles' | 'singles';
+    courts?: number[];
   }) {
     return this.http.post<OpenPlaySession>(`${this.base}/sessions`, payload);
   }
@@ -83,6 +85,7 @@ export class OpenPlayService {
   updateSession(id: string, payload: Partial<{
     title: string; sessionDate: string; startTime: string; endTime: string;
     maxPlayers: number; maxMatches: number; matchType: 'doubles' | 'singles';
+    courts: number[];
   }>) {
     return this.http.put<OpenPlaySession>(`${this.base}/sessions/${id}`, payload);
   }

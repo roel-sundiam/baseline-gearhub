@@ -286,6 +286,25 @@ export class App {
       }
     });
 
+    // Keep SW badge in sync with superadmin login state
+    effect(() => {
+      const user = this.auth.user();
+      if (!('serviceWorker' in navigator)) return;
+      navigator.serviceWorker.ready.then(reg => {
+        if (user?.role === 'superadmin') {
+          const token = this.auth.getToken();
+          reg.active?.postMessage({ type: 'SET_AUTH_TOKEN', token });
+          if ('periodicSync' in reg) {
+            (reg as any).periodicSync
+              .register('live-visitors-badge', { minInterval: 60_000 })
+              .catch(() => {});
+          }
+        } else if (!user) {
+          reg.active?.postMessage({ type: 'CLEAR_AUTH_TOKEN' });
+        }
+      });
+    });
+
     // Handle navigation from push notification click (SW posts NAVIGATE message)
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', (e) => {
@@ -314,6 +333,6 @@ export class App {
 
   isAuthRoute(): boolean {
     const url = this.router.url;
-    return url === '/' || url === '' || url.includes('/login') || url.includes('/register') || url.startsWith('/book') || url.startsWith('/features');
+    return url === '/' || url === '' || url.includes('/player-login') || url.includes('/register') || url.startsWith('/book') || url.startsWith('/features');
   }
 }

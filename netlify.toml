@@ -8,6 +8,17 @@
   node_bundler = "esbuild"
   external_node_modules = ["mongoose"]
 
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-store"
+
+[[redirects]]
+  from = "https://baseline-gearhub.netlify.app/*"
+  to = "https://courtgo.club/:splat"
+  status = 301
+  force = true
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"

@@ -199,6 +199,7 @@ import { OpenPlayService, OpenPlaySession, OpenPlayRating, Sport } from '../../.
         }
 
       </div>
+
     </div>
   `,
   styles: [`

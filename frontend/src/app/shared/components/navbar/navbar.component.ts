@@ -539,13 +539,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
   goToDashboard() {
     if (this.auth.isSuperAdmin()) {
       this.router.navigate(['/admin/clubs']);
-      return;
-    }
-    if (this.auth.isAdmin()) {
+    } else {
       this.router.navigate(['/player/dashboard']);
-      return;
     }
-    this.router.navigate(['/player/dashboard']);
   }
 
   goToProfile() {

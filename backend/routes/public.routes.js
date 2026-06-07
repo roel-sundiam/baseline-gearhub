@@ -39,6 +39,14 @@ function expandSlots(startSlot, durationHours) {
   return slots;
 }
 
+function timeRangeToSlots(startTime, endTime) {
+  const startH = parseInt(startTime.split(':')[0], 10);
+  const endH = parseInt(endTime.split(':')[0], 10);
+  const slots = [];
+  for (let h = startH; h < endH; h++) slots.push(hourToSlot(h));
+  return slots;
+}
+
 const router = express.Router();
 
 // Resolve club by ObjectId OR readable slug
@@ -169,14 +177,24 @@ router.get("/:clubId/availability", async (req, res) => {
     const end = new Date(date);
     end.setUTCHours(23, 59, 59, 999);
 
-    const booked = await Reservation.find({
-      clubId: resolvedClubId,
-      court: courtNum,
-      date: { $gte: start, $lte: end },
-      status: { $in: ["confirmed", "pending_payment"] },
-    }).select("timeSlot durationHours -_id");
+    const [booked, openPlaySessions] = await Promise.all([
+      Reservation.find({
+        clubId: resolvedClubId,
+        court: courtNum,
+        date: { $gte: start, $lte: end },
+        status: { $in: ["confirmed", "pending_payment"] },
+      }).select("timeSlot durationHours -_id"),
+      OpenPlaySession.find({
+        clubId: resolvedClubId,
+        courts: courtNum,
+        sessionDate: { $gte: start, $lte: end },
+        status: { $ne: "cancelled" },
+      }).select("startTime endTime -_id"),
+    ]);
 
-    res.json({ bookedSlots: booked.flatMap((r) => expandSlots(r.timeSlot, r.durationHours ?? 1)) });
+    const openPlaySlots = openPlaySessions.flatMap((s) => timeRangeToSlots(s.startTime, s.endTime));
+
+    res.json({ bookedSlots: [...booked.flatMap((r) => expandSlots(r.timeSlot, r.durationHours ?? 1)), ...openPlaySlots] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

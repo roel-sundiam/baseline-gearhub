@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -11,6 +11,8 @@ import {
   SessionStatus,
 } from '../../../core/services/open-play.service';
 import { UsersService } from '../../../core/services/users.service';
+import { ClubService } from '../../../core/services/club.service';
+import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
   selector: 'app-open-play',
@@ -458,6 +460,16 @@ import { UsersService } from '../../../core/services/users.service';
                 <input class="input" type="time" [(ngModel)]="form.endTime" />
               </div>
             </div>
+            <div class="form-group">
+              <label>Courts</label>
+              <div class="court-toggles">
+                @for (n of courtNumbers(); track n) {
+                  <button type="button" class="court-toggle-btn" [class.active]="form.courts.includes(n)" (click)="toggleCourt(n)">
+                    Court {{ n }}
+                  </button>
+                }
+              </div>
+            </div>
             <div class="form-row">
               <div class="form-group">
                 <label>Max Players</label>
@@ -716,6 +728,9 @@ import { UsersService } from '../../../core/services/users.service';
       padding: .5rem .75rem; border-radius: .375rem; font-size: .875rem;
     }
     .input:focus { outline: none; border-color: #4caf50; }
+    .court-toggles { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .court-toggle-btn { background: #0f1a0f; border: 1px solid #2d4a2d; color: #86b086; padding: .4rem .75rem; border-radius: .375rem; font-size: .8rem; cursor: pointer; }
+    .court-toggle-btn.active { background: #1b4a1b; border-color: #4caf50; color: #a3e635; }
     .alert-error { background: #3a1a1a; border: 1px solid #8b3030; color: #f87171; border-radius: .375rem; padding: .6rem .75rem; font-size: .8rem; }
 
     /* Score modal */
@@ -772,8 +787,15 @@ export class OpenPlayComponent implements OnInit {
   score2: number | null = null;
 
   allPlayers = signal<{ _id: string; name: string; email: string }[]>([]);
+  courtCount = signal(2);
+  courtNumbers = computed(() => Array.from({ length: this.courtCount() }, (_, i) => i + 1));
 
-  form = {
+  form: {
+    sport: Sport; title: string; sessionDate: string;
+    startTime: string; endTime: string;
+    maxPlayers: number; maxMatches: number;
+    matchType: 'doubles' | 'singles'; courts: number[];
+  } = {
     sport: 'tennis' as Sport,
     title: '',
     sessionDate: '',
@@ -782,16 +804,23 @@ export class OpenPlayComponent implements OnInit {
     maxPlayers: 16,
     maxMatches: 8,
     matchType: 'doubles' as 'doubles' | 'singles',
+    courts: [],
   };
 
   constructor(
     private openPlay: OpenPlayService,
     private users: UsersService,
+    private club: ClubService,
+    private auth: AuthService,
   ) {}
 
   ngOnInit() {
     this.loadSessions();
     this.users.getActivePlayers().subscribe({ next: p => this.allPlayers.set(p) });
+    const clubId = this.auth.user()?.clubId;
+    if (clubId) {
+      this.club.getClub(clubId).subscribe({ next: c => this.courtCount.set(c.courtCount ?? 2) });
+    }
   }
 
   get availablePlayers() {
@@ -874,6 +903,7 @@ export class OpenPlayComponent implements OnInit {
       maxPlayers: 16,
       maxMatches: 8,
       matchType: 'doubles',
+      courts: [],
     };
     this.modalError.set('');
     this.showSessionModal.set(true);
@@ -890,9 +920,16 @@ export class OpenPlayComponent implements OnInit {
       maxPlayers: s.maxPlayers,
       maxMatches: s.maxMatches,
       matchType: s.matchType,
+      courts: s.courts ? [...s.courts] : [],
     };
     this.modalError.set('');
     this.showSessionModal.set(true);
+  }
+
+  toggleCourt(n: number) {
+    const idx = this.form.courts.indexOf(n);
+    if (idx === -1) this.form.courts.push(n);
+    else this.form.courts.splice(idx, 1);
   }
 
   closeModal() {

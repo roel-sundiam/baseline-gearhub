@@ -98,7 +98,7 @@ export class AuthService {
     localStorage.removeItem(this.BACKUP_CLUB_KEY);
     this._user.set(null);
     this._isImpersonating.set(false);
-    this.router.navigate(['/login']);
+    this.router.navigate(['/player-login']);
   }
 
   impersonate(token: string, user: AuthUser): void {

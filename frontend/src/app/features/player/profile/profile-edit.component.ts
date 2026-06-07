@@ -650,7 +650,7 @@ export class ProfileEditComponent implements OnInit, OnDestroy {
   loadUserProfile() {
     const user = this.auth.user();
     if (!user) {
-      this.router.navigate(['/login']);
+      this.router.navigate(['/player-login']);
       return;
     }
     this.loading = true;

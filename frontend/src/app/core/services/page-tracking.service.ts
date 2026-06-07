@@ -86,7 +86,7 @@ export class PageTrackingService {
     if (url.includes('/admin/rates')) return 'manage-rates';
     if (url.includes('/admin/sessions'))
       return url.includes('/new') ? 'record-session' : 'manage-sessions';
-    if (url.includes('/login')) return 'login';
+    if (url.includes('/player-login')) return 'login';
     if (url.includes('/register')) return 'register';
 
     return parts[parts.length - 1] || 'unknown';

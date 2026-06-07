@@ -1,10 +1,17 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { Routes, Router } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
 
 export const routes: Routes = [
   {
     path: '',
+    canActivate: [() => {
+      if (window.location.hostname === 'app.courtgo.club') {
+        return inject(Router).createUrlTree(['/player-login']);
+      }
+      return true;
+    }],
     loadComponent: () =>
       import('./features/landing/landing.component').then((m) => m.LandingComponent),
   },
@@ -14,7 +21,7 @@ export const routes: Routes = [
       import('./features/landing/features-showcase.component').then((m) => m.FeaturesShowcaseComponent),
   },
   {
-    path: 'login',
+    path: 'player-login',
     loadComponent: () =>
       import('./features/auth/login/login.component').then((m) => m.LoginComponent),
   },
@@ -148,6 +155,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/open-play/open-play.component').then(
             (m) => m.OpenPlayComponent,
+          ),
+      },
+      {
+        path: 'award-generator',
+        loadComponent: () =>
+          import('./features/admin/clubs/award-generator-page.component').then(
+            (m) => m.AwardGeneratorPageComponent,
           ),
       },
     ],

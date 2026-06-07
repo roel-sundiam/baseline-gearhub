@@ -33,7 +33,7 @@ interface Feature {
           <a routerLink="/book" class="nav-link">Find Courts</a>
         </nav>
         <div class="header-ctas">
-          <a routerLink="/login" class="btn-outline">Sign In</a>
+          <a href="https://app.courtgo.club/player-login" class="btn-outline">Sign In</a>
           <a routerLink="/register-club" class="btn-primary">Register for Free</a>
         </div>
       </header>

@@ -16,9 +16,9 @@ import { AnalyticsTrackService } from '../../../core/services/analytics-track.se
       <div class="bg-orb bg-orb-2"></div>
 
       <div class="card">
-        <a routerLink="/" class="back-link">&larr; Back</a>
+        <a href="https://courtgo.club" class="back-link">&larr; Back</a>
 
-        <img src="/CourtGo.png" alt="CourtGo" class="card-logo" />
+        <a href="https://courtgo.club"><img src="/CourtGo.png" alt="CourtGo" class="card-logo" /></a>
         <h1>Welcome back</h1>
         <p class="card-sub">Sign in to your account</p>
 

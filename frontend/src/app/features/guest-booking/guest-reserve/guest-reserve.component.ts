@@ -91,24 +91,31 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
             </div>
 
             @if (paymentMethods.length > 0) {
-              <div class="gb-payment-notice gb-payment-notice-method">
-                @if (paymentMethods[0] === 'GoTyme') {
-                  <img src="/goTyme.jpg" alt="GoTyme" class="gb-payment-method-logo" />
-                } @else {
-                  <i class="fas fa-wallet"></i>
+              <div class="gb-payment-methods-list">
+                <p class="gb-payment-methods-label">Payment Options</p>
+                @for (method of paymentMethods; track method) {
+                  <div class="gb-payment-notice gb-payment-notice-method">
+                    @if (method === 'GoTyme') {
+                      <img src="/goTyme.jpg" alt="GoTyme" class="gb-payment-method-logo" />
+                    } @else {
+                      <i class="fas fa-wallet"></i>
+                    }
+                    <div>
+                      <strong>Pay via {{ method }}</strong>
+                      @if (paymentQrCodes[method]) {
+                        <img [src]="paymentQrCodes[method]" alt="Payment QR Code" class="gb-qr-code" />
+                      }
+                      @if (paymentAccounts[method]) {
+                        <p class="gb-payment-account">{{ paymentAccounts[method] }}</p>
+                      }
+                      @if (paymentQrCodes[method] || paymentAccounts[method]) {
+                        <p>Send the exact amount and keep your reference number. Your slot will be confirmed once payment is verified.</p>
+                      } @else {
+                        <p>Send the exact amount and keep your reference number. Your slot will be confirmed once payment is verified.</p>
+                      }
+                    </div>
+                  </div>
                 }
-                <div>
-                  <strong>Pay via {{ paymentMethods[0] }}</strong>
-                  @if (paymentQrCodes[paymentMethods[0]]) {
-                    <img [src]="paymentQrCodes[paymentMethods[0]]" alt="Payment QR Code" class="gb-qr-code" />
-                    <p>Scan the QR code to pay. Your slot will be confirmed once payment is verified.</p>
-                  } @else if (paymentAccounts[paymentMethods[0]]) {
-                    <p class="gb-payment-account">{{ paymentAccounts[paymentMethods[0]] }}</p>
-                    <p>Send the exact amount and keep your reference number. Your slot will be confirmed once payment is verified.</p>
-                  } @else {
-                    <p>Send the exact amount and keep your reference number. Your slot will be confirmed once payment is verified.</p>
-                  }
-                </div>
               </div>
             } @else {
               <div class="gb-payment-notice">
@@ -717,6 +724,8 @@ const WEEKEND_DAYS = new Set([0, 5, 6]);
     .gb-confirm-row:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.06); }
     .gb-confirm-row strong { color: #ffffff; text-align: right; max-width: 60%; word-break: break-all; }
     .gb-ref { font-size: 0.72rem; color: #a3e635 !important; font-family: monospace; }
+    .gb-payment-methods-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .gb-payment-methods-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #a3e635; margin: 0 0 0.25rem 0; }
     .gb-payment-notice {
       display: flex;
       gap: 0.75rem;

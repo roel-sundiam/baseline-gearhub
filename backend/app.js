@@ -43,6 +43,7 @@ const publicRoutes = require("./routes/public.routes");
 const inquiriesRoutes = require("./routes/inquiries.routes");
 const pushRoutes = require("./routes/push.routes");
 const openPlayRoutes = require("./routes/open-play.routes");
+const notificationsRoutes = require("./routes/notifications.routes");
 
 const app = express();
 
@@ -69,7 +70,15 @@ app.use(express.json());
 app.get('/', (_req, res) => res.redirect(302, '/index.html'));
 
 // Health check should respond even when DB is unavailable.
-app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', (_req, res) => {
+  const uri = process.env.MONGODB_URI || '';
+  const isLocal = uri.includes('localhost') || uri.includes('127.0.0.1');
+  res.json({
+    status: 'ok',
+    db: isLocal ? 'local' : 'atlas',
+    dbHost: isLocal ? 'localhost:27017' : 'MongoDB Atlas',
+  });
+});
 
 
 // DB connection (cached; one concurrent attempt at a time)
@@ -140,5 +149,6 @@ app.use("/api/public", publicRoutes);
 app.use("/api/inquiries", inquiriesRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/open-play", openPlayRoutes);
+app.use("/api/notifications", notificationsRoutes);
 
 module.exports = app;

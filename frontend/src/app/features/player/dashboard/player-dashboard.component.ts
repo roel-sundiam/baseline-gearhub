@@ -260,6 +260,11 @@ import { forkJoin } from 'rxjs';
                 </button>
               }
               @if (auth.user()?.clubId) {
+                <button class="dm-action-card" (click)="navigateTo('/admin/award-generator')">
+                  <div class="dm-ac-icon dm-ac-amber"><i class="fas fa-award"></i></div>
+                  <span class="dm-ac-title">Award Generator</span>
+                  <span class="dm-ac-sub">Create plaques</span>
+                </button>
                 <button class="dm-action-card" (click)="copyPublicLink()">
                   <div class="dm-ac-icon" [class]="copiedPublicLink ? 'dm-ac-lime' : 'dm-ac-indigo'">
                     <i class="fas" [class.fa-check]="copiedPublicLink" [class.fa-share-nodes]="!copiedPublicLink"></i>

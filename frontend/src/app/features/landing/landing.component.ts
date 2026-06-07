@@ -30,7 +30,6 @@ import { APP_VERSION } from '../../version';
             <span class="nav-search-short">Find Clubs</span>
           </a>
           <nav class="nav-links">
-            <a href="#features" class="nav-link">Features</a>
             <a href="#" class="nav-link">Pricing</a>
             <a href="#" class="nav-link">How It Works</a>
             <a href="#" class="nav-link nav-link-drop">Resources
@@ -40,7 +39,7 @@ import { APP_VERSION } from '../../version';
         </div>
 
         <div class="nav-right">
-          <a routerLink="/login" class="nav-signin">Login as Player</a>
+          <a routerLink="/player-login" class="nav-signin">Login as Player</a>
           <a routerLink="/register-club" class="btn-primary nav-register">Register your Club</a>
         </div>
       </header>
@@ -51,7 +50,7 @@ import { APP_VERSION } from '../../version';
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           Find Clubs
         </a>
-        <a routerLink="/login" class="mql-link">
+        <a routerLink="/player-login" class="mql-link">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           Login as Player
         </a>

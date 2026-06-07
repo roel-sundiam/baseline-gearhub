@@ -29,7 +29,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
             <strong>Registration successful!</strong><br />
             Your account is pending admin approval. You'll be able to log in once approved.
           </div>
-          <p class="auth-footer"><a routerLink="/login">Back to Login</a></p>
+          <p class="auth-footer"><a routerLink="/player-login">Back to Login</a></p>
         } @else {
           <form (ngSubmit)="onSubmit()" #f="ngForm">
             <div class="form-group">
@@ -246,7 +246,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
             </button>
           </form>
 
-          <p class="auth-footer">Already have an account? <a routerLink="/login">Sign in</a></p>
+          <p class="auth-footer">Already have an account? <a routerLink="/player-login">Sign in</a></p>
         }
       </div>
     </div>

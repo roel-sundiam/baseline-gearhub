@@ -107,7 +107,7 @@ type Club = { _id: string; name: string; slug?: string; location?: string; logo?
 
       <footer class="footer">
         <span>Already a member?</span>
-        <a routerLink="/login" class="footer-link">Sign in here &rarr;</a>
+        <a routerLink="/player-login" class="footer-link">Sign in here &rarr;</a>
       </footer>
 
     </div>

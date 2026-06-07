@@ -11,6 +11,7 @@ const openPlaySessionSchema = new mongoose.Schema(
     maxPlayers: { type: Number, default: 16, min: 2 },
     maxMatches: { type: Number, default: 8, min: 1 },
     matchType: { type: String, enum: ["doubles", "singles"], default: "doubles" },
+    courts: [{ type: Number }],
     status: { type: String, enum: ["open", "in_progress", "completed", "cancelled"], default: "open" },
   },
   { timestamps: true },

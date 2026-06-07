@@ -6,6 +6,7 @@ const Charge = require("../models/Charge");
 const Rates = require("../models/Rates");
 const Club = require("../models/Club");
 const { sendPushToClubAdmins } = require("../utils/push");
+const OpenPlaySession = require("../models/OpenPlaySession");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
 
 function buildSlots(openingHour, closingHour) {
@@ -37,6 +38,14 @@ function expandSlots(startSlot, durationHours) {
   return slots;
 }
 
+function timeRangeToSlots(startTime, endTime) {
+  const startH = parseInt(startTime.split(':')[0], 10);
+  const endH = parseInt(endTime.split(':')[0], 10);
+  const slots = [];
+  for (let h = startH; h < endH; h++) slots.push(hourToSlot(h));
+  return slots;
+}
+
 const router = express.Router();
 
 // GET /api/reservations/availability?court=1&date=2026-04-20
@@ -61,7 +70,7 @@ router.get("/availability", auth, async (req, res) => {
     const end = new Date(date);
     end.setUTCHours(23, 59, 59, 999);
 
-    const [booked, pending] = await Promise.all([
+    const [booked, pending, openPlaySessions] = await Promise.all([
       Reservation.find({
         clubId, court: courtNum,
         date: { $gte: start, $lte: end },
@@ -72,10 +81,18 @@ router.get("/availability", auth, async (req, res) => {
         date: { $gte: start, $lte: end },
         status: "pending_payment",
       }).select("timeSlot durationHours -_id"),
+      OpenPlaySession.find({
+        clubId,
+        courts: courtNum,
+        sessionDate: { $gte: start, $lte: end },
+        status: { $ne: "cancelled" },
+      }).select("startTime endTime -_id"),
     ]);
 
+    const openPlaySlots = openPlaySessions.flatMap((s) => timeRangeToSlots(s.startTime, s.endTime));
+
     res.json({
-      bookedSlots: booked.flatMap((r) => expandSlots(r.timeSlot, r.durationHours ?? 1)),
+      bookedSlots: [...booked.flatMap((r) => expandSlots(r.timeSlot, r.durationHours ?? 1)), ...openPlaySlots],
       pendingSlots: pending.flatMap((r) => expandSlots(r.timeSlot, r.durationHours ?? 1)),
     });
   } catch (err) {

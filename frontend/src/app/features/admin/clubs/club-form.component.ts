@@ -250,7 +250,7 @@ import { AuthService } from '../../../core/services/auth.service';
                       />
                       <span class="cf-pm-name">{{ method }}</span>
                     </label>
-                    @if (paymentMethods.includes(method)) {
+                    @if (paymentMethods.includes(method) && method !== 'Cash') {
                       <input
                         type="text"
                         class="cf-input cf-pm-account-input"
@@ -722,7 +722,7 @@ import { AuthService } from '../../../core/services/auth.service';
 export class ClubFormComponent implements OnInit {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
-  readonly availablePaymentMethods = ['GCash', 'Cash', 'Bank Transfer', 'GoTyme'];
+  readonly availablePaymentMethods = ['Cash', 'GCash', 'Bank Transfer', 'GoTyme'];
   readonly hourOptions = Array.from({ length: 24 }, (_, h) => {
     const h12 = h % 12 === 0 ? 12 : h % 12;
     const period = h < 12 ? 'AM' : 'PM';

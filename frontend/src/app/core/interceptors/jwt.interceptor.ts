@@ -25,7 +25,7 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
           auth.exitImpersonation();
         } else if (auth.isLoggedIn()) {
           auth.logout();
-          router.navigate(['/login']);
+          router.navigate(['/player-login']);
         }
       }
       return throwError(() => err);

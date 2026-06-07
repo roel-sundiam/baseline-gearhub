@@ -27,7 +27,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
               <strong>Club registered!</strong><br />
               You can now log in with your admin credentials and start using the platform.
             </div>
-            <p class="auth-footer"><a routerLink="/login">Go to Login</a></p>
+            <p class="auth-footer"><a routerLink="/player-login">Go to Login</a></p>
           </div>
         } @else {
           <form (ngSubmit)="onSubmit()" #f="ngForm">
@@ -263,7 +263,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
             </button>
           </form>
 
-          <p class="auth-footer">Already have an account? <a routerLink="/login">Sign in</a></p>
+          <p class="auth-footer">Already have an account? <a routerLink="/player-login">Sign in</a></p>
         }
       </div>
     </div>

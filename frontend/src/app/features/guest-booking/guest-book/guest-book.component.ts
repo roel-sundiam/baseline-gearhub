@@ -1150,7 +1150,7 @@ export class GuestBookComponent implements OnInit, OnDestroy {
     return h < 12 ? `${h}am` : `${h - 12}pm`;
   }
 
-  goToLogin() { this.router.navigate(['/login']); }
+  goToLogin() { this.router.navigate(['/player-login']); }
   goToReserve() { this.router.navigate(['/book', this.clubId, 'reserve']); }
 
   submitInquiry() {

@@ -11,7 +11,7 @@ const router = express.Router();
 // GET /api/app-service-payments/summary — cross-club overview (superadmin only)
 router.get("/summary", auth, superadmin, async (req, res) => {
   try {
-    const [clubs, chargeAgg, paymentAgg, waiverAgg] = await Promise.all([
+    const [clubs, chargeAgg, openPlayAgg, paymentAgg, waiverAgg] = await Promise.all([
       Club.find({ status: { $ne: "suspended" } }, "_id name convenienceFeeRate").lean(),
       Charge.aggregate([
         { $match: { chargeType: "reservation" } },
@@ -26,6 +26,10 @@ router.get("/summary", auth, superadmin, async (req, res) => {
           },
         },
       ]),
+      Charge.aggregate([
+        { $match: { chargeType: "open_play_session" } },
+        { $group: { _id: "$clubId", totalOpenPlayFees: { $sum: "$breakdown.convenienceFee" } } },
+      ]),
       AppServicePayment.aggregate([
         { $match: { type: { $ne: "waiver" } } },
         { $group: { _id: "$clubId", totalPaid: { $sum: "$amount" } } },
@@ -37,6 +41,7 @@ router.get("/summary", auth, superadmin, async (req, res) => {
     ]);
 
     const chargeMap = Object.fromEntries(chargeAgg.map((r) => [r._id.toString(), { totalCourtFees: r.totalCourtFees, totalConvenienceFees: r.totalConvenienceFees }]));
+    const openPlayMap = Object.fromEntries(openPlayAgg.map((r) => [r._id.toString(), r.totalOpenPlayFees]));
     const paymentMap = Object.fromEntries(paymentAgg.map((r) => [r._id.toString(), r.totalPaid]));
     const waiverMap = Object.fromEntries(waiverAgg.map((r) => [r._id.toString(), r.totalWaived]));
 
@@ -44,7 +49,7 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       const id = club._id.toString();
       const chargeData = chargeMap[id] || { totalCourtFees: 0, totalConvenienceFees: 0 };
       const totalCourtFees = chargeData.totalCourtFees;
-      const feesOwed = parseFloat((chargeData.totalConvenienceFees).toFixed(2));
+      const feesOwed = parseFloat((chargeData.totalConvenienceFees + (openPlayMap[id] ?? 0)).toFixed(2));
       const convenienceFeeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10;
       const totalPaid = paymentMap[id] || 0;
       const totalWaived = waiverMap[id] || 0;
