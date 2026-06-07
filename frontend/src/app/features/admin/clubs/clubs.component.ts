@@ -1,13 +1,16 @@
 import { Component, OnInit, signal, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
+import { environment } from '../../../../environments/environment';
 import { ClubService, Club } from '../../../core/services/club.service';
 import { UsersService } from '../../../core/services/users.service';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AppServicePaymentsService, AppServicePayment } from '../../../core/services/app-service-payments.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { InquiriesService, Inquiry } from '../../../core/services/inquiries.service';
+import { NotificationService } from '../../../core/services/notification.service';
 
 interface AdminUser {
   _id: string;
@@ -34,8 +37,20 @@ interface AdminUser {
           <p class="hero-kicker"><i class="fas fa-shield-alt"></i> Superadmin Workspace</p>
           <h2 class="hero-title">Club Portfolio</h2>
           <p class="hero-sub">Manage clubs, admins, payments, and app service fees.</p>
+          @if (dbStatus()) {
+            <span class="db-badge" [class.db-local]="dbStatus()!.db === 'local'" [class.db-atlas]="dbStatus()!.db === 'atlas'">
+              <i class="fas fa-database"></i>
+              {{ dbStatus()!.db === 'local' ? 'Local DB' : 'Production DB' }} &middot; {{ dbStatus()!.dbHost }}
+            </span>
+          }
         </div>
         <div class="hero-actions">
+          <button type="button" class="btn btn-notif" (click)="showNotifications = !showNotifications" title="Notifications">
+            <i class="fas fa-bell"></i>
+            @if (notifService.unreadCount() > 0) {
+              <span class="notif-badge">{{ notifService.unreadCount() }}</span>
+            }
+          </button>
           <span class="count-chip">
             <i class="fas fa-shield-alt"></i>
             {{ clubs.length }} {{ clubs.length === 1 ? 'Club' : 'Clubs' }}
@@ -51,6 +66,39 @@ interface AdminUser {
           </a>
         </div>
       </header>
+
+      <!-- ── Notification inbox panel ── -->
+      @if (showNotifications) {
+        <div class="notif-panel">
+          <div class="notif-panel-header">
+            <span class="notif-panel-title"><i class="fas fa-bell"></i> Notifications</span>
+            @if (notifService.unreadCount() > 0) {
+              <button type="button" class="btn-text" (click)="notifService.markAllRead()">Mark all read</button>
+            }
+            <button type="button" class="notif-close" (click)="showNotifications = false"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="notif-list">
+            @if (notifService.notifications().length === 0) {
+              <p class="notif-empty">No notifications yet.</p>
+            }
+            @for (notif of notifService.notifications(); track notif._id) {
+              <div class="notif-item" [class.notif-unread]="!notif.read" (click)="notifService.markRead(notif._id)">
+                <div class="notif-icon">
+                  <i class="fas fa-building"></i>
+                </div>
+                <div class="notif-content">
+                  <p class="notif-title">{{ notif.title }}</p>
+                  <p class="notif-body">{{ notif.body }}</p>
+                  <p class="notif-time">{{ formatDate(notif.createdAt) }}</p>
+                </div>
+                @if (!notif.read) {
+                  <span class="notif-dot"></span>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
 
       <!-- ── Loading overlay ── -->
       @if (loading) {
@@ -133,6 +181,9 @@ interface AdminUser {
               </div>
 
               <div class="club-pills">
+                @if (isNewClub(club)) {
+                  <span class="pill pill-new"><i class="fas fa-star"></i> NEW</span>
+                }
                 @if (club.location) {
                   <span class="pill pill-default">
                     <i class="fas fa-location-dot"></i> {{ club.location }}
@@ -433,8 +484,12 @@ interface AdminUser {
                       <span class="asp-lbl">Court Charges</span>
                       <span class="asp-val">₱{{ reservationTotal | number:'1.2-2' }}</span>
                     </div>
+                    <div class="asp-stat">
+                      <span class="asp-lbl">Open Play Sessions</span>
+                      <span class="asp-val">{{ openPlayCharges.length }}</span>
+                    </div>
                     <div class="asp-stat asp-stat-due">
-                      <span class="asp-lbl">10% Due to Dev</span>
+                      <span class="asp-lbl">Conv. Fees Due</span>
                       <span class="asp-val">₱{{ appServiceDue | number:'1.2-2' }}</span>
                     </div>
                     <div class="asp-stat asp-stat-paid">
@@ -468,6 +523,28 @@ interface AdminUser {
                             <span class="asp-player">{{ getPlayerName(c) }}</span>
                             <span class="asp-date">{{ formatDate(c.createdAt) }}</span>
                             <span class="asp-amount-val">₱{{ c.amount | number:'1.2-2' }}</span>
+                            <span class="asp-fee-chip">Conv. Fee = ₱{{ (c.breakdown?.convenienceFee ?? 0) | number:'1.2-2' }}</span>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+
+                  <!-- Open play charges breakdown -->
+                  <div class="asp-section">
+                    <div class="asp-section-title">
+                      <i class="fas fa-users"></i> Open Play Session Charges
+                      @if (openPlayCharges.length > 0) { <span class="asp-count">{{ openPlayCharges.length }}</span> }
+                    </div>
+                    @if (openPlayCharges.length === 0) {
+                      <p class="state-msg">No open play session charges yet.</p>
+                    } @else {
+                      <div class="asp-charge-list">
+                        @for (c of openPlayCharges; track c._id) {
+                          <div class="asp-charge-row">
+                            <span class="asp-player">{{ c.openPlaySessionId?.title ?? '—' }}</span>
+                            <span class="asp-date">{{ c.openPlaySessionId?.sport ?? '' }} · {{ c.openPlaySessionId?.sessionDate | date:'MMM d, yyyy':'UTC' }}</span>
+                            <span class="asp-date">{{ c.openPlaySessionId?.startTime }} – {{ c.openPlaySessionId?.endTime }}</span>
                             <span class="asp-fee-chip">Conv. Fee = ₱{{ (c.breakdown?.convenienceFee ?? 0) | number:'1.2-2' }}</span>
                           </div>
                         }
@@ -789,6 +866,28 @@ interface AdminUser {
       margin: 0;
       font-size: 0.88rem;
       color: rgba(17,24,39,0.6);
+    }
+
+    .db-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.5rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .db-local {
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #6ee7b7;
+    }
+    .db-atlas {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
     }
 
     .hero-actions {
@@ -2142,6 +2241,168 @@ interface AdminUser {
       }
     }
 
+    /* ── Notification bell ── */
+    .btn-notif {
+      position: relative;
+      background: rgba(163,230,53,0.08);
+      border: 1px solid rgba(163,230,53,0.22);
+      color: var(--dm-accent);
+      padding: 0.5rem 0.65rem;
+      min-width: 38px;
+    }
+    .btn-notif:hover { background: rgba(163,230,53,0.16); }
+
+    .notif-badge {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      background: #ef4444;
+      color: #fff;
+      border-radius: 999px;
+      font-size: 0.65rem;
+      font-weight: 800;
+      min-width: 17px;
+      height: 17px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 3px;
+      line-height: 1;
+      border: 2px solid var(--dm-bg);
+    }
+
+    /* ── Notification panel ── */
+    .notif-panel {
+      position: absolute;
+      top: 4.8rem;
+      right: 1rem;
+      z-index: 200;
+      width: min(380px, calc(100vw - 2rem));
+      max-height: 480px;
+      background: var(--dm-surface);
+      border: 1px solid rgba(163,230,53,0.2);
+      border-radius: 14px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: notifPanelIn 0.18s ease-out;
+    }
+    @keyframes notifPanelIn { from { opacity: 0; transform: translateY(-8px) scale(0.97); } to { opacity: 1; transform: none; } }
+
+    .notif-panel-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      background: rgba(163,230,53,0.04);
+      flex-shrink: 0;
+    }
+
+    .notif-panel-title {
+      flex: 1;
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: var(--dm-accent);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .btn-text {
+      background: none;
+      border: none;
+      color: rgba(163,230,53,0.65);
+      font-size: 0.73rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+      font-family: inherit;
+      white-space: nowrap;
+      text-decoration: underline;
+    }
+    .btn-text:hover { color: var(--dm-accent); }
+
+    .notif-close {
+      background: rgba(255,255,255,0.06);
+      border: none;
+      color: var(--dm-muted);
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .notif-close:hover { background: rgba(255,255,255,0.12); color: var(--dm-text); }
+
+    .notif-list { overflow-y: auto; flex: 1; }
+
+    .notif-empty {
+      text-align: center;
+      color: var(--dm-muted);
+      font-size: 0.85rem;
+      padding: 2rem 1rem;
+      margin: 0;
+    }
+
+    .notif-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.7rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .notif-item:last-child { border-bottom: none; }
+    .notif-item:hover { background: rgba(255,255,255,0.04); }
+    .notif-unread { background: rgba(163,230,53,0.04); }
+    .notif-unread:hover { background: rgba(163,230,53,0.09); }
+
+    .notif-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(163,230,53,0.1);
+      border: 1px solid rgba(163,230,53,0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.82rem;
+      color: var(--dm-accent);
+      flex-shrink: 0;
+    }
+
+    .notif-content { flex: 1; min-width: 0; }
+    .notif-title { margin: 0 0 0.12rem; font-size: 0.82rem; font-weight: 700; color: var(--dm-text); }
+    .notif-body { margin: 0 0 0.18rem; font-size: 0.77rem; color: var(--dm-muted); line-height: 1.4; }
+    .notif-time { margin: 0; font-size: 0.68rem; color: rgba(255,255,255,0.32); }
+
+    .notif-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--dm-accent);
+      flex-shrink: 0;
+      margin-top: 0.3rem;
+      box-shadow: 0 0 6px rgba(163,230,53,0.45);
+    }
+
+    /* NEW club badge pill */
+    .pill-new {
+      background: rgba(163,230,53,0.14);
+      color: var(--dm-accent);
+      border: 1px solid rgba(163,230,53,0.32);
+      font-weight: 800;
+      letter-spacing: 0.06em;
+    }
+
     @media (max-width: 768px) {
       .clubs-menu-bar {
         margin: 0.4rem 0.6rem 0.15rem;
@@ -2205,6 +2466,7 @@ export class AdminClubsComponent implements OnInit {
   selectedClub: Club | null = null;
   clubListTab: 'active' | 'suspended' = 'active';
   copiedClubId: string | null = null;
+  showNotifications = false;
 
   get activeClubCount(): number {
     return this.clubs.filter(c => c.status !== 'suspended').length;
@@ -2289,11 +2551,15 @@ export class AdminClubsComponent implements OnInit {
       c.chargeType === 'reservation' && c.reservationId?.status === 'confirmed'
     );
   }
+  get openPlayCharges(): Charge[] {
+    return this.approvedCharges.filter(c => c.chargeType === 'open_play_session');
+  }
   get reservationTotal(): number {
     return this.reservationCharges.reduce((sum, c) => sum + c.amount, 0);
   }
   get appServiceDue(): number {
-    return this.reservationCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0);
+    return this.reservationCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0)
+      + this.openPlayCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0);
   }
   get aspTotalPaid(): number {
     return this.aspPayments.filter(p => p.type !== 'waiver').reduce((sum, p) => sum + p.amount, 0);
@@ -2306,6 +2572,7 @@ export class AdminClubsComponent implements OnInit {
   }
 
   mirroringUserId: string | null = null;
+  dbStatus = signal<{ db: string; dbHost: string } | null>(null);
 
   constructor(
     private clubService: ClubService,
@@ -2316,6 +2583,8 @@ export class AdminClubsComponent implements OnInit {
     private inquiriesService: InquiriesService,
     private router: Router,
     private cdr: ChangeDetectorRef,
+    readonly notifService: NotificationService,
+    private http: HttpClient,
   ) {}
 
   loginAs(user: AdminUser): void {
@@ -2333,6 +2602,11 @@ export class AdminClubsComponent implements OnInit {
 
   ngOnInit() {
     this.loadClubs();
+    if (this.auth.isSuperAdmin()) this.notifService.load();
+    this.http.get<{ status: string; db: string; dbHost: string }>(`${environment.apiUrl}/health`).subscribe({
+      next: (res) => this.dbStatus.set(res),
+      error: () => {},
+    });
   }
 
   // ── Club loading ──
@@ -2561,7 +2835,7 @@ export class AdminClubsComponent implements OnInit {
     let paymentsLoaded = false;
     const check = () => { if (chargesLoaded && paymentsLoaded) { this.aspLoading = false; this.cdr.detectChanges(); } };
 
-    this.chargesService.getApprovedCharges(clubId).subscribe({
+    this.chargesService.getAllCharges(clubId).subscribe({
       next: (c) => { this.approvedCharges = c; chargesLoaded = true; check(); },
       error: () => { this.aspError = 'Failed to load charge data.'; this.aspLoading = false; this.cdr.detectChanges(); },
     });
@@ -2633,5 +2907,10 @@ export class AdminClubsComponent implements OnInit {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '';
     return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  isNewClub(club: Club): boolean {
+    if (!club.createdAt) return false;
+    return Date.now() - new Date(club.createdAt).getTime() < 24 * 60 * 60 * 1000;
   }
 }

@@ -52,6 +52,7 @@ router.get("/pending-approval", auth, admin, async (req, res) => {
       .populate("playerId", "name email username")
       .populate("reservationId", "date court timeSlot durationHours status")
       .populate("sessionId", "date startTime ballBoyUsed")
+      .populate("openPlaySessionId", "title sessionDate startTime endTime sport")
       .sort({ paidAt: -1 })
       .lean();
     res.json(charges);

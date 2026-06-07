@@ -147,6 +147,10 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
                 <div class="summary-label">Court Reservations</div>
               </div>
               <div class="summary-item">
+                <div class="summary-value">{{ allOpenPlayCharges.length }}</div>
+                <div class="summary-label">Open Play Sessions</div>
+              </div>
+              <div class="summary-item">
                 <div class="summary-value">{{ reservationTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
                 <div class="summary-label">Total Court Fees</div>
               </div>
@@ -230,7 +234,52 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
                     <tr>
                       <td colspan="5" class="foot-label">Total ({{ reservationCharges.length }} reservations)</td>
                       <td class="col-amount foot-total">{{ reservationTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
-                      <td class="col-amount foot-total col-service">{{ appServiceTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                      <td class="col-amount foot-total col-service">{{ reservationServiceFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            }
+
+            <!-- Open Play Session Charges -->
+            <h4 class="section-heading" style="margin-top:24px">Open Play Session Charges</h4>
+            @if (allOpenPlayCharges.length === 0) {
+              <div class="empty-state">
+                <span>🎾</span>
+                <p>No open play session charges found.</p>
+              </div>
+            } @else {
+              <div class="table-wrap">
+                <table class="finance-table">
+                  <thead>
+                    <tr>
+                      <th>Session</th>
+                      <th>Sport</th>
+                      <th>Date</th>
+                      <th>Time</th>
+                      <th class="col-amount">Conv. Fee</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (charge of allOpenPlayCharges; track charge._id) {
+                      <tr>
+                        <td class="col-player">{{ charge.openPlaySessionId?.title ?? '—' }}</td>
+                        <td>{{ charge.openPlaySessionId?.sport ?? '—' }}</td>
+                        <td class="col-date">
+                          {{ charge.openPlaySessionId?.sessionDate | date: 'MMM d, yyyy' : 'UTC' }}
+                        </td>
+                        <td class="col-date">
+                          {{ charge.openPlaySessionId?.startTime ?? '' }}
+                          @if (charge.openPlaySessionId?.endTime) { – {{ charge.openPlaySessionId!.endTime }} }
+                        </td>
+                        <td class="col-amount col-service">{{ (charge.breakdown?.convenienceFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colspan="4" class="foot-label">Total ({{ allOpenPlayCharges.length }} sessions)</td>
+                      <td class="col-amount foot-total col-service">{{ openPlayServiceFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -625,6 +674,7 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
 export class FinanceComponent implements OnInit {
   charges: Charge[] = [];
   allReservationCharges: Charge[] = [];
+  allOpenPlayCharges: Charge[] = [];
   filtered: Charge[] = [];
   appServicePayments: AppServicePayment[] = [];
   loading = true;
@@ -651,7 +701,9 @@ export class FinanceComponent implements OnInit {
 
   get reservationCharges() { return this.allReservationCharges; }
   get reservationTotal() { return this.reservationCharges.reduce((s, c) => s + c.amount, 0); }
-  get appServiceTotal() { return this.reservationCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
+  get reservationServiceFee() { return this.reservationCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
+  get openPlayServiceFee() { return this.allOpenPlayCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
+  get appServiceTotal() { return this.reservationServiceFee + this.openPlayServiceFee; }
   get totalPaid() { return this.appServicePayments.filter(p => p.type !== 'waiver').reduce((s, p) => s + p.amount, 0); }
   get totalWaived() { return this.appServicePayments.filter(p => p.type === 'waiver').reduce((s, p) => s + p.amount, 0); }
   get balance() { return this.appServiceTotal - this.totalPaid - this.totalWaived; }
@@ -673,6 +725,9 @@ export class FinanceComponent implements OnInit {
         this.charges = charges.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
         this.allReservationCharges = allCharges
           .filter(c => c.chargeType === 'reservation' && c.reservationId?.status === 'confirmed')
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        this.allOpenPlayCharges = allCharges
+          .filter(c => c.chargeType === 'open_play_session')
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         this.appServicePayments = payments;
         this.applyFilter();

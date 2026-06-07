@@ -9,9 +9,10 @@ export interface Charge {
   guestName?: string;
   reservationId?: { _id: string; date: string; court: number; timeSlot: string; durationHours?: number; status?: string };
   sessionId?: { _id: string; date: string; startTime: string; ballBoyUsed: boolean };
+  openPlaySessionId?: { _id: string; title: string; sessionDate: string; startTime: string; endTime: string; sport: string };
   amount: number;
   breakdown: { withoutLightFee: number; lightFee: number; ballBoyFee: number; guestFee?: number; rentalFee?: number; convenienceFee?: number };
-  chargeType: 'reservation' | 'session';
+  chargeType: 'reservation' | 'session' | 'open_play_session';
   status: 'unpaid' | 'paid';
   approvalStatus?: 'none' | 'pending' | 'approved' | 'rejected';
   paymentMethod?: 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme';
