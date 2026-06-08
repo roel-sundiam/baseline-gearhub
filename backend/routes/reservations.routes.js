@@ -155,7 +155,7 @@ router.get("/my", auth, async (req, res) => {
 router.get("/", auth, admin, async (req, res) => {
   try {
     const clubId = req.query.clubId || req.user.clubId;
-    const { date, court } = req.query;
+    const { date, court, status, startDate, endDate } = req.query;
     const filter = clubId ? { clubId } : {};
     if (date) {
       const start = new Date(date);
@@ -163,14 +163,27 @@ router.get("/", auth, admin, async (req, res) => {
       const end = new Date(date);
       end.setUTCHours(23, 59, 59, 999);
       filter.date = { $gte: start, $lte: end };
+    } else if (startDate && endDate) {
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      filter.date = { $gte: start, $lte: end };
     }
     if (court) {
       const courtNum = Number(court);
       if (Number.isInteger(courtNum) && courtNum >= 1) filter.court = courtNum;
     }
+    const validStatuses = ['confirmed', 'pending_payment', 'cancelled'];
+    if (status && validStatuses.includes(status)) filter.status = status;
+    if (!clubId) {
+      const suspendedIds = await Club.find({ status: 'suspended' }).distinct('_id');
+      if (suspendedIds.length) filter.clubId = { $nin: suspendedIds };
+    }
     const reservations = (await Reservation.find(filter)
       .populate("player", "name email")
       .populate("players", "name email")
+      .populate("clubId", "name")
       .sort({ date: -1, court: 1 })
       .lean())
       .sort((a, b) => {

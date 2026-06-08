@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { UsersService } from '../../../core/services/users.service';
 import { SessionsService } from '../../../core/services/sessions.service';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { forkJoin, timeout, of, catchError } from 'rxjs';
 
 @Component({
@@ -144,6 +145,13 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
               <span class="action-title">Court Reservations</span>
               <span class="action-sub">View, edit, and manage court bookings</span>
             </a>
+            @if (authService.isSuperAdmin()) {
+              <a routerLink="/admin/reservations-report" class="action-card">
+                <span class="action-icon"><i class="fas fa-chart-bar"></i></span>
+                <span class="action-title">Reservations Report</span>
+                <span class="action-sub">All reservations with status — superadmin view</span>
+              </a>
+            }
             <a routerLink="/admin/rates" class="action-card">
               <span class="action-icon"><i class="fas fa-money-bill-wave"></i></span>
               <span class="action-title">Update Rates</span>
@@ -697,6 +705,7 @@ export class AdminDashboardComponent implements OnInit {
     private sessionsService: SessionsService,
     private chargesService: ChargesService,
     private cdr: ChangeDetectorRef,
+    protected authService: AuthService,
   ) {}
 
   ngOnInit() {

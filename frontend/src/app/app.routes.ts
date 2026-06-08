@@ -86,6 +86,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'reservations-report',
+        loadComponent: () =>
+          import('./features/admin/reservations-report/reservations-report.component').then(
+            (m) => m.ReservationsReportComponent,
+          ),
+      },
+      {
         path: 'payment-approvals',
         loadComponent: () =>
           import('./features/admin/payment-approvals/payment-approvals.component').then(

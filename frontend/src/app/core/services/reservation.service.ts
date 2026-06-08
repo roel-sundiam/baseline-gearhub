@@ -26,6 +26,7 @@ export interface Reservation {
   guestCount?: number;
   rentals?: { balls50: number; balls100: number; ballMachine: boolean; rackets: number };
   courtFee?: number;
+  clubId?: { _id: string; name: string } | string;
 }
 
 export interface AvailabilityResult {
@@ -60,10 +61,14 @@ export class ReservationService {
     return this.http.get<Reservation[]>(`${this.base}/schedule`);
   }
 
-  getAll(filters?: { date?: string; court?: string }) {
+  getAll(filters?: { date?: string; court?: string; status?: string; startDate?: string; endDate?: string; clubId?: string }) {
     let params = new HttpParams();
     if (filters?.date) params = params.set('date', filters.date);
     if (filters?.court) params = params.set('court', filters.court);
+    if (filters?.status) params = params.set('status', filters.status);
+    if (filters?.startDate) params = params.set('startDate', filters.startDate);
+    if (filters?.endDate) params = params.set('endDate', filters.endDate);
+    if (filters?.clubId) params = params.set('clubId', filters.clubId);
     return this.http.get<Reservation[]>(this.base, { params });
   }
 
