@@ -1,8 +1,9 @@
-const CACHE = 'courtgo-v63';
+const CACHE = 'courtgo-v64';
 const PRECACHE = ['/', '/index.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE)));
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
@@ -114,6 +115,23 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   if (e.request.url.includes('/api/')) return;
 
+  // Network-first for navigation (index.html) — always fetch latest app shell
+  // so a new deploy never serves a stale HTML referencing old JS bundle hashes.
+  // Falls back to cache only when offline.
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        if (res && res.status === 200 && res.type === 'basic') {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, copy));
+        }
+        return res;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Cache-first for all other static assets (JS/CSS/images are content-hashed)
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
       if (!res || res.status !== 200 || res.type !== 'basic') return res;

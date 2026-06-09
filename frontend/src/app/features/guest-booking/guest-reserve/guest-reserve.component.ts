@@ -1,10 +1,11 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2, signal, computed } from '@angular/core';
+import { CommonModule, CurrencyPipe, DecimalPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { PublicBookingService, PublicRates, GuestBookingResult } from '../../../core/services/public-booking.service';
 
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm']);
+const WEEKEND_DAYS = new Set([0, 5, 6]);
 
 function slotToHour(slot: string): number {
   const m = slot.match(/^(\d+)(am|pm)$/);
@@ -16,763 +17,1130 @@ function hourToSlot(h: number): string {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}${h < 12 ? 'am' : 'pm'}`;
 }
-
 function hoursToSlots(openingHour: number, closingHour: number): string[] {
   const slots: string[] = [];
   for (let h = openingHour; h <= closingHour; h++) {
     const h12 = h % 12 === 0 ? 12 : h % 12;
-    const period = h < 12 ? 'am' : 'pm';
-    slots.push(`${h12}${period}`);
+    slots.push(`${h12}${h < 12 ? 'am' : 'pm'}`);
   }
   return slots;
 }
-const WEEKEND_DAYS = new Set([0, 5, 6]);
+function addDays(dateStr: string, delta: number): string {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().split('T')[0];
+}
 
 @Component({
   selector: 'app-guest-reserve',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CurrencyPipe, DecimalPipe, DatePipe],
   template: `
-    <div class="gb-shell">
-      <header class="gb-header">
-        <div class="gb-header-inner">
-          <button class="gb-back-btn" (click)="goBack()" title="Back to club page">
-            <i class="fas fa-arrow-left"></i>
-          </button>
-          @if (clubLogo) {
-            <img class="gb-club-logo" [src]="clubLogo" [alt]="clubName" />
-          } @else {
-            <img class="gb-cg-icon" src="/CG.png" alt="CourtGo" />
-          }
-          <div>
-            <div class="gb-club-name">{{ clubName || 'Loading…' }}</div>
-            <div class="gb-header-sub">Guest Court Booking</div>
+    <div class="gr-shell">
+
+      <!-- ── Header ── -->
+      <header class="gr-header">
+        <div class="gr-header-inner">
+          <button class="gr-back-btn" (click)="goBack()">&#8592; Back</button>
+          <div class="gr-header-brand">
+            @if (clubLogo) {
+              <img class="gr-club-logo" [src]="clubLogo" [alt]="clubName" />
+            } @else {
+              <img class="gr-cg-icon" src="/CG.png" alt="CourtGo" />
+            }
+            <div>
+              <div class="gr-club-name">{{ clubName || 'Loading…' }}</div>
+              @if (clubLocation) {
+                <div class="gr-club-loc">&#128205; {{ clubLocation }}</div>
+              }
+            </div>
+          </div>
+          <div class="gr-header-actions">
+            <button class="gr-action-btn" (click)="shareBooking()">&#8599; Share</button>
           </div>
         </div>
       </header>
 
-      <div class="gb-body">
+      <div class="gr-body">
 
         @if (clubError) {
-          <div class="gb-error-card">
-            <i class="fas fa-exclamation-circle"></i>
-            <p>{{ clubError }}</p>
-          </div>
+          <div class="gr-error-card">&#9888; {{ clubError }}</div>
         }
 
         @else if (confirmed) {
-          <!-- Confirmation view -->
-          <div class="gb-confirm-card">
-            <div class="gb-confirm-icon"><i class="fas fa-calendar-check"></i></div>
-            <h2 class="gb-confirm-title">Booking Received!</h2>
-            <p class="gb-confirm-sub">Your slot is reserved and awaiting payment confirmation.</p>
-
-            <div class="gb-confirm-rows">
-              <div class="gb-confirm-row">
-                <span>Reference</span>
-                <strong class="gb-ref">{{ confirmationData!.reservation._id }}</strong>
+          <!-- ── Confirmation ── -->
+          <div class="gr-confirm-wrap">
+            <div class="gr-confirm-card">
+              <div class="gr-confirm-icon">&#10003;</div>
+              <h2 class="gr-confirm-title">Booking Received!</h2>
+              <p class="gr-confirm-sub">Your slot is reserved and awaiting payment confirmation.</p>
+              <div class="gr-confirm-rows">
+                <div class="gr-confirm-row"><span>Reference</span><strong class="gr-ref">{{ confirmationData!.reservation._id }}</strong></div>
+                <div class="gr-confirm-row"><span>Court</span><strong>Court {{ confirmationData!.reservation.court }}</strong></div>
+                <div class="gr-confirm-row"><span>Date</span><strong>{{ confirmationData!.reservation.date | date: 'EEE, MMM d, y' : 'UTC' }}</strong></div>
+                <div class="gr-confirm-row"><span>Time</span><strong class="gr-green">{{ confirmTimeLabel }}</strong></div>
+                <div class="gr-confirm-row"><span>Total Fee</span><strong class="gr-green">{{ confirmationData!.charge.amount | currency: 'PHP' : 'symbol' }}</strong></div>
               </div>
-              <div class="gb-confirm-row">
-                <span>Court</span>
-                <strong>Court {{ confirmationData!.reservation.court }}</strong>
-              </div>
-              <div class="gb-confirm-row">
-                <span>Date</span>
-                <strong>{{ confirmationData!.reservation.date | date: 'EEE, MMM d, y' : 'UTC' }}</strong>
-              </div>
-              <div class="gb-confirm-row">
-                <span>Time</span>
-                <strong class="gb-green">{{ confirmTimeLabel }}</strong>
-              </div>
-              <div class="gb-confirm-row">
-                <span>Total Fee</span>
-                <strong class="gb-green">{{ confirmationData!.charge.amount | currency: 'PHP' : 'symbol' }}</strong>
-              </div>
-            </div>
-
-            @if (paymentMethods.length > 0) {
-              <div class="gb-payment-methods-list">
-                <p class="gb-payment-methods-label">Payment Options</p>
-                @for (method of paymentMethods; track method) {
-                  <div class="gb-payment-notice gb-payment-notice-method">
-                    @if (method === 'GoTyme') {
-                      <img src="/goTyme.jpg" alt="GoTyme" class="gb-payment-method-logo" />
-                    } @else {
-                      <i class="fas fa-wallet"></i>
-                    }
-                    <div>
-                      <strong>Pay via {{ method }}</strong>
-                      @if (paymentQrCodes[method]) {
-                        <img [src]="paymentQrCodes[method]" alt="Payment QR Code" class="gb-qr-code" />
-                      }
-                      @if (paymentAccounts[method]) {
-                        <p class="gb-payment-account">{{ paymentAccounts[method] }}</p>
-                      }
-                      @if (paymentQrCodes[method] || paymentAccounts[method]) {
-                        <p>Send the exact amount and keep your reference number. Your slot will be confirmed once payment is verified.</p>
+              @if (paymentMethods.length > 0) {
+                <div class="gr-payment-list">
+                  <p class="gr-payment-label">Payment Options</p>
+                  @for (method of paymentMethods; track method) {
+                    <div class="gr-payment-notice">
+                      @if (method === 'GoTyme') {
+                        <img src="/goTyme.jpg" alt="GoTyme" class="gr-pay-logo" />
                       } @else {
-                        <p>Send the exact amount and keep your reference number. Your slot will be confirmed once payment is verified.</p>
+                        <span class="gr-pay-icon">&#128179;</span>
                       }
+                      <div>
+                        <strong>Pay via {{ method }}</strong>
+                        @if (paymentQrCodes[method]) {
+                          <img [src]="paymentQrCodes[method]" alt="QR" class="gr-qr" />
+                        }
+                        @if (paymentAccounts[method]) {
+                          <p class="gr-pay-account">{{ paymentAccounts[method] }}</p>
+                        }
+                        <p>Send the exact amount and keep your reference number.</p>
+                      </div>
                     </div>
-                  </div>
-                }
-              </div>
-            } @else {
-              <div class="gb-payment-notice">
-                <i class="fas fa-info-circle"></i>
-                <div>
-                  <strong>Next step: Pay the court fee</strong>
-                  <p>Please settle the fee with the club admin. Your slot will be confirmed once payment is verified. Keep your reference number for follow-up.</p>
+                  }
                 </div>
-              </div>
-            }
+              } @else {
+                <div class="gr-payment-notice">
+                  <span class="gr-pay-icon">&#8505;</span>
+                  <div>
+                    <strong>Next step: Pay the court fee</strong>
+                    <p>Settle the fee with the club admin. Keep your reference number for follow-up.</p>
+                  </div>
+                </div>
+              }
+              <button class="gr-new-btn" (click)="resetBooking()">Make Another Booking</button>
+            </div>
           </div>
         }
 
         @else {
-          <!-- Booking form -->
-          @if (errorMsg) {
-            <div class="gb-alert gb-alert-error"><i class="fas fa-exclamation-triangle"></i> {{ errorMsg }}</div>
-          }
+          <!-- ── Main layout ── -->
+          <div class="gr-layout">
 
-          <!-- Guest Info -->
-          <div class="gb-section">
-            <div class="gb-section-label">Your Info</div>
-            <input
-              type="text"
-              class="gb-input"
-              placeholder="Full name *"
-              [(ngModel)]="guestName"
-            />
-            <input
-              type="email"
-              class="gb-input gb-input-mt"
-              placeholder="Email address *"
-              [(ngModel)]="guestEmail"
-            />
-            <input
-              type="tel"
-              class="gb-input gb-input-mt"
-              placeholder="Phone number (optional)"
-              [(ngModel)]="guestPhone"
-            />
-          </div>
-
-          <!-- Date -->
-          <div class="gb-section">
-            <div class="gb-section-label">Date</div>
-            <input
-              type="date"
-              class="gb-input"
-              [(ngModel)]="selectedDate"
-              [min]="today"
-              (change)="onDateOrCourtChange()"
-            />
-          </div>
-
-          <!-- Court -->
-          <div class="gb-section">
-            <div class="gb-section-label">Court</div>
-            <div class="gb-court-toggle">
-              @for (n of courtNumbers; track n) {
-                <button class="gb-court-btn" [class.active]="selectedCourt === n" (click)="selectCourt(n)">
-                  <i class="fas fa-table-tennis"></i> Court {{ n }}
-                </button>
-              }
-            </div>
-          </div>
-
-          <!-- Time Slot -->
-          @if (selectedDate && selectedCourt) {
-            <div class="gb-section">
-              <div class="gb-section-label">
-                Time Slot
-                <span class="gb-lights-legend"><span class="gb-lights-dot"></span> with lights</span>
+            <!-- LEFT: date nav + grid -->
+            <div class="gr-left">
+              <div class="gr-date-nav">
+                <button class="gr-nav-btn" (click)="prevDay()" [disabled]="navDate() <= today">&#8249;</button>
+                <div class="gr-date-label">{{ navDate() | date: 'EEEE, MMMM d, y' : 'UTC' }}</div>
+                <button class="gr-nav-btn" (click)="nextDay()">&#8250;</button>
+                @if (navDate() !== today) {
+                  <button class="gr-today-btn" (click)="goToday()">Today</button>
+                }
               </div>
-              @if (loadingSlots) {
-                <div class="gb-slot-loading"><i class="fas fa-circle-notch fa-spin"></i> Checking availability…</div>
+
+              <div class="gr-legend">
+                <span class="gr-legend-item gr-leg-available">Available</span>
+                <span class="gr-legend-item gr-leg-selected">Selected</span>
+                <span class="gr-legend-item gr-leg-booked">Booked</span>
+                <span class="gr-legend-item gr-leg-lights">&#128161; Lights slot</span>
+              </div>
+
+              @if (availLoading()) {
+                <div class="gr-grid-loading">
+                  <div class="gr-spinner"></div> Checking availability…
+                </div>
               } @else {
-                <div class="gb-slot-grid">
-                  @for (slot of allSlots; track slot) {
-                    <button
-                      class="gb-slot-btn"
-                      [class.selected]="selectedSlot === slot"
-                      [class.booked]="bookedSlots.has(slot)"
-                      [class.in-range]="isInRange(slot)"
-                      [class.has-lights]="lightSlots.has(slot)"
-                      [disabled]="bookedSlots.has(slot) || isInRange(slot)"
-                      (click)="selectSlot(slot)"
-                    >
-                      {{ slot }}
-                      @if (lightSlots.has(slot)) { <span class="gb-light-dot">💡</span> }
+                <div class="gr-grid-wrap">
+                  <table class="gr-grid">
+                    <thead>
+                      <tr>
+                        <th class="gr-time-col">Time</th>
+                        @for (c of courtNumbers(); track c) {
+                          <th class="gr-court-col">Court {{ c }}</th>
+                        }
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (slot of allSlots; track slot) {
+                        <tr [class.gr-lights-row]="lightSlots.has(slot)">
+                          <td class="gr-time-cell">
+                            {{ formatSlotLabel(slot) }}
+                            @if (lightSlots.has(slot)) { <span class="gr-light-dot">&#128161;</span> }
+                          </td>
+                          @for (c of courtNumbers(); track c) {
+                            <td
+                              class="gr-cell"
+                              [class.gr-cell-available]="cellState(c, slot) === 'available'"
+                              [class.gr-cell-selected]="cellState(c, slot) === 'selected'"
+                              [class.gr-cell-in-range]="cellState(c, slot) === 'in-range'"
+                              [class.gr-cell-booked]="cellState(c, slot) === 'booked'"
+                              (click)="onCellClick(c, slot)"
+                            >
+                              @if (cellState(c, slot) === 'booked') { <span>&#10005;</span> }
+                              @else if (cellState(c, slot) === 'selected') { <span>&#9679;</span> }
+                              @else if (cellState(c, slot) === 'in-range') { <span class="gr-range-line"></span> }
+                            </td>
+                          }
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </div><!-- /gr-left -->
+
+            <!-- RIGHT sidebar -->
+            <div class="gr-sidebar">
+
+              @if (selectedSlot && selectedCourt) {
+                <!-- ── Booking form panel ── -->
+                <div class="gr-booking-panel">
+                  <div class="gr-panel-header">
+                    <div class="gr-panel-title">Booking &amp; payment</div>
+                    <button class="gr-panel-clear" (click)="clearSelection()" title="Clear selection">&#10005;</button>
+                  </div>
+
+                  <div class="gr-panel-body">
+
+                    <!-- Rate info -->
+                    <div class="gr-rate-info">
+                      @if (weekdayRate > 0) {
+                        <div>Weekday: <strong>{{ weekdayRate | currency: 'PHP' : 'symbol' }}/hr</strong></div>
+                      }
+                      @if (weekendRate > 0) {
+                        <div>Weekend: <strong>{{ weekendRate | currency: 'PHP' : 'symbol' }}/hr</strong></div>
+                      }
+                      @if (holidayRate > 0) {
+                        <div>Holiday: <strong>{{ holidayRate | currency: 'PHP' : 'symbol' }}/hr</strong></div>
+                      }
+                    </div>
+
+                    <!-- Selected slot summary -->
+                    <div class="gr-slot-summary">
+                      <span class="gr-slot-badge">Court {{ selectedCourt }}</span>
+                      <span class="gr-slot-badge gr-slot-badge-time">
+                        {{ selectedSlot }}{{ selectedDuration > 1 ? ' – ' + endSlotLabel : '' }}
+                      </span>
+                      <span class="gr-slot-badge gr-slot-badge-date">{{ navDate() | date: 'MMM d' : 'UTC' }}</span>
+                    </div>
+
+                    <!-- Toggles -->
+                    <div class="gr-toggles-row">
+                      <label class="gr-toggle-item">
+                        <input type="checkbox" [(ngModel)]="lightsRequested" />
+                        <span>&#128161; Lights</span>
+                      </label>
+                      @if (holidayRate > 0) {
+                        <label class="gr-toggle-item">
+                          <input type="checkbox" [(ngModel)]="isHoliday" />
+                          <span>&#127958; Holiday</span>
+                        </label>
+                      }
+                      @if (ballBoyRate > 0) {
+                        <label class="gr-toggle-item">
+                          <input type="checkbox" [(ngModel)]="ballBoyRequested" />
+                          <span>&#127934; Ball Boy</span>
+                        </label>
+                      }
+                    </div>
+
+                    <!-- Guests -->
+                    @if (guestFeeRate > 0) {
+                      <div class="gr-field-group">
+                        <label class="gr-field-label">Non-member guests</label>
+                        <div class="gr-counter">
+                          <button type="button" class="gr-count-btn" (click)="guestCount = guestCount > 0 ? guestCount - 1 : 0">&#8722;</button>
+                          <span class="gr-count-val">{{ guestCount }}</span>
+                          <button type="button" class="gr-count-btn" (click)="guestCount = guestCount + 1">&#43;</button>
+                          @if (guestCount > 0) { <span class="gr-count-fee">{{ totalGuestFee | currency: 'PHP' : 'symbol' }}</span> }
+                        </div>
+                      </div>
+                    }
+
+                    <!-- Rentals -->
+                    @if (hasAnyRental) {
+                      <div class="gr-field-group">
+                        <label class="gr-field-label">Rentals <span class="gr-optional">optional</span></label>
+                        <div class="gr-rentals">
+                          @if (rentalBalls50Rate > 0) {
+                            <div class="gr-rental-row">
+                              <span>&#127934; Balls (50)</span>
+                              <span class="gr-rental-rate">{{ rentalBalls50Rate | currency: 'PHP' : 'symbol' }}</span>
+                              <div class="gr-counter gr-counter-sm">
+                                <button type="button" class="gr-count-btn sm" (click)="rentalBalls50 = rentalBalls50 > 0 ? rentalBalls50 - 1 : 0">&#8722;</button>
+                                <span class="gr-count-val sm">{{ rentalBalls50 }}</span>
+                                <button type="button" class="gr-count-btn sm" (click)="rentalBalls50 = rentalBalls50 + 1">&#43;</button>
+                              </div>
+                            </div>
+                          }
+                          @if (rentalBalls100Rate > 0) {
+                            <div class="gr-rental-row">
+                              <span>&#127934; Balls (100)</span>
+                              <span class="gr-rental-rate">{{ rentalBalls100Rate | currency: 'PHP' : 'symbol' }}</span>
+                              <div class="gr-counter gr-counter-sm">
+                                <button type="button" class="gr-count-btn sm" (click)="rentalBalls100 = rentalBalls100 > 0 ? rentalBalls100 - 1 : 0">&#8722;</button>
+                                <span class="gr-count-val sm">{{ rentalBalls100 }}</span>
+                                <button type="button" class="gr-count-btn sm" (click)="rentalBalls100 = rentalBalls100 + 1">&#43;</button>
+                              </div>
+                            </div>
+                          }
+                          @if (rentalBallMachineRate > 0) {
+                            <div class="gr-rental-row">
+                              <span>&#129302; Ball Machine</span>
+                              <span class="gr-rental-rate">{{ rentalBallMachineRate | currency: 'PHP' : 'symbol' }}</span>
+                              <label class="gr-toggle-item" style="margin:0">
+                                <input type="checkbox" [(ngModel)]="rentalBallMachine" />
+                                <span>{{ rentalBallMachine ? 'Yes' : 'No' }}</span>
+                              </label>
+                            </div>
+                          }
+                          @if (rentalRacketRate > 0) {
+                            <div class="gr-rental-row">
+                              <span>&#127955; Racket</span>
+                              <span class="gr-rental-rate">{{ rentalRacketRate | currency: 'PHP' : 'symbol' }}</span>
+                              <div class="gr-counter gr-counter-sm">
+                                <button type="button" class="gr-count-btn sm" (click)="rentalRackets = rentalRackets > 0 ? rentalRackets - 1 : 0">&#8722;</button>
+                                <span class="gr-count-val sm">{{ rentalRackets }}</span>
+                                <button type="button" class="gr-count-btn sm" (click)="rentalRackets = rentalRackets + 1">&#43;</button>
+                              </div>
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    }
+
+                    <!-- Price summary -->
+                    <div class="gr-sum-block">
+                      <div class="gr-sum-row">
+                        <span>Subtotal</span>
+                        <strong>{{ subtotal | currency: 'PHP' : 'symbol' }}</strong>
+                      </div>
+                      <div class="gr-sum-row">
+                        <span>Convenience fee <span class="gr-sum-pct">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
+                        <strong>{{ convenienceFee | currency: 'PHP' : 'symbol' }}</strong>
+                      </div>
+                      <div class="gr-sum-total-row">
+                        <span>Total:</span>
+                        <strong class="gr-total-amt">{{ computedFee | currency: 'PHP' : 'symbol' }}</strong>
+                      </div>
+                    </div>
+
+                    <!-- Guest info -->
+                    @if (errorMsg) {
+                      <div class="gr-alert-error">&#9888; {{ errorMsg }}</div>
+                    }
+
+                    <div class="gr-field-group">
+                      <label class="gr-field-label">Full name *</label>
+                      <input type="text" class="gr-input" placeholder="Full name" [(ngModel)]="guestName" />
+                    </div>
+                    <div class="gr-field-group">
+                      <label class="gr-field-label">Email *</label>
+                      <input type="email" class="gr-input" placeholder="Email" [(ngModel)]="guestEmail" />
+                    </div>
+                    <div class="gr-field-group">
+                      <label class="gr-field-label">Phone <span class="gr-optional">optional</span></label>
+                      <input type="tel" class="gr-input" placeholder="Phone" [(ngModel)]="guestPhone" />
+                    </div>
+
+                    <!-- Payment Method -->
+                    @if (paymentMethods.length > 0) {
+                      <div class="gr-field-group">
+                        <label class="gr-field-label">Payment method *</label>
+                        <select class="gr-input gr-select" [(ngModel)]="selectedPaymentMethod">
+                          <option value="" disabled>Select payment method</option>
+                          @for (method of paymentMethods; track method) {
+                            <option [value]="method">{{ method }}</option>
+                          }
+                        </select>
+                      </div>
+
+                      @if (selectedPaymentMethod && paymentQrCodes[selectedPaymentMethod]) {
+                        <div class="gr-qr-block">
+                          <div class="gr-qr-label">Pay using this QR ({{ selectedPaymentMethod }})</div>
+                          <img
+                            class="gr-qr-img"
+                            [src]="paymentQrCodes[selectedPaymentMethod]"
+                            [alt]="'QR code for ' + selectedPaymentMethod"
+                          />
+
+                          @if (paymentAccounts[selectedPaymentMethod]) {
+                            <div class="gr-acct-rows">
+                              <div class="gr-acct-row">
+                                <span class="gr-acct-label">Account Number</span>
+                                <div class="gr-acct-value-wrap">
+                                  <span class="gr-acct-value">{{ paymentAccounts[selectedPaymentMethod] }}</span>
+                                  <button
+                                    type="button"
+                                    class="gr-copy-btn"
+                                    (click)="copyToClipboard(paymentAccounts[selectedPaymentMethod])"
+                                    [title]="'Copy ' + paymentAccounts[selectedPaymentMethod]"
+                                  >
+                                    @if (copiedMethod === selectedPaymentMethod) {
+                                      &#10003;
+                                    } @else {
+                                      &#10697;
+                                    }
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          }
+
+                          <button type="button" class="gr-dl-btn" (click)="downloadQr(selectedPaymentMethod)">
+                            &#8595; Download QR Code
+                          </button>
+                        </div>
+                      }
+                    }
+
+                    <!-- Payment screenshot -->
+                    <div class="gr-field-group">
+                      <label class="gr-field-label">Payment screenshot <span class="gr-optional">optional</span></label>
+                      <label class="gr-file-label">
+                        <input type="file" accept="image/*" class="gr-file-input" (change)="onScreenshotChange($event)" />
+                        <span class="gr-file-btn">Choose File</span>
+                        <span class="gr-file-name">{{ paymentScreenshot ? paymentScreenshot.name : 'No file chosen' }}</span>
+                      </label>
+                    </div>
+
+                    <!-- Terms -->
+                    <div class="gr-terms-row">
+                      <button type="button" class="gr-terms-btn" (click)="showTerms = !showTerms">
+                        View Terms &amp; Conditions
+                      </button>
+                      <label class="gr-toggle-item">
+                        <input type="checkbox" [(ngModel)]="agreedToTerms" />
+                        <span>I agree</span>
+                      </label>
+                    </div>
+
+                  </div><!-- /gr-panel-body -->
+
+                  <div class="gr-panel-footer">
+                    <button class="gr-submit-btn" [disabled]="booking || !guestName || !guestEmail || !agreedToTerms" (click)="submit()">
+                      @if (booking) { Submitting… } @else { Confirm booking }
                     </button>
+
+                  </div>
+                </div>
+
+              } @else {
+                <!-- ── Default sidebar: photo + info ── -->
+                @if (clubPhotos().length > 0) {
+                  <div class="gr-carousel">
+                    <img class="gr-carousel-img" [src]="clubPhotos()[carouselIndex()]" alt="Club photo" />
+                    @if (clubPhotos().length > 1) {
+                      <button class="gr-car-btn gr-car-prev" (click)="prevPhoto()">&#8249;</button>
+                      <button class="gr-car-btn gr-car-next" (click)="nextPhoto()">&#8250;</button>
+                      <div class="gr-car-dots">
+                        @for (p of clubPhotos(); track $index) {
+                          <span class="gr-car-dot" [class.active]="$index === carouselIndex()" (click)="carouselIndex.set($index)"></span>
+                        }
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <div class="gr-carousel gr-carousel-placeholder">
+                    <div class="gr-car-placeholder-text">No photos</div>
+                  </div>
+                }
+
+                <div class="gr-info-card">
+                  <div class="gr-info-title">{{ clubName }}</div>
+                  @if (clubLocation) {
+                    <div class="gr-info-row"><span class="gr-info-icon">&#128205;</span><span>{{ clubLocation }}</span></div>
                   }
+                  <div class="gr-info-row"><span class="gr-info-icon">&#127955;</span><span>{{ courtCount }} court{{ courtCount !== 1 ? 's' : '' }}</span></div>
+                  @if (weekdayRate > 0) {
+                    <div class="gr-info-row"><span class="gr-info-icon">&#128176;</span><span>{{ weekdayRate | currency: 'PHP' : 'symbol' }}/hr (weekday)</span></div>
+                  }
+                  @if (clubMobile) {
+                    <div class="gr-info-row"><span class="gr-info-icon">&#128222;</span><a [href]="'tel:' + clubMobile" class="gr-info-link">{{ clubMobile }}</a></div>
+                  }
+                  @if (clubEmail) {
+                    <div class="gr-info-row"><span class="gr-info-icon">&#9993;</span><a [href]="'mailto:' + clubEmail" class="gr-info-link">{{ clubEmail }}</a></div>
+                  }
+                  @if (clubSocial.facebook) {
+                    <div class="gr-info-row"><span class="gr-info-icon">f</span><a [href]="clubSocial.facebook" target="_blank" class="gr-info-link">Facebook</a></div>
+                  }
+                  @if (clubSocial.instagram) {
+                    <div class="gr-info-row"><span class="gr-info-icon">&#9654;</span><a [href]="clubSocial.instagram" target="_blank" class="gr-info-link">Instagram</a></div>
+                  }
+                  <div class="gr-info-hint">&#8592; Click a slot on the grid to book</div>
                 </div>
               }
-            </div>
-          }
 
-          <!-- Duration -->
-          @if (selectedSlot && availableDurations.length > 1) {
-            <div class="gb-section">
-              <div class="gb-section-label">Duration</div>
-              <div class="gb-duration-row">
-                @for (d of availableDurations; track d) {
-                  <button
-                    type="button"
-                    class="gb-duration-btn"
-                    [class.active]="selectedDuration === d"
-                    (click)="setDuration(d)"
-                  >
-                    {{ d }} hr{{ d > 1 ? 's' : '' }}
-                  </button>
-                }
-              </div>
-            </div>
-          }
+            </div><!-- /gr-sidebar -->
 
-          <!-- Lights -->
-          <div class="gb-section">
-            <div class="gb-section-label">Lights</div>
-            <label class="gb-toggle-row">
-              <input type="checkbox" class="gb-toggle-input" [(ngModel)]="lightsRequested" />
-              <span class="gb-toggle-track"><span class="gb-toggle-thumb"></span></span>
-              <span class="gb-toggle-label">{{ lightsRequested ? '💡 Lights on' : '🌙 No lights' }}</span>
-            </label>
-          </div>
-
-          <!-- Holiday -->
-          @if (holidayRate > 0) {
-            <div class="gb-section">
-              <div class="gb-section-label">Holiday <span class="gb-optional">optional</span></div>
-              <label class="gb-toggle-row">
-                <input type="checkbox" class="gb-toggle-input" [(ngModel)]="isHoliday" />
-                <span class="gb-toggle-track"><span class="gb-toggle-thumb"></span></span>
-                <span class="gb-toggle-label">{{ isHoliday ? 'Yes — holiday rates apply' : 'No — regular rates apply' }}</span>
-              </label>
-            </div>
-          }
-
-          <!-- Ball Boy -->
-          @if (ballBoyRate > 0) {
-            <div class="gb-section">
-              <div class="gb-section-label">Ball Boy <span class="gb-optional">optional</span></div>
-              <label class="gb-toggle-row">
-                <input type="checkbox" class="gb-toggle-input" [(ngModel)]="ballBoyRequested" />
-                <span class="gb-toggle-track"><span class="gb-toggle-thumb"></span></span>
-                <span class="gb-toggle-label">{{ ballBoyRequested ? '🎾 Requested' : 'Not requested' }}</span>
-              </label>
-            </div>
-          }
-
-          <!-- Guests -->
-          @if (guestFeeRate > 0) {
-            <div class="gb-section">
-              <div class="gb-section-label">Additional Non-members <span class="gb-optional">guests</span></div>
-              <div class="gb-counter-row">
-                <button type="button" class="gb-counter-btn" (click)="guestCount = guestCount > 0 ? guestCount - 1 : 0">−</button>
-                <span class="gb-counter-val">{{ guestCount }}</span>
-                <button type="button" class="gb-counter-btn" (click)="guestCount = guestCount + 1">+</button>
-                @if (guestCount > 0) {
-                  <span class="gb-counter-fee">{{ guestFeeRate | currency: 'PHP' : 'symbol' }} × {{ guestCount }} = {{ totalGuestFee | currency: 'PHP' : 'symbol' }}</span>
-                }
-              </div>
-            </div>
-          }
-
-          <!-- Rentals -->
-          @if (hasAnyRental) {
-            <div class="gb-section">
-              <div class="gb-section-label">Rentals <span class="gb-optional">optional</span></div>
-              <div class="gb-rentals-card">
-                @if (rentalBalls50Rate > 0) {
-                  <div class="gb-rental-row">
-                    <span class="gb-rental-name">🎾 Balls (50 pcs)</span>
-                    <span class="gb-rental-rate">{{ rentalBalls50Rate | currency: 'PHP' : 'symbol' }}</span>
-                    <div class="gb-rental-counter">
-                      <button type="button" class="gb-counter-btn sm" (click)="rentalBalls50 = rentalBalls50 > 0 ? rentalBalls50 - 1 : 0">−</button>
-                      <span class="gb-counter-val sm">{{ rentalBalls50 }}</span>
-                      <button type="button" class="gb-counter-btn sm" (click)="rentalBalls50 = rentalBalls50 + 1">+</button>
-                    </div>
-                  </div>
-                }
-                @if (rentalBalls100Rate > 0) {
-                  <div class="gb-rental-row">
-                    <span class="gb-rental-name">🎾 Balls (100 pcs)</span>
-                    <span class="gb-rental-rate">{{ rentalBalls100Rate | currency: 'PHP' : 'symbol' }}</span>
-                    <div class="gb-rental-counter">
-                      <button type="button" class="gb-counter-btn sm" (click)="rentalBalls100 = rentalBalls100 > 0 ? rentalBalls100 - 1 : 0">−</button>
-                      <span class="gb-counter-val sm">{{ rentalBalls100 }}</span>
-                      <button type="button" class="gb-counter-btn sm" (click)="rentalBalls100 = rentalBalls100 + 1">+</button>
-                    </div>
-                  </div>
-                }
-                @if (rentalBallMachineRate > 0) {
-                  <div class="gb-rental-row">
-                    <span class="gb-rental-name">🤖 Ball Machine</span>
-                    <span class="gb-rental-rate">{{ rentalBallMachineRate | currency: 'PHP' : 'symbol' }}</span>
-                    <label class="gb-toggle-row" style="margin:0">
-                      <input type="checkbox" class="gb-toggle-input" [(ngModel)]="rentalBallMachine" />
-                      <span class="gb-toggle-track"><span class="gb-toggle-thumb"></span></span>
-                      <span class="gb-toggle-label" style="font-size:.82rem">{{ rentalBallMachine ? 'Yes' : 'No' }}</span>
-                    </label>
-                  </div>
-                }
-                @if (rentalRacketRate > 0) {
-                  <div class="gb-rental-row">
-                    <span class="gb-rental-name">🏓 Racket</span>
-                    <span class="gb-rental-rate">{{ rentalRacketRate | currency: 'PHP' : 'symbol' }} each</span>
-                    <div class="gb-rental-counter">
-                      <button type="button" class="gb-counter-btn sm" (click)="rentalRackets = rentalRackets > 0 ? rentalRackets - 1 : 0">−</button>
-                      <span class="gb-counter-val sm">{{ rentalRackets }}</span>
-                      <button type="button" class="gb-counter-btn sm" (click)="rentalRackets = rentalRackets + 1">+</button>
-                    </div>
-                  </div>
-                }
-              </div>
-            </div>
-          }
-
-          <!-- Summary -->
-          @if (selectedSlot) {
-            <div class="gb-summary">
-              <div class="gb-summary-title"><i class="fas fa-clipboard-list"></i> Booking Summary</div>
-              <div class="gb-summary-row"><span>Name</span><strong>{{ guestName || '—' }}</strong></div>
-              <div class="gb-summary-row"><span>Court</span><strong>Court {{ selectedCourt }}</strong></div>
-              <div class="gb-summary-row"><span>Date</span><strong>{{ selectedDate | date: 'EEE, MMM d, y' : 'UTC' }}</strong></div>
-              <div class="gb-summary-row"><span>Time</span><strong class="gb-green">{{ selectedSlot }}{{ selectedDuration > 1 ? ' – ' + endSlotLabel : '' }}</strong></div>
-              <div class="gb-summary-row">
-                <span>Day Type</span>
-                <strong>
-                  @if (dayType === 'holiday') { Holiday 🏖️ }
-                  @else if (dayType === 'weekend') { Weekend 🎉 }
-                  @else { Weekday 📅 }
-                </strong>
-              </div>
-              <div class="gb-summary-divider"></div>
-              <div class="gb-summary-row">
-                <span>Court Fee{{ selectedDuration > 1 ? ' (' + selectedDuration + ' hrs × ' + (baseHourlyRate | currency: 'PHP' : 'symbol') + ')' : '' }}</span>
-                <strong>{{ baseCourtFee | currency: 'PHP' : 'symbol' }}</strong>
-              </div>
-              @if (lightsRequested) {
-                <div class="gb-summary-row">
-                  <span>Lights Fee{{ selectedDuration > 1 ? ' × ' + selectedDuration : '' }}</span>
-                  <strong>{{ lightsRate * selectedDuration | currency: 'PHP' : 'symbol' }}</strong>
-                </div>
-              }
-              @if (ballBoyRequested) {
-                <div class="gb-summary-row">
-                  <span>Ball Boy Fee{{ selectedDuration > 1 ? ' × ' + selectedDuration : '' }}</span>
-                  <strong>{{ ballBoyRate * selectedDuration | currency: 'PHP' : 'symbol' }}</strong>
-                </div>
-              }
-              @if (totalRentalFee > 0) {
-                <div class="gb-summary-row"><span>Rentals</span><strong>{{ totalRentalFee | currency: 'PHP' : 'symbol' }}</strong></div>
-              }
-              @if (guestCount > 0) {
-                <div class="gb-summary-row">
-                  <span>Guests ({{ guestCount }} × {{ guestFeeRate | currency: 'PHP' : 'symbol' }})</span>
-                  <strong>{{ totalGuestFee | currency: 'PHP' : 'symbol' }}</strong>
-                </div>
-              }
-              <div class="gb-summary-row">
-                <span>Convenience Fee <span style="font-size:0.72rem;opacity:0.5">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
-                <strong>{{ convenienceFee | currency: 'PHP' : 'symbol' }}</strong>
-              </div>
-              <div class="gb-summary-divider"></div>
-              <div class="gb-summary-row gb-summary-total">
-                <span>Total</span>
-                <strong class="gb-total-amount">{{ computedFee | currency: 'PHP' : 'symbol' }}</strong>
-              </div>
-            </div>
-
-            <button class="gb-confirm-btn" [disabled]="booking || !guestName || !guestEmail" (click)="submit()">
-              @if (booking) { <i class="fas fa-circle-notch fa-spin"></i> Submitting… }
-              @else { <i class="fas fa-calendar-check"></i> Request Booking }
-            </button>
-          }
-
-          <div class="gb-bottom-spacer"></div>
+          </div><!-- /gr-layout -->
         }
 
-      </div>
+      </div><!-- /gr-body -->
+
+      <!-- ── Terms & Conditions modal ── -->
+      @if (showTerms) {
+        <div class="gr-modal-overlay" (click)="showTerms = false">
+          <div class="gr-terms-modal" (click)="$event.stopPropagation()">
+            <div class="gr-terms-modal-header">
+              <div class="gr-terms-modal-title">Terms &amp; Conditions</div>
+              <button class="gr-modal-close" (click)="showTerms = false">&#10005;</button>
+            </div>
+            <div class="gr-terms-modal-body">
+              <p class="gr-terms-intro">By proceeding with your booking, you confirm that you have read, understood, and agreed to follow the rules outlined below. Any violation may result in actions such as removal from the premises, penalties, or suspension of access, as determined by management.</p>
+
+              <div class="gr-terms-item">
+                <div class="gr-terms-item-title">1. Respect the Court</div>
+                <p>Please treat the court, equipment, and other players with courtesy and care at all times. Unsportsmanlike conduct will not be tolerated.</p>
+              </div>
+              <div class="gr-terms-item">
+                <div class="gr-terms-item-title">2. No Smoking &#128683;</div>
+                <p>Smoking is strictly prohibited within the court premises.</p>
+              </div>
+              <div class="gr-terms-item">
+                <div class="gr-terms-item-title">3. Clean As You Go (CLAYGO) &#128465;</div>
+                <p>Dispose of all trash properly and help maintain cleanliness. Kindly leave the court in better condition than you found it.</p>
+              </div>
+              <div class="gr-terms-item">
+                <div class="gr-terms-item-title">4. Court Time &#9200;</div>
+                <p>Please be ready to play at your scheduled time. Delays or late arrivals will still be counted within your reserved slot.</p>
+              </div>
+              <div class="gr-terms-item">
+                <div class="gr-terms-item-title">5. Proper Footwear &#128099;</div>
+                <p>Players are encouraged to wear non-marking sports shoes to ensure safety and protect the court surface.</p>
+              </div>
+              <div class="gr-terms-item">
+                <div class="gr-terms-item-title">6. Play with Respect &amp; Enjoyment &#127859;</div>
+                <p>Play responsibly, keep the competition friendly, and avoid unnecessary conflicts. Let's keep the atmosphere fun and welcoming for everyone.</p>
+              </div>
+              <div class="gr-terms-item">
+                <div class="gr-terms-item-title">7. Share the Court &#10084;</div>
+                <p>Support fellow players, keep disagreements respectful, and remember that everyone is here to enjoy the game.</p>
+              </div>
+
+              <p class="gr-terms-footer-note">By continuing with your booking, you acknowledge and accept these terms. Management reserves the right to enforce rules and apply appropriate consequences for any violations.</p>
+            </div>
+            <div class="gr-terms-modal-footer">
+              <button class="gr-submit-btn" (click)="agreeAndClose()">I Agree</button>
+            </div>
+          </div>
+        </div>
+      }
+
     </div>
   `,
   styles: [`
-    :host {
-      display: block;
+    :host { display: block; }
+
+    .gr-shell {
       min-height: 100vh;
       background: #0c1a11;
+      color: #e8f5e9;
+      font-family: inherit;
     }
 
-    .gb-shell {
-      background: #0c1a11;
-      min-height: 100vh;
-      max-width: 520px;
-      margin: 0 auto;
+    /* ── Header ── */
+    .gr-header {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(12,26,17,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(163,230,53,0.1);
+    }
+    .gr-header-inner {
+      max-width: 1300px; margin: 0 auto;
+      padding: 0.75rem 1.5rem;
+      display: flex; align-items: center; gap: 1rem;
+    }
+    .gr-back-btn {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.5);
+      border-radius: 8px; padding: 0.4rem 0.85rem;
+      font-size: 0.82rem; cursor: pointer; white-space: nowrap;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .gr-back-btn:hover { border-color: #a3e635; color: #a3e635; }
+    .gr-header-brand {
+      display: flex; align-items: center; gap: 0.75rem;
+      flex: 1; min-width: 0;
+    }
+    .gr-club-logo, .gr-cg-icon {
+      width: 40px; height: 40px; border-radius: 8px;
+      object-fit: cover; flex-shrink: 0;
+    }
+    .gr-club-name { font-size: 1rem; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gr-club-loc { font-size: 0.78rem; color: rgba(255,255,255,0.4); margin-top: 1px; }
+    .gr-header-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+    .gr-action-btn {
+      background: none; border: 1px solid rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.5); border-radius: 8px;
+      padding: 0.4rem 0.9rem; font-size: 0.8rem; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .gr-action-btn:hover { border-color: #a3e635; color: #a3e635; }
+
+    /* ── Body ── */
+    .gr-body { max-width: 1300px; margin: 0 auto; padding: 1.5rem; }
+    .gr-error-card {
+      background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25);
+      color: #fca5a5; border-radius: 12px; padding: 1.25rem 1.5rem; font-size: 0.9rem;
     }
 
-    /* Header */
-    .gb-header {
-      background: #111f16;
-      padding: 1.1rem 1.25rem;
-      border-bottom: 1px solid rgba(255,255,255,0.07);
-      position: sticky;
-      top: 0;
-      z-index: 10;
+    /* ── Confirmation ── */
+    .gr-confirm-wrap { display: flex; justify-content: center; padding: 2rem 0; }
+    .gr-confirm-card {
+      background: #1b3028; border: 1px solid rgba(163,230,53,0.12);
+      border-radius: 16px; padding: 2rem 2.25rem; width: 100%; max-width: 520px;
     }
-    .gb-header-inner {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .gb-back-btn {
-      background: transparent;
-      border: none;
-      color: rgba(255,255,255,0.45);
-      font-size: 0.95rem;
-      cursor: pointer;
-      padding: 0.3rem 0.4rem;
-      border-radius: 6px;
-      transition: color 0.15s, background 0.15s;
-      flex-shrink: 0;
-      line-height: 1;
-    }
-    .gb-back-btn:hover { color: #ffffff; background: rgba(255,255,255,0.07); }
-    .gb-club-logo {
-      width: 36px; height: 36px;
-      border-radius: 10px;
-      object-fit: cover;
-      flex-shrink: 0;
-      border: 1px solid rgba(163,230,53,0.2);
-    }
-    .gb-cg-icon {
-      width: 36px; height: 36px;
-      border-radius: 10px;
-      object-fit: cover;
-      flex-shrink: 0;
-    }
-    .gb-club-name {
-      font-size: 1rem;
-      font-weight: 800;
-      color: #ffffff;
-    }
-    .gb-header-sub {
-      font-size: 0.72rem;
-      color: rgba(255,255,255,0.40);
-      font-weight: 500;
-    }
-
-    /* Body */
-    .gb-body {
-      padding: 1.25rem 1.1rem 2rem;
-    }
-
-    /* Error card */
-    .gb-error-card {
-      text-align: center;
-      padding: 3rem 1.5rem;
-      color: #ef4444;
-    }
-    .gb-error-card i { font-size: 2.5rem; margin-bottom: 1rem; display: block; }
-    .gb-error-card p { font-size: 0.95rem; font-weight: 600; }
-
-    /* Alert */
-    .gb-alert {
-      padding: 0.85rem 1rem;
-      border-radius: 10px;
-      font-size: 0.85rem;
-      font-weight: 600;
+    .gr-confirm-icon {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: rgba(163,230,53,0.15); color: #a3e635;
+      font-size: 1.5rem; display: flex; align-items: center; justify-content: center;
       margin-bottom: 1rem;
-      display: flex;
-      align-items: flex-start;
-      gap: 0.5rem;
     }
-    .gb-alert i { margin-top: 1px; flex-shrink: 0; }
-    .gb-alert-error {
-      background: rgba(239,68,68,0.12);
-      border: 1px solid rgba(239,68,68,0.25);
-      color: #ef4444;
+    .gr-confirm-title { font-size: 1.4rem; font-weight: 700; color: #fff; margin: 0 0 0.35rem; }
+    .gr-confirm-sub { font-size: 0.875rem; color: rgba(255,255,255,0.5); margin: 0 0 1.5rem; }
+    .gr-confirm-rows { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .gr-confirm-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; }
+    .gr-confirm-row span { color: rgba(255,255,255,0.5); }
+    .gr-ref { font-size: 0.72rem; font-family: monospace; letter-spacing: 0.04em; color: #a3e635; }
+    .gr-green { color: #a3e635; }
+    .gr-payment-list { margin-top: 1.5rem; }
+    .gr-payment-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.35); margin: 0 0 0.75rem; }
+    .gr-payment-notice {
+      display: flex; align-items: flex-start; gap: 0.75rem;
+      background: rgba(163,230,53,0.04); border: 1px solid rgba(163,230,53,0.1);
+      border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 0.6rem;
+      font-size: 0.85rem; color: rgba(255,255,255,0.7);
+    }
+    .gr-payment-notice p { margin: 0.3rem 0 0; }
+    .gr-pay-logo { width: 32px; height: 32px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+    .gr-pay-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .gr-pay-account { font-size: 0.8rem; color: rgba(255,255,255,0.5); margin: 0.2rem 0 0 !important; }
+    .gr-qr { width: 80px; height: 80px; border-radius: 6px; display: block; margin: 0.5rem 0; }
+    .gr-new-btn {
+      margin-top: 1.5rem; width: 100%; padding: 0.85rem;
+      background: #a3e635; color: #0c1a11; border: none; border-radius: 10px;
+      font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: background 0.15s;
+    }
+    .gr-new-btn:hover { background: #b5f040; }
+
+    /* ── Layout ── */
+    .gr-layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 1.5rem;
+      align-items: start;
     }
 
-    /* Sections */
-    .gb-section { margin-bottom: 1.2rem; }
-    .gb-section-label {
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: rgba(255,255,255,0.40);
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 0.5rem;
+    /* ── Date nav ── */
+    .gr-date-nav {
+      display: flex; align-items: center; gap: 0.75rem;
+      margin-bottom: 1rem; flex-wrap: wrap;
+    }
+    .gr-nav-btn {
+      width: 36px; height: 36px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      color: #fff; border-radius: 8px; font-size: 1.25rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .gr-nav-btn:hover:not(:disabled) { border-color: #a3e635; background: rgba(163,230,53,0.08); }
+    .gr-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .gr-date-label { font-size: 1rem; font-weight: 600; color: #fff; flex: 1; min-width: 180px; }
+    .gr-today-btn {
+      background: rgba(163,230,53,0.1); border: 1px solid rgba(163,230,53,0.25);
+      color: #a3e635; border-radius: 8px; padding: 0.35rem 0.8rem;
+      font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: background 0.15s;
+    }
+    .gr-today-btn:hover { background: rgba(163,230,53,0.2); }
+
+    /* ── Legend ── */
+    .gr-legend { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.9rem; }
+    .gr-legend-item { font-size: 0.74rem; padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 600; }
+    .gr-leg-available { background: #1a7a72; color: #fff; }
+    .gr-leg-selected { background: rgba(26,120,194,0.25); color: #5bb8f5; border: 1px solid #1a78c2; }
+    .gr-leg-booked { background: rgba(239,68,68,0.2); color: #f87171; }
+    .gr-leg-lights { background: rgba(255,200,0,0.08); color: rgba(255,220,80,0.8); }
+
+    /* ── Loading ── */
+    .gr-grid-loading {
+      display: flex; align-items: center; gap: 0.75rem;
+      color: rgba(255,255,255,0.45); font-size: 0.875rem; padding: 2rem 0;
+    }
+    .gr-spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(163,230,53,0.2); border-top-color: #a3e635;
+      border-radius: 50%; animation: gr-spin 0.7s linear infinite;
+    }
+    @keyframes gr-spin { to { transform: rotate(360deg); } }
+
+    /* ── Grid ── */
+    .gr-grid-wrap {
+      overflow-x: auto; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .gr-grid { width: 100%; border-collapse: collapse; min-width: 320px; }
+    .gr-grid thead th {
+      background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5);
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; padding: 0.65rem 0.5rem; text-align: center; white-space: nowrap;
+    }
+    .gr-time-col { width: 90px; text-align: left !important; padding-left: 0.75rem !important; }
+    .gr-court-col { min-width: 80px; }
+    .gr-time-cell {
+      padding: 0 0.75rem; font-size: 0.75rem; color: rgba(255,255,255,0.4);
+      white-space: nowrap; text-align: left;
+    }
+    .gr-light-dot { margin-left: 2px; font-size: 0.68rem; opacity: 0.7; }
+    .gr-cell {
+      height: 52px; text-align: center; vertical-align: middle;
+      border-top: 3px solid rgba(0,0,0,0.35);
+      border-left: 2px solid rgba(0,0,0,0.2);
+      font-size: 0.82rem; cursor: pointer;
+      transition: background 0.12s;
+      background: rgba(255,255,255,0.01);
+    }
+    .gr-lights-row .gr-time-cell { color: rgba(255,220,80,0.55); }
+    .gr-cell-available { background: #1a7a72; color: rgba(255,255,255,0.0); }
+    .gr-cell-available:hover { background: #1f9089; color: rgba(255,255,255,0.8); }
+    .gr-cell-selected {
+      background: #1a78c2 !important; color: #fff;
+      border: 1px solid rgba(255,255,255,0.6) !important; cursor: default;
+    }
+    .gr-cell-in-range {
+      background: #1a78c2 !important; color: rgba(255,255,255,0.7);
+      border: 1px solid rgba(255,255,255,0.6) !important; cursor: default;
+    }
+    .gr-range-line {
+      display: block; width: 16px; height: 2px;
+      background: rgba(255,255,255,0.5); margin: 0 auto;
+    }
+    .gr-cell-booked {
+      background: rgba(239,68,68,0.18) !important;
+      color: rgba(239,68,68,0.75); cursor: not-allowed;
+    }
+
+    /* ── Sidebar ── */
+    .gr-sidebar { display: flex; flex-direction: column; gap: 1rem; position: sticky; top: 72px; }
+
+    /* Default photo carousel */
+    .gr-carousel {
+      position: relative; border-radius: 12px; overflow: hidden;
+      aspect-ratio: 16/9; background: #1b3028;
+    }
+    .gr-carousel-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .gr-carousel-placeholder { display: flex; align-items: center; justify-content: center; }
+    .gr-car-placeholder-text { color: rgba(255,255,255,0.2); font-size: 0.85rem; }
+    .gr-car-btn {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: rgba(0,0,0,0.45); border: none; color: #fff;
+      width: 30px; height: 30px; border-radius: 50%; font-size: 1.1rem;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+    .gr-car-btn:hover { background: rgba(0,0,0,0.7); }
+    .gr-car-prev { left: 8px; }
+    .gr-car-next { right: 8px; }
+    .gr-car-dots {
+      position: absolute; bottom: 8px; left: 0; right: 0;
+      display: flex; justify-content: center; gap: 4px;
+    }
+    .gr-car-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.3); cursor: pointer; transition: background 0.15s; }
+    .gr-car-dot.active { background: #a3e635; }
+
+    .gr-info-card {
+      background: #1b3028; border: 1px solid rgba(163,230,53,0.08);
+      border-radius: 12px; padding: 1.1rem 1.25rem;
+    }
+    .gr-info-title { font-size: 0.95rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem; }
+    .gr-info-row {
+      display: flex; align-items: center; gap: 0.55rem;
+      font-size: 0.82rem; color: rgba(255,255,255,0.55); padding: 0.3rem 0;
+    }
+    .gr-info-icon { width: 16px; text-align: center; font-style: normal; flex-shrink: 0; }
+    .gr-info-link { color: #a3e635; text-decoration: none; font-weight: 500; }
+    .gr-info-link:hover { color: #b5f040; }
+    .gr-info-hint { font-size: 0.75rem; color: rgba(255,255,255,0.2); margin-top: 0.75rem; text-align: center; }
+
+    /* ── Booking panel ── */
+    .gr-booking-panel {
+      background: #1b3028;
+      border: 1px solid rgba(163,230,53,0.15);
+      border-radius: 14px;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .gr-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .gr-panel-title { font-size: 1rem; font-weight: 700; color: #fff; }
+    .gr-panel-clear {
+      background: none; border: none; color: rgba(255,255,255,0.3);
+      font-size: 0.9rem; cursor: pointer; padding: 0.2rem;
+      border-radius: 4px; transition: color 0.15s;
+    }
+    .gr-panel-clear:hover { color: #fff; }
+    .gr-panel-body {
+      padding: 1rem 1.25rem;
+      display: flex; flex-direction: column; gap: 0.85rem;
+      overflow-y: auto; max-height: calc(100vh - 200px);
+    }
+    .gr-panel-footer {
+      padding: 1rem 1.25rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* Rate info */
+    .gr-rate-info {
+      font-size: 0.8rem; color: rgba(255,255,255,0.45);
+      display: flex; flex-direction: column; gap: 0.2rem;
+    }
+    .gr-rate-info strong { color: rgba(255,255,255,0.7); }
+
+    /* Slot summary badges */
+    .gr-slot-summary { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .gr-slot-badge {
+      padding: 0.25rem 0.6rem; border-radius: 6px;
+      font-size: 0.78rem; font-weight: 600;
+      background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6);
+    }
+    .gr-slot-badge-time { background: rgba(26,120,194,0.2); color: #5bb8f5; }
+    .gr-slot-badge-date { background: rgba(26,120,194,0.1); color: rgba(91,184,245,0.7); }
+
+    /* Price summary */
+    .gr-sum-block {
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px; padding: 0.85rem 1rem;
+    }
+    .gr-sum-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.82rem; color: rgba(255,255,255,0.5); padding: 0.2rem 0;
+    }
+    .gr-sum-pct { font-size: 0.72rem; opacity: 0.7; }
+    .gr-sum-total-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 0.5rem; padding-top: 0.5rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      font-size: 0.9rem; color: rgba(255,255,255,0.7);
+    }
+    .gr-total-amt { color: #a3e635; font-size: 1.1rem; font-weight: 700; }
+
+    /* Form fields */
+    .gr-alert-error {
+      background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2);
+      color: #fca5a5; border-radius: 8px; padding: 0.65rem 0.85rem; font-size: 0.83rem;
+    }
+    .gr-field-group { display: flex; flex-direction: column; gap: 0.35rem; }
+    .gr-field-label {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: rgba(255,255,255,0.4);
+    }
+    .gr-optional { font-weight: 400; text-transform: none; letter-spacing: 0; color: rgba(255,255,255,0.25); }
+    .gr-input {
+      padding: 0.65rem 0.85rem;
+      border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+      background: rgba(255,255,255,0.04); color: #fff;
+      font-size: 0.88rem; font-family: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .gr-input::placeholder { color: rgba(255,255,255,0.22); }
+    .gr-input:focus { outline: none; border-color: rgba(163,230,53,0.35); box-shadow: 0 0 0 3px rgba(163,230,53,0.08); }
+
+    .gr-dur-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .gr-dur-btn {
+      padding: 0.3rem 0.7rem; border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,0.5); font-size: 0.8rem; cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, color 0.15s;
+    }
+    .gr-dur-btn.active, .gr-dur-btn:hover { border-color: #a3e635; background: rgba(163,230,53,0.1); color: #a3e635; }
+
+    .gr-toggles-row { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+    .gr-toggle-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: rgba(255,255,255,0.6); cursor: pointer; white-space: nowrap; }
+    .gr-toggle-item input[type=checkbox] { accent-color: #a3e635; }
+
+    .gr-counter { display: flex; align-items: center; gap: 0.5rem; }
+    .gr-counter-sm { gap: 0.3rem; }
+    .gr-count-btn {
+      width: 28px; height: 28px; border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04);
+      color: #fff; font-size: 1rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: border-color 0.15s;
+    }
+    .gr-count-btn:hover { border-color: #a3e635; }
+    .gr-count-btn.sm { width: 22px; height: 22px; font-size: 0.85rem; }
+    .gr-count-val { min-width: 24px; text-align: center; font-size: 0.9rem; color: #fff; }
+    .gr-count-val.sm { min-width: 16px; font-size: 0.8rem; }
+    .gr-count-fee { font-size: 0.78rem; color: #a3e635; margin-left: 0.2rem; }
+
+    .gr-rentals { display: flex; flex-direction: column; gap: 0.45rem; }
+    .gr-rental-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+      font-size: 0.8rem; color: rgba(255,255,255,0.6);
+      background: rgba(255,255,255,0.03); border-radius: 6px; padding: 0.4rem 0.6rem;
+    }
+    .gr-rental-rate { color: rgba(255,255,255,0.4); font-size: 0.76rem; }
+
+    .gr-file-label {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-    }
-    .gb-optional {
-      font-size: 0.65rem;
-      font-weight: 500;
-      color: rgba(255,255,255,0.25);
-      text-transform: none;
-      letter-spacing: 0;
-    }
-    .gb-lights-legend {
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
-      font-size: 0.68rem;
-      color: rgba(255,255,255,0.35);
-      text-transform: none;
-      letter-spacing: 0;
-      margin-left: auto;
-    }
-    .gb-lights-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: #f59e0b;
-      flex-shrink: 0;
-    }
-
-    /* Input */
-    .gb-input {
-      width: 100%;
-      box-sizing: border-box;
-      background: #1b3028;
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 10px;
-      padding: 0.75rem 0.9rem;
-      color: #ffffff;
-      font-size: 0.9rem;
-      font-family: inherit;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    .gb-input:focus { border-color: rgba(163,230,53,0.4); }
-    .gb-input::placeholder { color: rgba(255,255,255,0.25); }
-    .gb-input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
-    .gb-input-mt { margin-top: 0.5rem; }
-
-    /* Court toggle */
-    .gb-court-toggle { display: flex; gap: 0.6rem; }
-    .gb-court-btn {
-      flex: 1;
-      padding: 0.65rem;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 10px;
-      background: #1b3028;
-      font-size: 0.88rem;
-      font-weight: 700;
+      gap: 0.6rem;
       cursor: pointer;
-      transition: all 0.2s;
-      color: rgba(255,255,255,0.55);
+    }
+    .gr-file-input { display: none; }
+    .gr-file-btn {
+      padding: 0.5rem 0.9rem;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #fff;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .gr-file-label:hover .gr-file-btn { background: rgba(255,255,255,0.14); }
+    .gr-file-name { font-size: 0.8rem; color: rgba(255,255,255,0.4); }
+
+    .gr-terms-row {
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 0.4rem;
-      font-family: inherit;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
     }
-    .gb-court-btn.active { border-color: #a3e635; background: rgba(163,230,53,0.12); color: #a3e635; }
-    .gb-court-btn:hover:not(.active) { border-color: rgba(163,230,53,0.3); color: rgba(255,255,255,0.8); }
-
-    /* Slot grid */
-    .gb-slot-loading { color: rgba(255,255,255,0.45); font-size: 0.85rem; padding: 0.5rem 0; display: flex; align-items: center; gap: 0.5rem; }
-    .gb-slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 0.45rem; }
-    .gb-slot-btn {
-      position: relative;
-      padding: 0.55rem 0.35rem;
-      border: 1px solid rgba(255,255,255,0.1);
+    .gr-terms-btn {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.7);
       border-radius: 8px;
-      background: #1b3028;
+      padding: 0.45rem 0.9rem;
       font-size: 0.82rem;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s;
-      color: rgba(255,255,255,0.7);
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .gr-terms-btn:hover { border-color: #a3e635; color: #a3e635; }
+
+    .gr-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .gr-modal-close {
+      background: none; border: none;
+      color: rgba(255,255,255,0.4); font-size: 1rem;
+      cursor: pointer; padding: 0.2rem; border-radius: 4px;
+      transition: color 0.15s;
+    }
+    .gr-modal-close:hover { color: #fff; }
+
+    .gr-terms-modal {
+      background: #1b3028;
+      border: 1px solid rgba(163,230,53,0.15);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 560px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .gr-terms-modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.1rem 1.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      flex-shrink: 0;
+    }
+    .gr-terms-modal-title { font-size: 1.05rem; font-weight: 700; color: #fff; }
+    .gr-terms-modal-body {
+      flex: 1; overflow-y: auto; padding: 1.25rem 1.5rem;
+      display: flex; flex-direction: column; gap: 0.9rem;
+    }
+    .gr-terms-intro {
+      font-size: 0.82rem; color: rgba(255,255,255,0.55); line-height: 1.55; margin: 0;
+    }
+    .gr-terms-item { display: flex; flex-direction: column; gap: 0.3rem; }
+    .gr-terms-item-title { font-size: 0.85rem; font-weight: 700; color: #fff; }
+    .gr-terms-item ul {
+      margin: 0; padding: 0 0 0 1rem; list-style: disc;
+      display: flex; flex-direction: column; gap: 0.2rem;
+    }
+    .gr-terms-item ul li { font-size: 0.8rem; color: rgba(255,255,255,0.55); line-height: 1.5; }
+    .gr-terms-item p { font-size: 0.8rem; color: rgba(255,255,255,0.55); margin: 0; line-height: 1.5; }
+    .gr-terms-golden {
+      background: rgba(163,230,53,0.04);
+      border: 1px solid rgba(163,230,53,0.12);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+    }
+    .gr-terms-golden .gr-terms-item-title { color: #a3e635; }
+    .gr-terms-footer-note {
+      font-size: 0.78rem; color: rgba(255,255,255,0.35); line-height: 1.5;
+      border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.75rem; margin: 0;
+    }
+    .gr-terms-modal-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      flex-shrink: 0;
+    }
+
+    .gr-select {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(255,255,255,0.35)' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.85rem center;
+      cursor: pointer;
+    }
+    .gr-select option { background: #1b3028; color: #fff; }
+
+    .gr-qr-block {
+      background: rgba(26,120,194,0.06);
+      border: 1px solid rgba(26,120,194,0.2);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.1rem;
-      font-family: inherit;
+      gap: 0.6rem;
     }
-    .gb-slot-btn.has-lights { border-color: rgba(245,158,11,0.35); background: rgba(245,158,11,0.07); }
-    .gb-slot-btn.selected { border-color: #a3e635; background: rgba(163,230,53,0.15); color: #a3e635; }
-    .gb-slot-btn.booked { background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.2); cursor: not-allowed; border-color: rgba(255,255,255,0.05); text-decoration: line-through; }
-    .gb-slot-btn.in-range { border-color: rgba(163,230,53,0.4); background: rgba(163,230,53,0.08); color: rgba(163,230,53,0.6); cursor: not-allowed; }
-    .gb-slot-btn:hover:not(.booked):not(.selected):not(.in-range) { border-color: rgba(163,230,53,0.35); background: rgba(163,230,53,0.07); }
-    .gb-light-dot { font-size: 0.7rem; }
-
-    /* Duration picker */
-    .gb-duration-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    .gb-duration-btn {
-      padding: 0.45rem 1rem; border-radius: 8px; border: 1.5px solid rgba(255,255,255,0.15);
-      background: #1b3028; color: rgba(255,255,255,0.6); font-size: 0.85rem; font-weight: 600;
-      cursor: pointer; transition: all 0.15s; font-family: inherit;
+    .gr-qr-label {
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.45);
+      align-self: flex-start;
     }
-    .gb-duration-btn:hover { border-color: rgba(163,230,53,0.4); color: rgba(163,230,53,0.9); }
-    .gb-duration-btn.active { border-color: #a3e635; background: rgba(163,230,53,0.15); color: #a3e635; }
-
-    /* Toggle */
-    .gb-toggle-row { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; user-select: none; }
-    .gb-toggle-input { display: none; }
-    .gb-toggle-track { position: relative; width: 42px; height: 22px; border-radius: 11px; background: rgba(255,255,255,0.15); transition: background 0.2s; flex-shrink: 0; }
-    .gb-toggle-input:checked + .gb-toggle-track { background: #a3e635; }
-    .gb-toggle-thumb { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: left 0.2s; }
-    .gb-toggle-input:checked + .gb-toggle-track .gb-toggle-thumb { left: 23px; }
-    .gb-toggle-label { font-size: 0.88rem; color: rgba(255,255,255,0.75); font-weight: 600; }
-
-    /* Counter */
-    .gb-counter-row { display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap; }
-    .gb-counter-btn {
-      width: 34px; height: 34px;
+    .gr-qr-img {
+      width: 100%;
+      max-width: 200px;
       border-radius: 8px;
-      border: 1px solid rgba(163,230,53,0.35);
-      background: transparent;
-      color: #a3e635;
-      font-size: 1.1rem;
+      display: block;
+    }
+    .gr-acct-rows {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .gr-acct-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 0.55rem 0.75rem;
+      gap: 0.5rem;
+    }
+    .gr-acct-label {
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.4);
+      white-space: nowrap;
+    }
+    .gr-acct-value-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .gr-acct-value {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #fff;
+      font-family: monospace;
+      letter-spacing: 0.03em;
+    }
+    .gr-copy-btn {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.5);
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      flex-shrink: 0;
+    }
+    .gr-copy-btn:hover { border-color: #a3e635; color: #a3e635; background: rgba(163,230,53,0.08); }
+    .gr-dl-btn {
+      width: 100%;
+      padding: 0.65rem;
+      background: #1a78c2;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
       font-weight: 700;
       cursor: pointer;
-      line-height: 1;
-      transition: all 0.15s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: inherit;
+      transition: background 0.15s;
+      letter-spacing: 0.02em;
     }
-    .gb-counter-btn:hover { background: rgba(163,230,53,0.12); }
-    .gb-counter-btn.sm { width: 26px; height: 26px; font-size: 0.9rem; border-radius: 6px; }
-    .gb-counter-val { min-width: 28px; text-align: center; font-size: 1.1rem; font-weight: 700; color: #ffffff; }
-    .gb-counter-val.sm { min-width: 22px; font-size: 0.9rem; }
-    .gb-counter-fee { font-size: 0.8rem; color: #a3e635; font-weight: 600; }
+    .gr-dl-btn:hover { background: #1a6aad; }
 
-    /* Rentals */
-    .gb-rentals-card { background: #1b3028; border-radius: 12px; overflow: hidden; }
-    .gb-rental-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 0.9rem; }
-    .gb-rental-row:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.06); }
-    .gb-rental-name { flex: 1; font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.75); }
-    .gb-rental-rate { font-size: 0.72rem; color: #a3e635; font-weight: 600; white-space: nowrap; }
-    .gb-rental-counter { display: flex; align-items: center; gap: 0.35rem; }
+    .gr-submit-btn {
+      width: 100%; padding: 0.9rem;
+      background: #a3e635; color: #0c1a11; border: none; border-radius: 10px;
+      font-size: 0.95rem; font-weight: 700; letter-spacing: 0.04em; cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s;
+      box-shadow: 0 4px 18px rgba(163,230,53,0.25);
+    }
+    .gr-submit-btn:hover:not(:disabled) { background: #b5f040; box-shadow: 0 6px 24px rgba(163,230,53,0.38); }
+    .gr-submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    /* Summary */
-    .gb-summary { background: #1b3028; border-radius: 14px; padding: 1rem; margin-bottom: 1rem; }
-    .gb-summary-title { font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.40); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.4rem; }
-    .gb-summary-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: rgba(255,255,255,0.55); padding: 0.3rem 0; }
-    .gb-summary-row strong { color: #ffffff; }
-    .gb-summary-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0.4rem 0; }
-    .gb-summary-total { font-weight: 700; font-size: 0.9rem; }
-    .gb-total-amount { font-size: 1.1rem; color: #a3e635 !important; }
-    .gb-green { color: #a3e635 !important; }
-
-    /* Confirm button */
-    .gb-confirm-btn {
-      width: 100%;
-      padding: 0.9rem;
-      background: #a3e635;
-      color: #0a1f00;
-      border: none;
-      border-radius: 12px;
-      font-size: 1rem;
-      font-weight: 800;
-      cursor: pointer;
-      transition: background 0.2s, opacity 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-      font-family: inherit;
+    /* ── Responsive ── */
+    @media (max-width: 960px) {
+      .gr-layout { grid-template-columns: 1fr; }
+      .gr-sidebar { position: static; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+      .gr-booking-panel { grid-column: 1 / -1; }
+      .gr-panel-body { max-height: none; }
     }
-    .gb-confirm-btn:hover:not(:disabled) { background: #b8f040; }
-    .gb-confirm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-
-    .gb-bottom-spacer { height: 2rem; }
-
-    /* Confirmation card */
-    .gb-confirm-card {
-      text-align: center;
-      padding: 1rem 0 2rem;
+    @media (max-width: 600px) {
+      .gr-body { padding: 1rem; }
+      .gr-sidebar { grid-template-columns: 1fr; }
     }
-    .gb-confirm-icon {
-      font-size: 3rem;
-      color: #a3e635;
-      margin-bottom: 1rem;
-    }
-    .gb-confirm-title {
-      font-size: 1.4rem;
-      font-weight: 800;
-      color: #ffffff;
-      margin: 0 0 0.4rem;
-    }
-    .gb-confirm-sub {
-      font-size: 0.88rem;
-      color: rgba(255,255,255,0.45);
-      margin: 0 0 1.5rem;
-    }
-    .gb-confirm-rows {
-      background: #1b3028;
-      border-radius: 14px;
-      padding: 0.75rem 1rem;
-      margin-bottom: 1.25rem;
-      text-align: left;
-    }
-    .gb-confirm-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      font-size: 0.85rem;
-      color: rgba(255,255,255,0.50);
-      padding: 0.35rem 0;
-    }
-    .gb-confirm-row:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.06); }
-    .gb-confirm-row strong { color: #ffffff; text-align: right; max-width: 60%; word-break: break-all; }
-    .gb-ref { font-size: 0.72rem; color: #a3e635 !important; font-family: monospace; }
-    .gb-payment-methods-list { display: flex; flex-direction: column; gap: 0.75rem; }
-    .gb-payment-methods-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #a3e635; margin: 0 0 0.25rem 0; }
-    .gb-payment-notice {
-      display: flex;
-      gap: 0.75rem;
-      background: rgba(245,158,11,0.1);
-      border: 1px solid rgba(245,158,11,0.25);
-      border-radius: 12px;
-      padding: 1rem;
-      text-align: left;
-    }
-    .gb-payment-notice i { color: #f59e0b; font-size: 1.1rem; margin-top: 2px; flex-shrink: 0; }
-    .gb-payment-notice strong { font-size: 0.88rem; color: #f59e0b; display: block; margin-bottom: 0.3rem; }
-    .gb-payment-notice p { font-size: 0.8rem; color: rgba(255,255,255,0.55); margin: 0; line-height: 1.5; }
-    .gb-payment-notice-method { background: rgba(163,230,53,0.08); border-color: rgba(163,230,53,0.25); }
-    .gb-payment-notice-method i { color: #a3e635; }
-    .gb-payment-notice-method strong { color: #a3e635; }
-    .gb-payment-account { color: #ffffff !important; font-size: 0.92rem !important; font-weight: 600; margin-bottom: 0.4rem !important; }
-    .gb-payment-method-logo { width: 32px; height: 32px; object-fit: contain; border-radius: 6px; flex-shrink: 0; margin-top: 2px; }
-    .gb-qr-code { display: block; width: 160px; height: 160px; object-fit: contain; border-radius: 10px; background: #fff; padding: 6px; margin: 0.6rem 0; }
   `],
 })
 export class GuestReserveComponent implements OnInit, OnDestroy {
-  allSlots = hoursToSlots(5, 22);
-  lightSlots = LIGHT_SLOTS;
 
   clubId = '';
   clubName = '';
   clubLogo: string | null = null;
+  clubLocation = '';
+  clubMobile = '';
+  clubEmail = '';
+  clubSocial: { facebook?: string; instagram?: string; reclub?: string } = {};
   clubError = '';
 
-  guestName = '';
-  guestEmail = '';
-  guestPhone = '';
-
-  selectedDate = '';
   courtCount = 2;
+  closingHour = 22;
+  openingHour = 5;
+  allSlots: string[] = hoursToSlots(5, 22);
+  lightSlots = LIGHT_SLOTS;
+  today = new Date().toISOString().split('T')[0];
+
+  navDate = signal(new Date().toISOString().split('T')[0]);
+  availLoading = signal(true);
+  courtAvailability = signal<Record<number, Set<string>>>({});
+  clubPhotos = signal<string[]>([]);
+  carouselIndex = signal(0);
+
   selectedCourt: number | null = null;
   selectedSlot = '';
   selectedDuration = 1;
   availableDurations: number[] = [];
-  closingHour = 22;
-  bookedSlots = new Set<string>();
-  loadingSlots = false;
+
+  guestName = '';
+  guestEmail = '';
+  guestPhone = '';
   booking = false;
   errorMsg = '';
-  today = new Date().toISOString().split('T')[0];
+  confirmed = false;
+  confirmationData: GuestBookingResult | null = null;
 
-  convenienceFeeRate = 0.10;
+  convenienceFeeRate = 0.05;
   convenienceFeeMode: 'per_transaction' | 'per_hour' = 'per_hour';
   weekdayRate = 0;
   weekendRate = 0;
@@ -794,14 +1162,16 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   rentalBallMachine = false;
   rentalRackets = 0;
 
-  confirmed = false;
-  confirmationData: GuestBookingResult | null = null;
-
   paymentMethods: string[] = [];
   paymentAccounts: Record<string, string> = {};
   paymentQrCodes: Record<string, string> = {};
+  selectedPaymentMethod = '';
+  copiedMethod = '';
+  paymentScreenshot: File | null = null;
+  agreedToTerms = false;
+  showTerms = false;
 
-  get courtNumbers(): number[] { return Array.from({ length: this.courtCount }, (_, i) => i + 1); }
+  courtNumbers = computed(() => Array.from({ length: this.courtCount }, (_, i) => i + 1));
 
   get hasAnyRental(): boolean {
     return this.rentalBalls50Rate > 0 || this.rentalBalls100Rate > 0
@@ -810,8 +1180,9 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
 
   get dayType(): 'weekday' | 'weekend' | 'holiday' {
     if (this.isHoliday) return 'holiday';
-    if (!this.selectedDate) return 'weekday';
-    const day = new Date(this.selectedDate + 'T00:00:00Z').getUTCDay();
+    const date = this.navDate();
+    if (!date) return 'weekday';
+    const day = new Date(date + 'T00:00:00Z').getUTCDay();
     return WEEKEND_DAYS.has(day) ? 'weekend' : 'weekday';
   }
 
@@ -823,10 +1194,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     }
   }
 
-  get baseCourtFee(): number {
-    return this.baseHourlyRate * this.selectedDuration;
-  }
-
+  get baseCourtFee(): number { return this.baseHourlyRate * this.selectedDuration; }
   get totalGuestFee(): number { return this.guestCount * this.guestFeeRate; }
 
   get totalRentalFee(): number {
@@ -851,8 +1219,18 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     return parseFloat((base * this.convenienceFeeRate).toFixed(2));
   }
 
-  get computedFee(): number {
-    return this.subtotal + this.convenienceFee;
+  get computedFee(): number { return this.subtotal + this.convenienceFee; }
+
+  get endSlotLabel(): string {
+    if (!this.selectedSlot) return '';
+    return hourToSlot(slotToHour(this.selectedSlot) + this.selectedDuration);
+  }
+
+  get confirmTimeLabel(): string {
+    if (!this.confirmationData) return '';
+    const slot = this.confirmationData.reservation.timeSlot;
+    const d = this.confirmationData.reservation.durationHours ?? 1;
+    return d <= 1 ? slot : `${slot} – ${hourToSlot(slotToHour(slot) + d)}`;
   }
 
   constructor(
@@ -868,10 +1246,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     this.renderer.addClass(document.body, 'dark-player-page');
 
     this.clubId = this.route.snapshot.paramMap.get('clubId') ?? '';
-    if (!this.clubId) {
-      this.clubError = 'Invalid booking link.';
-      return;
-    }
+    if (!this.clubId) { this.clubError = 'Invalid booking link.'; return; }
 
     this.publicBookingService.getClub(this.clubId).subscribe({
       next: (club) => {
@@ -880,14 +1255,21 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
         } else {
           this.clubName = club.name;
           this.clubLogo = club.logo ?? null;
+          this.clubLocation = club.location ?? '';
+          this.clubMobile = club.mobile ?? '';
+          this.clubEmail = club.email ?? '';
+          this.clubSocial = club.socialLinks ?? {};
           this.courtCount = club.courtCount ?? 2;
           this.closingHour = club.closingHour ?? 22;
-          this.allSlots = hoursToSlots(club.openingHour ?? 5, this.closingHour);
+          this.openingHour = club.openingHour ?? 5;
+          this.allSlots = hoursToSlots(this.openingHour, this.closingHour);
           this.paymentMethods = club.paymentMethods ?? [];
           this.paymentAccounts = club.paymentAccounts ?? {};
           this.paymentQrCodes = club.paymentQrCodes ?? {};
           this.convenienceFeeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10;
           this.convenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
+          this.clubPhotos.set(club.photos ?? []);
+          this.loadAvailability();
         }
         this.cdr.detectChanges();
       },
@@ -919,95 +1301,210 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     this.renderer.removeClass(document.body, 'dark-player-page');
   }
 
-  goBack() {
-    this.router.navigate(['/book', this.clubId]);
-  }
-
-  selectCourt(court: number) {
-    this.selectedCourt = court;
-    this.selectedSlot = '';
-    this.onDateOrCourtChange();
-  }
-
-  onDateOrCourtChange() {
-    this.selectedSlot = '';
-    this.selectedDuration = 1;
-    this.availableDurations = [];
-    this.bookedSlots = new Set();
-    if (!this.selectedDate || !this.selectedCourt) return;
-    this.loadingSlots = true;
-    this.publicBookingService.getAvailability(this.clubId, this.selectedCourt, this.selectedDate).subscribe({
+  loadAvailability() {
+    if (!this.clubId || !this.navDate()) return;
+    this.availLoading.set(true);
+    this.courtAvailability.set({});
+    this.publicBookingService.getAllCourtAvailability(this.clubId, this.navDate()).subscribe({
       next: (res) => {
-        this.bookedSlots = new Set(res.bookedSlots);
-        this.loadingSlots = false;
+        const map: Record<number, Set<string>> = {};
+        for (const key of Object.keys(res)) {
+          map[Number(key)] = new Set(res[key]);
+        }
+        this.courtAvailability.set(map);
+        this.availLoading.set(false);
         this.cdr.detectChanges();
       },
       error: () => {
-        this.loadingSlots = false;
+        this.availLoading.set(false);
         this.cdr.detectChanges();
       },
     });
   }
 
-  selectSlot(slot: string) {
-    if (this.bookedSlots.has(slot) || this.isInRange(slot)) return;
+  cellState(court: number, slot: string): 'available' | 'booked' | 'selected' | 'in-range' {
+    const avail = this.courtAvailability();
+    if (avail[court]?.has(slot)) return 'booked';
+    if (this.selectedCourt === court && this.selectedSlot === slot) return 'selected';
+    if (this.selectedCourt === court && this.selectedSlot) {
+      const startH = slotToHour(this.selectedSlot);
+      const h = slotToHour(slot);
+      if (h > startH && h < startH + this.selectedDuration) return 'in-range';
+    }
+    return 'available';
+  }
+
+  onCellClick(court: number, slot: string) {
+    if (this.cellState(court, slot) === 'booked') return;
+
+    // Clicking the selected slot deselects
+    if (this.selectedCourt === court && this.selectedSlot === slot) {
+      this.clearSelection();
+      return;
+    }
+
+    // Same court + slot after start → extend/shrink duration by clicking
+    if (this.selectedCourt === court && this.selectedSlot) {
+      const startH = slotToHour(this.selectedSlot);
+      const clickH = slotToHour(slot);
+      if (clickH > startH) {
+        const newDur = clickH - startH + 1;
+        if (this.availableDurations.includes(newDur)) {
+          this.selectedDuration = newDur;
+          this.errorMsg = '';
+          this.cdr.detectChanges();
+          return;
+        }
+      }
+    }
+
+    // New selection
+    this.selectedCourt = court;
     this.selectedSlot = slot;
     this.selectedDuration = 1;
-    this.computeAvailableDurations();
     this.errorMsg = '';
+    this.computeAvailableDurations();
+    this.cdr.detectChanges();
   }
 
   computeAvailableDurations() {
-    if (!this.selectedSlot) { this.availableDurations = []; return; }
+    if (!this.selectedSlot || !this.selectedCourt) { this.availableDurations = []; return; }
+    const bookedSet = this.courtAvailability()[this.selectedCourt] ?? new Set<string>();
     const startH = slotToHour(this.selectedSlot);
     const durations: number[] = [];
     for (let d = 1; d <= 12; d++) {
       const endH = startH + d - 1;
       if (endH > this.closingHour) break;
-      if (d > 1 && this.bookedSlots.has(hourToSlot(endH))) break;
+      if (d > 1 && bookedSet.has(hourToSlot(endH))) break;
       durations.push(d);
     }
     this.availableDurations = durations;
   }
 
-  setDuration(d: number) {
-    this.selectedDuration = d;
+  setDuration(d: number) { this.selectedDuration = d; this.cdr.detectChanges(); }
+
+  clearSelection() {
+    this.selectedCourt = null;
+    this.selectedSlot = '';
+    this.selectedDuration = 1;
+    this.availableDurations = [];
+    this.errorMsg = '';
+    this.selectedPaymentMethod = '';
+    this.paymentScreenshot = null;
+    this.agreedToTerms = false;
+    this.showTerms = false;
     this.cdr.detectChanges();
   }
 
-  isInRange(slot: string): boolean {
-    if (!this.selectedSlot || this.selectedDuration <= 1) return false;
-    const startH = slotToHour(this.selectedSlot);
+  prevDay() {
+    if (this.navDate() <= this.today) return;
+    this.navDate.set(addDays(this.navDate(), -1));
+    this.clearSelection();
+    this.loadAvailability();
+  }
+
+  nextDay() {
+    this.navDate.set(addDays(this.navDate(), 1));
+    this.clearSelection();
+    this.loadAvailability();
+  }
+
+  goToday() {
+    this.navDate.set(this.today);
+    this.clearSelection();
+    this.loadAvailability();
+  }
+
+  prevPhoto() {
+    const len = this.clubPhotos().length;
+    this.carouselIndex.set((this.carouselIndex() - 1 + len) % len);
+  }
+
+  nextPhoto() {
+    this.carouselIndex.set((this.carouselIndex() + 1) % this.clubPhotos().length);
+  }
+
+  formatSlotLabel(slot: string): string {
     const h = slotToHour(slot);
-    return h > startH && h < startH + this.selectedDuration;
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const period = h < 12 ? 'AM' : 'PM';
+    return `${h12}:00 ${period}`;
   }
 
-  get endSlotLabel(): string {
-    if (!this.selectedSlot) return '';
-    return hourToSlot(slotToHour(this.selectedSlot) + this.selectedDuration);
+  goBack() { this.router.navigate(['/book', this.clubId]); }
+
+  agreeAndClose() {
+    this.agreedToTerms = true;
+    this.showTerms = false;
+    this.cdr.detectChanges();
   }
 
-  get confirmTimeLabel(): string {
-    if (!this.confirmationData) return '';
-    const slot = this.confirmationData.reservation.timeSlot;
-    const d = this.confirmationData.reservation.durationHours ?? 1;
-    if (d <= 1) return slot;
-    return `${slot} – ${hourToSlot(slotToHour(slot) + d)}`;
+  onScreenshotChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.paymentScreenshot = input.files?.[0] ?? null;
+    this.cdr.detectChanges();
+  }
+
+  copyToClipboard(text: string) {
+    navigator.clipboard?.writeText(text).then(() => {
+      this.copiedMethod = this.selectedPaymentMethod;
+      setTimeout(() => { this.copiedMethod = ''; this.cdr.detectChanges(); }, 2000);
+      this.cdr.detectChanges();
+    });
+  }
+
+  downloadQr(method: string) {
+    const url = this.paymentQrCodes[method];
+    if (!url) return;
+    fetch(url)
+      .then(res => res.blob())
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `${method}-qr.png`;
+        a.click();
+        URL.revokeObjectURL(blobUrl);
+      });
+  }
+
+  shareBooking() {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({ title: `Book at ${this.clubName}`, url });
+    } else {
+      navigator.clipboard?.writeText(url);
+    }
+  }
+
+  resetBooking() {
+    this.confirmed = false;
+    this.confirmationData = null;
+    this.selectedCourt = null;
+    this.selectedSlot = '';
+    this.guestName = '';
+    this.guestEmail = '';
+    this.guestPhone = '';
+    this.selectedPaymentMethod = '';
+    this.paymentScreenshot = null;
+    this.agreedToTerms = false;
+    this.showTerms = false;
+    this.loadAvailability();
+    this.cdr.detectChanges();
   }
 
   submit() {
-    if (!this.selectedDate || !this.selectedCourt || !this.selectedSlot) return;
+    if (!this.navDate() || !this.selectedCourt || !this.selectedSlot) return;
     if (!this.guestName.trim() || !this.guestEmail.trim()) {
       this.errorMsg = 'Please fill in your name and email.';
       return;
     }
-
     this.booking = true;
     this.errorMsg = '';
 
-    this.publicBookingService.createGuestBooking(this.clubId, {
-      court: this.selectedCourt,
-      date: this.selectedDate,
+    const payload = {
+      court: this.selectedCourt as number,
+      date: this.navDate(),
       timeSlot: this.selectedSlot,
       durationHours: this.selectedDuration,
       lightsRequested: this.lightsRequested,
@@ -1025,17 +1522,19 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
         email: this.guestEmail.trim(),
         phone: this.guestPhone.trim() || undefined,
       },
-    }).subscribe({
+    };
+    console.log('[GuestReserve] submit payload:', payload);
+
+    this.publicBookingService.createGuestBooking(this.clubId, payload).subscribe({
       next: (result) => {
         this.booking = false;
         this.confirmationData = result;
         this.confirmed = true;
-        this.selectedDuration = 1;
-        this.availableDurations = [];
         this.cdr.detectChanges();
       },
       error: (err) => {
         this.booking = false;
+        console.error('[GuestReserve] booking error:', err?.status, err?.error);
         if (err?.status === 409) {
           this.errorMsg = 'That slot was just booked by someone else. Please choose another time.';
         } else {

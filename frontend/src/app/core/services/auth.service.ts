@@ -96,6 +96,7 @@ export class AuthService {
     localStorage.removeItem(this.BACKUP_TOKEN_KEY);
     localStorage.removeItem(this.BACKUP_USER_KEY);
     localStorage.removeItem(this.BACKUP_CLUB_KEY);
+    this.clubService.clearSelectedClub();
     this._user.set(null);
     this._isImpersonating.set(false);
     this.router.navigate(['/player-login']);

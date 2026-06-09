@@ -578,28 +578,25 @@ export class AwardGeneratorComponent implements OnChanges {
   get clubBannerStyle(): Record<string, string> {
     return {
       display: 'flex',
+      flexDirection: 'column',
       alignItems: 'center',
-      gap: '14px',
+      gap: '10px',
       width: '100%',
       marginBottom: '18px',
-      backgroundColor: this.GREEN,
-      paddingTop: '10px',
-      paddingBottom: '10px',
-      paddingLeft: '16px',
-      paddingRight: '20px',
-      borderRadius: '8px',
+      backgroundColor: '#ffffff',
+      paddingTop: '12px',
+      paddingBottom: '12px',
       boxSizing: 'border-box',
     };
   }
 
   get clubNameTextStyle(): Record<string, string> {
     return {
-      flex: '1',
       fontFamily: this.SANS,
       fontSize: '19px',
       fontWeight: '700',
       letterSpacing: '0.18em',
-      color: '#ffffff',
+      color: this.GREEN,
       textTransform: 'uppercase',
       textAlign: 'center',
       lineHeight: '1.3',

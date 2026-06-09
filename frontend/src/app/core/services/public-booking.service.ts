@@ -112,6 +112,13 @@ export class PublicBookingService {
     return this.http.get<{ bookedSlots: string[] }>(`${this.base}/${clubId}/availability`, { params });
   }
 
+  getAllCourtAvailability(clubId: string, date: string) {
+    return this.http.get<Record<string, string[]>>(
+      `${this.base}/${clubId}/all-availability`,
+      { params: { date } }
+    );
+  }
+
   createGuestBooking(clubId: string, payload: GuestBookingPayload) {
     return this.http.post<GuestBookingResult>(`${this.base}/${clubId}/reserve`, payload);
   }

@@ -158,6 +158,54 @@ router.post("/open-play/:sessionId/register", async (req, res) => {
   }
 });
 
+// GET /api/public/:clubId/all-availability?date=YYYY-MM-DD — booked slots for ALL courts
+router.get("/:clubId/all-availability", async (req, res) => {
+  try {
+    const { clubId } = req.params;
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ error: "date is required" });
+
+    const club = await findClub(clubId);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    if (club.status === "suspended") return res.status(403).json({ error: "club_suspended" });
+    const resolvedClubId = club._id.toString();
+    const courtCount = club.courtCount ?? 2;
+
+    const start = new Date(date);
+    start.setUTCHours(0, 0, 0, 0);
+    const end = new Date(date);
+    end.setUTCHours(23, 59, 59, 999);
+
+    const [reservations, openPlaySessions] = await Promise.all([
+      Reservation.find({
+        clubId: resolvedClubId,
+        date: { $gte: start, $lte: end },
+        status: { $in: ["confirmed", "pending_payment"] },
+      }).select("court timeSlot durationHours -_id").lean(),
+      OpenPlaySession.find({
+        clubId: resolvedClubId,
+        sessionDate: { $gte: start, $lte: end },
+        status: { $ne: "cancelled" },
+      }).select("courts startTime endTime -_id").lean(),
+    ]);
+
+    const result = {};
+    for (let c = 1; c <= courtCount; c++) {
+      const bookedFromRes = reservations
+        .filter((r) => r.court === c)
+        .flatMap((r) => expandSlots(r.timeSlot, r.durationHours ?? 1));
+      const bookedFromOP = openPlaySessions
+        .filter((s) => Array.isArray(s.courts) ? s.courts.includes(c) : true)
+        .flatMap((s) => timeRangeToSlots(s.startTime, s.endTime));
+      result[c] = [...new Set([...bookedFromRes, ...bookedFromOP])];
+    }
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // GET /api/public/:clubId — basic club info (accepts ObjectId or slug)
 router.get("/:clubId", async (req, res) => {
   try {
@@ -176,7 +224,7 @@ router.get("/:clubId", async (req, res) => {
       paymentMethods: club.paymentMethods ?? [],
       paymentAccounts: club.paymentAccounts instanceof Map ? Object.fromEntries(club.paymentAccounts) : (club.paymentAccounts ?? {}),
       paymentQrCodes: club.paymentQrCodes instanceof Map ? Object.fromEntries(club.paymentQrCodes) : (club.paymentQrCodes ?? {}),
-      convenienceFeeRate: typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10,
+      convenienceFeeRate: typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.05,
       convenienceFeeMode: club.convenienceFeeMode ?? 'per_hour',
       mobile: club.mobile,
       email: club.email,
@@ -429,7 +477,7 @@ router.post("/:clubId/reserve", async (req, res) => {
     const rentalFee = rentalFeePerHour * durationHours;
     const guestTotalFee = sanitizedGuestCount * ratesUsed.guestFee;
     const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;
-    const feeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10;
+    const feeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.05;
     const feeMode = club.convenienceFeeMode ?? 'per_hour';
     const convenienceFeeBase = feeMode === 'per_transaction' ? hourlyRate : courtFee;
     const convenienceFee = parseFloat((convenienceFeeBase * feeRate).toFixed(2));
