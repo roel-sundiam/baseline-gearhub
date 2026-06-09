@@ -1,7 +1,7 @@
 import { Component, ChangeDetectorRef, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
 import { ClubService, Club } from '../../../core/services/club.service';
@@ -17,6 +17,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
       </div>
 
       <div class="auth-card">
+        <button class="back-btn" (click)="goBack()" type="button">&#8592; Back</button>
         <div class="auth-header">
           <div class="header-banner">
             <img src="/CourtGo.png" alt="CourtGo" class="hero-logo" />
@@ -274,6 +275,22 @@ import { ClubService, Club } from '../../../core/services/club.service';
         inset: 0;
         background: none;
       }
+      .back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: transparent;
+        border: none;
+        color: rgba(255,255,255,0.45);
+        font-size: 0.85rem;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        padding: 0.75rem 1.5rem 0;
+        transition: color 0.15s;
+      }
+      .back-btn:hover { color: #a3e635; }
+
       .auth-card {
         position: relative;
         z-index: 1;
@@ -612,7 +629,17 @@ export class RegisterComponent implements OnInit, OnDestroy {
     private cloudinary: CloudinaryService,
     private cdr: ChangeDetectorRef,
     private clubService: ClubService,
+    private router: Router,
+    private location: Location,
   ) {}
+
+  goBack() {
+    if ((history.state?.navigationId ?? 1) > 1) {
+      this.location.back();
+    } else {
+      this.router.navigate(['/book']);
+    }
+  }
 
   ngOnInit() {
     this.clubService.getClubs().subscribe({

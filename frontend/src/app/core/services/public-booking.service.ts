@@ -81,6 +81,22 @@ export class PublicBookingService {
     }[]>(`${this.base}/${clubId}/open-play`);
   }
 
+  getAllOpenPlaySessions() {
+    return this.http.get<{
+      _id: string; title: string; sport: string;
+      sessionDate: string; startTime: string; endTime: string;
+      matchType: string; maxPlayers: number; joinedPlayers: number;
+      club: { _id: string; name: string; slug?: string; location?: string; logo?: string };
+    }[]>(`${this.base}/open-play`);
+  }
+
+  registerForOpenPlay(sessionId: string, payload: { guestName: string; guestEmail: string; guestPhone?: string }) {
+    return this.http.post<{ success: boolean; joinedPlayers: number }>(
+      `${this.base}/open-play/${sessionId}/register`,
+      payload
+    );
+  }
+
   getSlots(clubId: string, date: string) {
     return this.http.get<{ time: string; slot: string; available: number; total: number }[]>(
       `${this.base}/${clubId}/slots?date=${date}`

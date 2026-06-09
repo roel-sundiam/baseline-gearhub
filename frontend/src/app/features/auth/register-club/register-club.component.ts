@@ -1,5 +1,5 @@
 import { Component, ChangeDetectorRef, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
@@ -14,6 +14,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
       <div class="court-bg"><div class="court-overlay"></div></div>
 
       <div class="auth-card">
+        <button class="back-btn" (click)="goBack()" type="button">&#8592; Back</button>
         <div class="auth-header">
           <div class="header-banner">
             <img src="/CourtGo.png" alt="CourtGo" class="hero-logo" />
@@ -283,6 +284,22 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
       }
       .court-bg { position: absolute; inset: 0; background: none; }
       .court-overlay { position: absolute; inset: 0; background: none; }
+      .back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: transparent;
+        border: none;
+        color: rgba(255,255,255,0.45);
+        font-size: 0.85rem;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        padding: 0.75rem 1.5rem 0;
+        transition: color 0.15s;
+      }
+      .back-btn:hover { color: #a3e635; }
+
       .auth-card {
         position: relative;
         z-index: 1;
@@ -528,7 +545,16 @@ export class RegisterClubComponent {
   private auth = inject(AuthService);
   private cloudinary = inject(CloudinaryService);
   private router = inject(Router);
+  private loc = inject(Location);
   private cdr = inject(ChangeDetectorRef);
+
+  goBack() {
+    if ((history.state?.navigationId ?? 1) > 1) {
+      this.loc.back();
+    } else {
+      this.router.navigate(['/book']);
+    }
+  }
 
   clubName = '';
   location = '';

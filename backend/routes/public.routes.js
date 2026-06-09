@@ -61,9 +61,97 @@ async function findClub(identifier, lean = true) {
 router.get("/clubs", async (req, res) => {
   try {
     const clubs = await Club.find({ status: "active" })
-      .select("name slug location logo")
+      .select("name slug location logo photos rating reviewCount courtCount openingHour closingHour")
       .lean();
     res.json(clubs);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /api/public/open-play — all upcoming open sessions across all active clubs
+router.get("/open-play", async (req, res) => {
+  try {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const activeClubs = await Club.find({ status: "active" }).select("_id name slug location logo").lean();
+    const activeClubIds = activeClubs.map(c => c._id.toString());
+    const clubMap = Object.fromEntries(activeClubs.map(c => [c._id.toString(), c]));
+
+    const sessions = await OpenPlaySession.find({
+      clubId: { $in: activeClubIds },
+      status: "open",
+      sessionDate: { $gte: today },
+    }).sort({ sessionDate: 1, startTime: 1 }).lean();
+
+    const sessionIds = sessions.map(s => s._id);
+    const playerCounts = await OpenPlaySessionPlayer.aggregate([
+      { $match: { sessionId: { $in: sessionIds } } },
+      { $group: { _id: "$sessionId", count: { $sum: 1 } } },
+    ]);
+    const countMap = {};
+    for (const p of playerCounts) countMap[p._id.toString()] = p.count;
+
+    res.json(sessions.map(s => {
+      const club = clubMap[s.clubId.toString()] ?? {};
+      return {
+        _id: s._id,
+        title: s.title,
+        sport: s.sport,
+        sessionDate: s.sessionDate,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        matchType: s.matchType,
+        maxPlayers: s.maxPlayers,
+        joinedPlayers: countMap[s._id.toString()] ?? 0,
+        club: {
+          _id: club._id,
+          name: club.name,
+          slug: club.slug,
+          location: club.location,
+          logo: club.logo,
+        },
+      };
+    }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/public/open-play/:sessionId/register — guest self-registration
+router.post("/open-play/:sessionId/register", async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { guestName, guestEmail, guestPhone } = req.body;
+
+    if (!guestName?.trim()) return res.status(400).json({ error: "Name is required" });
+    if (!guestEmail?.trim()) return res.status(400).json({ error: "Email is required" });
+
+    const session = await OpenPlaySession.findById(sessionId).lean();
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (session.status !== "open") return res.status(400).json({ error: "Session is no longer open" });
+
+    const joinedCount = await OpenPlaySessionPlayer.countDocuments({ sessionId });
+    if (joinedCount >= session.maxPlayers) return res.status(400).json({ error: "Session is full" });
+
+    const alreadyJoined = await OpenPlaySessionPlayer.findOne({
+      sessionId,
+      guestEmail: guestEmail.trim().toLowerCase(),
+    });
+    if (alreadyJoined) return res.status(400).json({ error: "This email is already registered for this session" });
+
+    await OpenPlaySessionPlayer.create({
+      sessionId,
+      clubId: session.clubId,
+      guestName: guestName.trim(),
+      guestEmail: guestEmail.trim().toLowerCase(),
+      guestPhone: guestPhone?.trim() || undefined,
+    });
+
+    res.json({ success: true, joinedPlayers: joinedCount + 1 });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

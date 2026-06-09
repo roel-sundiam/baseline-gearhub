@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
@@ -16,9 +17,9 @@ import { AnalyticsTrackService } from '../../../core/services/analytics-track.se
       <div class="bg-orb bg-orb-2"></div>
 
       <div class="card">
-        <a href="https://courtgo.club" class="back-link">&larr; Back</a>
+        <a class="back-link" (click)="goBack()" style="cursor:pointer">&larr; Back</a>
 
-        <a href="https://courtgo.club"><img src="/CourtGo.png" alt="CourtGo" class="card-logo" /></a>
+        <a routerLink="/book"><img src="/CourtGo.png" alt="CourtGo" class="card-logo" /></a>
         <h1>Welcome back</h1>
         <p class="card-sub">Sign in to your account</p>
 
@@ -239,12 +240,21 @@ export class LoginComponent {
   private auth = inject(AuthService);
   private clubService = inject(ClubService);
   private router = inject(Router);
+  private location = inject(Location);
   private analyticsTrack = inject(AnalyticsTrackService);
 
   username = '';
   password = '';
   loading = signal(false);
   errorMsg = signal('');
+
+  goBack() {
+    if ((history.state?.navigationId ?? 1) > 1) {
+      this.location.back();
+    } else {
+      this.router.navigate(['/book']);
+    }
+  }
 
   onSubmit() {
     if (!this.username || !this.password) return;
