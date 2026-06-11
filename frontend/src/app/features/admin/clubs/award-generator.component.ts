@@ -48,6 +48,7 @@ import { Club } from '../../../core/services/club.service';
           <select class="ag-inp" [(ngModel)]="result">
             <option>Champion</option>
             <option>Runner-Up</option>
+            <option>2nd Runner-Up</option>
             <option>Finalist</option>
           </select>
         </label>
@@ -617,7 +618,7 @@ export class AwardGeneratorComponent implements OnChanges {
   get resultStyle(): Record<string, string> {
     return {
       fontFamily: this.SERIF,
-      fontSize: '82px',
+      fontSize: this.result === '2nd Runner-Up' ? '52px' : '82px',
       fontWeight: '700',
       letterSpacing: '0.05em',
       lineHeight: '1',
