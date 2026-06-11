@@ -168,16 +168,42 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
                   <div class="summary-label">Waived</div>
                 </div>
               }
-              <div class="summary-item" [class.highlight-red]="balance > 0" [class.highlight-green]="balance <= 0">
-                <div class="summary-value">{{ balance | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
-                <div class="summary-label">Outstanding</div>
-              </div>
+              @if (balance < 0) {
+                <div class="summary-item highlight-green">
+                  <div class="summary-value">{{ (balance * -1) | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
+                  <div class="summary-label">Credit</div>
+                </div>
+              } @else {
+                <div class="summary-item" [class.highlight-red]="balance > 0" [class.highlight-green]="balance === 0">
+                  <div class="summary-value">{{ balance | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
+                  <div class="summary-label">Outstanding</div>
+                </div>
+              }
             </div>
+
+            <!-- Monthly Flat Notice -->
+            @if (isMonthlyFlat) {
+              <div class="monthly-flat-banner">
+                <div class="monthly-flat-left">
+                  <i class="fas fa-calendar-alt"></i>
+                  <div>
+                    <div class="monthly-flat-title">Monthly Flat Plan</div>
+                    <div class="monthly-flat-detail">₱{{ convenienceFeeMonthlyAmount | number:'1.0-2' }}/month — outstanding balance due by <strong>{{ endOfMonthLabel }}</strong></div>
+                  </div>
+                </div>
+              </div>
+            }
 
             <!-- Pay Action -->
             <div class="pay-action-row">
-              <p class="rate-note">App Service Fee = convenience fee collected from clients per booking, remitted to the Developer.</p>
-              <button class="btn-pay" (click)="openPayForm()" [disabled]="balance <= 0">
+              <p class="rate-note">
+                @if (isMonthlyFlat) {
+                  App Service Fee = fixed monthly fee remitted to the Developer.
+                } @else {
+                  App Service Fee = convenience fee collected from clients per booking, remitted to the Developer.
+                }
+              </p>
+              <button class="btn-pay" (click)="openPayForm()">
                 <i class="fas fa-paper-plane"></i> Record Payment to Developer
               </button>
             </div>
@@ -312,15 +338,15 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
               } @else {
                 <div class="paid-fees-list">
                   @for (p of appServicePayments; track p._id) {
-                    <div class="paid-fee-card" [class.paid-fee-card-waived]="p.type === 'waiver'">
+                    <div class="paid-fee-card" [class.paid-fee-card-waived]="p.type === 'waiver'" [class.paid-fee-card-billing]="p.type === 'billing'">
                       <div class="paid-fee-left">
-                        <div class="paid-fee-icon-wrap" [class.paid-fee-icon-waived]="p.type === 'waiver'">
-                          <i class="fas" [class.fa-check-circle]="p.type !== 'waiver'" [class.fa-hand-holding-usd]="p.type === 'waiver'"></i>
+                        <div class="paid-fee-icon-wrap" [class.paid-fee-icon-waived]="p.type === 'waiver'" [class.paid-fee-icon-billing]="p.type === 'billing'">
+                          <i class="fas" [class.fa-check-circle]="p.type === 'payment'" [class.fa-hand-holding-usd]="p.type === 'waiver'" [class.fa-calendar-alt]="p.type === 'billing'"></i>
                         </div>
                         <div class="paid-fee-info">
                           <div class="paid-fee-date">{{ p.createdAt | date: 'MMM d, yyyy' : 'UTC' }}</div>
                           <div class="paid-fee-by">
-                            {{ p.type === 'waiver' ? 'Waived by' : 'Paid by' }} {{ p.paidBy?.name }}
+                            {{ p.type === 'waiver' ? 'Waived by' : p.type === 'billing' ? 'Billed by' : 'Paid by' }} {{ p.paidBy?.name }}
                           </div>
                           @if (p.note) {
                             <div class="paid-fee-note">📝 {{ p.note }}</div>
@@ -331,6 +357,10 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
                         @if (p.type === 'waiver') {
                           <span class="method-badge method-waived">
                             <i class="fas fa-hand-holding-usd"></i> Waived
+                          </span>
+                        } @else if (p.type === 'billing') {
+                          <span class="method-badge method-billing">
+                            <i class="fas fa-calendar-alt"></i> Monthly Billing
                           </span>
                         } @else {
                           <span class="method-badge" [ngClass]="methodClass(p.paymentMethod)">
@@ -470,6 +500,19 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
     .summary-item.highlight-purple .summary-label { color: rgba(196,181,253,0.8); }
     .summary-value { font-size: 1.1rem; font-weight: 700; color: #ffffff; }
     .summary-label { font-size: 0.72rem; color: rgba(255,255,255,0.62); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+    .monthly-flat-banner {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin-bottom: 16px;
+      padding: 14px 16px; border-radius: 8px;
+      background: rgba(96,165,250,0.1); border: 1px solid rgba(96,165,250,0.25);
+    }
+    .monthly-flat-left {
+      display: flex; align-items: center; gap: 12px; color: #93c5fd;
+    }
+    .monthly-flat-left i { font-size: 1.2rem; flex-shrink: 0; }
+    .monthly-flat-title { font-weight: 700; font-size: 0.9rem; color: #93c5fd; }
+    .monthly-flat-detail { font-size: 0.82rem; color: rgba(255,255,255,0.72); margin-top: 2px; }
 
     .pay-action-row {
       display: flex; align-items: center; justify-content: space-between;
@@ -614,6 +657,9 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
     .paid-fee-card-waived { background: rgba(139,92,246,0.04); border-color: rgba(139,92,246,0.14) !important; }
     .paid-fee-icon-waived { background: rgba(139,92,246,0.16) !important; color: #c4b5fd !important; }
     .method-waived { background: rgba(139,92,246,0.16); color: #c4b5fd; display: inline-flex; align-items: center; gap: 4px; }
+    .method-billing { background: rgba(96,165,250,0.16); color: #93c5fd; display: inline-flex; align-items: center; gap: 4px; }
+    .paid-fee-card-billing { border-left: 3px solid rgba(96,165,250,0.4); }
+    .paid-fee-icon-billing { background: rgba(96,165,250,0.16) !important; color: #93c5fd !important; }
     .waived-total { color: #c4b5fd; }
 
     .filter-bar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: flex-end; }
@@ -693,6 +739,17 @@ export class FinanceComponent implements OnInit {
   readonly gcashQrCode = 'dev-gcash-qr.png';
   readonly qrphQrCode = 'dev-qrph-qr.png';
 
+  convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' = 'per_hour';
+  convenienceFeeMonthlyAmount = 0;
+
+  get isMonthlyFlat() { return this.convenienceFeeMode === 'monthly_flat'; }
+
+  get endOfMonthLabel(): string {
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return end.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+  }
+
   get total() { return this.charges.reduce((s, c) => s + c.amount, 0); }
   get filteredTotal() { return this.filtered.reduce((s, c) => s + c.amount, 0); }
   get gcashTotal() { return this.charges.filter(c => c.paymentMethod === 'GCash').reduce((s, c) => s + c.amount, 0); }
@@ -703,8 +760,9 @@ export class FinanceComponent implements OnInit {
   get reservationTotal() { return this.reservationCharges.reduce((s, c) => s + c.amount, 0); }
   get reservationServiceFee() { return this.reservationCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
   get openPlayServiceFee() { return this.allOpenPlayCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
-  get appServiceTotal() { return this.reservationServiceFee + this.openPlayServiceFee; }
-  get totalPaid() { return this.appServicePayments.filter(p => p.type !== 'waiver').reduce((s, p) => s + p.amount, 0); }
+  get billingTotal() { return this.appServicePayments.filter(p => p.type === 'billing').reduce((s, p) => s + p.amount, 0); }
+  get appServiceTotal() { return this.reservationServiceFee + this.openPlayServiceFee + this.billingTotal; }
+  get totalPaid() { return this.appServicePayments.filter(p => p.type === 'payment').reduce((s, p) => s + p.amount, 0); }
   get totalWaived() { return this.appServicePayments.filter(p => p.type === 'waiver').reduce((s, p) => s + p.amount, 0); }
   get balance() { return this.appServiceTotal - this.totalPaid - this.totalWaived; }
 
@@ -720,8 +778,9 @@ export class FinanceComponent implements OnInit {
       charges: this.chargesService.getApprovedCharges(),
       allCharges: this.chargesService.getAllCharges(),
       payments: this.appServicePaymentsService.getAll(),
+      feeInfo: this.appServicePaymentsService.getFeeInfo(),
     }).subscribe({
-      next: ({ charges, allCharges, payments }) => {
+      next: ({ charges, allCharges, payments, feeInfo }) => {
         this.charges = charges.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
         this.allReservationCharges = allCharges
           .filter(c => c.chargeType === 'reservation' && c.reservationId?.status === 'confirmed')
@@ -730,6 +789,8 @@ export class FinanceComponent implements OnInit {
           .filter(c => c.chargeType === 'open_play_session')
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         this.appServicePayments = payments;
+        this.convenienceFeeMode = feeInfo.convenienceFeeMode;
+        this.convenienceFeeMonthlyAmount = feeInfo.convenienceFeeMonthlyAmount;
         this.applyFilter();
         this.loading = false;
         this.cdr.detectChanges();

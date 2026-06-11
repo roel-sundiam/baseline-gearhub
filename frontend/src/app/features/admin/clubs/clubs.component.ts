@@ -423,24 +423,19 @@ interface AdminUser {
                       <span class="cfs-icon"><i class="fas fa-percentage"></i></span>
                       <div>
                         <div class="cfs-title">Convenience Fee Settings</div>
-                        <div class="cfs-subtitle">Charged to players on every booking</div>
+                        <div class="cfs-subtitle">App service fee charged to this club</div>
                       </div>
                     </div>
                     <span class="cfs-current-badge">
-                      Currently {{ ((selectedClub?.convenienceFeeRate ?? 0.10) * 100) | number:'1.0-1' }}%
+                      @if (selectedClub?.convenienceFeeMode === 'monthly_flat') {
+                        Monthly Flat — ₱{{ (selectedClub?.convenienceFeeMonthlyAmount ?? 0) | number:'1.0-2' }}/mo
+                      } @else {
+                        Currently {{ ((selectedClub?.convenienceFeeRate ?? 0.10) * 100) | number:'1.0-1' }}%
+                      }
                     </span>
                   </div>
 
                   <div class="cfs-body">
-                    <div class="cfs-field">
-                      <label class="cfs-field-label">Fee Rate</label>
-                      <div class="cfs-rate-row">
-                        <input type="number" class="cfs-rate-input" [(ngModel)]="editConvenienceFeeRate" min="0" max="100" step="0.1" />
-                        <span class="cfs-pct">%</span>
-                        <span class="cfs-rate-hint">of total court fee per booking</span>
-                      </div>
-                    </div>
-
                     <div class="cfs-field">
                       <label class="cfs-field-label">Fee Mode</label>
                       <div class="cfs-mode-grid">
@@ -454,8 +449,32 @@ interface AdminUser {
                           <span class="cfs-mode-name">Per Booking</span>
                           <span class="cfs-mode-desc">Fixed, 1× hourly rate</span>
                         </button>
+                        <button type="button" class="cfs-mode-opt" [class.cfs-mode-opt-active]="editConvenienceFeeMode === 'monthly_flat'" (click)="editConvenienceFeeMode = 'monthly_flat'">
+                          <i class="fas fa-calendar-alt"></i>
+                          <span class="cfs-mode-name">Monthly Flat</span>
+                          <span class="cfs-mode-desc">Fixed monthly amount</span>
+                        </button>
                       </div>
                     </div>
+
+                    @if (editConvenienceFeeMode === 'monthly_flat') {
+                      <div class="cfs-field">
+                        <label class="cfs-field-label">Monthly Amount (₱)</label>
+                        <div class="cfs-rate-row">
+                          <input type="number" class="cfs-rate-input" [(ngModel)]="editConvenienceFeeMonthlyAmount" min="0" step="1" />
+                          <span class="cfs-rate-hint">fixed pesos per month, billed manually</span>
+                        </div>
+                      </div>
+                    } @else {
+                      <div class="cfs-field">
+                        <label class="cfs-field-label">Fee Rate</label>
+                        <div class="cfs-rate-row">
+                          <input type="number" class="cfs-rate-input" [(ngModel)]="editConvenienceFeeRate" min="0" max="100" step="0.1" />
+                          <span class="cfs-pct">%</span>
+                          <span class="cfs-rate-hint">of total court fee per booking</span>
+                        </div>
+                      </div>
+                    }
                   </div>
 
                   <div class="cfs-footer">
@@ -477,6 +496,34 @@ interface AdminUser {
                 } @else if (aspError) {
                   <p class="state-msg state-msg-error">{{ aspError }}</p>
                 } @else {
+
+                  <!-- Bill Month card for monthly_flat clubs -->
+                  @if (selectedClub?.convenienceFeeMode === 'monthly_flat') {
+                    <div class="asp-bill-month-card">
+                      <div class="asp-bill-month-left">
+                        <div class="asp-bill-month-icon"><i class="fas fa-calendar-alt"></i></div>
+                        <div>
+                          <div class="asp-bill-month-title">Monthly Flat Plan</div>
+                          <div class="asp-bill-month-amount">₱{{ (selectedClub?.convenienceFeeMonthlyAmount ?? 0) | number:'1.0-2' }} <span class="asp-bill-month-per">/ month</span></div>
+                        </div>
+                      </div>
+                      <div class="asp-bill-month-right">
+                        @if (billingMonthMsg) {
+                          <span class="asp-bill-month-msg" [class.asp-bill-month-msg-error]="billingMonthMsg.includes('Failed')">
+                            <i class="fas" [class.fa-check-circle]="!billingMonthMsg.includes('Failed')" [class.fa-exclamation-circle]="billingMonthMsg.includes('Failed')"></i>
+                            {{ billingMonthMsg }}
+                          </span>
+                        }
+                        <button type="button" class="asp-bill-btn" (click)="billMonth()" [disabled]="billingMonthLoading">
+                          @if (billingMonthLoading) {
+                            <i class="fas fa-circle-notch fa-spin"></i> Billing…
+                          } @else {
+                            <i class="fas fa-calendar-plus"></i> Bill Month
+                          }
+                        </button>
+                      </div>
+                    </div>
+                  }
 
                   <!-- Summary -->
                   <div class="asp-summary">
@@ -563,20 +610,22 @@ interface AdminUser {
                     } @else {
                       <div class="asp-pay-list">
                         @for (p of aspPayments; track p._id) {
-                          <div class="asp-pay-row" [class.asp-pay-row-waived]="p.type === 'waiver'">
+                          <div class="asp-pay-row" [class.asp-pay-row-waived]="p.type === 'waiver'" [class.asp-pay-row-billing]="p.type === 'billing'">
                             <div class="asp-pay-left">
                               <span class="asp-pay-amount" [class.asp-pay-amount-waived]="p.type === 'waiver'">
                                 ₱{{ p.amount | number:'1.2-2' }}
                               </span>
                               @if (p.type === 'waiver') {
                                 <span class="badge badge-waived"><i class="fas fa-hand-holding-usd"></i> Waived</span>
+                              } @else if (p.type === 'billing') {
+                                <span class="badge badge-billing"><i class="fas fa-calendar-alt"></i> Monthly Billing</span>
                               } @else {
                                 <span class="badge badge-purple">{{ p.paymentMethod }}</span>
                               }
                               @if (p.note) { <span class="asp-note">{{ p.note }}</span> }
                             </div>
                             <div class="asp-pay-right">
-                              <span>{{ p.type === 'waiver' ? 'Waived by' : 'Paid by' }} {{ p.paidBy?.name ?? '—' }}</span>
+                              <span>{{ p.type === 'waiver' ? 'Waived by' : p.type === 'billing' ? 'Billed by' : 'Paid by' }} {{ p.paidBy?.name ?? '—' }}</span>
                               <span>{{ formatDate(p.createdAt) }}</span>
                             </div>
                           </div>
@@ -1654,6 +1703,42 @@ interface AdminUser {
     .asp-lbl { display: block; font-size: 0.7rem; font-weight: 700; color: rgba(17,24,39,0.5); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
     .asp-val { display: block; font-size: 1.05rem; font-weight: 800; color: #111827; }
 
+    /* Bill Month card */
+    .asp-bill-month-card {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 0.75rem;
+      padding: 1rem 1.1rem; margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
+      border: 1.5px solid rgba(59,130,246,0.3); border-radius: 12px;
+    }
+    .asp-bill-month-left { display: flex; align-items: center; gap: 0.8rem; }
+    .asp-bill-month-icon {
+      width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0;
+      background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.2);
+      display: flex; align-items: center; justify-content: center;
+      color: #2563eb; font-size: 1.1rem;
+    }
+    .asp-bill-month-title { font-size: 0.72rem; font-weight: 700; color: rgba(29,78,216,0.7); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.15rem; }
+    .asp-bill-month-amount { font-size: 1.15rem; font-weight: 800; color: #1e3a8a; line-height: 1; }
+    .asp-bill-month-per { font-size: 0.78rem; font-weight: 600; color: rgba(29,78,216,0.6); }
+    .asp-bill-month-right { display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap; }
+    .asp-bill-month-msg { font-size: 0.8rem; font-weight: 700; color: #166534; display: flex; align-items: center; gap: 0.3rem; }
+    .asp-bill-month-msg-error { color: #dc2626; }
+    .asp-bill-btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.55rem 1.2rem; border-radius: 10px;
+      font-size: 0.875rem; font-weight: 700; cursor: pointer;
+      border: 1.5px solid rgba(37,99,235,0.35);
+      background: rgba(37,99,235,0.1); color: #1d4ed8;
+      transition: all 0.15s;
+    }
+    .asp-bill-btn:hover:not(:disabled) { background: rgba(37,99,235,0.18); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(37,99,235,0.15); }
+    .asp-bill-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Billing row in history */
+    .asp-pay-row-billing { border-left: 3px solid rgba(59,130,246,0.4); }
+    .badge-billing { background: rgba(59,130,246,0.12); color: #2563eb; border: 1px solid rgba(59,130,246,0.2); }
+
     .asp-section { display: flex; flex-direction: column; gap: 0.5rem; }
 
     .asp-section-title {
@@ -2541,10 +2626,13 @@ export class AdminClubsComponent implements OnInit {
   aspError = '';
   aspModal = { show: false, amount: 0, method: 'GCash' as 'GCash' | 'QRPh', note: '', submitting: false, error: '' };
 
-  editConvenienceFeeMode: 'per_transaction' | 'per_hour' = 'per_hour';
+  editConvenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' = 'per_hour';
   editConvenienceFeeRate = 10;
+  editConvenienceFeeMonthlyAmount = 0;
   savingFeeMode = false;
   feeModeSaveMsg = '';
+  billingMonthLoading = false;
+  billingMonthMsg = '';
 
   get reservationCharges(): Charge[] {
     return this.approvedCharges.filter(c =>
@@ -2558,11 +2646,13 @@ export class AdminClubsComponent implements OnInit {
     return this.reservationCharges.reduce((sum, c) => sum + c.amount, 0);
   }
   get appServiceDue(): number {
-    return this.reservationCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0)
+    const chargeFees = this.reservationCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0)
       + this.openPlayCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0);
+    const billingFees = this.aspPayments.filter(p => p.type === 'billing').reduce((sum, p) => sum + p.amount, 0);
+    return chargeFees + billingFees;
   }
   get aspTotalPaid(): number {
-    return this.aspPayments.filter(p => p.type !== 'waiver').reduce((sum, p) => sum + p.amount, 0);
+    return this.aspPayments.filter(p => p.type === 'payment').reduce((sum, p) => sum + p.amount, 0);
   }
   get aspTotalWaived(): number {
     return this.aspPayments.filter(p => p.type === 'waiver').reduce((sum, p) => sum + p.amount, 0);
@@ -2652,7 +2742,9 @@ export class AdminClubsComponent implements OnInit {
     this.membersError = '';
     this.editConvenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
     this.editConvenienceFeeRate = Math.round((club.convenienceFeeRate ?? 0.10) * 1000) / 10;
+    this.editConvenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
     this.feeModeSaveMsg = '';
+    this.billingMonthMsg = '';
 
     this.loadClubAdmins();
   }
@@ -2851,16 +2943,33 @@ export class AdminClubsComponent implements OnInit {
     this.savingFeeMode = true;
     this.feeModeSaveMsg = '';
     const rate = Math.max(0, Math.min(100, this.editConvenienceFeeRate)) / 100;
-    this.clubService.patchConvenienceFee(this.selectedClub._id, rate, this.editConvenienceFeeMode).subscribe({
+    const monthly = this.editConvenienceFeeMode === 'monthly_flat' ? Math.max(0, this.editConvenienceFeeMonthlyAmount) : undefined;
+    this.clubService.patchConvenienceFee(this.selectedClub._id, rate, this.editConvenienceFeeMode, monthly).subscribe({
       next: (updated) => {
-        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, convenienceFeeRate: updated.convenienceFeeRate, convenienceFeeMode: updated.convenienceFeeMode } : c);
-        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, convenienceFeeRate: updated.convenienceFeeRate, convenienceFeeMode: updated.convenienceFeeMode };
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, convenienceFeeRate: updated.convenienceFeeRate, convenienceFeeMode: updated.convenienceFeeMode, convenienceFeeMonthlyAmount: updated.convenienceFeeMonthlyAmount } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, convenienceFeeRate: updated.convenienceFeeRate, convenienceFeeMode: updated.convenienceFeeMode, convenienceFeeMonthlyAmount: updated.convenienceFeeMonthlyAmount };
         this.savingFeeMode = false;
         this.feeModeSaveMsg = 'Saved!';
         this.cdr.detectChanges();
         setTimeout(() => { this.feeModeSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
       },
       error: () => { this.savingFeeMode = false; this.feeModeSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
+  billMonth() {
+    if (!this.selectedClub?._id) return;
+    this.billingMonthLoading = true;
+    this.billingMonthMsg = '';
+    this.aspService.billMonth(this.selectedClub._id).subscribe({
+      next: (res) => {
+        this.aspPayments = [res.payment, ...this.aspPayments];
+        this.billingMonthLoading = false;
+        this.billingMonthMsg = 'Monthly billing recorded!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.billingMonthMsg = ''; this.cdr.detectChanges(); }, 3000);
+      },
+      error: (err) => { this.billingMonthLoading = false; this.billingMonthMsg = err?.error?.error || 'Failed to record billing.'; this.cdr.detectChanges(); },
     });
   }
 

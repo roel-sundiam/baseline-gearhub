@@ -355,10 +355,12 @@ interface ActivePlayer { _id: string; name: string; email: string; }
               </div>
             }
 
-            <div class="dm-summary-row">
-              <span>Convenience Fee <span class="dm-summary-sub">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
-              <strong>@if (loadingRates) { — } @else { {{ convenienceFee | currency: 'PHP' : 'symbol' }} }</strong>
-            </div>
+            @if (convenienceFeeMode !== 'monthly_flat') {
+              <div class="dm-summary-row">
+                <span>Convenience Fee <span class="dm-summary-sub">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
+                <strong>@if (loadingRates) { — } @else { {{ convenienceFee | currency: 'PHP' : 'symbol' }} }</strong>
+              </div>
+            }
 
             <div class="dm-summary-divider"></div>
 
@@ -979,7 +981,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   showDropdown = false;
 
   convenienceFeeRate = 0.10;
-  convenienceFeeMode: 'per_transaction' | 'per_hour' = 'per_hour';
+  convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' = 'per_hour';
   weekdayRate = 0;
   weekendRate = 0;
   holidayRate = 0;
@@ -1049,6 +1051,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   }
 
   get convenienceFee(): number {
+    if (this.convenienceFeeMode === 'monthly_flat') return 0;
     const base = this.convenienceFeeMode === 'per_transaction' ? this.baseHourlyRate : this.subtotal;
     return parseFloat((base * this.convenienceFeeRate).toFixed(2));
   }

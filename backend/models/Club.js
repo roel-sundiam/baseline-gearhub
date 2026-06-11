@@ -16,7 +16,8 @@ const clubSchema = new mongoose.Schema(
     paymentAccounts: { type: Map, of: String, default: {} },
     paymentQrCodes: { type: Map, of: String, default: {} },
     convenienceFeeRate: { type: Number, default: 0.10, min: 0, max: 1 },
-    convenienceFeeMode: { type: String, enum: ['per_transaction', 'per_hour'], default: 'per_hour' },
+    convenienceFeeMode: { type: String, enum: ['per_transaction', 'per_hour', 'monthly_flat'], default: 'per_hour' },
+    convenienceFeeMonthlyAmount: { type: Number, default: 0, min: 0 },
     description: { type: String, trim: true },
     photos: { type: [String], default: [] },
     socialLinks: {

@@ -479,8 +479,11 @@ router.post("/:clubId/reserve", async (req, res) => {
     const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;
     const feeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.05;
     const feeMode = club.convenienceFeeMode ?? 'per_hour';
-    const convenienceFeeBase = feeMode === 'per_transaction' ? hourlyRate : courtFee;
-    const convenienceFee = parseFloat((convenienceFeeBase * feeRate).toFixed(2));
+    let convenienceFee = 0;
+    if (feeMode !== 'monthly_flat') {
+      const convenienceFeeBase = feeMode === 'per_transaction' ? hourlyRate : courtFee;
+      convenienceFee = parseFloat((convenienceFeeBase * feeRate).toFixed(2));
+    }
     const totalAmount = courtFee + convenienceFee;
 
     const reservation = await Reservation.create({

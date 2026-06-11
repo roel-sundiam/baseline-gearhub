@@ -307,8 +307,11 @@ router.post("/", auth, async (req, res) => {
     const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;
     const feeRate = typeof clubDoc?.convenienceFeeRate === 'number' ? clubDoc.convenienceFeeRate : 0.10;
     const feeMode = clubDoc?.convenienceFeeMode ?? 'per_hour';
-    const convenienceFeeBase = feeMode === 'per_transaction' ? hourlyRate : courtFee;
-    const convenienceFee = parseFloat((convenienceFeeBase * feeRate).toFixed(2));
+    let convenienceFee = 0;
+    if (feeMode !== 'monthly_flat') {
+      const convenienceFeeBase = feeMode === 'per_transaction' ? hourlyRate : courtFee;
+      convenienceFee = parseFloat((convenienceFeeBase * feeRate).toFixed(2));
+    }
     const totalAmount = courtFee + convenienceFee;
 
     const reservation = await Reservation.create({
@@ -470,8 +473,11 @@ router.patch("/:id", auth, async (req, res) => {
     const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;
     const editFeeRate = typeof editClub?.convenienceFeeRate === 'number' ? editClub.convenienceFeeRate : 0.10;
     const editFeeMode = editClub?.convenienceFeeMode ?? 'per_hour';
-    const editConvFeeBase = editFeeMode === 'per_transaction' ? hourlyRate : courtFee;
-    const editConvenienceFee = parseFloat((editConvFeeBase * editFeeRate).toFixed(2));
+    let editConvenienceFee = 0;
+    if (editFeeMode !== 'monthly_flat') {
+      const editConvFeeBase = editFeeMode === 'per_transaction' ? hourlyRate : courtFee;
+      editConvenienceFee = parseFloat((editConvFeeBase * editFeeRate).toFixed(2));
+    }
     const editTotalAmount = courtFee + editConvenienceFee;
 
     const additionalPlayers = [...new Set(

@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const appServicePaymentSchema = new mongoose.Schema(
   {
     amount: { type: Number, required: true },
-    type: { type: String, enum: ["payment", "waiver"], default: "payment" },
+    type: { type: String, enum: ["payment", "waiver", "billing"], default: "payment" },
     paymentMethod: {
       type: String,
       enum: ["GCash", "QRPh"],

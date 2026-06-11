@@ -6,7 +6,7 @@ import { environment } from '../../../environments/environment';
 export interface AppServicePayment {
   _id: string;
   amount: number;
-  type?: 'payment' | 'waiver';
+  type?: 'payment' | 'waiver' | 'billing';
   paymentMethod?: 'GCash' | 'QRPh';
   note?: string;
   paidBy: { _id: string; name: string; email: string };
@@ -18,6 +18,8 @@ export interface ClubServiceSummary {
   clubId: string;
   clubName: string;
   convenienceFeeRate: number;
+  convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat';
+  convenienceFeeMonthlyAmount: number;
   totalCourtFees: number;
   feesOwed: number;
   totalPaid: number;
@@ -58,6 +60,19 @@ export class AppServicePaymentsService {
     return this.http.post<{ message: string; payment: AppServicePayment }>(
       `${environment.apiUrl}/app-service-payments/waive`,
       { clubId, amount, ...(note ? { note } : {}) },
+    );
+  }
+
+  getFeeInfo(): Observable<{ convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat'; convenienceFeeMonthlyAmount: number }> {
+    return this.http.get<{ convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat'; convenienceFeeMonthlyAmount: number }>(
+      `${environment.apiUrl}/app-service-payments/fee-info`,
+    );
+  }
+
+  billMonth(clubId: string): Observable<{ message: string; payment: AppServicePayment }> {
+    return this.http.post<{ message: string; payment: AppServicePayment }>(
+      `${environment.apiUrl}/app-service-payments/bill-month`,
+      { clubId },
     );
   }
 }

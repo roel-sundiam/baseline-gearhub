@@ -90,10 +90,17 @@ router.patch("/:id/convenience-fee", auth, superadmin, async (req, res) => {
       update.convenienceFeeRate = rate;
     }
     if (req.body.convenienceFeeMode !== undefined) {
-      if (!["per_transaction", "per_hour"].includes(req.body.convenienceFeeMode)) {
-        return res.status(400).json({ error: "convenienceFeeMode must be 'per_transaction' or 'per_hour'" });
+      if (!["per_transaction", "per_hour", "monthly_flat"].includes(req.body.convenienceFeeMode)) {
+        return res.status(400).json({ error: "convenienceFeeMode must be 'per_transaction', 'per_hour', or 'monthly_flat'" });
       }
       update.convenienceFeeMode = req.body.convenienceFeeMode;
+    }
+    if (req.body.convenienceFeeMonthlyAmount !== undefined) {
+      const monthly = Number(req.body.convenienceFeeMonthlyAmount);
+      if (isNaN(monthly) || monthly < 0) {
+        return res.status(400).json({ error: "convenienceFeeMonthlyAmount must be a non-negative number" });
+      }
+      update.convenienceFeeMonthlyAmount = monthly;
     }
     if (Object.keys(update).length === 0) {
       return res.status(400).json({ error: "No valid fields provided" });

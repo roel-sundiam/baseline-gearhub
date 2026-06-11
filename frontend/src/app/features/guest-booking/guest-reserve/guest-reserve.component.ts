@@ -30,6 +30,10 @@ function addDays(dateStr: string, delta: number): string {
   d.setUTCDate(d.getUTCDate() + delta);
   return d.toISOString().split('T')[0];
 }
+function localDateStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 
 @Component({
   selector: 'app-guest-reserve',
@@ -126,7 +130,7 @@ function addDays(dateStr: string, delta: number): string {
             <div class="gr-left">
               <div class="gr-date-nav">
                 <button class="gr-nav-btn" (click)="prevDay()" [disabled]="navDate() <= today">&#8249;</button>
-                <div class="gr-date-label">{{ navDate() | date: 'EEEE, MMMM d, y' : 'UTC' }}</div>
+                <div class="gr-date-label">{{ navDate() | date: 'EEEE, MMMM d, y' }}</div>
                 <button class="gr-nav-btn" (click)="nextDay()">&#8250;</button>
                 @if (navDate() !== today) {
                   <button class="gr-today-btn" (click)="goToday()">Today</button>
@@ -216,7 +220,7 @@ function addDays(dateStr: string, delta: number): string {
                       <span class="gr-slot-badge gr-slot-badge-time">
                         {{ selectedSlot }}{{ selectedDuration > 1 ? ' – ' + endSlotLabel : '' }}
                       </span>
-                      <span class="gr-slot-badge gr-slot-badge-date">{{ navDate() | date: 'MMM d' : 'UTC' }}</span>
+                      <span class="gr-slot-badge gr-slot-badge-date">{{ navDate() | date: 'MMM d' }}</span>
                     </div>
 
                     <!-- Toggles -->
@@ -310,10 +314,12 @@ function addDays(dateStr: string, delta: number): string {
                         <span>Subtotal</span>
                         <strong>{{ subtotal | currency: 'PHP' : 'symbol' }}</strong>
                       </div>
-                      <div class="gr-sum-row">
-                        <span>Convenience fee <span class="gr-sum-pct">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
-                        <strong>{{ convenienceFee | currency: 'PHP' : 'symbol' }}</strong>
-                      </div>
+                      @if (convenienceFeeMode !== 'monthly_flat') {
+                        <div class="gr-sum-row">
+                          <span>Convenience fee <span class="gr-sum-pct">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
+                          <strong>{{ convenienceFee | currency: 'PHP' : 'symbol' }}</strong>
+                        </div>
+                      }
                       <div class="gr-sum-total-row">
                         <span>Total:</span>
                         <strong class="gr-total-amt">{{ computedFee | currency: 'PHP' : 'symbol' }}</strong>
@@ -1119,9 +1125,9 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   openingHour = 5;
   allSlots: string[] = hoursToSlots(5, 22);
   lightSlots = LIGHT_SLOTS;
-  today = new Date().toISOString().split('T')[0];
+  today = localDateStr();
 
-  navDate = signal(new Date().toISOString().split('T')[0]);
+  navDate = signal(localDateStr());
   availLoading = signal(true);
   courtAvailability = signal<Record<number, Set<string>>>({});
   clubPhotos = signal<string[]>([]);
@@ -1141,7 +1147,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   confirmationData: GuestBookingResult | null = null;
 
   convenienceFeeRate = 0.05;
-  convenienceFeeMode: 'per_transaction' | 'per_hour' = 'per_hour';
+  convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' = 'per_hour';
   weekdayRate = 0;
   weekendRate = 0;
   holidayRate = 0;
@@ -1215,6 +1221,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   }
 
   get convenienceFee(): number {
+    if (this.convenienceFeeMode === 'monthly_flat') return 0;
     const base = this.convenienceFeeMode === 'per_transaction' ? this.baseHourlyRate : this.subtotal;
     return parseFloat((base * this.convenienceFeeRate).toFixed(2));
   }

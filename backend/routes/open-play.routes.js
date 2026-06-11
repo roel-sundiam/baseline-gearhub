@@ -351,7 +351,7 @@ router.post("/sessions", auth, admin, async (req, res) => {
     });
 
     const [club, rates] = await Promise.all([
-      Club.findById(req.user.clubId).select("convenienceFeeRate").lean(),
+      Club.findById(req.user.clubId).select("convenienceFeeRate convenienceFeeMode").lean(),
       Rates.findOne({ clubId: req.user.clubId }).lean(),
     ]);
     const sessionDay = new Date(sessionDate).getUTCDay();
@@ -359,8 +359,11 @@ router.post("/sessions", auth, admin, async (req, res) => {
       ? (rates?.reservationWeekendRate ?? 0)
       : (rates?.reservationWeekdayRate ?? 0);
     const sessionHours = parseInt(endTime.split(":")[0], 10) - parseInt(startTime.split(":")[0], 10);
+    const feeMode = club?.convenienceFeeMode ?? 'per_hour';
     const feeRate = typeof club?.convenienceFeeRate === "number" ? club.convenienceFeeRate : 0.10;
-    const fee = parseFloat((hourlyRate * Math.max(sessionHours, 0) * feeRate).toFixed(2));
+    const fee = feeMode === 'monthly_flat'
+      ? 0
+      : parseFloat((hourlyRate * Math.max(sessionHours, 0) * feeRate).toFixed(2));
 
     await Charge.create({
       openPlaySessionId: session._id,
