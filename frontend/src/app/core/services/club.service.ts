@@ -2,6 +2,15 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 
+export interface AdditionalFee {
+  _id?: string;
+  name: string;
+  amount: number;
+  type: 'fixed' | 'per_person';
+  isEnabled: boolean;
+  isOptional: boolean;
+}
+
 export interface Club {
   _id: string;
   name: string;
@@ -21,6 +30,7 @@ export interface Club {
   convenienceFeeRate?: number;
   convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat';
   convenienceFeeMonthlyAmount?: number;
+  additionalFees?: AdditionalFee[];
   description?: string;
   photos?: string[];
   socialLinks?: { facebook?: string; instagram?: string; reclub?: string };
@@ -68,6 +78,10 @@ export class ClubService {
 
   patchConvenienceFee(id: string, convenienceFeeRate: number, convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat', convenienceFeeMonthlyAmount?: number) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/convenience-fee`, { convenienceFeeRate, convenienceFeeMode, ...(convenienceFeeMonthlyAmount !== undefined ? { convenienceFeeMonthlyAmount } : {}) });
+  }
+
+  updateAdditionalFees(id: string, additionalFees: AdditionalFee[]) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/additional-fees`, { additionalFees });
   }
 
   setSelectedClubId(id: string) {

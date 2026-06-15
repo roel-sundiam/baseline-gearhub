@@ -226,6 +226,7 @@ router.get("/:clubId", async (req, res) => {
       paymentQrCodes: club.paymentQrCodes instanceof Map ? Object.fromEntries(club.paymentQrCodes) : (club.paymentQrCodes ?? {}),
       convenienceFeeRate: typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.05,
       convenienceFeeMode: club.convenienceFeeMode ?? 'per_hour',
+      additionalFees: (club.additionalFees ?? []).filter(f => f.isEnabled),
       mobile: club.mobile,
       email: club.email,
       description: club.description,
@@ -378,6 +379,7 @@ router.post("/:clubId/reserve", async (req, res) => {
       guestCount = 0,
       rentals = {},
       guestInfo = {},
+      selectedExtraFeeNames = [],
     } = req.body;
     const durationHours = Math.max(1, Math.min(12, Math.floor(Number(req.body.durationHours) || 1)));
 
@@ -484,7 +486,16 @@ router.post("/:clubId/reserve", async (req, res) => {
       const convenienceFeeBase = feeMode === 'per_transaction' ? hourlyRate : courtFee;
       convenienceFee = parseFloat((convenienceFeeBase * feeRate).toFixed(2));
     }
-    const totalAmount = courtFee + convenienceFee;
+
+    const selectedNames = Array.isArray(selectedExtraFeeNames) ? selectedExtraFeeNames : [];
+    const appliedExtraFees = (club.additionalFees ?? [])
+      .filter(f => f.isEnabled && (!f.isOptional || selectedNames.includes(f.name)))
+      .map(f => ({
+        name: f.name,
+        amount: parseFloat((f.type === 'per_person' ? f.amount * sanitizedGuestCount : f.amount).toFixed(2)),
+      }));
+    const extraFeeTotal = parseFloat(appliedExtraFees.reduce((sum, f) => sum + f.amount, 0).toFixed(2));
+    const totalAmount = courtFee + convenienceFee + extraFeeTotal;
 
     const reservation = await Reservation.create({
       clubId: resolvedClubId,
@@ -524,6 +535,8 @@ router.post("/:clubId/reserve", async (req, res) => {
         guestFee: guestTotalFee,
         rentalFee,
         convenienceFee,
+        extraFees: appliedExtraFees,
+        extraFeeTotal,
       },
       chargeType: "reservation",
       approvalStatus: "pending",

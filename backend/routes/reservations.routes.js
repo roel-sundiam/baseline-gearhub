@@ -209,6 +209,7 @@ router.post("/", auth, async (req, res) => {
       lightsRequested = false, ballBoy = false, isHoliday = false,
       guestCount = 0,
       rentals = {},
+      selectedExtraFeeNames = [],
     } = req.body;
     const durationHours = Math.max(1, Math.min(12, Math.floor(Number(req.body.durationHours) || 1)));
     if (!court || !date || !timeSlot) {
@@ -218,7 +219,7 @@ router.post("/", auth, async (req, res) => {
     if (!Number.isInteger(courtNum) || courtNum < 1) {
       return res.status(400).json({ error: "court must be a positive integer" });
     }
-    const clubDoc = await Club.findById(clubId).select('courtCount openingHour closingHour convenienceFeeRate convenienceFeeMode').lean();
+    const clubDoc = await Club.findById(clubId).select('courtCount openingHour closingHour convenienceFeeRate convenienceFeeMode additionalFees').lean();
     const courtCount = clubDoc?.courtCount ?? 2;
     if (courtNum > courtCount) {
       return res.status(400).json({ error: `court must be between 1 and ${courtCount}` });
@@ -312,7 +313,16 @@ router.post("/", auth, async (req, res) => {
       const convenienceFeeBase = feeMode === 'per_transaction' ? hourlyRate : courtFee;
       convenienceFee = parseFloat((convenienceFeeBase * feeRate).toFixed(2));
     }
-    const totalAmount = courtFee + convenienceFee;
+
+    const selectedNames = Array.isArray(selectedExtraFeeNames) ? selectedExtraFeeNames : [];
+    const appliedExtraFees = (clubDoc?.additionalFees ?? [])
+      .filter(f => f.isEnabled && (!f.isOptional || selectedNames.includes(f.name)))
+      .map(f => ({
+        name: f.name,
+        amount: parseFloat((f.type === 'per_person' ? f.amount * sanitizedGuestCount : f.amount).toFixed(2)),
+      }));
+    const extraFeeTotal = parseFloat(appliedExtraFees.reduce((sum, f) => sum + f.amount, 0).toFixed(2));
+    const totalAmount = courtFee + convenienceFee + extraFeeTotal;
 
     const reservation = await Reservation.create({
       clubId,
@@ -345,6 +355,8 @@ router.post("/", auth, async (req, res) => {
         guestFee: guestTotalFee,
         rentalFee,
         convenienceFee,
+        extraFees: appliedExtraFees,
+        extraFeeTotal,
       },
       chargeType: "reservation",
     });

@@ -132,6 +132,58 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
                       }
                     </div>
 
+                    <!-- Fee breakdown -->
+                    @if (charge.breakdown) {
+                      <div class="pa-breakdown">
+                        @if ((charge.breakdown.withoutLightFee ?? 0) > 0) {
+                          <div class="pa-bk-row">
+                            <span>Court fee</span>
+                            <span>{{ charge.breakdown.withoutLightFee | currency:'PHP':'symbol' }}</span>
+                          </div>
+                        }
+                        @if ((charge.breakdown.lightFee ?? 0) > 0) {
+                          <div class="pa-bk-row">
+                            <span>Lights</span>
+                            <span>{{ charge.breakdown.lightFee | currency:'PHP':'symbol' }}</span>
+                          </div>
+                        }
+                        @if ((charge.breakdown.ballBoyFee ?? 0) > 0) {
+                          <div class="pa-bk-row">
+                            <span>Ball boy</span>
+                            <span>{{ charge.breakdown.ballBoyFee | currency:'PHP':'symbol' }}</span>
+                          </div>
+                        }
+                        @if ((charge.breakdown.guestFee ?? 0) > 0) {
+                          <div class="pa-bk-row">
+                            <span>Guest fee</span>
+                            <span>{{ charge.breakdown.guestFee | currency:'PHP':'symbol' }}</span>
+                          </div>
+                        }
+                        @if ((charge.breakdown.rentalFee ?? 0) > 0) {
+                          <div class="pa-bk-row">
+                            <span>Rentals</span>
+                            <span>{{ charge.breakdown.rentalFee | currency:'PHP':'symbol' }}</span>
+                          </div>
+                        }
+                        @if ((charge.breakdown.convenienceFee ?? 0) > 0) {
+                          <div class="pa-bk-row">
+                            <span>Convenience fee</span>
+                            <span>{{ charge.breakdown.convenienceFee | currency:'PHP':'symbol' }}</span>
+                          </div>
+                        }
+                        @for (ef of (charge.breakdown.extraFees ?? []); track ef.name) {
+                          <div class="pa-bk-row">
+                            <span>{{ ef.name }}</span>
+                            <span>{{ ef.amount | currency:'PHP':'symbol' }}</span>
+                          </div>
+                        }
+                        <div class="pa-bk-total">
+                          <span>Total</span>
+                          <span>{{ charge.amount | currency:'PHP':'symbol' }}</span>
+                        </div>
+                      </div>
+                    }
+
                     @if (charge.approvalStatus === 'rejected' && charge.adminNote) {
                       <div class="pa-admin-note">
                         <i class="fas fa-comment-alt"></i> {{ charge.adminNote }}
@@ -158,9 +210,8 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
                     }
                   </div>
 
-                  <!-- Amount + Actions -->
+                  <!-- Actions -->
                   <div class="pa-card-right">
-                    <div class="pa-amount">{{ charge.amount | currency: 'PHP' : 'symbol' }}</div>
                     @if (charge.approvalStatus === 'pending') {
                       <div class="pa-action-btns">
                         <button class="pa-btn-approve"
@@ -540,6 +591,36 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
       border-color: rgba(239,68,68,0.45);
     }
     .pa-btn-reject:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Fee breakdown */
+    .pa-breakdown {
+      margin-top: 0.6rem;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px;
+      padding: 0.55rem 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .pa-bk-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .pa-bk-total {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: var(--accent);
+      border-top: 1px solid rgba(255,255,255,0.08);
+      margin-top: 0.2rem;
+      padding-top: 0.3rem;
+    }
 
     @media (max-width: 480px) {
       .pa-card-top { flex-direction: column; }

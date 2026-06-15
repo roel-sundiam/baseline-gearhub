@@ -49,6 +49,7 @@ export class ReservationService {
     court: number; date: string; timeSlot: string; durationHours?: number; players?: string[];
     lightsRequested?: boolean; ballBoy?: boolean; isHoliday?: boolean; guestCount?: number;
     rentals?: { balls50?: number; balls100?: number; ballMachine?: boolean; rackets?: number };
+    selectedExtraFeeNames?: string[];
   }) {
     return this.http.post<Reservation>(this.base, payload);
   }

@@ -114,6 +114,37 @@ router.patch("/:id/convenience-fee", auth, superadmin, async (req, res) => {
   }
 });
 
+// PATCH /api/clubs/:id/additional-fees — replace per-club additional fees list (superadmin only)
+router.patch("/:id/additional-fees", auth, superadmin, async (req, res) => {
+  try {
+    const { additionalFees } = req.body;
+    if (!Array.isArray(additionalFees)) {
+      return res.status(400).json({ error: "additionalFees must be an array" });
+    }
+    for (const fee of additionalFees) {
+      if (!fee.name || typeof fee.name !== 'string' || fee.name.trim() === '') {
+        return res.status(400).json({ error: "Each fee must have a non-empty name" });
+      }
+      if (typeof fee.amount !== 'number' || fee.amount < 0) {
+        return res.status(400).json({ error: "Each fee amount must be a non-negative number" });
+      }
+      if (fee.type && !['fixed', 'per_person'].includes(fee.type)) {
+        return res.status(400).json({ error: "Fee type must be 'fixed' or 'per_person'" });
+      }
+    }
+    const club = await Club.findByIdAndUpdate(
+      req.params.id,
+      { additionalFees },
+      { new: true, runValidators: true },
+    ).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json(club);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // DELETE /api/clubs/:id — delete a club (admin only)
 router.delete("/:id", auth, admin, async (req, res) => {
   try {

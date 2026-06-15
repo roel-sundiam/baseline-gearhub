@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { environment } from '../../../../environments/environment';
-import { ClubService, Club } from '../../../core/services/club.service';
+import { ClubService, Club, AdditionalFee } from '../../../core/services/club.service';
 import { UsersService } from '../../../core/services/users.service';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AppServicePaymentsService, AppServicePayment } from '../../../core/services/app-service-payments.service';
@@ -287,6 +287,9 @@ interface AdminUser {
                   @if (!aspLoading && aspBalance > 0) {
                     <span class="tab-badge tab-badge-amber">unpaid</span>
                   }
+                </button>
+                <button type="button" class="tab-btn" [class.tab-active]="activeTab === 'extrafees'" (click)="setTab('extrafees')">
+                  <i class="fas fa-tags"></i> Extra Fees
                 </button>
                 <button type="button" class="tab-btn" [class.tab-active]="activeTab === 'chat'" (click)="setTab('chat')">
                   <i class="fas fa-comment-dots"></i> Chat
@@ -635,6 +638,82 @@ interface AdminUser {
                   </div>
 
                 }
+              </div>
+            }
+
+            <!-- ── EXTRA FEES TAB ── -->
+            @if (activeTab === 'extrafees' && auth.isSuperAdmin()) {
+              <div class="list-card">
+                <div class="cfs-card">
+                  <div class="cfs-header">
+                    <div class="cfs-header-left">
+                      <span class="cfs-icon"><i class="fas fa-tags"></i></span>
+                      <div>
+                        <div class="cfs-title">Additional Booking Fees</div>
+                        <div class="cfs-subtitle">Optional or required fees shown at booking time</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="cfs-body">
+                    @if (editingExtraFees.length === 0) {
+                      <p class="state-msg">No additional fees configured yet.</p>
+                    } @else {
+                      <div class="xfee-list">
+                        @for (fee of editingExtraFees; track $index) {
+                          <div class="xfee-row">
+                            <div class="xfee-info">
+                              <span class="xfee-name">{{ fee.name }}</span>
+                              <span class="xfee-amount">₱{{ fee.amount | number:'1.0-2' }}</span>
+                              <span class="badge badge-purple">{{ fee.type === 'per_person' ? 'Per Person' : 'Fixed' }}</span>
+                            </div>
+                            <div class="xfee-toggles">
+                              <label class="xfee-toggle-label">
+                                <input type="checkbox" [(ngModel)]="fee.isEnabled" />
+                                Enabled
+                              </label>
+                              <label class="xfee-toggle-label">
+                                <input type="checkbox" [(ngModel)]="fee.isOptional" />
+                                Optional
+                              </label>
+                              <button type="button" class="icon-btn icon-btn-danger" (click)="removeExtraFee($index)" title="Remove fee">
+                                <i class="fas fa-trash"></i>
+                              </button>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    }
+
+                    <div class="xfee-add-form">
+                      <div class="xfee-add-title"><i class="fas fa-plus-circle"></i> Add Fee</div>
+                      <div class="xfee-add-fields">
+                        <input type="text" class="form-input" placeholder="Fee name (e.g. Food Fee)" [(ngModel)]="newExtraFeeName" />
+                        <input type="number" class="form-input xfee-amount-input" placeholder="Amount (₱)" [(ngModel)]="newExtraFeeAmount" min="0" step="1" />
+                        <select class="form-input" [(ngModel)]="newExtraFeeType">
+                          <option value="fixed">Fixed</option>
+                          <option value="per_person">Per Person</option>
+                        </select>
+                        <label class="xfee-toggle-label">
+                          <input type="checkbox" [(ngModel)]="newExtraFeeOptional" />
+                          Optional
+                        </label>
+                        <button type="button" class="btn-sm btn-primary" (click)="addExtraFee()" [disabled]="!newExtraFeeName.trim()">
+                          Add
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="cfs-actions">
+                      <button type="button" class="btn-primary" (click)="saveExtraFees()" [disabled]="savingExtraFees">
+                        @if (savingExtraFees) { <i class="fas fa-circle-notch fa-spin"></i> } Save Fees
+                      </button>
+                      @if (extraFeesSaveMsg) {
+                        <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ extraFeesSaveMsg }}</span>
+                      }
+                    </div>
+                  </div>
+                </div>
               </div>
             }
 
@@ -1681,6 +1760,26 @@ interface AdminUser {
     .cfs-save-btn:hover:not(:disabled) { background: rgba(163,230,53,0.26); transform: translateY(-1px); }
     .cfs-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    /* Extra (additional) fees tab */
+    .xfee-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
+    .xfee-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+      background: var(--dm-surface); border: 1px solid var(--dm-border); border-radius: 10px;
+      padding: 0.6rem 0.85rem;
+    }
+    .xfee-info { display: flex; align-items: center; gap: 0.6rem; flex: 1; flex-wrap: wrap; }
+    .xfee-name { font-size: 0.875rem; font-weight: 600; color: var(--dm-text); }
+    .xfee-amount { font-size: 0.82rem; color: var(--dm-accent); font-weight: 700; }
+    .xfee-toggles { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
+    .xfee-toggle-label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--dm-text-muted); cursor: pointer; }
+    .xfee-toggle-label input[type=checkbox] { accent-color: var(--dm-accent); }
+    .xfee-add-form { background: var(--dm-surface); border: 1px dashed var(--dm-border); border-radius: 10px; padding: 0.75rem; margin-bottom: 0.75rem; }
+    .xfee-add-title { font-size: 0.8rem; font-weight: 700; color: var(--dm-text-muted); margin-bottom: 0.5rem; }
+    .xfee-add-fields { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .xfee-add-fields .form-input { flex: 1; min-width: 120px; }
+    .xfee-amount-input { max-width: 110px !important; }
+    .xfee-add-fields select.form-input { max-width: 130px; }
+
     /* App service fees */
     .asp-summary {
       display: grid;
@@ -2578,7 +2677,7 @@ export class AdminClubsComponent implements OnInit {
   private usernameManuallyEdited = false;
   adminForm = { name: '', username: '', password: this.DEFAULT_ADMIN_PASSWORD, email: '' };
 
-  activeTab: 'admins' | 'payments' | 'appfees' | 'members' | 'chat' = 'admins';
+  activeTab: 'admins' | 'payments' | 'appfees' | 'extrafees' | 'members' | 'chat' = 'admins';
 
   // ── Chat histories ──
   clubInquiries: Inquiry[] = [];
@@ -2633,6 +2732,15 @@ export class AdminClubsComponent implements OnInit {
   feeModeSaveMsg = '';
   billingMonthLoading = false;
   billingMonthMsg = '';
+
+  // ── Additional (extra) fees ──
+  editingExtraFees: AdditionalFee[] = [];
+  newExtraFeeName = '';
+  newExtraFeeAmount = 0;
+  newExtraFeeType: 'fixed' | 'per_person' = 'fixed';
+  newExtraFeeOptional = true;
+  savingExtraFees = false;
+  extraFeesSaveMsg = '';
 
   get reservationCharges(): Charge[] {
     return this.approvedCharges.filter(c =>
@@ -2745,11 +2853,17 @@ export class AdminClubsComponent implements OnInit {
     this.editConvenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
     this.feeModeSaveMsg = '';
     this.billingMonthMsg = '';
+    this.editingExtraFees = (club.additionalFees ?? []).map(f => ({ ...f }));
+    this.newExtraFeeName = '';
+    this.newExtraFeeAmount = 0;
+    this.newExtraFeeType = 'fixed';
+    this.newExtraFeeOptional = true;
+    this.extraFeesSaveMsg = '';
 
     this.loadClubAdmins();
   }
 
-  setTab(tab: 'admins' | 'payments' | 'appfees' | 'members' | 'chat') {
+  setTab(tab: 'admins' | 'payments' | 'appfees' | 'extrafees' | 'members' | 'chat') {
     this.activeTab = tab;
     if (tab === 'payments') this.loadPaymentApprovals();
     if (tab === 'appfees') this.loadAppServiceData();
@@ -2954,6 +3068,41 @@ export class AdminClubsComponent implements OnInit {
         setTimeout(() => { this.feeModeSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
       },
       error: () => { this.savingFeeMode = false; this.feeModeSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
+  addExtraFee() {
+    const name = this.newExtraFeeName.trim();
+    if (!name) return;
+    this.editingExtraFees = [
+      ...this.editingExtraFees,
+      { name, amount: Math.max(0, this.newExtraFeeAmount), type: this.newExtraFeeType, isEnabled: true, isOptional: this.newExtraFeeOptional },
+    ];
+    this.newExtraFeeName = '';
+    this.newExtraFeeAmount = 0;
+    this.newExtraFeeType = 'fixed';
+    this.newExtraFeeOptional = true;
+  }
+
+  removeExtraFee(index: number) {
+    this.editingExtraFees = this.editingExtraFees.filter((_, i) => i !== index);
+  }
+
+  saveExtraFees() {
+    if (!this.selectedClub?._id) return;
+    this.savingExtraFees = true;
+    this.extraFeesSaveMsg = '';
+    this.clubService.updateAdditionalFees(this.selectedClub._id, this.editingExtraFees).subscribe({
+      next: (updated) => {
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, additionalFees: updated.additionalFees } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, additionalFees: updated.additionalFees };
+        this.editingExtraFees = (updated.additionalFees ?? []).map(f => ({ ...f }));
+        this.savingExtraFees = false;
+        this.extraFeesSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.extraFeesSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingExtraFees = false; this.extraFeesSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
     });
   }
 

@@ -32,6 +32,7 @@ export interface GuestBookingPayload {
   guestCount?: number;
   rentals?: { balls50?: number; balls100?: number; ballMachine?: boolean; rackets?: number };
   guestInfo: GuestInfo;
+  selectedExtraFeeNames?: string[];
 }
 
 export interface GuestBookingResult {
@@ -65,7 +66,8 @@ export class PublicBookingService {
       _id: string; name: string; slug?: string; location?: string; logo?: string; status: string;
       courtCount?: number; openingHour?: number; closingHour?: number;
       paymentMethods?: string[]; paymentAccounts?: Record<string, string>; paymentQrCodes?: Record<string, string>;
-      convenienceFeeRate?: number; convenienceFeeMode?: 'per_transaction' | 'per_hour';
+      convenienceFeeRate?: number; convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat';
+      additionalFees?: { name: string; amount: number; type: 'fixed' | 'per_person'; isEnabled: boolean; isOptional: boolean }[];
       mobile?: string; email?: string;
       description?: string; photos?: string[];
       socialLinks?: { facebook?: string; instagram?: string; reclub?: string };

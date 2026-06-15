@@ -129,6 +129,58 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                     }
                   </div>
 
+                  <!-- Fee breakdown -->
+                  @if (charge.breakdown) {
+                    <div class="dm-breakdown">
+                      @if ((charge.breakdown.withoutLightFee ?? 0) > 0) {
+                        <div class="dm-bk-row">
+                          <span>Court fee</span>
+                          <span>{{ charge.breakdown.withoutLightFee | currency:'PHP':'symbol' }}</span>
+                        </div>
+                      }
+                      @if ((charge.breakdown.lightFee ?? 0) > 0) {
+                        <div class="dm-bk-row">
+                          <span>Lights</span>
+                          <span>{{ charge.breakdown.lightFee | currency:'PHP':'symbol' }}</span>
+                        </div>
+                      }
+                      @if ((charge.breakdown.ballBoyFee ?? 0) > 0) {
+                        <div class="dm-bk-row">
+                          <span>Ball boy</span>
+                          <span>{{ charge.breakdown.ballBoyFee | currency:'PHP':'symbol' }}</span>
+                        </div>
+                      }
+                      @if ((charge.breakdown.guestFee ?? 0) > 0) {
+                        <div class="dm-bk-row">
+                          <span>Guest fee</span>
+                          <span>{{ charge.breakdown.guestFee | currency:'PHP':'symbol' }}</span>
+                        </div>
+                      }
+                      @if ((charge.breakdown.rentalFee ?? 0) > 0) {
+                        <div class="dm-bk-row">
+                          <span>Rentals</span>
+                          <span>{{ charge.breakdown.rentalFee | currency:'PHP':'symbol' }}</span>
+                        </div>
+                      }
+                      @if ((charge.breakdown.convenienceFee ?? 0) > 0) {
+                        <div class="dm-bk-row">
+                          <span>Convenience fee</span>
+                          <span>{{ charge.breakdown.convenienceFee | currency:'PHP':'symbol' }}</span>
+                        </div>
+                      }
+                      @for (ef of (charge.breakdown.extraFees ?? []); track ef.name) {
+                        <div class="dm-bk-row">
+                          <span>{{ ef.name }}</span>
+                          <span>{{ ef.amount | currency:'PHP':'symbol' }}</span>
+                        </div>
+                      }
+                      <div class="dm-bk-total">
+                        <span>Total</span>
+                        <span>{{ charge.amount | currency:'PHP':'symbol' }}</span>
+                      </div>
+                    </div>
+                  }
+
                   <div class="dm-charge-bottom">
                     <span class="dm-amount">{{ charge.amount | currency: 'PHP' : 'symbol' }}</span>
                     @if (charge.approvalStatus === 'pending') {
@@ -583,6 +635,33 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
 
     .dm-retry-btn-pay:hover:not(:disabled) {
       background: rgba(245,158,11,0.3);
+    }
+
+    /* Fee breakdown */
+    .dm-breakdown {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      padding: 0.5rem 0.65rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.22rem;
+    }
+    .dm-bk-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.45);
+    }
+    .dm-bk-total {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: #ffffff;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      margin-top: 0.2rem;
+      padding-top: 0.28rem;
     }
 
     /* Bottom spacer */

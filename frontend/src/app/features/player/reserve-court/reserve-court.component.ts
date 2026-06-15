@@ -7,7 +7,7 @@ import { UsersService } from '../../../core/services/users.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { RatesService } from '../../../core/services/rates.service';
 import { SoundService } from '../../../core/services/sound.service';
-import { ClubService } from '../../../core/services/club.service';
+import { ClubService, AdditionalFee } from '../../../core/services/club.service';
 
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm']);
 
@@ -360,6 +360,38 @@ interface ActivePlayer { _id: string; name: string; email: string; }
                 <span>Convenience Fee <span class="dm-summary-sub">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
                 <strong>@if (loadingRates) { — } @else { {{ convenienceFee | currency: 'PHP' : 'symbol' }} }</strong>
               </div>
+            }
+
+            <!-- Additional fees -->
+            @if (availableExtraFees.length > 0) {
+              <div class="dm-summary-divider"></div>
+              <div class="dm-summary-row dm-summary-addons-title">
+                <span>Add-ons</span>
+              </div>
+              @for (fee of availableExtraFees; track fee.name) {
+                <div class="dm-summary-row dm-summary-addon-row">
+                  @if (fee.isOptional) {
+                    <label class="dm-addon-label">
+                      <input type="checkbox" [checked]="isExtraFeeSelected(fee)" (change)="toggleExtraFee(fee)" />
+                      <span>{{ fee.name }}</span>
+                      @if (fee.type === 'per_person' && guestCount > 0) {
+                        <span class="dm-summary-sub">(× {{ guestCount }})</span>
+                      }
+                    </label>
+                  } @else {
+                    <span class="dm-addon-required">
+                      {{ fee.name }}
+                      @if (fee.type === 'per_person' && guestCount > 0) {
+                        <span class="dm-summary-sub">(× {{ guestCount }})</span>
+                      }
+                      <span class="dm-addon-req-badge">required</span>
+                    </span>
+                  }
+                  <strong>
+                    {{ (fee.type === 'per_person' ? fee.amount * guestCount : fee.amount) | currency:'PHP':'symbol' }}
+                  </strong>
+                </div>
+              }
             }
 
             <div class="dm-summary-divider"></div>
@@ -887,6 +919,13 @@ interface ActivePlayer { _id: string; name: string; email: string; }
       color: #a3e635 !important;
     }
 
+    .dm-summary-addons-title span { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.4); }
+    .dm-summary-addon-row { align-items: center; }
+    .dm-addon-label { display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.88rem; }
+    .dm-addon-label input[type=checkbox] { accent-color: #a3e635; }
+    .dm-addon-required { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; }
+    .dm-addon-req-badge { font-size: 0.65rem; background: rgba(163,230,53,0.12); color: #a3e635; border-radius: 4px; padding: 1px 5px; font-weight: 700; }
+
     /* Confirm button */
     .dm-confirm-btn {
       width: 100%;
@@ -982,6 +1021,8 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
 
   convenienceFeeRate = 0.10;
   convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' = 'per_hour';
+  availableExtraFees: AdditionalFee[] = [];
+  selectedExtraFeeNames = new Set<string>();
   weekdayRate = 0;
   weekendRate = 0;
   holidayRate = 0;
@@ -1056,8 +1097,25 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     return parseFloat((base * this.convenienceFeeRate).toFixed(2));
   }
 
+  get extraFeeTotal(): number {
+    return this.availableExtraFees
+      .filter(f => this.selectedExtraFeeNames.has(f.name))
+      .reduce((sum, f) => sum + (f.type === 'per_person' ? f.amount * this.guestCount : f.amount), 0);
+  }
+
   get computedFee(): number {
-    return this.subtotal + this.convenienceFee;
+    return this.subtotal + this.convenienceFee + this.extraFeeTotal;
+  }
+
+  toggleExtraFee(fee: AdditionalFee) {
+    if (!fee.isOptional) return;
+    const next = new Set(this.selectedExtraFeeNames);
+    if (next.has(fee.name)) { next.delete(fee.name); } else { next.add(fee.name); }
+    this.selectedExtraFeeNames = next;
+  }
+
+  isExtraFeeSelected(fee: AdditionalFee): boolean {
+    return this.selectedExtraFeeNames.has(fee.name);
   }
 
   constructor(
@@ -1114,6 +1172,10 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
           this.paymentQrCodes = club.paymentQrCodes ?? {};
           this.convenienceFeeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10;
           this.convenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
+          this.availableExtraFees = (club.additionalFees ?? []).filter(f => f.isEnabled);
+          this.selectedExtraFeeNames = new Set(
+            this.availableExtraFees.filter(f => !f.isOptional).map(f => f.name)
+          );
           this.cdr.detectChanges();
         },
       });
@@ -1266,6 +1328,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
         ballMachine: this.rentalBallMachine,
         rackets: this.rentalRackets,
       },
+      selectedExtraFeeNames: [...this.selectedExtraFeeNames],
     }).subscribe({
       next: () => {
         this.booking = false;
@@ -1293,6 +1356,9 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
         this.rentalBalls100 = 0;
         this.rentalBallMachine = false;
         this.rentalRackets = 0;
+        this.selectedExtraFeeNames = new Set(
+          this.availableExtraFees.filter(f => !f.isOptional).map(f => f.name)
+        );
         this.cdr.detectChanges();
       },
       error: (err) => {

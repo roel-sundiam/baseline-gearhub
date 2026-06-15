@@ -3,6 +3,7 @@ import { CommonModule, CurrencyPipe, DecimalPipe, DatePipe } from '@angular/comm
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { PublicBookingService, PublicRates, GuestBookingResult } from '../../../core/services/public-booking.service';
+import { AdditionalFee } from '../../../core/services/club.service';
 
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm']);
 const WEEKEND_DAYS = new Set([0, 5, 6]);
@@ -308,6 +309,31 @@ function localDateStr(): string {
                       </div>
                     }
 
+                    <!-- Additional fees -->
+                    @if (availableExtraFees.length > 0) {
+                      <div class="gr-field-group">
+                        <label class="gr-field-label">Add-ons</label>
+                        <div class="gr-extra-fees">
+                          @for (fee of availableExtraFees; track fee.name) {
+                            <div class="gr-extra-fee-row">
+                              @if (fee.isOptional) {
+                                <label class="gr-toggle-item">
+                                  <input type="checkbox" [checked]="isExtraFeeSelected(fee)" (change)="toggleExtraFee(fee)" />
+                                  <span>{{ fee.name }}</span>
+                                </label>
+                              } @else {
+                                <span class="gr-extra-fee-required">{{ fee.name }} <span class="gr-required-badge">required</span></span>
+                              }
+                              <span class="gr-extra-fee-amt">
+                                {{ (fee.type === 'per_person' ? fee.amount * guestCount : fee.amount) | currency: 'PHP' : 'symbol' }}
+                                @if (fee.type === 'per_person') { <span class="gr-sum-pct">(₱{{ fee.amount }} × {{ guestCount }})</span> }
+                              </span>
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    }
+
                     <!-- Price summary -->
                     <div class="gr-sum-block">
                       <div class="gr-sum-row">
@@ -318,6 +344,12 @@ function localDateStr(): string {
                         <div class="gr-sum-row">
                           <span>Convenience fee <span class="gr-sum-pct">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
                           <strong>{{ convenienceFee | currency: 'PHP' : 'symbol' }}</strong>
+                        </div>
+                      }
+                      @if (extraFeeTotal > 0) {
+                        <div class="gr-sum-row">
+                          <span>Add-ons</span>
+                          <strong>{{ extraFeeTotal | currency: 'PHP' : 'symbol' }}</strong>
                         </div>
                       }
                       <div class="gr-sum-total-row">
@@ -885,6 +917,16 @@ function localDateStr(): string {
     }
     .gr-rental-rate { color: rgba(255,255,255,0.4); font-size: 0.76rem; }
 
+    .gr-extra-fees { display: flex; flex-direction: column; gap: 0.45rem; }
+    .gr-extra-fee-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+      font-size: 0.8rem; color: rgba(255,255,255,0.6);
+      background: rgba(255,255,255,0.03); border-radius: 6px; padding: 0.4rem 0.6rem;
+    }
+    .gr-extra-fee-required { display: flex; align-items: center; gap: 0.4rem; }
+    .gr-required-badge { font-size: 0.68rem; background: rgba(163,230,53,0.15); color: #a3e635; border-radius: 4px; padding: 0.1rem 0.35rem; }
+    .gr-extra-fee-amt { font-size: 0.8rem; color: rgba(255,255,255,0.5); white-space: nowrap; }
+
     .gr-file-label {
       display: flex;
       align-items: center;
@@ -1148,6 +1190,8 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
 
   convenienceFeeRate = 0.05;
   convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' = 'per_hour';
+  availableExtraFees: AdditionalFee[] = [];
+  selectedExtraFeeNames = new Set<string>();
   weekdayRate = 0;
   weekendRate = 0;
   holidayRate = 0;
@@ -1226,7 +1270,24 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     return parseFloat((base * this.convenienceFeeRate).toFixed(2));
   }
 
-  get computedFee(): number { return this.subtotal + this.convenienceFee; }
+  get extraFeeTotal(): number {
+    return this.availableExtraFees
+      .filter(f => this.selectedExtraFeeNames.has(f.name))
+      .reduce((sum, f) => sum + (f.type === 'per_person' ? f.amount * this.guestCount : f.amount), 0);
+  }
+
+  get computedFee(): number { return this.subtotal + this.convenienceFee + this.extraFeeTotal; }
+
+  toggleExtraFee(fee: AdditionalFee) {
+    if (!fee.isOptional) return;
+    const next = new Set(this.selectedExtraFeeNames);
+    if (next.has(fee.name)) { next.delete(fee.name); } else { next.add(fee.name); }
+    this.selectedExtraFeeNames = next;
+  }
+
+  isExtraFeeSelected(fee: AdditionalFee): boolean {
+    return this.selectedExtraFeeNames.has(fee.name);
+  }
 
   get endSlotLabel(): string {
     if (!this.selectedSlot) return '';
@@ -1275,6 +1336,10 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
           this.paymentQrCodes = club.paymentQrCodes ?? {};
           this.convenienceFeeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10;
           this.convenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
+          this.availableExtraFees = (club.additionalFees ?? []).filter(f => f.isEnabled);
+          this.selectedExtraFeeNames = new Set(
+            this.availableExtraFees.filter(f => !f.isOptional).map(f => f.name)
+          );
           this.clubPhotos.set(club.photos ?? []);
           this.loadAvailability();
         }
@@ -1496,6 +1561,10 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     this.paymentScreenshot = null;
     this.agreedToTerms = false;
     this.showTerms = false;
+    this.guestCount = 0;
+    this.selectedExtraFeeNames = new Set(
+      this.availableExtraFees.filter(f => !f.isOptional).map(f => f.name)
+    );
     this.loadAvailability();
     this.cdr.detectChanges();
   }
@@ -1529,6 +1598,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
         email: this.guestEmail.trim(),
         phone: this.guestPhone.trim() || undefined,
       },
+      selectedExtraFeeNames: [...this.selectedExtraFeeNames],
     };
     console.log('[GuestReserve] submit payload:', payload);
 
