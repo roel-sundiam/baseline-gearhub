@@ -13,6 +13,13 @@ export interface Rates {
   reservationWeekendRate: number;
   reservationHolidayRate: number;
   reservationGuestFee: number;
+  reservationGuestFeeThreshold: number;
+  exclusiveEventEnabled: boolean;
+  exclusiveEventRate: number;
+  exclusiveEventIncludedPax: number;
+  exclusiveEventExcessPaxFee: number;
+  exclusiveEventMaxPax: number;
+  exclusiveEventPolicies: string[];
   rentalBalls50Rate: number;
   rentalBalls100Rate: number;
   rentalBallMachineRate: number;
@@ -38,6 +45,13 @@ export class RatesService {
     reservationWeekendRate: number;
     reservationHolidayRate: number;
     reservationGuestFee: number;
+    reservationGuestFeeThreshold: number;
+    exclusiveEventEnabled: boolean;
+    exclusiveEventRate: number;
+    exclusiveEventIncludedPax: number;
+    exclusiveEventExcessPaxFee: number;
+    exclusiveEventMaxPax: number;
+    exclusiveEventPolicies: string[];
     rentalBalls50Rate: number;
     rentalBalls100Rate: number;
     rentalBallMachineRate: number;

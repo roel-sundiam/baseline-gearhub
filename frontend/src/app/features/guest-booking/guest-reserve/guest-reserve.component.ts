@@ -224,6 +224,28 @@ function localDateStr(): string {
                       <span class="gr-slot-badge gr-slot-badge-date">{{ navDate() | date: 'MMM d' }}</span>
                     </div>
 
+                    <!-- Booking type selector -->
+                    @if (exclusiveEventEnabled) {
+                      <div class="gr-type-grid">
+                        <button type="button" class="gr-type-card" [class.gr-type-card-active]="bookingType === 'standard'" (click)="setBookingType('standard')">
+                          <span class="gr-type-card-icon">🏸</span>
+                          <span class="gr-type-card-label">Standard</span>
+                          <span class="gr-type-card-sub">Court rental</span>
+                        </button>
+                        <button type="button" class="gr-type-card" [class.gr-type-card-active]="bookingType === 'exclusive_event'" (click)="setBookingType('exclusive_event')">
+                          <span class="gr-type-card-icon">🎉</span>
+                          <span class="gr-type-card-label">Exclusive Event</span>
+                          <span class="gr-type-card-sub">Private full-court</span>
+                        </button>
+                      </div>
+                      @if (bookingType === 'exclusive_event') {
+                        <div class="gr-event-info">
+                          <span>{{ exclusiveEventRate | currency: 'PHP' : 'symbol' }}/hr &middot; {{ exclusiveEventIncludedPax }} pax included</span>
+                          <span>+₱{{ exclusiveEventExcessPaxFee }}/head &middot; max {{ exclusiveEventMaxPax }} pax</span>
+                        </div>
+                      }
+                    }
+
                     <!-- Toggles -->
                     <div class="gr-toggles-row">
                       <label class="gr-toggle-item">
@@ -244,16 +266,28 @@ function localDateStr(): string {
                       }
                     </div>
 
-                    <!-- Guests -->
-                    @if (guestFeeRate > 0) {
+                    <!-- Guests / Attendees -->
+                    @if (bookingType === 'exclusive_event' || guestFeeRate > 0) {
                       <div class="gr-field-group">
-                        <label class="gr-field-label">Non-member guests</label>
+                        <label class="gr-field-label">
+                          @if (bookingType === 'exclusive_event') { Total attendees } @else { Non-member guests }
+                        </label>
                         <div class="gr-counter">
                           <button type="button" class="gr-count-btn" (click)="guestCount = guestCount > 0 ? guestCount - 1 : 0">&#8722;</button>
                           <span class="gr-count-val">{{ guestCount }}</span>
-                          <button type="button" class="gr-count-btn" (click)="guestCount = guestCount + 1">&#43;</button>
-                          @if (guestCount > 0) { <span class="gr-count-fee">{{ totalGuestFee | currency: 'PHP' : 'symbol' }}</span> }
+                          <button type="button" class="gr-count-btn"
+                            [disabled]="bookingType === 'exclusive_event' && exclusiveEventMaxPax > 0 && guestCount >= exclusiveEventMaxPax"
+                            (click)="incrementGuestCount()">&#43;</button>
+                          @if (guestCount > 0) {
+                            <span class="gr-count-fee">
+                              @if (totalGuestFee > 0) { {{ totalGuestFee | currency: 'PHP' : 'symbol' }} }
+                              @else { Free }
+                            </span>
+                          }
                         </div>
+                        @if (bookingType === 'exclusive_event' && exclusiveEventIncludedPax > 0) {
+                          <div class="gr-event-pax-note">{{ exclusiveEventIncludedPax }} included &middot; &#43;&#8369;{{ exclusiveEventExcessPaxFee }}/head beyond that &middot; max {{ exclusiveEventMaxPax }}</div>
+                        }
                       </div>
                     }
 
@@ -310,7 +344,7 @@ function localDateStr(): string {
                     }
 
                     <!-- Additional fees -->
-                    @if (availableExtraFees.length > 0) {
+                    @if (bookingType !== 'exclusive_event' && availableExtraFees.length > 0) {
                       <div class="gr-field-group">
                         <label class="gr-field-label">Add-ons</label>
                         <div class="gr-extra-fees">
@@ -331,6 +365,22 @@ function localDateStr(): string {
                             </div>
                           }
                         </div>
+                      </div>
+                    }
+
+                    <!-- Exclusive event policies -->
+                    @if (bookingType === 'exclusive_event' && exclusiveEventPolicies.length > 0) {
+                      <div class="gr-policies-block">
+                        <div class="gr-policies-title">&#128203; Event Policies</div>
+                        <ul class="gr-policies-list">
+                          @for (policy of exclusiveEventPolicies; track policy) {
+                            <li>{{ policy }}</li>
+                          }
+                        </ul>
+                        <label class="gr-toggle-item" style="margin-top:.5rem">
+                          <input type="checkbox" [(ngModel)]="policiesAcknowledged" />
+                          <span>I have read and agree to the event policies</span>
+                        </label>
                       </div>
                     }
 
@@ -451,7 +501,7 @@ function localDateStr(): string {
                   </div><!-- /gr-panel-body -->
 
                   <div class="gr-panel-footer">
-                    <button class="gr-submit-btn" [disabled]="booking || !guestName || !guestEmail || !agreedToTerms" (click)="submit()">
+                    <button class="gr-submit-btn" [disabled]="booking || !guestName || !guestEmail || !agreedToTerms || (bookingType === 'exclusive_event' && exclusiveEventPolicies.length > 0 && !policiesAcknowledged)" (click)="submit()">
                       @if (booking) { Submitting… } @else { Confirm booking }
                     </button>
 
@@ -843,6 +893,60 @@ function localDateStr(): string {
     .gr-slot-badge-time { background: rgba(26,120,194,0.2); color: #5bb8f5; }
     .gr-slot-badge-date { background: rgba(26,120,194,0.1); color: rgba(91,184,245,0.7); }
 
+    /* Booking type selector */
+    .gr-type-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+    .gr-type-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.75rem 0.5rem;
+      background: rgba(255,255,255,0.04);
+      border: 1.5px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .gr-type-card:hover {
+      background: rgba(255,255,255,0.07);
+      border-color: rgba(255,255,255,0.2);
+    }
+    .gr-type-card-active {
+      border-color: #a3e635 !important;
+      background: rgba(163,230,53,0.08) !important;
+    }
+    .gr-type-card-icon { font-size: 1.4rem; line-height: 1; }
+    .gr-type-card-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.85);
+    }
+    .gr-type-card-sub {
+      font-size: 0.68rem;
+      color: rgba(255,255,255,0.38);
+    }
+    .gr-type-card-active .gr-type-card-label { color: #a3e635; }
+    .gr-type-card-active .gr-type-card-sub { color: rgba(163,230,53,0.55); }
+
+    /* Exclusive event info strip */
+    .gr-event-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      background: rgba(163,230,53,0.07);
+      border: 1px solid rgba(163,230,53,0.2);
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.75rem;
+      color: rgba(163,230,53,0.8);
+    }
+
     /* Price summary */
     .gr-sum-block {
       background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
@@ -1198,6 +1302,15 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   lightsRate = 0;
   ballBoyRate = 0;
   guestFeeRate = 0;
+  guestFeeThreshold = 0;
+  exclusiveEventEnabled = false;
+  exclusiveEventRate = 0;
+  exclusiveEventIncludedPax = 0;
+  exclusiveEventExcessPaxFee = 0;
+  exclusiveEventMaxPax = 0;
+  exclusiveEventPolicies: string[] = [];
+  bookingType: 'standard' | 'exclusive_event' = 'standard';
+  policiesAcknowledged = false;
   rentalBalls50Rate = 0;
   rentalBalls100Rate = 0;
   rentalBallMachineRate = 0;
@@ -1244,8 +1357,17 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     }
   }
 
-  get baseCourtFee(): number { return this.baseHourlyRate * this.selectedDuration; }
-  get totalGuestFee(): number { return this.guestCount * this.guestFeeRate; }
+  get effectiveHourlyRate(): number {
+    return this.bookingType === 'exclusive_event' ? this.exclusiveEventRate : this.baseHourlyRate;
+  }
+  get baseCourtFee(): number { return this.effectiveHourlyRate * this.selectedDuration; }
+  get chargeableGuests(): number { return Math.max(0, this.guestCount - this.guestFeeThreshold); }
+  get totalGuestFee(): number {
+    if (this.bookingType === 'exclusive_event') {
+      return Math.max(0, this.guestCount - this.exclusiveEventIncludedPax) * this.exclusiveEventExcessPaxFee;
+    }
+    return this.chargeableGuests * this.guestFeeRate;
+  }
 
   get totalRentalFee(): number {
     return (
@@ -1266,7 +1388,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
 
   get convenienceFee(): number {
     if (this.convenienceFeeMode === 'monthly_flat') return 0;
-    const base = this.convenienceFeeMode === 'per_transaction' ? this.baseHourlyRate : this.subtotal;
+    const base = this.convenienceFeeMode === 'per_transaction' ? this.effectiveHourlyRate : this.subtotal;
     return parseFloat((base * this.convenienceFeeRate).toFixed(2));
   }
 
@@ -1277,6 +1399,22 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   }
 
   get computedFee(): number { return this.subtotal + this.convenienceFee + this.extraFeeTotal; }
+
+  setBookingType(type: 'standard' | 'exclusive_event') {
+    this.bookingType = type;
+    this.guestCount = 0;
+    this.policiesAcknowledged = false;
+    if (type === 'exclusive_event') {
+      this.selectedExtraFeeNames = new Set();
+    }
+    this.cdr.detectChanges();
+  }
+
+  incrementGuestCount() {
+    const max = this.bookingType === 'exclusive_event' && this.exclusiveEventMaxPax > 0
+      ? this.exclusiveEventMaxPax : Infinity;
+    if (this.guestCount < max) this.guestCount++;
+  }
 
   toggleExtraFee(fee: AdditionalFee) {
     if (!fee.isOptional) return;
@@ -1359,6 +1497,13 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
         this.lightsRate = rates.lightRate ?? 0;
         this.ballBoyRate = rates.ballBoyRate ?? 0;
         this.guestFeeRate = rates.reservationGuestFee ?? 0;
+        this.guestFeeThreshold = rates.reservationGuestFeeThreshold ?? 0;
+        this.exclusiveEventEnabled = rates.exclusiveEventEnabled ?? false;
+        this.exclusiveEventRate = rates.exclusiveEventRate ?? 0;
+        this.exclusiveEventIncludedPax = rates.exclusiveEventIncludedPax ?? 0;
+        this.exclusiveEventExcessPaxFee = rates.exclusiveEventExcessPaxFee ?? 0;
+        this.exclusiveEventMaxPax = rates.exclusiveEventMaxPax ?? 0;
+        this.exclusiveEventPolicies = rates.exclusiveEventPolicies ?? [];
         this.rentalBalls50Rate = rates.rentalBalls50Rate ?? 0;
         this.rentalBalls100Rate = rates.rentalBalls100Rate ?? 0;
         this.rentalBallMachineRate = rates.rentalBallMachineRate ?? 0;
@@ -1561,6 +1706,8 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     this.paymentScreenshot = null;
     this.agreedToTerms = false;
     this.showTerms = false;
+    this.bookingType = 'standard';
+    this.policiesAcknowledged = false;
     this.guestCount = 0;
     this.selectedExtraFeeNames = new Set(
       this.availableExtraFees.filter(f => !f.isOptional).map(f => f.name)
@@ -1573,6 +1720,10 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     if (!this.navDate() || !this.selectedCourt || !this.selectedSlot) return;
     if (!this.guestName.trim() || !this.guestEmail.trim()) {
       this.errorMsg = 'Please fill in your name and email.';
+      return;
+    }
+    if (this.bookingType === 'exclusive_event' && !this.policiesAcknowledged) {
+      this.errorMsg = 'Please acknowledge the event policies before confirming.';
       return;
     }
     this.booking = true;
@@ -1598,7 +1749,8 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
         email: this.guestEmail.trim(),
         phone: this.guestPhone.trim() || undefined,
       },
-      selectedExtraFeeNames: [...this.selectedExtraFeeNames],
+      selectedExtraFeeNames: this.bookingType === 'exclusive_event' ? [] : [...this.selectedExtraFeeNames],
+      bookingType: this.bookingType,
     };
     console.log('[GuestReserve] submit payload:', payload);
 

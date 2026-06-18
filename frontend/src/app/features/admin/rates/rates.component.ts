@@ -132,16 +132,108 @@ import { AuthService } from '../../../core/services/auth.service';
               <div class="rate-item">
                 <div class="rate-icon">🧑‍🤝‍🧑</div>
                 <div class="form-group">
-                  <label for="reservationGuestFee">Guest Fee (per guest)</label>
+                  <label for="reservationGuestFee">Guest Fee (per excess guest)</label>
                   <div class="input-prefix">
                     <span>₱</span>
                     <input id="reservationGuestFee" type="number" [(ngModel)]="reservationGuestFee"
                       name="reservationGuestFee" required min="0" step="0.01" placeholder="0.00" />
                   </div>
-                  <p class="field-help">Charged per non-member guest joining the court booking.</p>
+                  <p class="field-help">Charged per non-member guest exceeding the free allowance below.</p>
+                </div>
+              </div>
+              <div class="rate-item">
+                <div class="rate-icon">🆓</div>
+                <div class="form-group">
+                  <label for="reservationGuestFeeThreshold">Free Guest Allowance</label>
+                  <div class="input-prefix">
+                    <span>#</span>
+                    <input id="reservationGuestFeeThreshold" type="number" [(ngModel)]="reservationGuestFeeThreshold"
+                      name="reservationGuestFeeThreshold" required min="0" step="1" placeholder="0" />
+                  </div>
+                  <p class="field-help">Number of guests included at no charge. Guests beyond this count are charged the fee above. Set to 0 to charge all guests.</p>
                 </div>
               </div>
             </div>
+
+            <div class="section-divider"><span>Exclusive Event</span></div>
+
+            <div class="ee-toggle-card">
+              <div class="ee-toggle-left">
+                <span class="ee-toggle-icon">🎉</span>
+                <div>
+                  <div class="ee-toggle-title">Enable Exclusive Event Booking</div>
+                  <div class="ee-toggle-desc">When enabled, guests will see an "Exclusive Event" option on the booking page.</div>
+                </div>
+              </div>
+              <label class="ee-switch">
+                <input type="checkbox" [(ngModel)]="exclusiveEventEnabled" name="exclusiveEventEnabled" />
+                <span class="ee-slider"></span>
+              </label>
+            </div>
+
+            @if (exclusiveEventEnabled) {
+              <div class="rates-grid" style="margin-top:.75rem">
+                <div class="rate-item">
+                  <div class="rate-icon">💰</div>
+                  <div class="form-group">
+                    <label for="exclusiveEventRate">Hourly Rate</label>
+                    <div class="input-prefix">
+                      <span>₱</span>
+                      <input id="exclusiveEventRate" type="number" [(ngModel)]="exclusiveEventRate"
+                        name="exclusiveEventRate" min="0" step="0.01" placeholder="0.00" />
+                    </div>
+                    <p class="field-help">Base rate per hour for the exclusive event.</p>
+                  </div>
+                </div>
+                <div class="rate-item">
+                  <div class="rate-icon">👥</div>
+                  <div class="form-group">
+                    <label for="exclusiveEventIncludedPax">Included Pax</label>
+                    <div class="input-prefix">
+                      <span>#</span>
+                      <input id="exclusiveEventIncludedPax" type="number" [(ngModel)]="exclusiveEventIncludedPax"
+                        name="exclusiveEventIncludedPax" min="0" step="1" placeholder="0" />
+                    </div>
+                    <p class="field-help">Number of attendees included in the base rate.</p>
+                  </div>
+                </div>
+                <div class="rate-item">
+                  <div class="rate-icon">➕</div>
+                  <div class="form-group">
+                    <label for="exclusiveEventExcessPaxFee">Excess Pax Fee</label>
+                    <div class="input-prefix">
+                      <span>₱</span>
+                      <input id="exclusiveEventExcessPaxFee" type="number" [(ngModel)]="exclusiveEventExcessPaxFee"
+                        name="exclusiveEventExcessPaxFee" min="0" step="0.01" placeholder="0.00" />
+                    </div>
+                    <p class="field-help">Fee per attendee beyond the included count.</p>
+                  </div>
+                </div>
+                <div class="rate-item">
+                  <div class="rate-icon">🔢</div>
+                  <div class="form-group">
+                    <label for="exclusiveEventMaxPax">Max Capacity (pax)</label>
+                    <div class="input-prefix">
+                      <span>#</span>
+                      <input id="exclusiveEventMaxPax" type="number" [(ngModel)]="exclusiveEventMaxPax"
+                        name="exclusiveEventMaxPax" min="0" step="1" placeholder="0" />
+                    </div>
+                    <p class="field-help">Maximum number of attendees allowed.</p>
+                  </div>
+                </div>
+                <div class="rate-item" style="grid-column:1/-1">
+                  <div class="rate-icon">📋</div>
+                  <div class="form-group">
+                    <label for="exclusiveEventPolicies">Event Policies</label>
+                    <textarea id="exclusiveEventPolicies" [(ngModel)]="exclusiveEventPoliciesText"
+                      name="exclusiveEventPolicies" rows="4"
+                      style="width:100%;padding:.5rem;border:1px solid var(--border-color,#ddd);border-radius:6px;font-size:.9rem;resize:vertical"
+                      placeholder="Enter one policy per line&#10;e.g. Can bring food and drinks. Except alcoholic drinks.&#10;Strictly Clean as you go policy"></textarea>
+                    <p class="field-help">One policy per line. These are shown to guests before they confirm their booking.</p>
+                  </div>
+                </div>
+              </div>
+            }
 
             <div class="section-divider"><span>Rentals (per hour)</span></div>
 
@@ -497,6 +589,76 @@ import { AuthService } from '../../../core/services/auth.service';
         line-height: 1.4;
       }
 
+      /* ── Exclusive Event toggle card ── */
+      .ee-toggle-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(163,230,53,0.1);
+        border-radius: 12px;
+        padding: 1rem 1.1rem;
+        margin-top: 0.75rem;
+        transition: border-color 0.2s;
+      }
+      .ee-toggle-card:hover { border-color: rgba(163,230,53,0.25); }
+
+      .ee-toggle-left {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .ee-toggle-icon { font-size: 1.5rem; flex-shrink: 0; }
+      .ee-toggle-title {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: rgba(255,255,255,0.9);
+        margin-bottom: 0.2rem;
+      }
+      .ee-toggle-desc {
+        font-size: 0.77rem;
+        color: rgba(255,255,255,0.45);
+        line-height: 1.4;
+      }
+
+      .ee-switch {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 28px;
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+      .ee-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+      .ee-slider {
+        position: absolute;
+        inset: 0;
+        background: rgba(255,255,255,0.12);
+        border-radius: 28px;
+        transition: background 0.2s;
+        border: 1px solid rgba(255,255,255,0.15);
+      }
+      .ee-slider::before {
+        content: '';
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        left: 3px;
+        top: 3px;
+        background: rgba(255,255,255,0.6);
+        border-radius: 50%;
+        transition: transform 0.2s, background 0.2s;
+      }
+      .ee-switch input:checked + .ee-slider {
+        background: var(--dm-accent, #a3e635);
+        border-color: var(--dm-accent, #a3e635);
+      }
+      .ee-switch input:checked + .ee-slider::before {
+        transform: translateX(22px);
+        background: #1a2e05;
+      }
+
       /* ── Section note ── */
       .section-note {
         font-size: 0.82rem;
@@ -655,6 +817,13 @@ export class AdminRatesComponent implements OnInit {
   reservationWeekendRate = 0;
   reservationHolidayRate = 0;
   reservationGuestFee = 0;
+  reservationGuestFeeThreshold = 0;
+  exclusiveEventEnabled = false;
+  exclusiveEventRate = 0;
+  exclusiveEventIncludedPax = 0;
+  exclusiveEventExcessPaxFee = 0;
+  exclusiveEventMaxPax = 0;
+  exclusiveEventPoliciesText = '';
   rentalBalls50Rate = 0;
   rentalBalls100Rate = 0;
   rentalBallMachineRate = 0;
@@ -693,6 +862,13 @@ export class AdminRatesComponent implements OnInit {
           this.reservationWeekendRate = rates.reservationWeekendRate ?? 0;
           this.reservationHolidayRate = rates.reservationHolidayRate ?? 0;
           this.reservationGuestFee = rates.reservationGuestFee ?? 0;
+          this.reservationGuestFeeThreshold = rates.reservationGuestFeeThreshold ?? 0;
+          this.exclusiveEventEnabled = rates.exclusiveEventEnabled ?? false;
+          this.exclusiveEventRate = rates.exclusiveEventRate ?? 0;
+          this.exclusiveEventIncludedPax = rates.exclusiveEventIncludedPax ?? 0;
+          this.exclusiveEventExcessPaxFee = rates.exclusiveEventExcessPaxFee ?? 0;
+          this.exclusiveEventMaxPax = rates.exclusiveEventMaxPax ?? 0;
+          this.exclusiveEventPoliciesText = (rates.exclusiveEventPolicies ?? []).join('\n');
           this.rentalBalls50Rate = rates.rentalBalls50Rate ?? 0;
           this.rentalBalls100Rate = rates.rentalBalls100Rate ?? 0;
           this.rentalBallMachineRate = rates.rentalBallMachineRate ?? 0;
@@ -728,6 +904,13 @@ export class AdminRatesComponent implements OnInit {
       reservationWeekendRate: Number(this.reservationWeekendRate),
       reservationHolidayRate: Number(this.reservationHolidayRate),
       reservationGuestFee: Number(this.reservationGuestFee),
+      reservationGuestFeeThreshold: Number(this.reservationGuestFeeThreshold),
+      exclusiveEventEnabled: this.exclusiveEventEnabled,
+      exclusiveEventRate: Number(this.exclusiveEventRate),
+      exclusiveEventIncludedPax: Number(this.exclusiveEventIncludedPax),
+      exclusiveEventExcessPaxFee: Number(this.exclusiveEventExcessPaxFee),
+      exclusiveEventMaxPax: Number(this.exclusiveEventMaxPax),
+      exclusiveEventPolicies: this.exclusiveEventPoliciesText.split('\n').map(s => s.trim()).filter(Boolean),
       rentalBalls50Rate: Number(this.rentalBalls50Rate),
       rentalBalls100Rate: Number(this.rentalBalls100Rate),
       rentalBallMachineRate: Number(this.rentalBallMachineRate),

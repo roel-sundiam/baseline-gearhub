@@ -230,7 +230,13 @@ interface ActivePlayer { _id: string; name: string; email: string; }
             <span class="dm-counter-val">{{ guestCount }}</span>
             <button type="button" class="dm-counter-btn" (click)="guestCount = guestCount + 1">+</button>
             @if (guestCount > 0 && !loadingRates) {
-              <span class="dm-counter-fee">{{ guestFeeRate | currency: 'PHP' : 'symbol' }} × {{ guestCount }} = {{ totalGuestFee | currency: 'PHP' : 'symbol' }}</span>
+              <span class="dm-counter-fee">
+                @if (totalGuestFee > 0) {
+                  {{ guestFeeRate | currency: 'PHP' : 'symbol' }} × {{ chargeableGuests }} = {{ totalGuestFee | currency: 'PHP' : 'symbol' }}
+                } @else {
+                  Free
+                }
+              </span>
             }
           </div>
         </div>
@@ -350,7 +356,12 @@ interface ActivePlayer { _id: string; name: string; email: string; }
             }
             @if (guestCount > 0) {
               <div class="dm-summary-row">
-                <span>Guests <span class="dm-summary-sub">({{ guestCount }} × {{ guestFeeRate | currency: 'PHP' : 'symbol' }})</span></span>
+                <span>Guests
+                  <span class="dm-summary-sub">
+                    @if (chargeableGuests > 0) { ({{ chargeableGuests }} × {{ guestFeeRate | currency: 'PHP' : 'symbol' }}) }
+                    @else { ({{ guestCount }} free) }
+                  </span>
+                </span>
                 <strong>@if (loadingRates) { — } @else { {{ totalGuestFee | currency: 'PHP' : 'symbol' }} }</strong>
               </div>
             }
@@ -1029,6 +1040,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   lightsRate = 0;
   ballBoyRate = 0;
   guestFeeRate = 0;
+  guestFeeThreshold = 0;
   rentalBalls50Rate = 0;
   rentalBalls100Rate = 0;
   rentalBallMachineRate = 0;
@@ -1076,7 +1088,8 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
 
   get lightsFee(): number { return this.lightsRequested ? this.lightsRate * this.selectedDuration : 0; }
 
-  get totalGuestFee(): number { return this.guestCount * this.guestFeeRate; }
+  get chargeableGuests(): number { return Math.max(0, this.guestCount - this.guestFeeThreshold); }
+  get totalGuestFee(): number { return this.chargeableGuests * this.guestFeeRate; }
 
   get totalRentalFee(): number {
     return (
@@ -1150,6 +1163,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
         this.lightsRate = rates.lightRate ?? 0;
         this.ballBoyRate = rates.ballBoyRate ?? 0;
         this.guestFeeRate = rates.reservationGuestFee ?? 0;
+        this.guestFeeThreshold = rates.reservationGuestFeeThreshold ?? 0;
         this.rentalBalls50Rate = rates.rentalBalls50Rate ?? 0;
         this.rentalBalls100Rate = rates.rentalBalls100Rate ?? 0;
         this.rentalBallMachineRate = rates.rentalBallMachineRate ?? 0;

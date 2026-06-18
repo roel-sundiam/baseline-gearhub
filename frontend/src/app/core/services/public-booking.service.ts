@@ -9,6 +9,13 @@ export interface PublicRates {
   reservationWeekendRate: number;
   reservationHolidayRate: number;
   reservationGuestFee: number;
+  reservationGuestFeeThreshold: number;
+  exclusiveEventEnabled: boolean;
+  exclusiveEventRate: number;
+  exclusiveEventIncludedPax: number;
+  exclusiveEventExcessPaxFee: number;
+  exclusiveEventMaxPax: number;
+  exclusiveEventPolicies: string[];
   rentalBalls50Rate: number;
   rentalBalls100Rate: number;
   rentalBallMachineRate: number;
@@ -33,6 +40,7 @@ export interface GuestBookingPayload {
   rentals?: { balls50?: number; balls100?: number; ballMachine?: boolean; rackets?: number };
   guestInfo: GuestInfo;
   selectedExtraFeeNames?: string[];
+  bookingType?: 'standard' | 'exclusive_event';
 }
 
 export interface GuestBookingResult {

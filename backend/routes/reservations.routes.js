@@ -269,6 +269,7 @@ router.post("/", auth, async (req, res) => {
       lightsRate: Number(rawRates?.lightRate ?? 0),
       ballBoyRate: Number(rawRates?.ballBoyRate ?? 0),
       guestFee: Number(rawRates?.reservationGuestFee ?? 0),
+      guestFeeThreshold: Number(rawRates?.reservationGuestFeeThreshold ?? 0),
       rentalBalls50Rate: Number(rawRates?.rentalBalls50Rate ?? 0),
       rentalBalls100Rate: Number(rawRates?.rentalBalls100Rate ?? 0),
       rentalBallMachineRate: Number(rawRates?.rentalBallMachineRate ?? 0),
@@ -304,7 +305,8 @@ router.post("/", auth, async (req, res) => {
     const lightsFee = lightsRequested ? ratesUsed.lightsRate * durationHours : 0;
     const ballBoyFee = ballBoy ? ratesUsed.ballBoyRate * durationHours : 0;
     const rentalFee = rentalFeePerHour * durationHours;
-    const guestTotalFee = sanitizedGuestCount * ratesUsed.guestFee;
+    const chargeableGuests = Math.max(0, sanitizedGuestCount - ratesUsed.guestFeeThreshold);
+    const guestTotalFee = chargeableGuests * ratesUsed.guestFee;
     const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;
     const feeRate = typeof clubDoc?.convenienceFeeRate === 'number' ? clubDoc.convenienceFeeRate : 0.10;
     const feeMode = clubDoc?.convenienceFeeMode ?? 'per_hour';

@@ -358,6 +358,13 @@ router.get("/:clubId/rates", async (req, res) => {
       reservationWeekendRate: rates.reservationWeekendRate,
       reservationHolidayRate: rates.reservationHolidayRate,
       reservationGuestFee: rates.reservationGuestFee,
+      reservationGuestFeeThreshold: rates.reservationGuestFeeThreshold ?? 0,
+      exclusiveEventEnabled: rates.exclusiveEventEnabled ?? false,
+      exclusiveEventRate: rates.exclusiveEventRate ?? 0,
+      exclusiveEventIncludedPax: rates.exclusiveEventIncludedPax ?? 0,
+      exclusiveEventExcessPaxFee: rates.exclusiveEventExcessPaxFee ?? 0,
+      exclusiveEventMaxPax: rates.exclusiveEventMaxPax ?? 0,
+      exclusiveEventPolicies: rates.exclusiveEventPolicies ?? [],
       rentalBalls50Rate: rates.rentalBalls50Rate,
       rentalBalls100Rate: rates.rentalBalls100Rate,
       rentalBallMachineRate: rates.rentalBallMachineRate,
@@ -380,6 +387,7 @@ router.post("/:clubId/reserve", async (req, res) => {
       rentals = {},
       guestInfo = {},
       selectedExtraFeeNames = [],
+      bookingType = 'standard',
     } = req.body;
     const durationHours = Math.max(1, Math.min(12, Math.floor(Number(req.body.durationHours) || 1)));
 
@@ -442,6 +450,7 @@ router.post("/:clubId/reserve", async (req, res) => {
       lightsRate: Number(rawRates?.lightRate ?? 0),
       ballBoyRate: Number(rawRates?.ballBoyRate ?? 0),
       guestFee: Number(rawRates?.reservationGuestFee ?? 0),
+      guestFeeThreshold: Number(rawRates?.reservationGuestFeeThreshold ?? 0),
       rentalBalls50Rate: Number(rawRates?.rentalBalls50Rate ?? 0),
       rentalBalls100Rate: Number(rawRates?.rentalBalls100Rate ?? 0),
       rentalBallMachineRate: Number(rawRates?.rentalBallMachineRate ?? 0),
@@ -473,11 +482,31 @@ router.post("/:clubId/reserve", async (req, res) => {
     }
 
     const sanitizedGuestCount = Math.max(0, Math.floor(Number(guestCount) || 0));
-    const baseCourtFee = hourlyRate * durationHours;
+    const isExclusiveEvent = bookingType === 'exclusive_event' && (rawRates?.exclusiveEventEnabled ?? false);
+
+    if (isExclusiveEvent) {
+      const maxPax = Number(rawRates?.exclusiveEventMaxPax ?? 0);
+      if (maxPax > 0 && sanitizedGuestCount > maxPax) {
+        return res.status(400).json({ error: `Maximum capacity for this event is ${maxPax} pax` });
+      }
+    }
+
+    let baseCourtFee, guestTotalFee;
+    if (isExclusiveEvent) {
+      const eventRate = Number(rawRates?.exclusiveEventRate ?? 0);
+      const includedPax = Number(rawRates?.exclusiveEventIncludedPax ?? 0);
+      const excessFee = Number(rawRates?.exclusiveEventExcessPaxFee ?? 0);
+      baseCourtFee = eventRate * durationHours;
+      guestTotalFee = Math.max(0, sanitizedGuestCount - includedPax) * excessFee;
+    } else {
+      baseCourtFee = hourlyRate * durationHours;
+      const chargeableGuests = Math.max(0, sanitizedGuestCount - ratesUsed.guestFeeThreshold);
+      guestTotalFee = chargeableGuests * ratesUsed.guestFee;
+    }
+
     const lightsFee = lightsRequested ? ratesUsed.lightsRate * durationHours : 0;
     const ballBoyFee = ballBoy ? ratesUsed.ballBoyRate * durationHours : 0;
     const rentalFee = rentalFeePerHour * durationHours;
-    const guestTotalFee = sanitizedGuestCount * ratesUsed.guestFee;
     const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;
     const feeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.05;
     const feeMode = club.convenienceFeeMode ?? 'per_hour';
@@ -488,13 +517,13 @@ router.post("/:clubId/reserve", async (req, res) => {
     }
 
     const selectedNames = Array.isArray(selectedExtraFeeNames) ? selectedExtraFeeNames : [];
-    const appliedExtraFees = (club.additionalFees ?? [])
+    const appliedExtraFees = isExclusiveEvent ? [] : (club.additionalFees ?? [])
       .filter(f => f.isEnabled && (!f.isOptional || selectedNames.includes(f.name)))
       .map(f => ({
         name: f.name,
         amount: parseFloat((f.type === 'per_person' ? f.amount * sanitizedGuestCount : f.amount).toFixed(2)),
       }));
-    const extraFeeTotal = parseFloat(appliedExtraFees.reduce((sum, f) => sum + f.amount, 0).toFixed(2));
+    const extraFeeTotal = isExclusiveEvent ? 0 : parseFloat(appliedExtraFees.reduce((sum, f) => sum + f.amount, 0).toFixed(2));
     const totalAmount = courtFee + convenienceFee + extraFeeTotal;
 
     const reservation = await Reservation.create({
@@ -503,6 +532,7 @@ router.post("/:clubId/reserve", async (req, res) => {
       date: parsedDate,
       timeSlot,
       durationHours,
+      bookingType: isExclusiveEvent ? 'exclusive_event' : 'standard',
       player: null,
       players: [],
       guestInfo: {

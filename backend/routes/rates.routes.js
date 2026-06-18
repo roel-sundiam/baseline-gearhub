@@ -48,6 +48,15 @@ router.put("/", auth, admin, async (req, res) => {
     const reservationWeekendRate = Number(req.body.reservationWeekendRate ?? 0);
     const reservationHolidayRate = Number(req.body.reservationHolidayRate ?? 0);
     const reservationGuestFee = Number(req.body.reservationGuestFee ?? 0);
+    const reservationGuestFeeThreshold = Number(req.body.reservationGuestFeeThreshold ?? 0);
+    const exclusiveEventEnabled = Boolean(req.body.exclusiveEventEnabled);
+    const exclusiveEventRate = Number(req.body.exclusiveEventRate ?? 0);
+    const exclusiveEventIncludedPax = Number(req.body.exclusiveEventIncludedPax ?? 0);
+    const exclusiveEventExcessPaxFee = Number(req.body.exclusiveEventExcessPaxFee ?? 0);
+    const exclusiveEventMaxPax = Number(req.body.exclusiveEventMaxPax ?? 0);
+    const exclusiveEventPolicies = Array.isArray(req.body.exclusiveEventPolicies)
+      ? req.body.exclusiveEventPolicies.map(String).filter(Boolean)
+      : [];
     const rentalBalls50Rate = Number(req.body.rentalBalls50Rate ?? 0);
     const rentalBalls100Rate = Number(req.body.rentalBalls100Rate ?? 0);
     const rentalBallMachineRate = Number(req.body.rentalBallMachineRate ?? 0);
@@ -58,7 +67,7 @@ router.put("/", auth, admin, async (req, res) => {
       training2WithoutLightRate, training2LightRate,
       ballBoyRate,
       reservationWeekdayRate, reservationWeekendRate, reservationHolidayRate,
-      reservationGuestFee,
+      reservationGuestFee, reservationGuestFeeThreshold,
       rentalBalls50Rate, rentalBalls100Rate, rentalBallMachineRate, rentalRacketRate,
     ];
 
@@ -77,7 +86,9 @@ router.put("/", auth, admin, async (req, res) => {
         training2WithoutLightRate, training2LightRate,
         ballBoyRate,
         reservationWeekdayRate, reservationWeekendRate, reservationHolidayRate,
-        reservationGuestFee,
+        reservationGuestFee, reservationGuestFeeThreshold,
+        exclusiveEventEnabled, exclusiveEventRate, exclusiveEventIncludedPax,
+        exclusiveEventExcessPaxFee, exclusiveEventMaxPax, exclusiveEventPolicies,
         rentalBalls50Rate, rentalBalls100Rate, rentalBallMachineRate, rentalRacketRate,
         updatedAt: new Date(),
       },
