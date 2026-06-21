@@ -54,7 +54,10 @@ function hoursToSlots(opening: number, closing: number): string[] {
 
         @if (viewMode === 'table') {
           <div class="filters">
-            <input type="date" class="filter-input" [(ngModel)]="filterDate" (change)="load()" />
+            <span class="filter-label">From</span>
+            <input type="date" class="filter-input" [(ngModel)]="filterDateFrom" (change)="load()" />
+            <span class="filter-label">To</span>
+            <input type="date" class="filter-input" [(ngModel)]="filterDateTo" (change)="load()" />
             <select class="filter-input" [(ngModel)]="filterCourt" (change)="load()">
               <option value="">All Courts</option>
               @for (c of courtNumbers; track c) {
@@ -415,6 +418,7 @@ function hoursToSlots(opening: number, closing: number): string[] {
     .view-btn.active { background: var(--accent); border-color: var(--accent); color: #0c1a11; }
 
     .filters { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .filter-label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
     .filter-input {
       padding: .45rem .75rem;
       border: 1px solid var(--border);
@@ -806,7 +810,8 @@ export class AdminReservationsComponent implements OnInit {
   loading = true;
   calLoading = false;
   acting = '';
-  filterDate = '';
+  filterDateFrom = '';
+  filterDateTo = '';
   filterCourt = '';
   showPast = false;
   viewMode: 'table' | 'calendar' = 'table';
@@ -875,8 +880,9 @@ export class AdminReservationsComponent implements OnInit {
 
   load() {
     this.loading = true;
-    const filters: { date?: string; court?: string } = {};
-    if (this.filterDate) filters.date = this.filterDate;
+    const filters: { startDate?: string; endDate?: string; court?: string } = {};
+    if (this.filterDateFrom) filters.startDate = this.filterDateFrom;
+    if (this.filterDateTo) filters.endDate = this.filterDateTo;
     if (this.filterCourt) filters.court = this.filterCourt;
     this.reservationService.getAll(filters).subscribe({
       next: (res) => { this.reservations = res; this.loading = false; this.cdr.detectChanges(); },
@@ -885,7 +891,8 @@ export class AdminReservationsComponent implements OnInit {
   }
 
   clearFilters() {
-    this.filterDate = '';
+    this.filterDateFrom = '';
+    this.filterDateTo = '';
     this.filterCourt = '';
     this.load();
   }

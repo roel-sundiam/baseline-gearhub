@@ -127,66 +127,90 @@ function localDateStr(): string {
           <!-- ── Main layout ── -->
           <div class="gr-layout">
 
-            <!-- LEFT: date nav + grid -->
+            <!-- LEFT: form sections -->
             <div class="gr-left">
-              <div class="gr-date-nav">
-                <button class="gr-nav-btn" (click)="prevDay()" [disabled]="navDate() <= today">&#8249;</button>
-                <div class="gr-date-label">{{ navDate() | date: 'EEEE, MMMM d, y' }}</div>
-                <button class="gr-nav-btn" (click)="nextDay()">&#8250;</button>
-                @if (navDate() !== today) {
-                  <button class="gr-today-btn" (click)="goToday()">Today</button>
-                }
+
+              <!-- Date -->
+              <div class="gr-form-section">
+                <div class="gr-form-label">Date</div>
+                <input
+                  type="date"
+                  class="gr-date-input"
+                  [value]="navDate()"
+                  [min]="today"
+                  (change)="onDateInputChange($event)"
+                />
               </div>
 
-              <div class="gr-legend">
-                <span class="gr-legend-item gr-leg-available">Available</span>
-                <span class="gr-legend-item gr-leg-selected">Selected</span>
-                <span class="gr-legend-item gr-leg-booked">Booked</span>
-                <span class="gr-legend-item gr-leg-lights">&#128161; Lights slot</span>
-              </div>
-
-              @if (availLoading()) {
-                <div class="gr-grid-loading">
-                  <div class="gr-spinner"></div> Checking availability…
+              <!-- Court -->
+              <div class="gr-form-section">
+                <div class="gr-form-label">Court</div>
+                <div class="gr-court-toggle">
+                  @for (n of courtNumbers(); track n) {
+                    <button
+                      type="button"
+                      class="gr-court-btn"
+                      [class.active]="selectedCourt === n"
+                      (click)="selectCourtLeft(n)"
+                    >
+                      &#127955; Court {{ n }}
+                    </button>
+                  }
                 </div>
-              } @else {
-                <div class="gr-grid-wrap">
-                  <table class="gr-grid">
-                    <thead>
-                      <tr>
-                        <th class="gr-time-col">Time</th>
-                        @for (c of courtNumbers(); track c) {
-                          <th class="gr-court-col">Court {{ c }}</th>
-                        }
-                      </tr>
-                    </thead>
-                    <tbody>
+              </div>
+
+              <!-- Time Slot -->
+              @if (selectedCourt) {
+                <div class="gr-form-section">
+                  <div class="gr-form-label">
+                    Time Slot
+                    <span class="gr-lights-legend"><span class="gr-lights-dot"></span> with lights</span>
+                  </div>
+                  @if (availLoading()) {
+                    <div class="gr-slot-loading">
+                      <div class="gr-spinner"></div> Checking availability…
+                    </div>
+                  } @else {
+                    <div class="gr-slot-grid">
                       @for (slot of allSlots; track slot) {
-                        <tr [class.gr-lights-row]="lightSlots.has(slot)">
-                          <td class="gr-time-cell">
-                            {{ formatSlotLabel(slot) }}
-                            @if (lightSlots.has(slot)) { <span class="gr-light-dot">&#128161;</span> }
-                          </td>
-                          @for (c of courtNumbers(); track c) {
-                            <td
-                              class="gr-cell"
-                              [class.gr-cell-available]="cellState(c, slot) === 'available'"
-                              [class.gr-cell-selected]="cellState(c, slot) === 'selected'"
-                              [class.gr-cell-in-range]="cellState(c, slot) === 'in-range'"
-                              [class.gr-cell-booked]="cellState(c, slot) === 'booked'"
-                              (click)="onCellClick(c, slot)"
-                            >
-                              @if (cellState(c, slot) === 'booked') { <span>&#10005;</span> }
-                              @else if (cellState(c, slot) === 'selected') { <span>&#9679;</span> }
-                              @else if (cellState(c, slot) === 'in-range') { <span class="gr-range-line"></span> }
-                            </td>
-                          }
-                        </tr>
+                        <button
+                          type="button"
+                          class="gr-slot-btn"
+                          [class.selected]="cellState(selectedCourt, slot) === 'selected'"
+                          [class.booked]="cellState(selectedCourt, slot) === 'booked'"
+                          [class.in-range]="cellState(selectedCourt, slot) === 'in-range'"
+                          [class.has-lights]="lightSlots.has(slot)"
+                          [disabled]="cellState(selectedCourt, slot) === 'booked' || cellState(selectedCourt, slot) === 'in-range'"
+                          (click)="onCellClick(selectedCourt, slot)"
+                        >
+                          {{ slot }}
+                          @if (lightSlots.has(slot)) { <span class="gr-slot-light">&#128161;</span> }
+                        </button>
                       }
-                    </tbody>
-                  </table>
+                    </div>
+                  }
                 </div>
               }
+
+              <!-- Duration -->
+              @if (selectedSlot && availableDurations.length > 1) {
+                <div class="gr-form-section">
+                  <div class="gr-form-label">Duration</div>
+                  <div class="gr-dur-row">
+                    @for (d of availableDurations; track d) {
+                      <button
+                        type="button"
+                        class="gr-dur-btn"
+                        [class.active]="selectedDuration === d"
+                        (click)="setDuration(d)"
+                      >
+                        {{ d }} hr{{ d > 1 ? 's' : '' }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              }
+
             </div><!-- /gr-left -->
 
             <!-- RIGHT sidebar -->
@@ -240,28 +264,54 @@ function localDateStr(): string {
                       </div>
                       @if (bookingType === 'exclusive_event') {
                         <div class="gr-event-info">
-                          <span>{{ exclusiveEventRate | currency: 'PHP' : 'symbol' }}/hr &middot; {{ exclusiveEventIncludedPax }} pax included</span>
-                          <span>+₱{{ exclusiveEventExcessPaxFee }}/head &middot; max {{ exclusiveEventMaxPax }} pax</span>
+                          <div class="gr-event-stat">
+                            <span class="gr-event-stat-val">{{ exclusiveEventRate | currency: 'PHP' : 'symbol' }}</span>
+                            <span class="gr-event-stat-lbl">per hour</span>
+                          </div>
+                          <div class="gr-event-stat">
+                            <span class="gr-event-stat-val">{{ exclusiveEventIncludedPax }}</span>
+                            <span class="gr-event-stat-lbl">pax included</span>
+                          </div>
+                          <div class="gr-event-stat">
+                            <span class="gr-event-stat-val">+₱{{ exclusiveEventExcessPaxFee }}</span>
+                            <span class="gr-event-stat-lbl">per extra guest</span>
+                          </div>
+                          <div class="gr-event-stat">
+                            <span class="gr-event-stat-val">{{ exclusiveEventMaxPax }}</span>
+                            <span class="gr-event-stat-lbl">max capacity</span>
+                          </div>
                         </div>
                       }
                     }
 
                     <!-- Toggles -->
-                    <div class="gr-toggles-row">
-                      <label class="gr-toggle-item">
-                        <input type="checkbox" [(ngModel)]="lightsRequested" />
-                        <span>&#128161; Lights</span>
+                    <div class="gr-toggles-col">
+                      <label class="gr-sw-row">
+                        <span class="gr-sw-label">&#128161; Lights</span>
+                        <span class="gr-sw-meta">{{ lightsRate > 0 ? '+₱' + lightsRate + '/hr' : 'Free' }}</span>
+                        <span class="gr-sw-track" [class.on]="lightsRequested">
+                          <input type="checkbox" [(ngModel)]="lightsRequested" class="gr-sw-input" />
+                          <span class="gr-sw-thumb"></span>
+                        </span>
                       </label>
                       @if (holidayRate > 0) {
-                        <label class="gr-toggle-item">
-                          <input type="checkbox" [(ngModel)]="isHoliday" />
-                          <span>&#127958; Holiday</span>
+                        <label class="gr-sw-row">
+                          <span class="gr-sw-label">&#127958; Holiday rate</span>
+                          <span class="gr-sw-meta">{{ holidayRate | currency:'PHP':'symbol' }}/hr</span>
+                          <span class="gr-sw-track" [class.on]="isHoliday">
+                            <input type="checkbox" [(ngModel)]="isHoliday" class="gr-sw-input" />
+                            <span class="gr-sw-thumb"></span>
+                          </span>
                         </label>
                       }
                       @if (ballBoyRate > 0) {
-                        <label class="gr-toggle-item">
-                          <input type="checkbox" [(ngModel)]="ballBoyRequested" />
-                          <span>&#127934; Ball Boy</span>
+                        <label class="gr-sw-row">
+                          <span class="gr-sw-label">&#127934; Ball Boy</span>
+                          <span class="gr-sw-meta">+₱{{ ballBoyRate }}/hr</span>
+                          <span class="gr-sw-track" [class.on]="ballBoyRequested">
+                            <input type="checkbox" [(ngModel)]="ballBoyRequested" class="gr-sw-input" />
+                            <span class="gr-sw-thumb"></span>
+                          </span>
                         </label>
                       }
                     </div>
@@ -286,7 +336,12 @@ function localDateStr(): string {
                           }
                         </div>
                         @if (bookingType === 'exclusive_event' && exclusiveEventIncludedPax > 0) {
-                          <div class="gr-event-pax-note">{{ exclusiveEventIncludedPax }} included &middot; &#43;&#8369;{{ exclusiveEventExcessPaxFee }}/head beyond that &middot; max {{ exclusiveEventMaxPax }}</div>
+                          <div class="gr-event-pax-note">
+                            <span>&#9432;</span>
+                            First {{ exclusiveEventIncludedPax }} pax are included in the base rate.
+                            Additional guests are charged &#8369;{{ exclusiveEventExcessPaxFee }} each,
+                            up to a maximum of {{ exclusiveEventMaxPax }} persons.
+                          </div>
                         }
                       </div>
                     }
@@ -372,38 +427,44 @@ function localDateStr(): string {
                     @if (bookingType === 'exclusive_event' && exclusiveEventPolicies.length > 0) {
                       <div class="gr-policies-block">
                         <div class="gr-policies-title">&#128203; Event Policies</div>
-                        <ul class="gr-policies-list">
-                          @for (policy of exclusiveEventPolicies; track policy) {
-                            <li>{{ policy }}</li>
+                        <ol class="gr-policies-list">
+                          @for (policy of exclusiveEventPolicies; track policy; let i = $index) {
+                            <li>
+                              <span class="gr-policy-num">{{ i + 1 }}</span>
+                              <span>{{ policy }}</span>
+                            </li>
                           }
-                        </ul>
-                        <label class="gr-toggle-item" style="margin-top:.5rem">
-                          <input type="checkbox" [(ngModel)]="policiesAcknowledged" />
-                          <span>I have read and agree to the event policies</span>
+                        </ol>
+                        <label class="gr-policy-ack">
+                          <input type="checkbox" [(ngModel)]="policiesAcknowledged" class="gr-sw-input" />
+                          <span class="gr-sw-track" [class.on]="policiesAcknowledged"><span class="gr-sw-thumb"></span></span>
+                          <span class="gr-policy-ack-text">I have read and agree to the event policies</span>
                         </label>
                       </div>
                     }
 
                     <!-- Price summary -->
                     <div class="gr-sum-block">
+                      <div class="gr-sum-label">&#128176; Price Breakdown</div>
                       <div class="gr-sum-row">
-                        <span>Subtotal</span>
+                        <span>&#127955; Court rental <span class="gr-sum-pct">({{ selectedDuration }}hr)</span></span>
                         <strong>{{ subtotal | currency: 'PHP' : 'symbol' }}</strong>
                       </div>
                       @if (convenienceFeeMode !== 'monthly_flat') {
                         <div class="gr-sum-row">
-                          <span>Convenience fee <span class="gr-sum-pct">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
+                          <span>&#128179; Convenience fee <span class="gr-sum-pct">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
                           <strong>{{ convenienceFee | currency: 'PHP' : 'symbol' }}</strong>
                         </div>
                       }
                       @if (extraFeeTotal > 0) {
                         <div class="gr-sum-row">
-                          <span>Add-ons</span>
+                          <span>&#10133; Add-ons</span>
                           <strong>{{ extraFeeTotal | currency: 'PHP' : 'symbol' }}</strong>
                         </div>
                       }
+                      <div class="gr-sum-divider"></div>
                       <div class="gr-sum-total-row">
-                        <span>Total:</span>
+                        <span>Total due</span>
                         <strong class="gr-total-amt">{{ computedFee | currency: 'PHP' : 'symbol' }}</strong>
                       </div>
                     </div>
@@ -550,7 +611,7 @@ function localDateStr(): string {
                   @if (clubSocial.instagram) {
                     <div class="gr-info-row"><span class="gr-info-icon">&#9654;</span><a [href]="clubSocial.instagram" target="_blank" class="gr-info-link">Instagram</a></div>
                   }
-                  <div class="gr-info-hint">&#8592; Click a slot on the grid to book</div>
+                  <div class="gr-info-hint">&#8592; Select a date, court and time slot to book</div>
                 </div>
               }
 
@@ -716,93 +777,72 @@ function localDateStr(): string {
       align-items: start;
     }
 
-    /* ── Date nav ── */
-    .gr-date-nav {
-      display: flex; align-items: center; gap: 0.75rem;
-      margin-bottom: 1rem; flex-wrap: wrap;
+    /* ── Left form sections ── */
+    .gr-form-section { margin-bottom: 1.25rem; }
+    .gr-form-label {
+      font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.40);
+      text-transform: uppercase; letter-spacing: 0.8px;
+      margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;
     }
-    .gr-nav-btn {
-      width: 36px; height: 36px;
-      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-      color: #fff; border-radius: 8px; font-size: 1.25rem; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: border-color 0.15s, background 0.15s;
-    }
-    .gr-nav-btn:hover:not(:disabled) { border-color: #a3e635; background: rgba(163,230,53,0.08); }
-    .gr-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-    .gr-date-label { font-size: 1rem; font-weight: 600; color: #fff; flex: 1; min-width: 180px; }
-    .gr-today-btn {
-      background: rgba(163,230,53,0.1); border: 1px solid rgba(163,230,53,0.25);
-      color: #a3e635; border-radius: 8px; padding: 0.35rem 0.8rem;
-      font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: background 0.15s;
-    }
-    .gr-today-btn:hover { background: rgba(163,230,53,0.2); }
+    .gr-lights-legend { display: flex; align-items: center; gap: 0.3rem; font-size: 0.7rem; font-weight: 500; color: rgba(255,255,255,0.3); text-transform: none; letter-spacing: 0; }
+    .gr-lights-dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; }
 
-    /* ── Legend ── */
-    .gr-legend { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.9rem; }
-    .gr-legend-item { font-size: 0.74rem; padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 600; }
-    .gr-leg-available { background: #1a7a72; color: #fff; }
-    .gr-leg-selected { background: rgba(26,120,194,0.25); color: #5bb8f5; border: 1px solid #1a78c2; }
-    .gr-leg-booked { background: rgba(239,68,68,0.2); color: #f87171; }
-    .gr-leg-lights { background: rgba(255,200,0,0.08); color: rgba(255,220,80,0.8); }
+    /* Date input */
+    .gr-date-input {
+      width: 100%; box-sizing: border-box;
+      background: #1b3028; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; padding: 0.7rem 0.9rem;
+      color: #fff; font-size: 0.9rem; font-family: inherit;
+      outline: none; transition: border-color 0.2s;
+    }
+    .gr-date-input:focus { border-color: rgba(163,230,53,0.4); }
+    .gr-date-input::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
 
-    /* ── Loading ── */
-    .gr-grid-loading {
+    /* Court buttons */
+    .gr-court-toggle { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+    .gr-court-btn {
+      flex: 1; min-width: 90px; padding: 0.65rem;
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
+      background: #1b3028; font-size: 0.88rem; font-weight: 700;
+      cursor: pointer; transition: all 0.2s;
+      color: rgba(255,255,255,0.55);
+      display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+      font-family: inherit;
+    }
+    .gr-court-btn.active { border-color: #a3e635; background: rgba(163,230,53,0.12); color: #a3e635; }
+    .gr-court-btn:hover:not(.active) { border-color: rgba(163,230,53,0.3); color: rgba(255,255,255,0.8); }
+
+    /* Slot grid */
+    .gr-slot-loading {
       display: flex; align-items: center; gap: 0.75rem;
-      color: rgba(255,255,255,0.45); font-size: 0.875rem; padding: 2rem 0;
+      color: rgba(255,255,255,0.45); font-size: 0.875rem; padding: 1.5rem 0;
     }
     .gr-spinner {
       width: 18px; height: 18px;
       border: 2px solid rgba(163,230,53,0.2); border-top-color: #a3e635;
-      border-radius: 50%; animation: gr-spin 0.7s linear infinite;
+      border-radius: 50%; animation: gr-spin 0.7s linear infinite; flex-shrink: 0;
     }
     @keyframes gr-spin { to { transform: rotate(360deg); } }
 
-    /* ── Grid ── */
-    .gr-grid-wrap {
-      overflow-x: auto; border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.06);
+    .gr-slot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+      gap: 0.45rem;
     }
-    .gr-grid { width: 100%; border-collapse: collapse; min-width: 320px; }
-    .gr-grid thead th {
-      background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5);
-      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.06em; padding: 0.65rem 0.5rem; text-align: center; white-space: nowrap;
+    .gr-slot-btn {
+      position: relative; padding: 0.55rem 0.35rem;
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+      background: #1b3028; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; color: rgba(255,255,255,0.7);
+      display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+      font-family: inherit;
     }
-    .gr-time-col { width: 90px; text-align: left !important; padding-left: 0.75rem !important; }
-    .gr-court-col { min-width: 80px; }
-    .gr-time-cell {
-      padding: 0 0.75rem; font-size: 0.75rem; color: rgba(255,255,255,0.4);
-      white-space: nowrap; text-align: left;
-    }
-    .gr-light-dot { margin-left: 2px; font-size: 0.68rem; opacity: 0.7; }
-    .gr-cell {
-      height: 52px; text-align: center; vertical-align: middle;
-      border-top: 3px solid rgba(0,0,0,0.35);
-      border-left: 2px solid rgba(0,0,0,0.2);
-      font-size: 0.82rem; cursor: pointer;
-      transition: background 0.12s;
-      background: rgba(255,255,255,0.01);
-    }
-    .gr-lights-row .gr-time-cell { color: rgba(255,220,80,0.55); }
-    .gr-cell-available { background: #1a7a72; color: rgba(255,255,255,0.0); }
-    .gr-cell-available:hover { background: #1f9089; color: rgba(255,255,255,0.8); }
-    .gr-cell-selected {
-      background: #1a78c2 !important; color: #fff;
-      border: 1px solid rgba(255,255,255,0.6) !important; cursor: default;
-    }
-    .gr-cell-in-range {
-      background: #1a78c2 !important; color: rgba(255,255,255,0.7);
-      border: 1px solid rgba(255,255,255,0.6) !important; cursor: default;
-    }
-    .gr-range-line {
-      display: block; width: 16px; height: 2px;
-      background: rgba(255,255,255,0.5); margin: 0 auto;
-    }
-    .gr-cell-booked {
-      background: rgba(239,68,68,0.18) !important;
-      color: rgba(239,68,68,0.75); cursor: not-allowed;
-    }
+    .gr-slot-btn.has-lights { border-color: rgba(245,158,11,0.35); background: rgba(245,158,11,0.07); }
+    .gr-slot-btn.selected { border-color: #a3e635; background: rgba(163,230,53,0.15); color: #a3e635; }
+    .gr-slot-btn.booked { background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.2); cursor: not-allowed; border-color: rgba(255,255,255,0.05); text-decoration: line-through; }
+    .gr-slot-btn.in-range { border-color: rgba(163,230,53,0.4); background: rgba(163,230,53,0.08); color: rgba(163,230,53,0.6); cursor: not-allowed; }
+    .gr-slot-btn:hover:not(.booked):not(.selected):not(.in-range) { border-color: rgba(163,230,53,0.35); background: rgba(163,230,53,0.07); }
+    .gr-slot-light { font-size: 0.65rem; line-height: 1; }
 
     /* ── Sidebar ── */
     .gr-sidebar { display: flex; flex-direction: column; gap: 1rem; position: sticky; top: 72px; }
@@ -934,36 +974,76 @@ function localDateStr(): string {
 
     /* Exclusive event info strip */
     .gr-event-info {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 0.25rem;
-      background: rgba(163,230,53,0.07);
-      border: 1px solid rgba(163,230,53,0.2);
-      border-radius: 8px;
-      padding: 0.5rem 0.75rem;
-      font-size: 0.75rem;
-      color: rgba(163,230,53,0.8);
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 0.4rem;
+      background: rgba(163,230,53,0.06);
+      border: 1px solid rgba(163,230,53,0.18);
+      border-radius: 10px;
+      padding: 0.75rem;
     }
+    .gr-event-stat {
+      display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+      padding: 0.35rem 0.5rem;
+      background: rgba(163,230,53,0.06); border-radius: 8px;
+    }
+    .gr-event-stat-val { font-size: 0.9rem; font-weight: 800; color: #a3e635; }
+    .gr-event-stat-lbl { font-size: 0.65rem; color: rgba(163,230,53,0.55); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    /* Pax note */
+    .gr-event-pax-note {
+      display: flex; align-items: flex-start; gap: 0.45rem;
+      background: rgba(163,230,53,0.05); border: 1px solid rgba(163,230,53,0.15);
+      border-radius: 8px; padding: 0.6rem 0.75rem;
+      font-size: 0.78rem; color: rgba(255,255,255,0.55); line-height: 1.5;
+    }
+    .gr-event-pax-note span:first-child { color: #a3e635; font-size: 0.85rem; flex-shrink: 0; margin-top: 0.05rem; }
+
+    /* Policies block */
+    .gr-policies-block {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-left: 3px solid rgba(163,230,53,0.4);
+      border-radius: 10px; padding: 0.85rem 1rem;
+      display: flex; flex-direction: column; gap: 0.65rem;
+    }
+    .gr-policies-title { font-size: 0.78rem; font-weight: 700; color: rgba(255,255,255,0.7); letter-spacing: 0.03em; }
+    .gr-policies-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.45rem; }
+    .gr-policies-list li { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.8rem; color: rgba(255,255,255,0.55); line-height: 1.45; }
+    .gr-policy-num {
+      min-width: 18px; height: 18px; border-radius: 50%;
+      background: rgba(163,230,53,0.15); color: #a3e635;
+      font-size: 0.65rem; font-weight: 700; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; margin-top: 0.05rem;
+    }
+    .gr-policy-ack {
+      display: flex; align-items: center; gap: 0.6rem; cursor: pointer;
+      padding-top: 0.4rem; border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .gr-policy-ack-text { font-size: 0.8rem; color: rgba(255,255,255,0.6); font-weight: 500; }
 
     /* Price summary */
     .gr-sum-block {
       background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
       border-radius: 10px; padding: 0.85rem 1rem;
+      display: flex; flex-direction: column; gap: 0.1rem;
+    }
+    .gr-sum-label {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: rgba(255,255,255,0.3);
+      margin-bottom: 0.4rem;
     }
     .gr-sum-row {
       display: flex; justify-content: space-between; align-items: center;
-      font-size: 0.82rem; color: rgba(255,255,255,0.5); padding: 0.2rem 0;
+      font-size: 0.82rem; color: rgba(255,255,255,0.5); padding: 0.25rem 0;
     }
+    .gr-sum-row strong { color: rgba(255,255,255,0.75); }
     .gr-sum-pct { font-size: 0.72rem; opacity: 0.7; }
+    .gr-sum-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0.4rem 0; }
     .gr-sum-total-row {
       display: flex; justify-content: space-between; align-items: center;
-      margin-top: 0.5rem; padding-top: 0.5rem;
-      border-top: 1px solid rgba(255,255,255,0.08);
-      font-size: 0.9rem; color: rgba(255,255,255,0.7);
+      font-size: 0.9rem; color: rgba(255,255,255,0.7); padding: 0.15rem 0;
     }
-    .gr-total-amt { color: #a3e635; font-size: 1.1rem; font-weight: 700; }
+    .gr-total-amt { color: #a3e635; font-size: 1.15rem; font-weight: 800; }
 
     /* Form fields */
     .gr-alert-error {
@@ -995,7 +1075,33 @@ function localDateStr(): string {
     }
     .gr-dur-btn.active, .gr-dur-btn:hover { border-color: #a3e635; background: rgba(163,230,53,0.1); color: #a3e635; }
 
-    .gr-toggles-row { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+    /* iOS toggle switches */
+    .gr-toggles-col { display: flex; flex-direction: column; gap: 0; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; overflow: hidden; }
+    .gr-sw-row {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.7rem 0.9rem; cursor: pointer;
+      transition: background 0.15s;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .gr-sw-row:last-child { border-bottom: none; }
+    .gr-sw-row:hover { background: rgba(255,255,255,0.04); }
+    .gr-sw-label { flex: 1; font-size: 0.86rem; font-weight: 600; color: rgba(255,255,255,0.8); }
+    .gr-sw-meta { font-size: 0.75rem; color: rgba(255,255,255,0.35); margin-right: 0.4rem; }
+    .gr-sw-input { display: none; }
+    .gr-sw-track {
+      position: relative; width: 40px; height: 22px; border-radius: 11px;
+      background: rgba(255,255,255,0.12); transition: background 0.2s; flex-shrink: 0;
+    }
+    .gr-sw-track.on { background: #a3e635; }
+    .gr-sw-thumb {
+      position: absolute; top: 3px; left: 3px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      transition: left 0.2s;
+    }
+    .gr-sw-track.on .gr-sw-thumb { left: 21px; }
+
+    /* Legacy toggle-item (still used in rentals) */
     .gr-toggle-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: rgba(255,255,255,0.6); cursor: pointer; white-space: nowrap; }
     .gr-toggle-item input[type=checkbox] { accent-color: #a3e635; }
 
@@ -1242,6 +1348,7 @@ function localDateStr(): string {
     .gr-submit-btn:hover:not(:disabled) { background: #b5f040; box-shadow: 0 6px 24px rgba(163,230,53,0.38); }
     .gr-submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+
     /* ── Responsive ── */
     @media (max-width: 960px) {
       .gr-layout { grid-template-columns: 1fr; }
@@ -1278,6 +1385,10 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   courtAvailability = signal<Record<number, Set<string>>>({});
   clubPhotos = signal<string[]>([]);
   carouselIndex = signal(0);
+
+  calendarOpen = signal(false);
+  calendarViewYear = signal(new Date().getFullYear());
+  calendarViewMonth = signal(new Date().getMonth());
 
   selectedCourt: number | null = null;
   selectedSlot = '';
@@ -1335,6 +1446,39 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   showTerms = false;
 
   courtNumbers = computed(() => Array.from({ length: this.courtCount }, (_, i) => i + 1));
+
+  calendarMonthLabel = computed(() => {
+    const d = new Date(this.calendarViewYear(), this.calendarViewMonth(), 1);
+    return d.toLocaleString('default', { month: 'long', year: 'numeric' });
+  });
+
+  calendarDays = computed(() => {
+    const year = this.calendarViewYear();
+    const month = this.calendarViewMonth();
+    const firstDay = new Date(year, month, 1);
+    const startSunday = new Date(firstDay);
+    startSunday.setDate(firstDay.getDate() - firstDay.getDay());
+    const days: { dateStr: string; dayNum: number; inMonth: boolean; isPast: boolean; isToday: boolean; isSelected: boolean }[] = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(startSunday);
+      d.setDate(startSunday.getDate() + i);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      days.push({
+        dateStr,
+        dayNum: d.getDate(),
+        inMonth: d.getMonth() === month,
+        isPast: dateStr < this.today,
+        isToday: dateStr === this.today,
+        isSelected: dateStr === this.navDate(),
+      });
+    }
+    return days;
+  });
+
+  calPrevDisabled = computed(() => {
+    const now = new Date();
+    return this.calendarViewYear() === now.getFullYear() && this.calendarViewMonth() === now.getMonth();
+  });
 
   get hasAnyRental(): boolean {
     return this.rentalBalls50Rate > 0 || this.rentalBalls100Rate > 0
@@ -1554,25 +1698,14 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   onCellClick(court: number, slot: string) {
     if (this.cellState(court, slot) === 'booked') return;
 
-    // Clicking the selected slot deselects
+    // Clicking the selected slot deselects (keep court, just clear slot)
     if (this.selectedCourt === court && this.selectedSlot === slot) {
-      this.clearSelection();
+      this.selectedSlot = '';
+      this.selectedDuration = 1;
+      this.availableDurations = [];
+      this.errorMsg = '';
+      this.cdr.detectChanges();
       return;
-    }
-
-    // Same court + slot after start → extend/shrink duration by clicking
-    if (this.selectedCourt === court && this.selectedSlot) {
-      const startH = slotToHour(this.selectedSlot);
-      const clickH = slotToHour(slot);
-      if (clickH > startH) {
-        const newDur = clickH - startH + 1;
-        if (this.availableDurations.includes(newDur)) {
-          this.selectedDuration = newDur;
-          this.errorMsg = '';
-          this.cdr.detectChanges();
-          return;
-        }
-      }
     }
 
     // New selection
@@ -1630,6 +1763,62 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     this.navDate.set(this.today);
     this.clearSelection();
     this.loadAvailability();
+  }
+
+  toggleCalendar() {
+    if (!this.calendarOpen()) {
+      const d = new Date(this.navDate() + 'T00:00:00');
+      this.calendarViewYear.set(d.getFullYear());
+      this.calendarViewMonth.set(d.getMonth());
+    }
+    this.calendarOpen.set(!this.calendarOpen());
+    this.cdr.detectChanges();
+  }
+
+  calPrevMonth() {
+    if (this.calPrevDisabled()) return;
+    let m = this.calendarViewMonth() - 1;
+    let y = this.calendarViewYear();
+    if (m < 0) { m = 11; y--; }
+    this.calendarViewMonth.set(m);
+    this.calendarViewYear.set(y);
+    this.cdr.detectChanges();
+  }
+
+  calNextMonth() {
+    let m = this.calendarViewMonth() + 1;
+    let y = this.calendarViewYear();
+    if (m > 11) { m = 0; y++; }
+    this.calendarViewMonth.set(m);
+    this.calendarViewYear.set(y);
+    this.cdr.detectChanges();
+  }
+
+  selectCalDate(dateStr: string) {
+    if (dateStr < this.today) return;
+    this.navDate.set(dateStr);
+    this.calendarOpen.set(false);
+    this.clearSelection();
+    this.loadAvailability();
+    this.cdr.detectChanges();
+  }
+
+  onDateInputChange(event: Event) {
+    const val = (event.target as HTMLInputElement).value;
+    if (!val || val < this.today) return;
+    this.navDate.set(val);
+    this.clearSelection();
+    this.loadAvailability();
+    this.cdr.detectChanges();
+  }
+
+  selectCourtLeft(n: number) {
+    if (this.selectedCourt === n) return;
+    this.selectedCourt = n;
+    this.selectedSlot = '';
+    this.selectedDuration = 1;
+    this.availableDurations = [];
+    this.cdr.detectChanges();
   }
 
   prevPhoto() {
