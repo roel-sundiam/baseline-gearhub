@@ -63,6 +63,7 @@ const reservationSchema = new mongoose.Schema(
     },
     bookingType: { type: String, enum: ["standard", "exclusive_event"], default: "standard" },
     status: { type: String, enum: ["confirmed", "pending_payment", "cancelled"], default: "confirmed" },
+    adminNote: { type: String, default: '' },
     clubId: { type: mongoose.Schema.Types.ObjectId, ref: "Club", required: true },
   },
   { timestamps: true },

@@ -26,6 +26,7 @@ export interface Reservation {
   guestCount?: number;
   rentals?: { balls50: number; balls100: number; ballMachine: boolean; rackets: number };
   courtFee?: number;
+  adminNote?: string;
   clubId?: { _id: string; name: string } | string;
 }
 
@@ -78,6 +79,7 @@ export class ReservationService {
     lightsRequested?: boolean; ballBoy?: boolean; isHoliday?: boolean; guestCount?: number;
     rentals?: { balls50?: number; balls100?: number; ballMachine?: boolean; rackets?: number };
     guestInfo?: { name?: string; email?: string; phone?: string };
+    adminNote?: string;
   }) {
     return this.http.patch<Reservation>(`${this.base}/${id}`, payload);
   }

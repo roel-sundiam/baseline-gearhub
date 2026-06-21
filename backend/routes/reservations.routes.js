@@ -401,7 +401,7 @@ router.patch("/:id", auth, async (req, res) => {
       court, date, timeSlot, players = [],
       lightsRequested = false, ballBoy = false, isHoliday = false,
       guestCount = 0, rentals = {},
-      guestInfo,
+      guestInfo, adminNote,
     } = req.body;
     const durationHours = Math.max(1, Math.min(12, Math.floor(Number(req.body.durationHours) || 1)));
 
@@ -518,6 +518,7 @@ router.patch("/:id", auth, async (req, res) => {
       if (guestInfo.email !== undefined) reservation.guestInfo.email = guestInfo.email;
       if (guestInfo.phone !== undefined) reservation.guestInfo.phone = guestInfo.phone;
     }
+    if (isAdmin && adminNote !== undefined) reservation.adminNote = adminNote;
     await reservation.save();
 
     const charge = await Charge.findOne({ reservationId: reservation._id });

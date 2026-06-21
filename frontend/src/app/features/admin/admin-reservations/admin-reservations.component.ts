@@ -335,6 +335,13 @@ function hoursToSlots(opening: number, closing: number): string[] {
             </div>
           </div>
 
+          <!-- Admin Notes -->
+          <div class="m-divider"></div>
+          <div class="m-section-label"><i class="fas fa-note-sticky"></i> Admin Notes <span class="m-note-hint">(internal only — not visible to guests)</span></div>
+          <div class="m-field">
+            <textarea class="m-input m-notes" rows="3" [(ngModel)]="editAdminNote" placeholder="e.g. Payment collected weekly, confirmed arrangement"></textarea>
+          </div>
+
           @if (editError) {
             <div class="m-error"><i class="fas fa-exclamation-triangle"></i> {{ editError }}</div>
           }
@@ -659,6 +666,8 @@ function hoursToSlots(opening: number, closing: number): string[] {
     }
     .m-input:focus { border-color: var(--accent); }
     .m-input-sm { width: 100px; }
+    .m-notes { resize: vertical; font-family: inherit; }
+    .m-note-hint { font-size: .72rem; font-weight: 400; color: var(--muted); margin-left: .3rem; }
 
     .court-row { display: flex; gap: .5rem; flex-wrap: wrap; }
     .court-btn {
@@ -846,6 +855,7 @@ export class AdminReservationsComponent implements OnInit {
   editGuestName = '';
   editGuestEmail = '';
   editGuestPhone = '';
+  editAdminNote = '';
   editBookedSlots = new Set<string>();
   editLoadingSlots = false;
   editSaving = false;
@@ -985,6 +995,7 @@ export class AdminReservationsComponent implements OnInit {
     this.editGuestName = r.guestInfo?.name ?? '';
     this.editGuestEmail = r.guestInfo?.email ?? '';
     this.editGuestPhone = r.guestInfo?.phone ?? '';
+    this.editAdminNote = r.adminNote ?? '';
     this.editError = '';
     this.editSaving = false;
     this.loadEditAvailability();
@@ -1107,6 +1118,7 @@ export class AdminReservationsComponent implements OnInit {
         phone: this.editGuestPhone,
       };
     }
+    payload.adminNote = this.editAdminNote;
 
     this.reservationService.update(this.editingReservation._id, payload).subscribe({
       next: () => {

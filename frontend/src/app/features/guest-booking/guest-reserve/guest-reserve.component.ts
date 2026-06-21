@@ -595,7 +595,7 @@ function localDateStr(): string {
                   @if (clubLocation) {
                     <div class="gr-info-row"><span class="gr-info-icon">&#128205;</span><span>{{ clubLocation }}</span></div>
                   }
-                  <div class="gr-info-row"><span class="gr-info-icon">&#127955;</span><span>{{ courtCount }} court{{ courtCount !== 1 ? 's' : '' }}</span></div>
+                  <div class="gr-info-row"><span class="gr-info-icon">&#127955;</span><span>{{ courtCount() }} court{{ courtCount() !== 1 ? 's' : '' }}</span></div>
                   @if (weekdayRate > 0) {
                     <div class="gr-info-row"><span class="gr-info-icon">&#128176;</span><span>{{ weekdayRate | currency: 'PHP' : 'symbol' }}/hr (weekday)</span></div>
                   }
@@ -1373,7 +1373,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   clubSocial: { facebook?: string; instagram?: string; reclub?: string } = {};
   clubError = '';
 
-  courtCount = 2;
+  courtCount = signal(2);
   closingHour = 22;
   openingHour = 5;
   allSlots: string[] = hoursToSlots(5, 22);
@@ -1445,7 +1445,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   agreedToTerms = false;
   showTerms = false;
 
-  courtNumbers = computed(() => Array.from({ length: this.courtCount }, (_, i) => i + 1));
+  courtNumbers = computed(() => Array.from({ length: this.courtCount() }, (_, i) => i + 1));
 
   calendarMonthLabel = computed(() => {
     const d = new Date(this.calendarViewYear(), this.calendarViewMonth(), 1);
@@ -1609,7 +1609,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
           this.clubMobile = club.mobile ?? '';
           this.clubEmail = club.email ?? '';
           this.clubSocial = club.socialLinks ?? {};
-          this.courtCount = club.courtCount ?? 2;
+          this.courtCount.set(club.courtCount ?? 2);
           this.closingHour = club.closingHour ?? 22;
           this.openingHour = club.openingHour ?? 5;
           this.allSlots = hoursToSlots(this.openingHour, this.closingHour);

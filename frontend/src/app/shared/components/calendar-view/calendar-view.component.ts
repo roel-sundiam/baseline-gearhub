@@ -97,6 +97,9 @@ const SLOT_ORDER: Record<string, number> = {
                       @if (r.players.length > 2) { +{{ r.players.length - 2 }} more }
                     }
                   </div>
+                  @if (r.adminNote) {
+                    <div class="cal-admin-note"><i class="fas fa-note-sticky"></i> {{ r.adminNote }}</div>
+                  }
                 </div>
               </div>
             }
@@ -382,6 +385,19 @@ const SLOT_ORDER: Record<string, number> = {
       gap: 0.3rem;
     }
     .cal-res-player i { font-size: 0.68rem; }
+    .cal-admin-note {
+      font-size: 0.72rem;
+      color: var(--cal-text-muted);
+      background: rgba(234,179,8,0.08);
+      border-left: 2px solid #ca8a04;
+      padding: 0.2rem 0.5rem;
+      border-radius: 0 4px 4px 0;
+      margin-top: 0.2rem;
+      display: flex;
+      gap: 0.35rem;
+      align-items: flex-start;
+    }
+    .cal-admin-note i { color: #ca8a04; font-size: 0.68rem; margin-top: 1px; flex-shrink: 0; }
 
     /* ── Mobile responsive ── */
     @media (max-width: 400px) {
