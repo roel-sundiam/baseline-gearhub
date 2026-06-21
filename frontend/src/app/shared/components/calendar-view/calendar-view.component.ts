@@ -86,7 +86,7 @@ const SLOT_ORDER: Record<string, number> = {
                 <div class="cal-res-info">
                   <div class="cal-res-top">
                     <strong class="cal-res-court">Court {{ r.court }}</strong>
-                    <span class="cal-res-time">{{ formatSlot(r.timeSlot) }}</span>
+                    <span class="cal-res-time">{{ formatSlot(r.timeSlot, r.durationHours ?? 1) }}</span>
                     @if (r.hasLights) { <span class="cal-lights">💡</span> }
                     @if (myIds().includes(r._id)) { <span class="cal-you-tag">you</span> }
                   </div>
@@ -491,13 +491,13 @@ export class CalendarViewComponent {
     return players.slice(0, 2).map(p => p.name).join(', ');
   }
 
-  formatSlot(slot: string): string {
+  formatSlot(slot: string, durationHours = 1): string {
     const isPM = slot.endsWith('pm');
     const hour = parseInt(slot.replace('am', '').replace('pm', ''), 10);
     let startH = hour;
     if (isPM && hour !== 12) startH = hour + 12;
     if (!isPM && hour === 12) startH = 0;
-    const endH = (startH + 1) % 24;
+    const endH = (startH + durationHours) % 24;
     const fmt = (h: number) => {
       const period = h >= 12 ? 'PM' : 'AM';
       const h12 = h % 12 === 0 ? 12 : h % 12;

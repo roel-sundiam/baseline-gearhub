@@ -3,7 +3,8 @@ const PRECACHE = ['/', '/index.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE)));
-  self.skipWaiting();
+  // Do NOT skipWaiting here — let the update banner prompt the user first.
+  // skipWaiting is sent via postMessage({ type: 'SKIP_WAITING' }) when they tap "Refresh now".
 });
 
 self.addEventListener('activate', e => {

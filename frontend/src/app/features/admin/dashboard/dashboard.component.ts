@@ -716,7 +716,7 @@ export class AdminDashboardComponent implements OnInit {
       sessions: this.sessionsService.getSessions(),
       approvals: this.chargesService.getPendingApprovals().pipe(catchError(() => of([]))),
     })
-      .pipe(timeout(8000))
+      .pipe(timeout(20000))
       .subscribe({
         next: ({ pending, sessions, approvals }) => {
           console.log('Dashboard API success', { pending, sessions, approvals });
@@ -738,7 +738,7 @@ export class AdminDashboardComponent implements OnInit {
           this.loading = false;
           if (err.name === 'TimeoutError') {
             this.errorMsg =
-              'Request timed out. Is the backend running? Start it with: cd c:\\Projects2\\BaselineGearhubReservation\\backend && npm start';
+              'Request timed out. The server may be waking up — please wait a moment and refresh.';
           } else if (err.status === 401) {
             this.errorMsg = 'Session expired — please log out and log in again.';
           } else {

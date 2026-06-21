@@ -99,9 +99,9 @@ async function connectDB() {
   console.log('=> using new database connection');
   connectingPromise = mongoose
     .connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 3000,
-      connectTimeoutMS: 5000,
-      socketTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 12000,
+      socketTimeoutMS: 20000,
     })
     .then(() => {
       isConnected = true;

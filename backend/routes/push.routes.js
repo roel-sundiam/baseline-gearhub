@@ -8,6 +8,15 @@ router.get('/vapid-public-key', (req, res) => {
   res.json({ key: process.env.VAPID_PUBLIC_KEY || null });
 });
 
+router.get('/status', auth, async (req, res) => {
+  try {
+    const count = await PushSubscription.countDocuments({ userId: req.user.userId });
+    res.json({ subscribed: count > 0 });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.post('/subscribe', auth, async (req, res) => {
   const { subscription } = req.body;
   if (!subscription?.endpoint) return res.status(400).json({ error: 'Invalid subscription' });

@@ -31,11 +31,14 @@ async function sendPushToUser(userId, payload) {
 async function sendPushToClubAdmins(clubId, payload) {
   if (!webpush || !process.env.VAPID_PUBLIC_KEY) return;
   try {
-    const admins = await User.find(
-      { clubId, role: { $in: ['admin', 'superadmin'] } },
-      '_id'
-    ).lean();
-    await Promise.all(admins.map(a => sendPushToUser(a._id, payload)));
+    const [clubAdmins, superAdmins] = await Promise.all([
+      User.find({ clubId, role: 'admin' }, '_id').lean(),
+      User.find({ role: 'superadmin' }, '_id').lean(),
+    ]);
+    const uniqueIds = [...new Map(
+      [...clubAdmins, ...superAdmins].map(u => [u._id.toString(), u])
+    ).values()];
+    await Promise.all(uniqueIds.map(a => sendPushToUser(a._id, payload)));
   } catch (err) {
     console.error('sendPushToClubAdmins error:', err.message);
   }

@@ -6,6 +6,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ClubService, Club } from '../../../core/services/club.service';
 import { SoundService } from '../../../core/services/sound.service';
 import { InquiriesService } from '../../../core/services/inquiries.service';
+import { PushNotificationService } from '../../../core/services/push-notification.service';
 
 @Component({
   selector: 'app-navbar',
@@ -18,16 +19,6 @@ import { InquiriesService } from '../../../core/services/inquiries.service';
       </button>
 
       @if (auth.isLoggedIn()) {
-
-        <!-- Inquiries chat icon (admin only) -->
-        @if (auth.isAdmin() && !auth.isSuperAdmin()) {
-          <button type="button" class="btn-inquiries" (click)="navigate('/admin/inquiries')" title="Inquiries">
-            <i class="fas fa-comment-dots"></i>
-            @if (unreadCount() > 0) {
-              <span class="inq-dot">{{ unreadCount() > 9 ? '9+' : unreadCount() }}</span>
-            }
-          </button>
-        }
 
         <!-- Desktop Navigation -->
         <div class="nav-links desktop-nav">
@@ -58,6 +49,24 @@ import { InquiriesService } from '../../../core/services/inquiries.service';
             </button>
           }
 
+          @if (auth.isAdmin() && !auth.isSuperAdmin()) {
+            <button type="button" class="btn-inquiries" (click)="navigate('/admin/inquiries')" title="Inquiries">
+              <i class="fas fa-comment-dots"></i>
+              @if (unreadCount() > 0) {
+                <span class="inq-dot">{{ unreadCount() > 9 ? '9+' : unreadCount() }}</span>
+              }
+            </button>
+          }
+
+          @if (auth.isAdmin() && push.isSupported && push.isStandalone) {
+            <button type="button" class="btn-push-notif"
+              [class.subscribed]="push.isSubscribed()"
+              (click)="enableNotifications()"
+              [title]="push.isSubscribed() ? 'Push notifications active' : 'Tap to enable push notifications'">
+              <i class="fas fa-wifi"></i>
+            </button>
+          }
+
           <button class="btn-mute" (click)="sound.toggleMute()" [title]="sound.muted() ? 'Unmute sounds' : 'Mute sounds'">
             <i class="fas" [class.fa-bell]="!sound.muted()" [class.fa-bell-slash]="sound.muted()"></i>
           </button>
@@ -70,9 +79,23 @@ import { InquiriesService } from '../../../core/services/inquiries.service';
 
         <!-- Mobile Navigation -->
         <div class="mobile-nav">
-          <button class="btn-mute-mobile" (click)="sound.toggleMute()" [title]="sound.muted() ? 'Unmute sounds' : 'Mute sounds'">
-            <i class="fas" [class.fa-bell]="!sound.muted()" [class.fa-bell-slash]="sound.muted()"></i>
-          </button>
+          @if (auth.isAdmin() && !auth.isSuperAdmin()) {
+            <button type="button" class="btn-inquiries" (click)="navigate('/admin/inquiries')" title="Inquiries">
+              <i class="fas fa-comment-dots"></i>
+              @if (unreadCount() > 0) {
+                <span class="inq-dot">{{ unreadCount() > 9 ? '9+' : unreadCount() }}</span>
+              }
+            </button>
+          }
+
+          @if (auth.isAdmin() && push.isSupported && push.isStandalone) {
+            <button type="button" class="btn-push-notif"
+              [class.subscribed]="push.isSubscribed()"
+              (click)="enableNotifications()"
+              [title]="push.isSubscribed() ? 'Push notifications active' : 'Tap to enable push notifications'">
+              <i class="fas fa-wifi"></i>
+            </button>
+          }
 
           @if (auth.user()) {
             <button
@@ -422,6 +445,20 @@ import { InquiriesService } from '../../../core/services/inquiries.service';
         flex-shrink: 0;
       }
       .btn-inquiries:hover { background: rgba(255,255,255,0.22); }
+      .btn-push-notif {
+        position: relative;
+        background: rgba(255,255,255,0.08);
+        color: rgba(255,255,255,0.35);
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 8px;
+        width: 38px; height: 38px;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; font-size: 1rem;
+        transition: background 0.15s, color 0.15s;
+        flex-shrink: 0;
+      }
+      .btn-push-notif:hover { background: rgba(255,255,255,0.18); color: rgba(255,255,255,0.7); }
+      .btn-push-notif.subscribed { color: #a3e635; border-color: rgba(163,230,53,0.3); }
       .inq-dot {
         position: absolute;
         top: -5px; right: -5px;
@@ -468,6 +505,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     private router: Router,
     public sound: SoundService,
     private inquiriesService: InquiriesService,
+    public push: PushNotificationService,
   ) {}
 
   ngOnInit() {
@@ -546,6 +584,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   goToProfile() {
     this.router.navigate(['/player/profile/edit']);
+  }
+
+  async enableNotifications() {
+    await this.push.init();
   }
 
   private loadUnreadCount() {

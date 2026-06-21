@@ -10,6 +10,7 @@ Add an alternative court fee billing mode where clubs can charge a flat fee per 
 - Total players = 1 (booking member) + added club members (`players` array) + guest count
 - Lights, ball boy, and rental fees remain per-hour even in this mode
 - Controlled by a per-club setting `courtFeeMode`: `'per_hour'` (default) or `'per_player_per_game'`
+- **Convenience fee** in per-player mode: always `totalCourtFee × convenienceFeeRate`, regardless of `convenienceFeeMode` being `per_hour` or `per_transaction`. `monthly_flat` still skips it (₱0).
 
 ## Existing Features to Reuse
 

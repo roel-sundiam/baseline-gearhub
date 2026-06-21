@@ -13,6 +13,11 @@
   [headers.values]
     Cache-Control = "no-store"
 
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
 [[redirects]]
   from = "https://baseline-gearhub.netlify.app/*"
   to = "https://courtgo.club/:splat"

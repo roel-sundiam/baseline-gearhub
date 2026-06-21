@@ -150,6 +150,17 @@ export class AuthService {
     return localStorage.getItem(this.TOKEN_KEY);
   }
 
+  isTokenExpired(): boolean {
+    const token = this.getToken();
+    if (!token) return true;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.exp * 1000 < Date.now();
+    } catch {
+      return true;
+    }
+  }
+
   getUser(): AuthUser | null {
     return this._user();
   }
