@@ -34,6 +34,8 @@ const reservationSchema = new mongoose.Schema(
     isHoliday: { type: Boolean, default: false },
     ballBoy: { type: Boolean, default: false },
     guestCount: { type: Number, default: 0, min: 0 },
+    coachingRequested: { type: Boolean, default: false },
+    coachingPax: { type: Number, default: 0, min: 0 },
     rentals: {
       balls50: { type: Number, default: 0, min: 0 },
       balls100: { type: Number, default: 0, min: 0 },
@@ -55,6 +57,11 @@ const reservationSchema = new mongoose.Schema(
       rentalBalls100Rate: { type: Number, required: true, default: 0 },
       rentalBallMachineRate: { type: Number, required: true, default: 0 },
       rentalRacketRate: { type: Number, required: true, default: 0 },
+      coachingRate1Pax: { type: Number, default: 0 },
+      coachingRate2Pax: { type: Number, default: 0 },
+      coachingRate3to6Pax: { type: Number, default: 0 },
+      coachingMinHours: { type: Number, default: 2 },
+      coachingMaxPax: { type: Number, default: 6 },
     },
     guestInfo: {
       name: { type: String },

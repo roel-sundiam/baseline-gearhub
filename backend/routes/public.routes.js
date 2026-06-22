@@ -369,6 +369,12 @@ router.get("/:clubId/rates", async (req, res) => {
       rentalBalls100Rate: rates.rentalBalls100Rate,
       rentalBallMachineRate: rates.rentalBallMachineRate,
       rentalRacketRate: rates.rentalRacketRate,
+      coachingEnabled: rates.coachingEnabled ?? false,
+      coachingMinHours: rates.coachingMinHours ?? 2,
+      coachingMaxPax: rates.coachingMaxPax ?? 6,
+      coachingRate1Pax: rates.coachingRate1Pax ?? 0,
+      coachingRate2Pax: rates.coachingRate2Pax ?? 0,
+      coachingRate3to6Pax: rates.coachingRate3to6Pax ?? 0,
     });
   } catch (err) {
     console.error(err);
@@ -388,6 +394,8 @@ router.post("/:clubId/reserve", async (req, res) => {
       guestInfo = {},
       selectedExtraFeeNames = [],
       bookingType = 'standard',
+      coachingRequested = false,
+      coachingPax = 0,
     } = req.body;
     const durationHours = Math.max(1, Math.min(12, Math.floor(Number(req.body.durationHours) || 1)));
 
@@ -455,7 +463,13 @@ router.post("/:clubId/reserve", async (req, res) => {
       rentalBalls100Rate: Number(rawRates?.rentalBalls100Rate ?? 0),
       rentalBallMachineRate: Number(rawRates?.rentalBallMachineRate ?? 0),
       rentalRacketRate: Number(rawRates?.rentalRacketRate ?? 0),
+      coachingRate1Pax: Number(rawRates?.coachingRate1Pax ?? 0),
+      coachingRate2Pax: Number(rawRates?.coachingRate2Pax ?? 0),
+      coachingRate3to6Pax: Number(rawRates?.coachingRate3to6Pax ?? 0),
+      coachingMinHours: Number(rawRates?.coachingMinHours ?? 2),
+      coachingMaxPax: Number(rawRates?.coachingMaxPax ?? 6),
     };
+    const coachingEnabled = Boolean(rawRates?.coachingEnabled);
 
     const sanitizedRentals = {
       balls50: Math.max(0, Math.floor(Number(rentals.balls50) || 0)),
@@ -524,7 +538,24 @@ router.post("/:clubId/reserve", async (req, res) => {
         amount: parseFloat((f.type === 'per_person' ? f.amount * sanitizedGuestCount : f.amount).toFixed(2)),
       }));
     const extraFeeTotal = isExclusiveEvent ? 0 : parseFloat(appliedExtraFees.reduce((sum, f) => sum + f.amount, 0).toFixed(2));
-    const totalAmount = courtFee + convenienceFee + extraFeeTotal;
+
+    const wantsCoaching = coachingEnabled && Boolean(coachingRequested);
+    if (wantsCoaching && durationHours < ratesUsed.coachingMinHours) {
+      return res.status(400).json({ error: `Coaching sessions require a minimum of ${ratesUsed.coachingMinHours} hours` });
+    }
+    const sanitizedCoachingPax = wantsCoaching
+      ? Math.min(ratesUsed.coachingMaxPax, Math.max(1, Math.floor(Number(coachingPax) || 1)))
+      : 0;
+    const coachingTierRate = sanitizedCoachingPax <= 1
+      ? ratesUsed.coachingRate1Pax
+      : sanitizedCoachingPax === 2
+        ? ratesUsed.coachingRate2Pax
+        : ratesUsed.coachingRate3to6Pax;
+    const coachingFee = wantsCoaching
+      ? parseFloat((coachingTierRate * sanitizedCoachingPax * durationHours).toFixed(2))
+      : 0;
+
+    const totalAmount = courtFee + convenienceFee + extraFeeTotal + coachingFee;
 
     const reservation = await Reservation.create({
       clubId: resolvedClubId,
@@ -544,6 +575,8 @@ router.post("/:clubId/reserve", async (req, res) => {
       isHoliday: Boolean(isHoliday),
       ballBoy: Boolean(ballBoy),
       guestCount: sanitizedGuestCount,
+      coachingRequested: wantsCoaching,
+      coachingPax: sanitizedCoachingPax,
       rentals: sanitizedRentals,
       courtFee,
       convenienceFee,
@@ -567,6 +600,7 @@ router.post("/:clubId/reserve", async (req, res) => {
         convenienceFee,
         extraFees: appliedExtraFees,
         extraFeeTotal,
+        coachingFee,
       },
       chargeType: "reservation",
       approvalStatus: "pending",

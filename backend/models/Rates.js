@@ -22,6 +22,12 @@ const ratesSchema = new mongoose.Schema({
   rentalBalls100Rate: { type: Number, default: 0, min: 0 },
   rentalBallMachineRate: { type: Number, default: 0, min: 0 },
   rentalRacketRate: { type: Number, default: 0, min: 0 },
+  coachingEnabled: { type: Boolean, default: false },
+  coachingMinHours: { type: Number, default: 2, min: 1 },
+  coachingMaxPax: { type: Number, default: 6, min: 1 },
+  coachingRate1Pax: { type: Number, default: 0, min: 0 },
+  coachingRate2Pax: { type: Number, default: 0, min: 0 },
+  coachingRate3to6Pax: { type: Number, default: 0, min: 0 },
   updatedAt: { type: Date, default: Date.now },
 });
 

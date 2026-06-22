@@ -24,6 +24,8 @@ export interface Reservation {
   ballBoy?: boolean;
   isHoliday?: boolean;
   guestCount?: number;
+  coachingRequested?: boolean;
+  coachingPax?: number;
   rentals?: { balls50: number; balls100: number; ballMachine: boolean; rackets: number };
   courtFee?: number;
   adminNote?: string;
@@ -51,6 +53,8 @@ export class ReservationService {
     lightsRequested?: boolean; ballBoy?: boolean; isHoliday?: boolean; guestCount?: number;
     rentals?: { balls50?: number; balls100?: number; ballMachine?: boolean; rackets?: number };
     selectedExtraFeeNames?: string[];
+    coachingRequested?: boolean;
+    coachingPax?: number;
   }) {
     return this.http.post<Reservation>(this.base, payload);
   }

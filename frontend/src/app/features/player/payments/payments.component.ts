@@ -174,6 +174,12 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                           <span>{{ ef.amount | currency:'PHP':'symbol' }}</span>
                         </div>
                       }
+                      @if ((charge.breakdown.coachingFee ?? 0) > 0) {
+                        <div class="dm-bk-row">
+                          <span>Coaching</span>
+                          <span>{{ charge.breakdown.coachingFee | currency:'PHP':'symbol' }}</span>
+                        </div>
+                      }
                       <div class="dm-bk-total">
                         <span>Total</span>
                         <span>{{ charge.amount | currency:'PHP':'symbol' }}</span>

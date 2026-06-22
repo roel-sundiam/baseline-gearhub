@@ -39,8 +39,9 @@ const SLOT_ORDER: Record<string, number> = {
 
       <!-- Legend -->
       <div class="cal-legend">
-        <span class="legend-item"><span class="legend-dot c1"></span>Court 1</span>
-        <span class="legend-item"><span class="legend-dot c2"></span>Court 2</span>
+        @for (c of courts(); track c) {
+          <span class="legend-item"><span class="legend-dot" [ngClass]="'c' + c"></span>Court {{ c }}</span>
+        }
       </div>
 
       <!-- Day-of-week headers -->
@@ -61,15 +62,17 @@ const SLOT_ORDER: Record<string, number> = {
             [disabled]="!cell.inMonth"
           >
             <span class="cal-day-num">{{ cell.dayNum }}</span>
-            @if (cell.inMonth && (cell.court1Count > 0 || cell.court2Count > 0)) {
+            @if (cell.inMonth && cell.items.length > 0) {
               <span class="cal-dots">
-                @if (cell.court1Count > 0) {
-                  <span class="cal-dot c1">{{ cell.court1Count }}</span>
-                }
-                @if (cell.court2Count > 0) {
-                  <span class="cal-dot c2">{{ cell.court2Count }}</span>
+                @for (c of courts(); track c) {
+                  @if (countForCourt(cell.items, c) > 0) {
+                    <span class="cal-dot" [ngClass]="'c' + c">{{ countForCourt(cell.items, c) }}</span>
+                  }
                 }
               </span>
+            }
+            @if (cell.inMonth && cell.items.some(r => r.adminNote)) {
+              <span class="cal-pin">📌</span>
             }
           </button>
         }
@@ -98,7 +101,7 @@ const SLOT_ORDER: Record<string, number> = {
                     }
                   </div>
                   @if (r.adminNote) {
-                    <div class="cal-admin-note"><i class="fas fa-note-sticky"></i> {{ r.adminNote }}</div>
+                    <div class="cal-admin-note">📌 {{ r.adminNote }}</div>
                   }
                 </div>
               </div>
@@ -214,8 +217,6 @@ const SLOT_ORDER: Record<string, number> = {
       height: 8px;
       border-radius: 50%;
     }
-    .legend-dot.c1 { background: var(--cal-c1); }
-    .legend-dot.c2 { background: var(--cal-c2); }
 
     /* ── Grid ── */
     .cal-grid {
@@ -297,8 +298,12 @@ const SLOT_ORDER: Record<string, number> = {
       padding: 0.05rem 0.3rem;
       line-height: 1.3;
     }
-    .cal-dot.c1 { background: var(--cal-c1); color: #fff; }
-    .cal-dot.c2 { background: var(--cal-c2); color: #fff; }
+    .cal-dot.c1, .legend-dot.c1 { background: var(--cal-c1); color: #fff; }
+    .cal-dot.c2, .legend-dot.c2 { background: var(--cal-c2); color: #fff; }
+    .cal-dot.c3, .legend-dot.c3 { background: #f97316; color: #fff; }
+    .cal-dot.c4, .legend-dot.c4 { background: #a855f7; color: #fff; }
+    .cal-dot.c5, .legend-dot.c5 { background: #ec4899; color: #fff; }
+    .cal-dot.c6, .legend-dot.c6 { background: #14b8a6; color: #fff; }
 
     /* ── Detail panel ── */
     .cal-panel {
@@ -397,7 +402,10 @@ const SLOT_ORDER: Record<string, number> = {
       gap: 0.35rem;
       align-items: flex-start;
     }
-    .cal-admin-note i { color: #ca8a04; font-size: 0.68rem; margin-top: 1px; flex-shrink: 0; }
+    .cal-pin {
+      position: absolute; top: 2px; right: 3px;
+      font-size: 0.65rem; line-height: 1; pointer-events: none;
+    }
 
     /* ── Mobile responsive ── */
     @media (max-width: 400px) {
@@ -411,6 +419,9 @@ export class CalendarViewComponent {
   reservations = input<Reservation[]>([]);
   myIds = input<string[]>([]);
   theme = input<'dark' | 'light'>('light');
+  courtCount = input<number>(2);
+
+  courts = computed(() => Array.from({ length: this.courtCount() }, (_, i) => i + 1));
 
   readonly DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   private readonly MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -505,6 +516,10 @@ export class CalendarViewComponent {
 
   playerNamesSlice(players: { name: string }[]): string {
     return players.slice(0, 2).map(p => p.name).join(', ');
+  }
+
+  countForCourt(items: Reservation[], court: number): number {
+    return items.filter(r => r.court === court).length;
   }
 
   formatSlot(slot: string, durationHours = 1): string {

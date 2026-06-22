@@ -5,6 +5,8 @@ import { Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AppServicePaymentsService, AppServicePayment } from '../../../core/services/app-service-payments.service';
+import { AuthService } from '../../../core/services/auth.service';
+import { ReservationService, Reservation } from '../../../core/services/reservation.service';
 
 @Component({
   selector: 'app-finance',
@@ -23,6 +25,9 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
           <button class="tab-btn" [class.active]="activeTab === 'payments'" (click)="activeTab = 'payments'">
             Approved Payments
           </button>
+          <button class="tab-btn" [class.active]="activeTab === 'bookings'" (click)="activeTab = 'bookings'; onBookingsTabOpen()">
+            Bookings
+          </button>
           <button class="tab-btn" [class.active]="activeTab === 'app-service'" (click)="activeTab = 'app-service'">
             App Service
           </button>
@@ -33,32 +38,39 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
             <div class="loading">Loading...</div>
           } @else if (activeTab === 'payments') {
 
-            <!-- Summary Bar -->
-            <div class="summary-bar">
-              <div class="summary-item">
-                <div class="summary-value">{{ charges.length }}</div>
-                <div class="summary-label">Approved Payments</div>
+            <!-- Summary -->
+            <div class="pm-top-row">
+              <div class="bk-stat-card">
+                <i class="fas fa-receipt bk-stat-icon"></i>
+                <div class="bk-stat-value">{{ charges.length }}</div>
+                <div class="bk-stat-label">Approved Payments</div>
               </div>
-              <div class="summary-item highlight">
-                <div class="summary-value">{{ total | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
-                <div class="summary-label">Total Collected</div>
+              <div class="bk-stat-card bk-stat-earnings">
+                <i class="fas fa-coins bk-stat-icon"></i>
+                <div class="bk-stat-value">{{ total | currency: 'PHP' : 'symbol' : '1.0-0' }}</div>
+                <div class="bk-stat-label">Total Collected</div>
               </div>
-              <div class="summary-item">
-                <div class="summary-value">{{ gcashTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
-                <div class="summary-label">GCash</div>
+            </div>
+            <div class="pm-method-row">
+              <div class="pm-method-card">
+                <i class="fas fa-mobile-alt pm-method-icon gcash-icon"></i>
+                <div class="pm-method-value">{{ gcashTotal | currency: 'PHP' : 'symbol' : '1.0-0' }}</div>
+                <div class="bk-stat-label">GCash</div>
               </div>
-              <div class="summary-item">
-                <div class="summary-value">{{ cashTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
-                <div class="summary-label">Cash</div>
+              <div class="pm-method-card">
+                <i class="fas fa-money-bill-wave pm-method-icon cash-icon"></i>
+                <div class="pm-method-value">{{ cashTotal | currency: 'PHP' : 'symbol' : '1.0-0' }}</div>
+                <div class="bk-stat-label">Cash</div>
               </div>
-              <div class="summary-item">
-                <div class="summary-value">{{ bankTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
-                <div class="summary-label">Bank Transfer</div>
+              <div class="pm-method-card">
+                <i class="fas fa-university pm-method-icon bank-icon"></i>
+                <div class="pm-method-value">{{ bankTotal | currency: 'PHP' : 'symbol' : '1.0-0' }}</div>
+                <div class="bk-stat-label">Bank Transfer</div>
               </div>
             </div>
 
             <!-- Filters -->
-            <div class="filter-bar">
+            <div class="bk-filter-row">
               <div class="filter-group">
                 <label>Type</label>
                 <select [(ngModel)]="filterType" (ngModelChange)="applyFilter()">
@@ -76,7 +88,7 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
                   <option value="Bank Transfer">Bank Transfer</option>
                 </select>
               </div>
-              <div class="filter-group">
+              <div class="filter-group" style="grid-column: 1 / -1">
                 <label>Search player</label>
                 <input type="text" placeholder="Name..." [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()" />
               </div>
@@ -132,6 +144,118 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
                     <tr>
                       <td colspan="5" class="foot-label">Subtotal ({{ filtered.length }} records)</td>
                       <td class="col-amount foot-total">{{ filteredTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            }
+
+          } @else if (activeTab === 'bookings') {
+
+            <!-- Bookings Tab -->
+            <div class="bk-stats-grid">
+              <div class="bk-stat-card">
+                <i class="fas fa-calendar-check bk-stat-icon"></i>
+                <div class="bk-stat-value">{{ totalBookings }}</div>
+                <div class="bk-stat-label">Total Bookings</div>
+              </div>
+              <div class="bk-stat-card">
+                <i class="fas fa-clock bk-stat-icon"></i>
+                <div class="bk-stat-value">{{ totalHours }}h</div>
+                <div class="bk-stat-label">Total Hours</div>
+              </div>
+              <div class="bk-stat-card bk-stat-earnings">
+                <i class="fas fa-coins bk-stat-icon"></i>
+                <div class="bk-stat-value">{{ reservationTotal | currency: 'PHP' : 'symbol' : '1.0-0' }}</div>
+                <div class="bk-stat-label">Approved Earnings</div>
+              </div>
+            </div>
+
+            <div class="bk-status-row">
+              <div class="bk-pill bk-pill-confirmed">
+                <i class="fas fa-check-circle"></i> {{ confirmedCount }} Confirmed
+              </div>
+              <div class="bk-pill bk-pill-pending">
+                <i class="fas fa-hourglass-half"></i> {{ pendingCount }} Pending
+              </div>
+              <div class="bk-pill bk-pill-cancelled">
+                <i class="fas fa-times-circle"></i> {{ cancelledCount }} Cancelled
+              </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="bk-filter-row">
+              <div class="filter-group">
+                <label>From</label>
+                <input type="date" [(ngModel)]="bookingStartDate" />
+              </div>
+              <div class="filter-group">
+                <label>To</label>
+                <input type="date" [(ngModel)]="bookingEndDate" />
+              </div>
+              <div class="filter-group">
+                <label>Status</label>
+                <select [(ngModel)]="bookingStatusFilter">
+                  <option value="all">All</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="pending_payment">Pending</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div class="filter-group bk-filter-actions">
+                <label>&nbsp;</label>
+                <div class="bk-action-btns">
+                  <button class="btn-pay" (click)="refreshBookings()" [disabled]="reservationsLoading">
+                    <i class="fas fa-search"></i> Search
+                  </button>
+                  <button class="btn-print" (click)="printBookings()" [disabled]="filteredReservations.length === 0">
+                    <i class="fas fa-print"></i> Print
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            @if (reservationsLoading) {
+              <div class="loading">Loading bookings...</div>
+            } @else if (filteredReservations.length === 0) {
+              <div class="empty-state">
+                <span>📅</span>
+                <p>No bookings found for the selected period.</p>
+              </div>
+            } @else {
+              <div class="table-wrap">
+                <table class="finance-table">
+                  <thead>
+                    <tr>
+                      <th>Player / Guest</th>
+                      <th>Court</th>
+                      <th>Date</th>
+                      <th>Time</th>
+                      <th>Duration</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of filteredReservations; track r._id) {
+                      <tr>
+                        <td class="col-player">{{ getBookingPlayerName(r) }}</td>
+                        <td><span class="court-chip">Court {{ r.court }}</span></td>
+                        <td class="col-date">{{ r.date | date: 'MMM d, yyyy' : 'UTC' }}</td>
+                        <td class="col-date">{{ formatTimeSlot(r.timeSlot, r.durationHours ?? 1) }}</td>
+                        <td class="col-date">{{ r.durationHours ?? 1 }}h</td>
+                        <td>
+                          <span class="status-badge" [ngClass]="bookingStatusClass(r.status)">
+                            {{ bookingStatusLabel(r.status) }}
+                          </span>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colspan="4" class="foot-label">Total ({{ filteredReservations.length }} bookings)</td>
+                      <td class="foot-total">{{ totalHours }}h</td>
+                      <td></td>
                     </tr>
                   </tfoot>
                 </table>
@@ -709,11 +833,86 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
     .foot-label { color: rgba(255,255,255,0.72); font-size: 0.82rem; }
     .foot-total { font-size: 1rem; color: var(--dm-accent); }
 
+    .status-badge { padding: 3px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; }
+    .status-confirmed { background: rgba(134,239,172,0.16); color: #86efac; }
+    .status-pending { background: rgba(252,211,77,0.16); color: #fcd34d; }
+    .status-cancelled { background: rgba(252,165,165,0.16); color: #fca5a5; }
+
+    /* Approved Payments summary redesign */
+    .pm-top-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;
+    }
+    .pm-method-row {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;
+    }
+    .pm-method-card {
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      padding: 12px 8px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.03);
+      gap: 4px;
+    }
+    .pm-method-icon { font-size: 1rem; margin-bottom: 2px; }
+    .gcash-icon { color: #c4b5fd; }
+    .cash-icon { color: var(--dm-accent); }
+    .bank-icon { color: #93c5fd; }
+    .pm-method-value { font-size: 1rem; font-weight: 700; color: #ffffff; }
+
+    /* Bookings tab redesign */
+    .bk-stats-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;
+    }
+    .bk-stat-card {
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      padding: 20px 12px 16px; border-radius: 14px;
+      border: 1px solid rgba(163,230,53,0.15); background: rgba(163,230,53,0.07);
+      gap: 6px; transition: background 0.15s;
+    }
+    .bk-stat-card:hover { background: rgba(163,230,53,0.11); }
+    .bk-stat-card.bk-stat-earnings {
+      background: rgba(163,230,53,0.12); border-color: rgba(163,230,53,0.28);
+    }
+    .bk-stat-icon { font-size: 1.1rem; color: var(--dm-accent); opacity: 0.75; }
+    .bk-stat-value { font-size: 1.6rem; font-weight: 800; color: var(--dm-accent); line-height: 1.1; }
+    .bk-stat-label { font-size: 0.67rem; text-transform: uppercase; letter-spacing: 0.5px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+
+    .bk-status-row {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px;
+    }
+    .bk-pill {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 7px 10px; border-radius: 20px;
+      font-size: 0.78rem; font-weight: 700; white-space: nowrap;
+    }
+    .bk-pill-confirmed { background: rgba(134,239,172,0.1); color: #86efac; border: 1px solid rgba(134,239,172,0.22); }
+    .bk-pill-pending   { background: rgba(252,211,77,0.1);  color: #fcd34d; border: 1px solid rgba(252,211,77,0.22);  }
+    .bk-pill-cancelled { background: rgba(252,165,165,0.1); color: #fca5a5; border: 1px solid rgba(252,165,165,0.22); }
+
+    .bk-filter-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr auto;
+      gap: 10px; align-items: flex-end; margin-bottom: 20px;
+      padding: 14px 16px; background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;
+    }
+    .bk-filter-actions { display: flex; flex-direction: column; }
+    .bk-action-btns { display: flex; gap: 8px; }
+    .btn-print {
+      padding: 9px 14px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.75);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; font-size: 0.875rem; font-weight: 600;
+      cursor: pointer; transition: background 0.15s; white-space: nowrap;
+      display: flex; align-items: center; gap: 6px; font-family: inherit;
+    }
+    .btn-print:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
+    .btn-print:disabled { opacity: 0.35; cursor: not-allowed; }
+
     @media (max-width: 640px) {
       .summary-bar { gap: 8px; }
       .summary-item { min-width: 80px; }
       .filter-bar { flex-direction: column; }
       .pay-action-row { flex-direction: column; align-items: flex-start; }
+      .bk-stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .bk-stat-card.bk-stat-earnings { grid-column: 1 / -1; }
+      .bk-filter-row { grid-template-columns: 1fr 1fr; }
+      .pm-top-row { grid-template-columns: 1fr 1fr; }
     }
   `],
 })
@@ -724,7 +923,7 @@ export class FinanceComponent implements OnInit {
   filtered: Charge[] = [];
   appServicePayments: AppServicePayment[] = [];
   loading = true;
-  activeTab: 'payments' | 'app-service' = 'payments';
+  activeTab: 'payments' | 'bookings' | 'app-service' = 'payments';
 
   filterType: 'all' | 'reservation' | 'session' = 'all';
   filterMethod: 'all' | 'GCash' | 'Cash' | 'Bank Transfer' = 'all';
@@ -738,6 +937,15 @@ export class FinanceComponent implements OnInit {
   payError = '';
   readonly gcashQrCode = 'dev-gcash-qr.png';
   readonly qrphQrCode = 'dev-qrph-qr.png';
+
+  private clubId?: string;
+  reservations: Reservation[] = [];
+  filteredReservations: Reservation[] = [];
+  reservationsLoading = false;
+  reservationsLoaded = false;
+  bookingStartDate = '';
+  bookingEndDate = '';
+  bookingStatusFilter: 'all' | 'confirmed' | 'pending_payment' | 'cancelled' = 'all';
 
   convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' = 'per_hour';
   convenienceFeeMonthlyAmount = 0;
@@ -769,14 +977,21 @@ export class FinanceComponent implements OnInit {
   constructor(
     private chargesService: ChargesService,
     private appServicePaymentsService: AppServicePaymentsService,
+    private reservationService: ReservationService,
+    private auth: AuthService,
     private router: Router,
     private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit() {
+    this.clubId = this.auth.isSuperAdmin() ? undefined : (this.auth.user()?.clubId ?? undefined);
+    const today = new Date();
+    this.bookingEndDate = today.toISOString().slice(0, 10);
+    this.bookingStartDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+
     forkJoin({
-      charges: this.chargesService.getApprovedCharges(),
-      allCharges: this.chargesService.getAllCharges(),
+      charges: this.chargesService.getApprovedCharges(this.clubId),
+      allCharges: this.chargesService.getAllCharges(this.clubId),
       payments: this.appServicePaymentsService.getAll(),
       feeInfo: this.appServicePaymentsService.getFeeInfo(),
     }).subscribe({
@@ -881,6 +1096,154 @@ export class FinanceComponent implements OnInit {
 
   goBack() {
     this.router.navigate(['/admin/dashboard']);
+  }
+
+  loadBookings() {
+    if (this.reservationsLoading) return;
+    this.reservationsLoading = true;
+    this.reservationService.getAll({
+      clubId: this.clubId,
+      startDate: this.bookingStartDate,
+      endDate: this.bookingEndDate,
+      status: this.bookingStatusFilter !== 'all' ? this.bookingStatusFilter : undefined,
+    }).subscribe({
+      next: (res) => {
+        this.reservations = res.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        this.applyBookingFilter();
+        this.reservationsLoaded = true;
+        this.reservationsLoading = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.reservationsLoading = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  applyBookingFilter() {
+    this.filteredReservations = this.reservations.filter(r => {
+      if (this.bookingStatusFilter !== 'all' && r.status !== this.bookingStatusFilter) return false;
+      return true;
+    });
+  }
+
+  onBookingsTabOpen() {
+    if (!this.reservationsLoaded) {
+      this.loadBookings();
+    }
+  }
+
+  refreshBookings() {
+    this.reservationsLoaded = false;
+    this.loadBookings();
+  }
+
+  get totalBookings() { return this.filteredReservations.length; }
+  get totalHours() { return this.filteredReservations.reduce((s, r) => s + (r.durationHours ?? 1), 0); }
+  get confirmedCount() { return this.filteredReservations.filter(r => r.status === 'confirmed').length; }
+  get pendingCount() { return this.filteredReservations.filter(r => r.status === 'pending_payment').length; }
+  get cancelledCount() { return this.filteredReservations.filter(r => r.status === 'cancelled').length; }
+
+  getBookingPlayerName(r: Reservation): string {
+    if (r.guestInfo?.name) return r.guestInfo.name + ' (Guest)';
+    if (r.player && typeof r.player === 'object') return r.player.name;
+    if (r.players?.length) return r.players[0].name;
+    return 'Unknown';
+  }
+
+  bookingStatusClass(status: string) {
+    return {
+      'status-confirmed': status === 'confirmed',
+      'status-pending': status === 'pending_payment',
+      'status-cancelled': status === 'cancelled',
+    };
+  }
+
+  bookingStatusLabel(status: string) {
+    if (status === 'confirmed') return 'Confirmed';
+    if (status === 'pending_payment') return 'Pending';
+    if (status === 'cancelled') return 'Cancelled';
+    return status;
+  }
+
+  printBookings() {
+    const rows = this.filteredReservations.map(r => `
+      <tr>
+        <td>${this.getBookingPlayerName(r)}</td>
+        <td>Court ${r.court}</td>
+        <td>${new Date(r.date).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })}</td>
+        <td>${this.formatTimeSlot(r.timeSlot, r.durationHours ?? 1)}</td>
+        <td>${r.durationHours ?? 1}h</td>
+        <td>${this.bookingStatusLabel(r.status)}</td>
+      </tr>`).join('');
+
+    const earnings = this.reservationTotal.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 });
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Bookings Report</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; padding: 28px; color: #111; font-size: 13px; }
+    h2 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+    .meta { font-size: 12px; color: #555; margin-bottom: 16px; }
+    .summary { display: flex; gap: 0; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; margin-bottom: 20px; }
+    .summary-item { flex: 1; padding: 12px 16px; text-align: center; border-right: 1px solid #ccc; }
+    .summary-item:last-child { border-right: none; }
+    .summary-value { font-size: 20px; font-weight: 700; color: #111; }
+    .summary-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #666; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f0f0f0; font-weight: 700; text-align: left; padding: 8px 10px; border: 1px solid #ccc; font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; }
+    td { padding: 7px 10px; border: 1px solid #ddd; }
+    tr:nth-child(even) td { background: #fafafa; }
+    tfoot td { font-weight: 700; background: #f0f0f0; border-top: 2px solid #bbb; }
+  </style>
+</head>
+<body>
+  <h2>Bookings Report</h2>
+  <p class="meta">Period: ${this.bookingStartDate} to ${this.bookingEndDate}</p>
+  <div class="summary">
+    <div class="summary-item">
+      <div class="summary-value">${this.totalBookings}</div>
+      <div class="summary-label">Total Bookings</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-value">${this.totalHours}h</div>
+      <div class="summary-label">Total Hours</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-value">${earnings}</div>
+      <div class="summary-label">Approved Earnings</div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Player / Guest</th><th>Court</th><th>Date</th><th>Time</th><th>Duration</th><th>Status</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4">Total — ${this.filteredReservations.length} bookings</td>
+        <td colspan="2">${this.totalHours}h</td>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (win) {
+      win.addEventListener('load', () => {
+        win.print();
+        URL.revokeObjectURL(url);
+      });
+    }
   }
 }
 

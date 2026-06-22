@@ -24,6 +24,12 @@ export interface Rates {
   rentalBalls100Rate: number;
   rentalBallMachineRate: number;
   rentalRacketRate: number;
+  coachingEnabled: boolean;
+  coachingMinHours: number;
+  coachingMaxPax: number;
+  coachingRate1Pax: number;
+  coachingRate2Pax: number;
+  coachingRate3to6Pax: number;
   updatedAt: string;
 }
 
@@ -56,6 +62,12 @@ export class RatesService {
     rentalBalls100Rate: number;
     rentalBallMachineRate: number;
     rentalRacketRate: number;
+    coachingEnabled: boolean;
+    coachingMinHours: number;
+    coachingMaxPax: number;
+    coachingRate1Pax: number;
+    coachingRate2Pax: number;
+    coachingRate3to6Pax: number;
   }) {
     return this.http.put<Rates>(`${environment.apiUrl}/rates`, data);
   }

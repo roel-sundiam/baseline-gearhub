@@ -291,6 +291,87 @@ import { AuthService } from '../../../core/services/auth.service';
               </div>
             </div>
 
+            <div class="section-divider"><span>Coaching Sessions</span></div>
+
+            <div class="ee-toggle-card">
+              <div class="ee-toggle-left">
+                <span class="ee-toggle-icon">🎓</span>
+                <div>
+                  <div class="ee-toggle-title">Enable Coaching Sessions</div>
+                  <div class="ee-toggle-desc">When enabled, players and guests can add a coaching session at checkout. Billed per pax, per hour.</div>
+                </div>
+              </div>
+              <label class="ee-switch">
+                <input type="checkbox" [(ngModel)]="coachingEnabled" name="coachingEnabled" />
+                <span class="ee-slider"></span>
+              </label>
+            </div>
+
+            @if (coachingEnabled) {
+              <div class="rates-grid" style="margin-top:.75rem">
+                <div class="rate-item">
+                  <div class="rate-icon">👤</div>
+                  <div class="form-group">
+                    <label for="coachingRate1Pax">1 Pax (1-on-1) — per pax / hour</label>
+                    <div class="input-prefix">
+                      <span>₱</span>
+                      <input id="coachingRate1Pax" type="number" [(ngModel)]="coachingRate1Pax"
+                        name="coachingRate1Pax" min="0" step="0.01" placeholder="0.00" />
+                    </div>
+                    <p class="field-help">Rate per attendee per hour for a 1-on-1 session.</p>
+                  </div>
+                </div>
+                <div class="rate-item">
+                  <div class="rate-icon">👥</div>
+                  <div class="form-group">
+                    <label for="coachingRate2Pax">2 Pax — per pax / hour</label>
+                    <div class="input-prefix">
+                      <span>₱</span>
+                      <input id="coachingRate2Pax" type="number" [(ngModel)]="coachingRate2Pax"
+                        name="coachingRate2Pax" min="0" step="0.01" placeholder="0.00" />
+                    </div>
+                    <p class="field-help">Rate per attendee per hour for 2 players.</p>
+                  </div>
+                </div>
+                <div class="rate-item">
+                  <div class="rate-icon">👨‍👩‍👧‍👦</div>
+                  <div class="form-group">
+                    <label for="coachingRate3to6Pax">3–6 Pax — per pax / hour</label>
+                    <div class="input-prefix">
+                      <span>₱</span>
+                      <input id="coachingRate3to6Pax" type="number" [(ngModel)]="coachingRate3to6Pax"
+                        name="coachingRate3to6Pax" min="0" step="0.01" placeholder="0.00" />
+                    </div>
+                    <p class="field-help">Rate per attendee per hour for 3 to 6 players.</p>
+                  </div>
+                </div>
+                <div class="rate-item">
+                  <div class="rate-icon">⏱️</div>
+                  <div class="form-group">
+                    <label for="coachingMinHours">Minimum Hours</label>
+                    <div class="input-prefix">
+                      <span>#</span>
+                      <input id="coachingMinHours" type="number" [(ngModel)]="coachingMinHours"
+                        name="coachingMinHours" min="1" step="1" placeholder="2" />
+                    </div>
+                    <p class="field-help">Minimum session length when coaching is selected.</p>
+                  </div>
+                </div>
+                <div class="rate-item">
+                  <div class="rate-icon">🔢</div>
+                  <div class="form-group">
+                    <label for="coachingMaxPax">Maximum Pax</label>
+                    <div class="input-prefix">
+                      <span>#</span>
+                      <input id="coachingMaxPax" type="number" [(ngModel)]="coachingMaxPax"
+                        name="coachingMaxPax" min="1" step="1" placeholder="6" />
+                    </div>
+                    <p class="field-help">Maximum attendees per coaching session.</p>
+                  </div>
+                </div>
+              </div>
+            }
+
             @if (lastUpdated()) {
               <p class="last-updated"><i class="fas fa-clock"></i> Last updated: {{ lastUpdated() | date: 'medium' }}</p>
             }
@@ -828,6 +909,12 @@ export class AdminRatesComponent implements OnInit {
   rentalBalls100Rate = 0;
   rentalBallMachineRate = 0;
   rentalRacketRate = 0;
+  coachingEnabled = false;
+  coachingMinHours = 2;
+  coachingMaxPax = 6;
+  coachingRate1Pax = 0;
+  coachingRate2Pax = 0;
+  coachingRate3to6Pax = 0;
   courtCount = 2;
   readonly lastUpdated = signal<string | null>(null);
   readonly loading = signal(true);
@@ -873,6 +960,12 @@ export class AdminRatesComponent implements OnInit {
           this.rentalBalls100Rate = rates.rentalBalls100Rate ?? 0;
           this.rentalBallMachineRate = rates.rentalBallMachineRate ?? 0;
           this.rentalRacketRate = rates.rentalRacketRate ?? 0;
+          this.coachingEnabled = rates.coachingEnabled ?? false;
+          this.coachingMinHours = rates.coachingMinHours ?? 2;
+          this.coachingMaxPax = rates.coachingMaxPax ?? 6;
+          this.coachingRate1Pax = rates.coachingRate1Pax ?? 0;
+          this.coachingRate2Pax = rates.coachingRate2Pax ?? 0;
+          this.coachingRate3to6Pax = rates.coachingRate3to6Pax ?? 0;
           this.lastUpdated.set(rates.updatedAt);
           this.loading.set(false);
         },
@@ -915,6 +1008,12 @@ export class AdminRatesComponent implements OnInit {
       rentalBalls100Rate: Number(this.rentalBalls100Rate),
       rentalBallMachineRate: Number(this.rentalBallMachineRate),
       rentalRacketRate: Number(this.rentalRacketRate),
+      coachingEnabled: this.coachingEnabled,
+      coachingMinHours: Number(this.coachingMinHours),
+      coachingMaxPax: Number(this.coachingMaxPax),
+      coachingRate1Pax: Number(this.coachingRate1Pax),
+      coachingRate2Pax: Number(this.coachingRate2Pax),
+      coachingRate3to6Pax: Number(this.coachingRate3to6Pax),
     }).pipe(timeout(10000));
 
     if (clubId) {

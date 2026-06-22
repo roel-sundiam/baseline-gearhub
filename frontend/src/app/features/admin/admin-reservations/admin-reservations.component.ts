@@ -80,7 +80,7 @@ function hoursToSlots(opening: number, closing: number): string[] {
         @if (calLoading) {
           <div class="res-loading"><i class="fas fa-circle-notch fa-spin"></i> Loading…</div>
         } @else {
-          <app-calendar-view [reservations]="calendarReservations" theme="light" />
+          <app-calendar-view [reservations]="calendarReservations" theme="light" [courtCount]="courtCount" />
         }
       }
 
@@ -124,6 +124,7 @@ function hoursToSlots(opening: number, closing: number): string[] {
                         @if (r.hasLights) { <span class="addon-chip">💡 Lights</span> }
                         @if (r.ballBoy) { <span class="addon-chip">🎾 Ball Boy</span> }
                         @if (r.guestCount && r.guestCount > 0) { <span class="addon-chip">👥 {{ r.guestCount }}</span> }
+                        @if (r.coachingRequested) { <span class="addon-chip">🎓 Coaching{{ r.coachingPax ? ' (' + r.coachingPax + ')' : '' }}</span> }
                       </div>
                     </td>
                     <td>
@@ -171,6 +172,7 @@ function hoursToSlots(opening: number, closing: number): string[] {
                   <span><i class="fas fa-clock"></i> {{ timeRangeLabel(r) }}</span>
                   @if (r.hasLights) { <span>💡 Lights</span> }
                   @if (r.ballBoy) { <span>🎾 Ball Boy</span> }
+                  @if (r.coachingRequested) { <span>🎓 Coaching{{ r.coachingPax ? ' (' + r.coachingPax + ')' : '' }}</span> }
                 </div>
                 <div class="card-actions">
                   @if (r.status !== 'cancelled') {

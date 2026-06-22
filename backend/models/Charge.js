@@ -29,6 +29,7 @@ const chargeSchema = new mongoose.Schema(
       convenienceFee: { type: Number, default: 0 },
       extraFees: [{ name: { type: String }, amount: { type: Number, default: 0 } }],
       extraFeeTotal: { type: Number, default: 0 },
+      coachingFee: { type: Number, default: 0 },
     },
     chargeType: { type: String, enum: ["reservation", "session", "open_play_session"], default: "reservation" },
     status: { type: String, enum: ["unpaid", "paid"], default: "unpaid" },

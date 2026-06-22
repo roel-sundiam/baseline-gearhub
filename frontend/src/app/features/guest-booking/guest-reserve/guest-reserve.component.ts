@@ -202,6 +202,8 @@ function localDateStr(): string {
                         type="button"
                         class="gr-dur-btn"
                         [class.active]="selectedDuration === d"
+                        [disabled]="coachingRequested && d < coachingMinHours"
+                        [title]="coachingRequested && d < coachingMinHours ? 'Coaching requires a minimum of ' + coachingMinHours + ' hours' : ''"
                         (click)="setDuration(d)"
                       >
                         {{ d }} hr{{ d > 1 ? 's' : '' }}
@@ -423,6 +425,36 @@ function localDateStr(): string {
                       </div>
                     }
 
+                    <!-- Coaching session -->
+                    @if (coachingEnabled && bookingType !== 'exclusive_event') {
+                      <div class="gr-field-group">
+                        <label class="gr-field-label">Coaching Session <span class="gr-optional">optional</span></label>
+                        <div class="gr-extra-fees">
+                          <div class="gr-extra-fee-row">
+                            <label class="gr-toggle-item">
+                              <input type="checkbox" [(ngModel)]="coachingRequested" (ngModelChange)="onCoachingToggle()" />
+                              <span>Add coaching 🎓</span>
+                            </label>
+                          </div>
+                          @if (coachingRequested) {
+                            <div class="gr-extra-fee-row">
+                              <span>Attendees</span>
+                              <span class="gr-counter">
+                                <button type="button" class="gr-count-btn" (click)="decCoachingPax()">&#8722;</button>
+                                <span class="gr-count-val">{{ coachingPax }}</span>
+                                <button type="button" class="gr-count-btn" (click)="incCoachingPax()">&#43;</button>
+                              </span>
+                            </div>
+                            <div class="gr-extra-fee-row">
+                              <span class="gr-sum-pct">{{ coachingTierRate | currency: 'PHP' : 'symbol' }} × {{ coachingPax }} pax × {{ selectedDuration }} hr</span>
+                              <span class="gr-extra-fee-amt">{{ coachingFee | currency: 'PHP' : 'symbol' }}</span>
+                            </div>
+                            <p class="gr-optional" style="margin:.25rem 0 0">Minimum {{ coachingMinHours }} hours per coaching session.</p>
+                          }
+                        </div>
+                      </div>
+                    }
+
                     <!-- Exclusive event policies -->
                     @if (bookingType === 'exclusive_event' && exclusiveEventPolicies.length > 0) {
                       <div class="gr-policies-block">
@@ -462,6 +494,12 @@ function localDateStr(): string {
                           <strong>{{ extraFeeTotal | currency: 'PHP' : 'symbol' }}</strong>
                         </div>
                       }
+                      @if (coachingRequested && coachingFee > 0) {
+                        <div class="gr-sum-row">
+                          <span>&#127891; Coaching <span class="gr-sum-pct">({{ coachingPax }} pax × {{ selectedDuration }}hr)</span></span>
+                          <strong>{{ coachingFee | currency: 'PHP' : 'symbol' }}</strong>
+                        </div>
+                      }
                       <div class="gr-sum-divider"></div>
                       <div class="gr-sum-total-row">
                         <span>Total due</span>
@@ -476,11 +514,17 @@ function localDateStr(): string {
 
                     <div class="gr-field-group">
                       <label class="gr-field-label">Full name *</label>
-                      <input type="text" class="gr-input" placeholder="Full name" [(ngModel)]="guestName" />
+                      <input type="text" class="gr-input" [class.gr-input-error]="guestSubmitted && !guestName.trim()" placeholder="Full name" [(ngModel)]="guestName" />
+                      @if (guestSubmitted && !guestName.trim()) {
+                        <div class="gr-field-error"><i class="fas fa-exclamation-circle"></i> Full name is required.</div>
+                      }
                     </div>
                     <div class="gr-field-group">
                       <label class="gr-field-label">Email *</label>
-                      <input type="email" class="gr-input" placeholder="Email" [(ngModel)]="guestEmail" />
+                      <input type="email" class="gr-input" [class.gr-input-error]="guestSubmitted && !guestEmail.trim()" placeholder="Email" [(ngModel)]="guestEmail" />
+                      @if (guestSubmitted && !guestEmail.trim()) {
+                        <div class="gr-field-error"><i class="fas fa-exclamation-circle"></i> Email is required.</div>
+                      }
                     </div>
                     <div class="gr-field-group">
                       <label class="gr-field-label">Phone <span class="gr-optional">optional</span></label>
@@ -491,12 +535,15 @@ function localDateStr(): string {
                     @if (paymentMethods.length > 0) {
                       <div class="gr-field-group">
                         <label class="gr-field-label">Payment method *</label>
-                        <select class="gr-input gr-select" [(ngModel)]="selectedPaymentMethod">
+                        <select class="gr-input gr-select" [class.gr-input-error]="guestSubmitted && !selectedPaymentMethod" [(ngModel)]="selectedPaymentMethod">
                           <option value="" disabled>Select payment method</option>
                           @for (method of paymentMethods; track method) {
                             <option [value]="method">{{ method }}</option>
                           }
                         </select>
+                        @if (guestSubmitted && !selectedPaymentMethod) {
+                          <div class="gr-field-error"><i class="fas fa-exclamation-circle"></i> Please select a payment method.</div>
+                        }
                       </div>
 
                       @if (selectedPaymentMethod && paymentQrCodes[selectedPaymentMethod]) {
@@ -549,7 +596,7 @@ function localDateStr(): string {
                     </div>
 
                     <!-- Terms -->
-                    <div class="gr-terms-row">
+                    <div class="gr-terms-row" [class.gr-terms-row-error]="guestSubmitted && !agreedToTerms">
                       <button type="button" class="gr-terms-btn" (click)="showTerms = !showTerms">
                         View Terms &amp; Conditions
                       </button>
@@ -558,11 +605,14 @@ function localDateStr(): string {
                         <span>I agree</span>
                       </label>
                     </div>
+                    @if (guestSubmitted && !agreedToTerms) {
+                      <div class="gr-field-error" style="margin-top:4px"><i class="fas fa-exclamation-circle"></i> You must agree to the Terms &amp; Conditions.</div>
+                    }
 
                   </div><!-- /gr-panel-body -->
 
                   <div class="gr-panel-footer">
-                    <button class="gr-submit-btn" [disabled]="booking || !guestName || !guestEmail || !agreedToTerms || (bookingType === 'exclusive_event' && exclusiveEventPolicies.length > 0 && !policiesAcknowledged)" (click)="submit()">
+                    <button class="gr-submit-btn" [disabled]="booking" (click)="submit()">
                       @if (booking) { Submitting… } @else { Confirm booking }
                     </button>
 
@@ -1050,6 +1100,15 @@ function localDateStr(): string {
       background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2);
       color: #fca5a5; border-radius: 8px; padding: 0.65rem 0.85rem; font-size: 0.83rem;
     }
+    .gr-field-error {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 0.76rem; color: #f87171;
+      animation: grFadeIn 0.15s ease;
+    }
+    .gr-field-error i { font-size: 0.7rem; flex-shrink: 0; }
+    .gr-input-error { border-color: rgba(239,68,68,0.5) !important; }
+    .gr-terms-row-error { outline: 1px solid rgba(239,68,68,0.4); border-radius: 8px; padding: 6px 8px; }
+    @keyframes grFadeIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
     .gr-field-group { display: flex; flex-direction: column; gap: 0.35rem; }
     .gr-field-label {
       font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
@@ -1400,6 +1459,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   guestPhone = '';
   booking = false;
   errorMsg = '';
+  guestSubmitted = false;
   confirmed = false;
   confirmationData: GuestBookingResult | null = null;
 
@@ -1422,6 +1482,14 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   exclusiveEventPolicies: string[] = [];
   bookingType: 'standard' | 'exclusive_event' = 'standard';
   policiesAcknowledged = false;
+  coachingEnabled = false;
+  coachingMinHours = 2;
+  coachingMaxPax = 6;
+  coachingRate1Pax = 0;
+  coachingRate2Pax = 0;
+  coachingRate3to6Pax = 0;
+  coachingRequested = false;
+  coachingPax = 1;
   rentalBalls50Rate = 0;
   rentalBalls100Rate = 0;
   rentalBallMachineRate = 0;
@@ -1542,7 +1610,29 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
       .reduce((sum, f) => sum + (f.type === 'per_person' ? f.amount * this.guestCount : f.amount), 0);
   }
 
-  get computedFee(): number { return this.subtotal + this.convenienceFee + this.extraFeeTotal; }
+  get coachingTierRate(): number {
+    const pax = Math.min(this.coachingMaxPax, Math.max(1, this.coachingPax));
+    if (pax <= 1) return this.coachingRate1Pax;
+    if (pax === 2) return this.coachingRate2Pax;
+    return this.coachingRate3to6Pax;
+  }
+
+  get coachingFee(): number {
+    if (!this.coachingRequested) return 0;
+    const pax = Math.min(this.coachingMaxPax, Math.max(1, this.coachingPax));
+    return this.coachingTierRate * pax * this.selectedDuration;
+  }
+
+  onCoachingToggle() {
+    if (this.coachingRequested && this.selectedDuration < this.coachingMinHours) {
+      this.selectedDuration = this.coachingMinHours;
+    }
+  }
+
+  incCoachingPax() { if (this.coachingPax < this.coachingMaxPax) this.coachingPax++; }
+  decCoachingPax() { if (this.coachingPax > 1) this.coachingPax--; }
+
+  get computedFee(): number { return this.subtotal + this.convenienceFee + this.extraFeeTotal + this.coachingFee; }
 
   setBookingType(type: 'standard' | 'exclusive_event') {
     this.bookingType = type;
@@ -1550,6 +1640,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     this.policiesAcknowledged = false;
     if (type === 'exclusive_event') {
       this.selectedExtraFeeNames = new Set();
+      this.coachingRequested = false;
     }
     this.cdr.detectChanges();
   }
@@ -1652,6 +1743,12 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
         this.rentalBalls100Rate = rates.rentalBalls100Rate ?? 0;
         this.rentalBallMachineRate = rates.rentalBallMachineRate ?? 0;
         this.rentalRacketRate = rates.rentalRacketRate ?? 0;
+        this.coachingEnabled = rates.coachingEnabled ?? false;
+        this.coachingMinHours = rates.coachingMinHours ?? 2;
+        this.coachingMaxPax = rates.coachingMaxPax ?? 6;
+        this.coachingRate1Pax = rates.coachingRate1Pax ?? 0;
+        this.coachingRate2Pax = rates.coachingRate2Pax ?? 0;
+        this.coachingRate3to6Pax = rates.coachingRate3to6Pax ?? 0;
         this.cdr.detectChanges();
       },
     });
@@ -1731,7 +1828,11 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     this.availableDurations = durations;
   }
 
-  setDuration(d: number) { this.selectedDuration = d; this.cdr.detectChanges(); }
+  setDuration(d: number) {
+    if (this.coachingRequested && d < this.coachingMinHours) return;
+    this.selectedDuration = d;
+    this.cdr.detectChanges();
+  }
 
   clearSelection() {
     this.selectedCourt = null;
@@ -1898,6 +1999,8 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     this.bookingType = 'standard';
     this.policiesAcknowledged = false;
     this.guestCount = 0;
+    this.coachingRequested = false;
+    this.coachingPax = 1;
     this.selectedExtraFeeNames = new Set(
       this.availableExtraFees.filter(f => !f.isOptional).map(f => f.name)
     );
@@ -1906,15 +2009,16 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   }
 
   submit() {
+    this.guestSubmitted = true;
+    this.cdr.detectChanges();
     if (!this.navDate() || !this.selectedCourt || !this.selectedSlot) return;
-    if (!this.guestName.trim() || !this.guestEmail.trim()) {
-      this.errorMsg = 'Please fill in your name and email.';
-      return;
-    }
+    if (!this.guestName.trim() || !this.guestEmail.trim() || !this.agreedToTerms) return;
+    if (this.paymentMethods.length > 0 && !this.selectedPaymentMethod) return;
     if (this.bookingType === 'exclusive_event' && !this.policiesAcknowledged) {
       this.errorMsg = 'Please acknowledge the event policies before confirming.';
       return;
     }
+    this.guestSubmitted = false;
     this.booking = true;
     this.errorMsg = '';
 
@@ -1940,6 +2044,8 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
       },
       selectedExtraFeeNames: this.bookingType === 'exclusive_event' ? [] : [...this.selectedExtraFeeNames],
       bookingType: this.bookingType,
+      coachingRequested: this.bookingType === 'exclusive_event' ? false : this.coachingRequested,
+      coachingPax: this.coachingPax,
     };
     console.log('[GuestReserve] submit payload:', payload);
 

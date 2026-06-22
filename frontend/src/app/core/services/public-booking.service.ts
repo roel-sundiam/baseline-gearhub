@@ -20,6 +20,12 @@ export interface PublicRates {
   rentalBalls100Rate: number;
   rentalBallMachineRate: number;
   rentalRacketRate: number;
+  coachingEnabled: boolean;
+  coachingMinHours: number;
+  coachingMaxPax: number;
+  coachingRate1Pax: number;
+  coachingRate2Pax: number;
+  coachingRate3to6Pax: number;
 }
 
 export interface GuestInfo {
@@ -41,6 +47,8 @@ export interface GuestBookingPayload {
   guestInfo: GuestInfo;
   selectedExtraFeeNames?: string[];
   bookingType?: 'standard' | 'exclusive_event';
+  coachingRequested?: boolean;
+  coachingPax?: number;
 }
 
 export interface GuestBookingResult {

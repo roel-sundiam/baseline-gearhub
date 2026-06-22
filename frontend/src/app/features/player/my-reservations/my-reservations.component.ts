@@ -105,6 +105,7 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
                       <div class="dm-res-time">
                         <i class="far fa-clock"></i> {{ formatSlot(r.timeSlot, r.durationHours ?? 1) }}
                         @if (r.hasLights) { <span class="dm-lights-tag"><i class="fas fa-lightbulb"></i> Lights</span> }
+                        @if (r.coachingRequested) { <span class="dm-lights-tag">🎓 Coaching{{ r.coachingPax ? ' (' + r.coachingPax + ')' : '' }}</span> }
                       </div>
                       @if (r.players && r.players.length > 0) {
                         <div class="dm-res-with"><i class="fas fa-user-friends"></i> with {{ playerNames(r) }}</div>
@@ -158,6 +159,7 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
                       <div class="dm-res-time">
                         <i class="far fa-clock"></i> {{ formatSlot(r.timeSlot, r.durationHours ?? 1) }}
                         @if (r.hasLights) { <span class="dm-lights-tag"><i class="fas fa-lightbulb"></i> Lights</span> }
+                        @if (r.coachingRequested) { <span class="dm-lights-tag">🎓 Coaching{{ r.coachingPax ? ' (' + r.coachingPax + ')' : '' }}</span> }
                       </div>
                       @if (r.players && r.players.length > 0) {
                         <div class="dm-res-with"><i class="fas fa-user-friends"></i> with {{ playerNames(r) }}</div>
@@ -196,6 +198,7 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
                           <div class="dm-res-time">
                             <i class="far fa-clock"></i> {{ formatSlot(r.timeSlot, r.durationHours ?? 1) }}
                             @if (r.hasLights) { <span class="dm-lights-tag"><i class="fas fa-lightbulb"></i></span> }
+                            @if (r.coachingRequested) { <span class="dm-lights-tag">🎓</span> }
                           </div>
                           <div class="dm-res-booker">
                             <i class="far fa-user"></i> {{ bookerName(r) }}
@@ -218,6 +221,7 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
               [reservations]="allReservations"
               [myIds]="myReservationIds"
               theme="dark"
+              [courtCount]="courtCount"
             />
           }
 

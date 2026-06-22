@@ -18,6 +18,8 @@ router.get("/", auth, async (req, res) => {
       reservationWeekdayRate: 0, reservationWeekendRate: 0, reservationHolidayRate: 0,
       reservationGuestFee: 0,
       rentalBalls50Rate: 0, rentalBalls100Rate: 0, rentalBallMachineRate: 0, rentalRacketRate: 0,
+      coachingEnabled: false, coachingMinHours: 2, coachingMaxPax: 6,
+      coachingRate1Pax: 0, coachingRate2Pax: 0, coachingRate3to6Pax: 0,
     };
 
     const rates = await Rates.findOneAndUpdate(
@@ -61,6 +63,12 @@ router.put("/", auth, admin, async (req, res) => {
     const rentalBalls100Rate = Number(req.body.rentalBalls100Rate ?? 0);
     const rentalBallMachineRate = Number(req.body.rentalBallMachineRate ?? 0);
     const rentalRacketRate = Number(req.body.rentalRacketRate ?? 0);
+    const coachingEnabled = Boolean(req.body.coachingEnabled);
+    const coachingMinHours = Number(req.body.coachingMinHours ?? 2);
+    const coachingMaxPax = Number(req.body.coachingMaxPax ?? 6);
+    const coachingRate1Pax = Number(req.body.coachingRate1Pax ?? 0);
+    const coachingRate2Pax = Number(req.body.coachingRate2Pax ?? 0);
+    const coachingRate3to6Pax = Number(req.body.coachingRate3to6Pax ?? 0);
 
     const allRates = [
       withoutLightRate, lightRate,
@@ -69,6 +77,8 @@ router.put("/", auth, admin, async (req, res) => {
       reservationWeekdayRate, reservationWeekendRate, reservationHolidayRate,
       reservationGuestFee, reservationGuestFeeThreshold,
       rentalBalls50Rate, rentalBalls100Rate, rentalBallMachineRate, rentalRacketRate,
+      coachingMinHours, coachingMaxPax,
+      coachingRate1Pax, coachingRate2Pax, coachingRate3to6Pax,
     ];
 
     if (allRates.some((r) => !Number.isFinite(r))) {
@@ -90,6 +100,8 @@ router.put("/", auth, admin, async (req, res) => {
         exclusiveEventEnabled, exclusiveEventRate, exclusiveEventIncludedPax,
         exclusiveEventExcessPaxFee, exclusiveEventMaxPax, exclusiveEventPolicies,
         rentalBalls50Rate, rentalBalls100Rate, rentalBallMachineRate, rentalRacketRate,
+        coachingEnabled, coachingMinHours, coachingMaxPax,
+        coachingRate1Pax, coachingRate2Pax, coachingRate3to6Pax,
         updatedAt: new Date(),
       },
       { new: true, upsert: true },

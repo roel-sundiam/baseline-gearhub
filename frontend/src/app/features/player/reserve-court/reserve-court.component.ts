@@ -84,22 +84,29 @@ interface ActivePlayer { _id: string; name: string; email: string; }
           <input
             type="date"
             class="dm-input"
+            [class.dm-input-error]="submitted && !selectedDate"
             [(ngModel)]="selectedDate"
             [min]="today"
             (change)="onDateOrCourtChange()"
           />
+          @if (submitted && !selectedDate) {
+            <div class="dm-field-error"><i class="fas fa-exclamation-circle"></i> Please select a date.</div>
+          }
         </div>
 
         <!-- Court -->
         <div class="dm-section">
           <div class="dm-section-label">Court</div>
-          <div class="dm-court-toggle">
+          <div class="dm-court-toggle" [class.dm-court-toggle-error]="submitted && !selectedCourt">
             @for (n of courtNumbers; track n) {
               <button class="dm-court-btn" [class.active]="selectedCourt === n" (click)="selectCourt(n)">
                 <i class="fas fa-table-tennis"></i> Court {{ n }}
               </button>
             }
           </div>
+          @if (submitted && !selectedCourt) {
+            <div class="dm-field-error"><i class="fas fa-exclamation-circle"></i> Please select a court.</div>
+          }
         </div>
 
         <!-- Time Slot -->
@@ -128,8 +135,14 @@ interface ActivePlayer { _id: string; name: string; email: string; }
                   </button>
                 }
               </div>
+              @if (submitted && !selectedSlot) {
+                <div class="dm-field-error" style="margin-top:8px"><i class="fas fa-exclamation-circle"></i> Please select a time slot.</div>
+              }
             }
           </div>
+        }
+        @if (submitted && !selectedSlot && !(selectedDate && selectedCourt)) {
+          <div class="dm-field-error dm-field-error-slot"><i class="fas fa-exclamation-circle"></i> Please select a date and court first, then choose a time slot.</div>
         }
 
         <!-- Duration -->
@@ -142,6 +155,8 @@ interface ActivePlayer { _id: string; name: string; email: string; }
                   type="button"
                   class="dm-duration-btn"
                   [class.active]="selectedDuration === d"
+                  [disabled]="coachingRequested && d < coachingMinHours"
+                  [title]="coachingRequested && d < coachingMinHours ? 'Coaching requires a minimum of ' + coachingMinHours + ' hours' : ''"
                   (click)="setDuration(d)"
                 >
                   {{ d }} hr{{ d > 1 ? 's' : '' }}
@@ -219,6 +234,32 @@ interface ActivePlayer { _id: string; name: string; email: string; }
               <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
               <span class="dm-toggle-label">{{ ballBoyRequested ? '🎾 Requested' : 'Not requested' }}</span>
             </label>
+          </div>
+        }
+
+        <!-- Coaching -->
+        @if (coachingEnabled) {
+          <div class="dm-section">
+            <div class="dm-section-label">Coaching Session <span class="dm-optional">optional</span></div>
+            <label class="dm-toggle-row">
+              <input type="checkbox" class="dm-toggle-input" [(ngModel)]="coachingRequested" (ngModelChange)="onCoachingToggle()" />
+              <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
+              <span class="dm-toggle-label">{{ coachingRequested ? '🎓 Add coaching' : 'No coaching' }}</span>
+            </label>
+            @if (coachingRequested) {
+              <div class="dm-counter-row" style="margin-top:.5rem">
+                <span class="dm-section-label" style="margin:0">Attendees</span>
+                <button type="button" class="dm-counter-btn" (click)="decCoachingPax()">−</button>
+                <span class="dm-counter-val">{{ coachingPax }}</span>
+                <button type="button" class="dm-counter-btn" (click)="incCoachingPax()">+</button>
+                @if (!loadingRates) {
+                  <span class="dm-counter-fee">
+                    {{ coachingTierRate | currency: 'PHP' : 'symbol' }} × {{ coachingPax }} pax × {{ selectedDuration }} hr = {{ coachingFee | currency: 'PHP' : 'symbol' }}
+                  </span>
+                }
+              </div>
+              <p class="dm-optional" style="margin:.4rem 0 0">Minimum {{ coachingMinHours }} hours per coaching session.</p>
+            }
           </div>
         }
 
@@ -405,6 +446,13 @@ interface ActivePlayer { _id: string; name: string; email: string; }
               }
             }
 
+            @if (coachingRequested && coachingFee > 0) {
+              <div class="dm-summary-row">
+                <span>Coaching <span class="dm-summary-sub">({{ coachingTierRate | currency: 'PHP' : 'symbol' }} × {{ coachingPax }} pax × {{ selectedDuration }} hr)</span></span>
+                <strong>@if (loadingRates) { — } @else { {{ coachingFee | currency: 'PHP' : 'symbol' }} }</strong>
+              </div>
+            }
+
             <div class="dm-summary-divider"></div>
 
             <div class="dm-summary-row dm-summary-total">
@@ -539,6 +587,16 @@ interface ActivePlayer { _id: string; name: string; email: string; }
       border: 1px solid rgba(239,68,68,0.25);
       color: #ef4444;
     }
+    .dm-field-error {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.78rem; color: #f87171; margin-top: 6px;
+      animation: fadeIn 0.15s ease;
+    }
+    .dm-field-error i { font-size: 0.72rem; flex-shrink: 0; }
+    .dm-field-error-slot { margin-top: 4px; }
+    .dm-input-error { border-color: rgba(239,68,68,0.5) !important; }
+    .dm-court-toggle-error { outline: 1px solid rgba(239,68,68,0.4); border-radius: 8px; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
     .dm-payment-notice {
       display: flex;
@@ -1018,6 +1076,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   booking = false;
   successMsg = '';
   errorMsg = '';
+  submitted = false;
   today = new Date().toISOString().split('T')[0];
   showPaymentInfo = false;
   paymentMethods: string[] = [];
@@ -1053,6 +1112,14 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   ballBoyRequested = false;
   isHoliday = false;
   guestCount = 0;
+  coachingEnabled = false;
+  coachingMinHours = 2;
+  coachingMaxPax = 6;
+  coachingRate1Pax = 0;
+  coachingRate2Pax = 0;
+  coachingRate3to6Pax = 0;
+  coachingRequested = false;
+  coachingPax = 1;
   loadingRates = true;
 
   private readonly WEEKEND_DAYS = new Set([0, 5, 6]);
@@ -1116,8 +1183,30 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
       .reduce((sum, f) => sum + (f.type === 'per_person' ? f.amount * this.guestCount : f.amount), 0);
   }
 
+  get coachingTierRate(): number {
+    const pax = Math.min(this.coachingMaxPax, Math.max(1, this.coachingPax));
+    if (pax <= 1) return this.coachingRate1Pax;
+    if (pax === 2) return this.coachingRate2Pax;
+    return this.coachingRate3to6Pax;
+  }
+
+  get coachingFee(): number {
+    if (!this.coachingRequested) return 0;
+    const pax = Math.min(this.coachingMaxPax, Math.max(1, this.coachingPax));
+    return this.coachingTierRate * pax * this.selectedDuration;
+  }
+
+  onCoachingToggle() {
+    if (this.coachingRequested && this.selectedDuration < this.coachingMinHours) {
+      this.selectedDuration = this.coachingMinHours;
+    }
+  }
+
+  incCoachingPax() { if (this.coachingPax < this.coachingMaxPax) this.coachingPax++; }
+  decCoachingPax() { if (this.coachingPax > 1) this.coachingPax--; }
+
   get computedFee(): number {
-    return this.subtotal + this.convenienceFee + this.extraFeeTotal;
+    return this.subtotal + this.convenienceFee + this.extraFeeTotal + this.coachingFee;
   }
 
   toggleExtraFee(fee: AdditionalFee) {
@@ -1168,6 +1257,12 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
         this.rentalBalls100Rate = rates.rentalBalls100Rate ?? 0;
         this.rentalBallMachineRate = rates.rentalBallMachineRate ?? 0;
         this.rentalRacketRate = rates.rentalRacketRate ?? 0;
+        this.coachingEnabled = rates.coachingEnabled ?? false;
+        this.coachingMinHours = rates.coachingMinHours ?? 2;
+        this.coachingMaxPax = rates.coachingMaxPax ?? 6;
+        this.coachingRate1Pax = rates.coachingRate1Pax ?? 0;
+        this.coachingRate2Pax = rates.coachingRate2Pax ?? 0;
+        this.coachingRate3to6Pax = rates.coachingRate3to6Pax ?? 0;
         this.loadingRates = false;
         this.cdr.detectChanges();
       },
@@ -1305,6 +1400,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   }
 
   setDuration(d: number) {
+    if (this.coachingRequested && d < this.coachingMinHours) return;
     this.selectedDuration = d;
     this.cdr.detectChanges();
   }
@@ -1322,7 +1418,10 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   }
 
   confirm() {
+    this.submitted = true;
+    this.cdr.detectChanges();
     if (!this.selectedDate || !this.selectedCourt || !this.selectedSlot) return;
+    this.submitted = false;
     this.booking = true;
     this.errorMsg = '';
     this.successMsg = '';
@@ -1343,6 +1442,8 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
         rackets: this.rentalRackets,
       },
       selectedExtraFeeNames: [...this.selectedExtraFeeNames],
+      coachingRequested: this.coachingRequested,
+      coachingPax: this.coachingPax,
     }).subscribe({
       next: () => {
         this.booking = false;
