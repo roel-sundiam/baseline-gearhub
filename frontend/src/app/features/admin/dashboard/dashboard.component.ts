@@ -1,16 +1,20 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { UsersService } from '../../../core/services/users.service';
 import { SessionsService } from '../../../core/services/sessions.service';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { ClubService, Club } from '../../../core/services/club.service';
+import { PublicBookingService } from '../../../core/services/public-booking.service';
+import { CloudinaryService } from '../../../core/services/cloudinary.service';
 import { forkJoin, timeout, of, catchError } from 'rxjs';
 
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <section class="dashboard-shell">
       <header class="hero-panel">
@@ -196,6 +200,112 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
               <span class="action-sub">Animated walkthrough video — share or download</span>
             </a>
           </div>
+        </section>
+
+        <!-- ── AVAILABLE SLOTS POSTER ── -->
+        <section class="poster-section">
+          <div class="section-header">
+            <div>
+              <p class="section-kicker">Share</p>
+              <h3>Available Slots Poster</h3>
+            </div>
+          </div>
+
+          <!-- Controls -->
+          <div class="poster-ctrl-row">
+            <label class="poster-ctrl-label">Date
+              <input type="date" class="poster-input" [(ngModel)]="posterDate" (change)="loadPosterSlots()" />
+            </label>
+            <label class="poster-ctrl-label">Court
+              <select class="poster-input" [(ngModel)]="posterCourt" (ngModelChange)="loadPosterSlots()">
+                @for (c of courtArray(); track c) {
+                  <option [value]="c">Court {{ c }}</option>
+                }
+              </select>
+            </label>
+            <div class="poster-ctrl-actions">
+              @if (!club?.bookingQrCode) {
+                <label class="poster-upload-btn" [class.poster-upload-btn--busy]="uploadingPosterQr">
+                  <i class="fas {{ uploadingPosterQr ? 'fa-circle-notch fa-spin' : 'fa-qrcode' }}"></i>
+                  {{ uploadingPosterQr ? 'Uploading…' : 'Upload QR Code' }}
+                  <input type="file" accept="image/*" (change)="onPosterQrSelected($event)" [disabled]="uploadingPosterQr" hidden />
+                </label>
+              } @else {
+                <button type="button" class="poster-remove-btn" (click)="removePosterQr()">
+                  <i class="fas fa-times"></i> Remove QR
+                </button>
+              }
+              <button type="button" class="poster-action-btn poster-action-btn--primary" (click)="copyPosterImage()" [disabled]="capturingPoster || loadingPosterSlots">
+                <i class="fas {{ capturingPoster ? 'fa-circle-notch fa-spin' : 'fa-copy' }}"></i>
+                {{ capturingPoster ? 'Capturing…' : 'Copy Image' }}
+              </button>
+              <button type="button" class="poster-action-btn" (click)="downloadPosterImage()" [disabled]="capturingPoster || loadingPosterSlots">
+                <i class="fas fa-download"></i> Download
+              </button>
+              @if (posterCopied) {
+                <span class="poster-copied-toast"><i class="fas fa-check-circle"></i> Copied!</span>
+              }
+            </div>
+          </div>
+
+          <!-- Poster preview -->
+          @if (loadingPosterSlots) {
+            <div class="poster-loading"><i class="fas fa-circle-notch fa-spin"></i> Loading slots…</div>
+          } @else {
+            <div class="poster-scroll-wrap">
+              <div #posterCardRef [ngStyle]="posterCardStyle()">
+                <div [ngStyle]="posterOverlayStyle()">
+
+                  <!-- ── Centered header ── -->
+                  <div [ngStyle]="{ textAlign: 'center', marginBottom: '14px' }">
+                    <div [ngStyle]="{ color: '#ffffff', fontWeight: '900', fontSize: '26px', letterSpacing: '3px', textShadow: '0 2px 6px rgba(0,0,0,0.6)', lineHeight: '1.1' }">
+                      AVAILABLE SLOTS
+                    </div>
+                    <div [ngStyle]="{ color: '#e5e7eb', fontSize: '13px', fontWeight: '600', marginTop: '5px', letterSpacing: '1px' }">
+                      {{ posterDateLine1() }}
+                    </div>
+                    <div [ngStyle]="{ color: '#e5e7eb', fontSize: '13px', fontWeight: '600', letterSpacing: '1px' }">
+                      {{ posterDateLine2() }}
+                    </div>
+                  </div>
+
+                  <!-- ── Body: slots + QR ── -->
+                  <div [ngStyle]="{ display: 'flex', flexDirection: 'row', gap: '16px', flex: '1', minHeight: '0' }">
+
+                    <!-- Left: court name + slot list -->
+                    <div [ngStyle]="{ flex: '1', minWidth: '0', display: 'flex', flexDirection: 'column' }">
+                      <div [ngStyle]="{ color: '#ffffff', fontWeight: '900', fontSize: '28px', marginBottom: '10px', letterSpacing: '1px', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }">
+                        COURT {{ posterCourt }}
+                      </div>
+                      @if (posterSlots.length === 0) {
+                        <div [ngStyle]="{ color: '#9ca3af', fontSize: '13px' }">No slots for this date.</div>
+                      }
+                      @for (s of posterSlots; track s.slot) {
+                        <div [ngStyle]="posterSlotRowStyle()">
+                          <span [ngStyle]="{ color: '#ffffff', fontSize: '13px', fontWeight: '700', letterSpacing: '0.3px' }">{{ s.label }}</span>
+                          <span [ngStyle]="s.open ? posterOpenBadgeStyle() : posterTakenBadgeStyle()">
+                            {{ s.open ? 'OPEN' : 'TAKEN' }}
+                          </span>
+                        </div>
+                      }
+                    </div>
+
+                    <!-- Right: QR code -->
+                    @if (club?.bookingQrCode) {
+                      <div [ngStyle]="{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', justifyContent: 'center', flexShrink: '0' }">
+                        <span [ngStyle]="{ color: '#ffffff', fontWeight: '800', fontSize: '15px', letterSpacing: '1px', textAlign: 'center', textShadow: '0 1px 4px rgba(0,0,0,0.5)' }">SCAN TO BOOK:</span>
+                        <img [src]="club!.bookingQrCode!"
+                             [ngStyle]="{ width: '200px', height: '200px', borderRadius: '6px', backgroundColor: '#ffffff', padding: '5px', display: 'block' }"
+                             alt="Booking QR Code"
+                             crossorigin="anonymous" />
+                      </div>
+                    }
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          }
         </section>
       }
     </section>
@@ -687,6 +797,124 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
           grid-template-columns: 1fr;
         }
       }
+
+      .poster-section {
+        background: var(--dm-surface);
+        border: 1px solid rgba(163,230,53,0.12);
+        border-radius: 16px;
+        padding: 1.25rem;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.24);
+      }
+
+      .poster-ctrl-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .poster-ctrl-label {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: rgba(255,255,255,0.55);
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+      }
+
+      .poster-input {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(163,230,53,0.18);
+        border-radius: 8px;
+        color: #fff;
+        padding: 6px 10px;
+        font-size: 0.85rem;
+        outline: none;
+        min-width: 0;
+      }
+
+      .poster-ctrl-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .poster-upload-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 14px;
+        border-radius: 8px;
+        border: 1px solid rgba(163,230,53,0.3);
+        color: rgba(163,230,53,0.9);
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        background: rgba(163,230,53,0.06);
+        transition: background 0.15s;
+      }
+      .poster-upload-btn:hover { background: rgba(163,230,53,0.12); }
+      .poster-upload-btn--busy { opacity: 0.6; pointer-events: none; }
+
+      .poster-remove-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 14px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.15);
+        color: rgba(255,255,255,0.6);
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        background: transparent;
+      }
+
+      .poster-action-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 14px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.15);
+        color: rgba(255,255,255,0.8);
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        background: rgba(255,255,255,0.05);
+        transition: background 0.15s;
+      }
+      .poster-action-btn:disabled { opacity: 0.5; pointer-events: none; }
+      .poster-action-btn--primary {
+        background: rgba(163,230,53,0.15);
+        border-color: rgba(163,230,53,0.4);
+        color: #a3e635;
+      }
+      .poster-action-btn--primary:hover { background: rgba(163,230,53,0.22); }
+
+      .poster-copied-toast {
+        color: #4ade80;
+        font-size: 0.8rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .poster-loading {
+        color: rgba(255,255,255,0.5);
+        font-size: 0.85rem;
+        padding: 12px 0;
+      }
+
+      .poster-scroll-wrap {
+        overflow-x: auto;
+        padding-bottom: 8px;
+      }
     `,
   ],
 })
@@ -700,15 +928,38 @@ export class AdminDashboardComponent implements OnInit {
   pendingApprovals: Charge[] = [];
   processingId: string | null = null;
 
+  // ── Poster ──
+  @ViewChild('posterCardRef') posterCardRef!: ElementRef;
+  club: Club | null = null;
+  posterDate = '';
+  posterCourt = 1;
+  posterSlots: { slot: string; label: string; open: boolean }[] = [];
+  loadingPosterSlots = false;
+  uploadingPosterQr = false;
+  capturingPoster = false;
+  posterCopied = false;
+
   constructor(
     private usersService: UsersService,
     private sessionsService: SessionsService,
     private chargesService: ChargesService,
     private cdr: ChangeDetectorRef,
     protected authService: AuthService,
+    private clubService: ClubService,
+    private publicBooking: PublicBookingService,
+    private cloudinary: CloudinaryService,
   ) {}
 
   ngOnInit() {
+    const today = new Date();
+    this.posterDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const clubId = this.authService.user()?.clubId;
+    if (clubId) {
+      this.clubService.getClub(clubId).subscribe({
+        next: (c) => { this.club = c; this.loadPosterSlots(); this.cdr.detectChanges(); },
+      });
+    }
+
     console.log('Dashboard ngOnInit — starting API calls');
 
     forkJoin({
@@ -770,6 +1021,197 @@ export class AdminDashboardComponent implements OnInit {
         this.cdr.detectChanges();
       },
     });
+  }
+
+  // ── Poster ──
+  courtArray(): number[] {
+    return Array.from({ length: this.club?.courtCount ?? 1 }, (_, i) => i + 1);
+  }
+
+  loadPosterSlots() {
+    if (!this.club?._id || !this.posterDate) return;
+    this.loadingPosterSlots = true;
+    this.posterSlots = [];
+    this.publicBooking.getAvailability(this.club._id, this.posterCourt, this.posterDate).subscribe({
+      next: ({ bookedSlots }) => {
+        const slots: { slot: string; label: string; open: boolean }[] = [];
+        const open = this.club!.openingHour ?? 6;
+        const close = this.club!.closingHour ?? 22;
+        for (let h = open; h < close; h++) {
+          const key = this.slotKey(h);
+          slots.push({ slot: key, label: this.slotLabel(h), open: !bookedSlots.includes(key) });
+        }
+        this.posterSlots = slots;
+        this.loadingPosterSlots = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.loadingPosterSlots = false; this.cdr.detectChanges(); },
+    });
+  }
+
+  private slotKey(h: number): string {
+    if (h === 0) return '12am';
+    if (h < 12) return `${h}am`;
+    if (h === 12) return '12pm';
+    return `${h - 12}pm`;
+  }
+
+  private slotLabel(h: number): string {
+    const fmt = (hr: number) => {
+      const period = hr < 12 ? 'AM' : 'PM';
+      const disp = hr === 0 ? 12 : hr > 12 ? hr - 12 : hr;
+      return `${disp}:00${period}`;
+    };
+    return `${fmt(h)} - ${fmt(h + 1)}`;
+  }
+
+  async onPosterQrSelected(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file || !this.club) return;
+    const err = this.cloudinary.validateImage(file);
+    if (err) { alert(err); return; }
+    this.uploadingPosterQr = true;
+    this.cdr.detectChanges();
+    try {
+      const url = await this.cloudinary.uploadImage(file);
+      this.club.bookingQrCode = url;
+      this.clubService.patchBookingQrCode(this.club._id, url).subscribe();
+    } finally {
+      this.uploadingPosterQr = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  removePosterQr() {
+    if (!this.club) return;
+    this.club.bookingQrCode = null;
+    this.clubService.patchBookingQrCode(this.club._id, null).subscribe();
+    this.cdr.detectChanges();
+  }
+
+  async copyPosterImage() {
+    if (!this.posterCardRef) return;
+    this.capturingPoster = true;
+    this.posterCopied = false;
+    this.cdr.detectChanges();
+    try {
+      const { default: html2canvas } = await import('html2canvas');
+      const canvas = await html2canvas(this.posterCardRef.nativeElement, { scale: 2, useCORS: true, backgroundColor: null });
+      await new Promise<void>((resolve, reject) => {
+        canvas.toBlob(async (blob) => {
+          if (!blob) { reject(new Error('No blob')); return; }
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            resolve();
+          } catch (e) { reject(e); }
+        }, 'image/png');
+      });
+      this.posterCopied = true;
+      setTimeout(() => { this.posterCopied = false; this.cdr.detectChanges(); }, 2500);
+    } catch (e) {
+      console.error('Copy poster failed', e);
+    } finally {
+      this.capturingPoster = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  async downloadPosterImage() {
+    if (!this.posterCardRef) return;
+    this.capturingPoster = true;
+    this.cdr.detectChanges();
+    try {
+      const { default: html2canvas } = await import('html2canvas');
+      const canvas = await html2canvas(this.posterCardRef.nativeElement, { scale: 2, useCORS: true, backgroundColor: null });
+      const link = document.createElement('a');
+      link.download = `slots-court${this.posterCourt}-${this.posterDate}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } finally {
+      this.capturingPoster = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  posterDateLine1(): string {
+    if (!this.posterDate) return '';
+    const d = new Date(this.posterDate + 'T00:00:00');
+    const months = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+    return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  }
+
+  posterDateLine2(): string {
+    if (!this.posterDate) return '';
+    const d = new Date(this.posterDate + 'T00:00:00');
+    return ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'][d.getDay()];
+  }
+
+  posterCardStyle(): Record<string, string> {
+    const bg = this.club?.photos?.[0] ?? '';
+    return {
+      width: '540px',
+      minHeight: '580px',
+      position: 'relative',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      ...(bg ? { backgroundImage: `url(${bg})` } : {}),
+      backgroundColor: bg ? '#111827' : '#0d2414',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      flexShrink: '0',
+      display: 'flex',
+    };
+  }
+
+  posterOverlayStyle(): Record<string, string> {
+    return {
+      flex: '1',
+      background: 'rgba(15,23,42,0.72)',
+      display: 'flex',
+      flexDirection: 'column',
+      padding: '28px 24px 24px',
+      boxSizing: 'border-box',
+    };
+  }
+
+  posterSlotRowStyle(): Record<string, string> {
+    return {
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '6px 10px',
+      marginBottom: '4px',
+      backgroundColor: 'rgba(255,255,255,0.08)',
+      borderRadius: '6px',
+      gap: '8px',
+    };
+  }
+
+  posterOpenBadgeStyle(): Record<string, string> {
+    return {
+      background: '#15803d',
+      color: '#ffffff',
+      fontWeight: '700',
+      fontSize: '12px',
+      padding: '4px 14px',
+      borderRadius: '5px',
+      letterSpacing: '1px',
+      flexShrink: '0',
+    };
+  }
+
+  posterTakenBadgeStyle(): Record<string, string> {
+    return {
+      background: '#374151',
+      color: '#9ca3af',
+      fontWeight: '700',
+      fontSize: '12px',
+      padding: '4px 14px',
+      borderRadius: '5px',
+      letterSpacing: '1px',
+      flexShrink: '0',
+    };
   }
 }
 

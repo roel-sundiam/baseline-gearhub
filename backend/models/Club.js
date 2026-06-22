@@ -26,6 +26,7 @@ const clubSchema = new mongoose.Schema(
       isOptional: { type: Boolean, default: true },
     }],
     description: { type: String, trim: true },
+    bookingQrCode: { type: String, default: null },
     photos: { type: [String], default: [] },
     socialLinks: {
       facebook:  { type: String, trim: true },

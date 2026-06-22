@@ -32,6 +32,7 @@ export interface Club {
   convenienceFeeMonthlyAmount?: number;
   additionalFees?: AdditionalFee[];
   description?: string;
+  bookingQrCode?: string | null;
   photos?: string[];
   socialLinks?: { facebook?: string; instagram?: string; reclub?: string };
   rating?: number;
@@ -82,6 +83,10 @@ export class ClubService {
 
   updateAdditionalFees(id: string, additionalFees: AdditionalFee[]) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/additional-fees`, { additionalFees });
+  }
+
+  patchBookingQrCode(id: string, bookingQrCode: string | null) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/booking-qr`, { bookingQrCode });
   }
 
   setSelectedClubId(id: string) {

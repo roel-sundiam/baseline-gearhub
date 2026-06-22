@@ -205,9 +205,14 @@ interface AdminUser {
                   </span>
                 }
                 <span class="pill pill-fee">
-                  <i class="fas fa-percentage"></i>
-                  {{ ((club.convenienceFeeRate ?? 0.10) * 100) | number:'1.0-1' }}%
-                  · {{ club.convenienceFeeMode === 'per_transaction' ? 'per txn' : 'per hr' }}
+                  @if (club.convenienceFeeMode === 'monthly_flat') {
+                    <i class="fas fa-money-bill-wave"></i>
+                    ₱{{ (club.convenienceFeeMonthlyAmount ?? 0) | number:'1.0-2' }} flat/mo
+                  } @else {
+                    <i class="fas fa-percentage"></i>
+                    {{ ((club.convenienceFeeRate ?? 0.10) * 100) | number:'1.0-1' }}%
+                    · {{ club.convenienceFeeMode === 'per_transaction' ? 'per txn' : 'per hr' }}
+                  }
                 </span>
                 @if (club.status === 'suspended') {
                   <span class="pill pill-suspended">
@@ -811,6 +816,7 @@ interface AdminUser {
                 }
               </div>
             }
+
 
           </section>
         }
