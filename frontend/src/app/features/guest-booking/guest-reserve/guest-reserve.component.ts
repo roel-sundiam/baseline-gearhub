@@ -180,7 +180,8 @@ function localDateStr(): string {
                           [class.booked]="cellState(selectedCourt, slot) === 'booked'"
                           [class.in-range]="cellState(selectedCourt, slot) === 'in-range'"
                           [class.has-lights]="lightSlots.has(slot)"
-                          [disabled]="cellState(selectedCourt, slot) === 'booked' || cellState(selectedCourt, slot) === 'in-range'"
+                          [class.coaching-blocked]="coachingRequested && isCoachingBlocked(selectedCourt!, slot)"
+                          [disabled]="cellState(selectedCourt, slot) === 'booked' || cellState(selectedCourt, slot) === 'in-range' || (coachingRequested && isCoachingBlocked(selectedCourt!, slot))"
                           (click)="onCellClick(selectedCourt, slot)"
                         >
                           {{ slot }}
@@ -891,7 +892,8 @@ function localDateStr(): string {
     .gr-slot-btn.selected { border-color: #a3e635; background: rgba(163,230,53,0.15); color: #a3e635; }
     .gr-slot-btn.booked { background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.2); cursor: not-allowed; border-color: rgba(255,255,255,0.05); text-decoration: line-through; }
     .gr-slot-btn.in-range { border-color: rgba(163,230,53,0.4); background: rgba(163,230,53,0.08); color: rgba(163,230,53,0.6); cursor: not-allowed; }
-    .gr-slot-btn:hover:not(.booked):not(.selected):not(.in-range) { border-color: rgba(163,230,53,0.35); background: rgba(163,230,53,0.07); }
+    .gr-slot-btn.coaching-blocked { opacity: 0.35; cursor: not-allowed; border-color: rgba(255,255,255,0.05); }
+    .gr-slot-btn:hover:not(.booked):not(.selected):not(.in-range):not(.coaching-blocked) { border-color: rgba(163,230,53,0.35); background: rgba(163,230,53,0.07); }
     .gr-slot-light { font-size: 0.65rem; line-height: 1; }
 
     /* ── Sidebar ── */
@@ -1624,9 +1626,17 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   }
 
   onCoachingToggle() {
-    if (this.coachingRequested && this.selectedDuration < this.coachingMinHours) {
-      this.selectedDuration = this.coachingMinHours;
+    if (this.coachingRequested) {
+      if (this.selectedDuration < this.coachingMinHours) {
+        this.selectedDuration = this.coachingMinHours;
+      }
+      if (this.selectedSlot && this.selectedCourt && this.isCoachingBlocked(this.selectedCourt, this.selectedSlot)) {
+        this.selectedSlot = '';
+        this.availableDurations = [];
+        this.selectedDuration = this.coachingMinHours;
+      }
     }
+    this.cdr.detectChanges();
   }
 
   incCoachingPax() { if (this.coachingPax < this.coachingMaxPax) this.coachingPax++; }
@@ -1794,6 +1804,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
 
   onCellClick(court: number, slot: string) {
     if (this.cellState(court, slot) === 'booked') return;
+    if (this.coachingRequested && this.isCoachingBlocked(court, slot)) return;
 
     // Clicking the selected slot deselects (keep court, just clear slot)
     if (this.selectedCourt === court && this.selectedSlot === slot) {
@@ -1808,10 +1819,22 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     // New selection
     this.selectedCourt = court;
     this.selectedSlot = slot;
-    this.selectedDuration = 1;
+    this.selectedDuration = this.coachingRequested ? this.coachingMinHours : 1;
     this.errorMsg = '';
     this.computeAvailableDurations();
     this.cdr.detectChanges();
+  }
+
+  isCoachingBlocked(court: number, slot: string): boolean {
+    if (!this.coachingRequested || this.coachingMinHours <= 1) return false;
+    const bookedSet = this.courtAvailability()[court] ?? new Set<string>();
+    const startH = slotToHour(slot);
+    for (let i = 0; i < this.coachingMinHours; i++) {
+      const h = startH + i;
+      if (h > this.closingHour) return true;
+      if (bookedSet.has(hourToSlot(h))) return true;
+    }
+    return false;
   }
 
   computeAvailableDurations() {
@@ -1917,7 +1940,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     if (this.selectedCourt === n) return;
     this.selectedCourt = n;
     this.selectedSlot = '';
-    this.selectedDuration = 1;
+    this.selectedDuration = this.coachingRequested ? this.coachingMinHours : 1;
     this.availableDurations = [];
     this.cdr.detectChanges();
   }

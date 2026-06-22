@@ -127,7 +127,8 @@ interface ActivePlayer { _id: string; name: string; email: string; }
                     [class.booked]="bookedSlots.has(slot)"
                     [class.in-range]="isInRange(slot)"
                     [class.has-lights]="lightSlots.has(slot)"
-                    [disabled]="bookedSlots.has(slot) || isInRange(slot)"
+                    [class.coaching-blocked]="coachingRequested && isCoachingBlocked(slot)"
+                    [disabled]="bookedSlots.has(slot) || isInRange(slot) || (coachingRequested && isCoachingBlocked(slot))"
                     (click)="selectSlot(slot)"
                   >
                     {{ slot }}
@@ -753,7 +754,8 @@ interface ActivePlayer { _id: string; name: string; email: string; }
       text-decoration: line-through;
     }
     .dm-slot-btn.in-range { border-color: rgba(163,230,53,0.4); background: rgba(163,230,53,0.08); color: rgba(163,230,53,0.6); cursor: not-allowed; }
-    .dm-slot-btn:hover:not(.booked):not(.selected):not(.in-range) { border-color: rgba(163,230,53,0.35); background: rgba(163,230,53,0.07); }
+    .dm-slot-btn.coaching-blocked { opacity: 0.35; cursor: not-allowed; border-color: rgba(255,255,255,0.05); }
+    .dm-slot-btn:hover:not(.booked):not(.selected):not(.in-range):not(.coaching-blocked) { border-color: rgba(163,230,53,0.35); background: rgba(163,230,53,0.07); }
 
     .dm-duration-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
     .dm-duration-btn {
@@ -1197,9 +1199,17 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   }
 
   onCoachingToggle() {
-    if (this.coachingRequested && this.selectedDuration < this.coachingMinHours) {
-      this.selectedDuration = this.coachingMinHours;
+    if (this.coachingRequested) {
+      if (this.selectedDuration < this.coachingMinHours) {
+        this.selectedDuration = this.coachingMinHours;
+      }
+      if (this.selectedSlot && this.isCoachingBlocked(this.selectedSlot)) {
+        this.selectedSlot = '';
+        this.availableDurations = [];
+        this.selectedDuration = this.coachingMinHours;
+      }
     }
+    this.cdr.detectChanges();
   }
 
   incCoachingPax() { if (this.coachingPax < this.coachingMaxPax) this.coachingPax++; }
@@ -1379,7 +1389,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   selectSlot(slot: string) {
     if (this.bookedSlots.has(slot) || this.isInRange(slot)) return;
     this.selectedSlot = slot;
-    this.selectedDuration = 1;
+    this.selectedDuration = this.coachingRequested ? this.coachingMinHours : 1;
     this.computeAvailableDurations();
     this.successMsg = '';
     this.errorMsg = '';
@@ -1410,6 +1420,17 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     const startH = slotToHour(this.selectedSlot);
     const h = slotToHour(slot);
     return h > startH && h < startH + this.selectedDuration;
+  }
+
+  isCoachingBlocked(slot: string): boolean {
+    if (!this.coachingRequested || this.coachingMinHours <= 1) return false;
+    const startH = slotToHour(slot);
+    for (let i = 0; i < this.coachingMinHours; i++) {
+      const h = startH + i;
+      if (h > this.closingHour) return true;
+      if (this.bookedSlots.has(hourToSlot(h))) return true;
+    }
+    return false;
   }
 
   get endSlotLabel(): string {
