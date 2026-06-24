@@ -302,6 +302,14 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
                     }
                   </div>
 
+                  <!-- ── Bottom-right logo ── -->
+                  <div [ngStyle]="{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }">
+                    <img src="/CourtGo.png"
+                         [ngStyle]="{ height: '28px', width: 'auto', opacity: '0.85', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.7))' }"
+                         alt="CourtGo"
+                         crossorigin="anonymous" />
+                  </div>
+
                 </div>
               </div>
             </div>

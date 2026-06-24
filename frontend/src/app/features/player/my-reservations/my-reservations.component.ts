@@ -63,14 +63,14 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
           Upcoming
           @if (upcoming.length > 0) { <span class="dm-tab-badge">{{ upcoming.length }}</span> }
         </button>
-        <button class="dm-tab" [class.dm-tab-active]="activeTab === 'history'" (click)="setTab('history')">
-          History
-        </button>
         <button class="dm-tab" [class.dm-tab-active]="activeTab === 'all'" (click)="setTab('all')">
           All
         </button>
         <button class="dm-tab" [class.dm-tab-active]="activeTab === 'calendar'" (click)="setTab('calendar')">
           <i class="fas fa-calendar-alt"></i> Calendar
+        </button>
+        <button class="dm-tab" [class.dm-tab-active]="activeTab === 'history'" (click)="setTab('history')">
+          History
         </button>
       </div>
 
@@ -173,7 +173,7 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
 
           <!-- ALL -->
           @if (activeTab === 'all') {
-            @if (allReservations.length === 0) {
+            @if (groupedAll.length === 0) {
               <div class="dm-empty">
                 <div class="dm-empty-icon"><i class="far fa-calendar"></i></div>
                 <p class="dm-empty-text">No reservations on the books</p>
@@ -1211,7 +1211,7 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
 
   get groupedAll(): { date: string; items: Reservation[] }[] {
     const map = new Map<string, Reservation[]>();
-    for (const r of this.allReservations) {
+    for (const r of this.allReservations.filter(r => this.isOnOrAfterToday(r.date))) {
       const key = r.date.split('T')[0];
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(r);
