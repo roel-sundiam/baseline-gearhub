@@ -10,11 +10,12 @@ export class CloudinaryService {
    * @param file Image file to upload
    * @returns Promise with secure URL of uploaded image
    */
-  uploadImage(file: File): Promise<string> {
+  uploadImage(file: File, folder?: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('upload_preset', this.uploadPreset);
+      if (folder) formData.append('folder', folder);
 
       fetch(`https://api.cloudinary.com/v1_1/${this.cloudName}/image/upload`, {
         method: 'POST',

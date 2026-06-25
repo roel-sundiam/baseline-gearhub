@@ -2073,7 +2073,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     let paymentScreenshotUrl: string | undefined;
     if (this.paymentScreenshot) {
       try {
-        paymentScreenshotUrl = await this.cloudinaryService.uploadImage(this.paymentScreenshot);
+        paymentScreenshotUrl = await this.cloudinaryService.uploadImage(this.paymentScreenshot, 'payment-screenshots');
       } catch {
         this.booking = false;
         this.errorMsg = 'Failed to upload payment screenshot. Please try again.';
