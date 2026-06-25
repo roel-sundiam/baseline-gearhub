@@ -27,8 +27,13 @@ export class SwUpdateService {
         });
       });
 
-      // Poll for updates every hour so long-running tabs are notified
-      setInterval(() => reg.update(), 60 * 60 * 1000);
+      // Check for updates when user returns to the tab
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update();
+      });
+
+      // Poll every 5 minutes for long-running open tabs
+      setInterval(() => reg.update(), 5 * 60 * 1000);
     });
 
     // New SW activated after skipWaiting → reload to apply update

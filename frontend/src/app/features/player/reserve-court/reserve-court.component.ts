@@ -9,7 +9,7 @@ import { RatesService } from '../../../core/services/rates.service';
 import { SoundService } from '../../../core/services/sound.service';
 import { ClubService, AdditionalFee } from '../../../core/services/club.service';
 
-const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm']);
+const LIGHT_SLOTS = new Set(['5am','5pm','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
 
 function slotToHour(slot: string): number {
   const m = slot.match(/^(\d+)(am|pm)$/);
@@ -204,16 +204,6 @@ interface ActivePlayer { _id: string; name: string; email: string; }
           }
         </div>
 
-        <!-- Lights -->
-        <div class="dm-section">
-          <div class="dm-section-label">Lights</div>
-          <label class="dm-toggle-row">
-            <input type="checkbox" class="dm-toggle-input" [(ngModel)]="lightsRequested" />
-            <span class="dm-toggle-track"><span class="dm-toggle-thumb"></span></span>
-            <span class="dm-toggle-label">{{ lightsRequested ? '💡 Lights on' : '🌙 No lights' }}</span>
-          </label>
-        </div>
-
         <!-- Holiday -->
         @if (holidayRate > 0) {
           <div class="dm-section">
@@ -380,8 +370,8 @@ interface ActivePlayer { _id: string; name: string; email: string; }
             </div>
             @if (lightsRequested) {
               <div class="dm-summary-row">
-                <span>Lights Fee{{ selectedDuration > 1 ? ' × ' + selectedDuration : '' }}</span>
-                <strong>@if (loadingRates) { — } @else { {{ lightsRate * selectedDuration | currency: 'PHP' : 'symbol' }} }</strong>
+                <span>💡 Lights Fee{{ lightHours > 1 ? ' × ' + lightHours + ' hrs' : '' }}</span>
+                <strong>@if (loadingRates) { — } @else { {{ lightsRate * lightHours | currency: 'PHP' : 'symbol' }} }</strong>
               </div>
             }
             @if (ballBoyRequested) {
@@ -1110,7 +1100,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   rentalBalls100 = 0;
   rentalBallMachine = false;
   rentalRackets = 0;
-  lightsRequested = false;
+
   ballBoyRequested = false;
   isHoliday = false;
   guestCount = 0;
@@ -1129,6 +1119,19 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   get courtNumbers(): number[] { return Array.from({ length: this.courtCount }, (_, i) => i + 1); }
 
   get hasLights(): boolean { return LIGHT_SLOTS.has(this.selectedSlot); }
+
+  get lightHours(): number {
+    if (!this.selectedSlot) return 0;
+    const startHour = slotToHour(this.selectedSlot);
+    const endHour = startHour + this.selectedDuration;
+    let count = 0;
+    for (let h = startHour; h < endHour; h++) {
+      if (this.lightSlots.has(hourToSlot(h))) count++;
+    }
+    return count;
+  }
+
+  get lightsRequested(): boolean { return this.lightHours > 0; }
 
   get hasAnyRental(): boolean {
     return this.rentalBalls50Rate > 0 || this.rentalBalls100Rate > 0
@@ -1155,7 +1158,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     return this.baseHourlyRate * this.selectedDuration;
   }
 
-  get lightsFee(): number { return this.lightsRequested ? this.lightsRate * this.selectedDuration : 0; }
+  get lightsFee(): number { return this.lightHours * this.lightsRate; }
 
   get chargeableGuests(): number { return Math.max(0, this.guestCount - this.guestFeeThreshold); }
   get totalGuestFee(): number { return this.chargeableGuests * this.guestFeeRate; }
@@ -1484,7 +1487,6 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
         this.selectedDuration = 1;
         this.availableDurations = [];
         this.addedPlayers = [];
-        this.lightsRequested = false;
         this.ballBoyRequested = false;
         this.isHoliday = false;
         this.guestCount = 0;

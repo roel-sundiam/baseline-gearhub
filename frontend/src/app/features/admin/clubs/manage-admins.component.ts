@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { UsersService } from '../../../core/services/users.service';
 import { ClubService, Club } from '../../../core/services/club.service';
+import { AdminChatModalComponent } from '../../../shared/components/admin-chat-modal/admin-chat-modal.component';
 
 interface AdminUser {
   _id: string;
@@ -19,7 +20,7 @@ interface AdminUser {
 @Component({
   selector: 'app-manage-admins',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, AdminChatModalComponent],
   template: `
     <div class="page-header">
       <h2>Club Admins</h2>
@@ -122,6 +123,7 @@ interface AdminUser {
               <th>Club</th>
               <th>Role</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -132,11 +134,26 @@ interface AdminUser {
                 <td>{{ getClubName(user.clubId) }}</td>
                 <td><span class="badge" [class.badge-super]="user.role === 'superadmin'">{{ user.role }}</span></td>
                 <td><span class="badge badge-active">{{ user.status }}</span></td>
+                <td>
+                  @if (user.role !== 'superadmin') {
+                    <button class="btn-message" (click)="openChat(user)">
+                      <i class="fas fa-comment-dots"></i> Message
+                    </button>
+                  }
+                </td>
               </tr>
             }
           </tbody>
         </table>
       </div>
+    }
+
+    @if (chatTarget) {
+      <app-admin-chat-modal
+        [recipientId]="chatTarget._id"
+        [recipientName]="chatTarget.name"
+        (closed)="chatTarget = null"
+      />
     }
   `,
   styles: [`
@@ -180,6 +197,12 @@ interface AdminUser {
     .badge { padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: #e5e7eb; color: #374151; }
     .badge-super { background: #fef3c7; color: #92400e; }
     .badge-active { background: #d1fae5; color: #065f46; }
+    .btn-message {
+      background: none; border: 1px solid #9f7338; color: #9f7338;
+      padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.8rem;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem;
+    }
+    .btn-message:hover { background: #9f7338; color: #fff; }
     @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
   `],
 })
@@ -195,6 +218,7 @@ export class ManageAdminsComponent implements OnInit {
   formError = '';
   formSuccess = '';
   filterClubId = '';
+  chatTarget: AdminUser | null = null;
 
   form = { name: '', username: '', password: this.DEFAULT_ADMIN_PASSWORD, email: '', clubId: '' };
 
@@ -272,5 +296,9 @@ export class ManageAdminsComponent implements OnInit {
     if (typeof clubId === 'object' && clubId.name) return clubId.name;
     const found = this.clubs.find(c => c._id === clubId);
     return found?.name ?? '—';
+  }
+
+  openChat(user: AdminUser) {
+    this.chatTarget = user;
   }
 }

@@ -7,12 +7,15 @@ import { ReservationService, Reservation, ReservationPlayer, AvailabilityResult 
 import { ClubService } from '../../../core/services/club.service';
 import { TournamentService, Tournament } from '../../../core/services/tournament.service';
 import { NewsService, ClubNews } from '../../../core/services/news.service';
+import { AdminMessagesService } from '../../../core/services/admin-messages.service';
+import { AdminChatModalComponent } from '../../../shared/components/admin-chat-modal/admin-chat-modal.component';
+import { SoundService } from '../../../core/services/sound.service';
 import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'app-player-dashboard',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, AdminChatModalComponent],
   template: `
     <div class="dm-shell">
 
@@ -355,6 +358,28 @@ import { forkJoin } from 'rxjs';
           <span>Profile</span>
         </button>
       </nav>
+
+      <!-- Floating support chat (club admins only) -->
+      @if (auth.isAdmin() && !auth.isSuperAdmin()) {
+        <button class="dm-chat-fab" (click)="toggleSupportChat()" [title]="supportChatOpen ? 'Close chat' : 'Message support'">
+          @if (supportChatOpen) {
+            <i class="fas fa-times"></i>
+          } @else {
+            <i class="fas fa-comments"></i>
+            @if (messageUnreadCount > 0) {
+              <span class="dm-chat-badge">{{ messageUnreadCount }}</span>
+            }
+          }
+        </button>
+
+        @if (supportChatOpen) {
+          <app-admin-chat-modal
+            [recipientId]="supportContactId"
+            [recipientName]="supportContactName"
+            (closed)="closeSupportChat()"
+          />
+        }
+      }
 
     </div>
   `,
@@ -887,6 +912,48 @@ import { forkJoin } from 'rxjs';
     .av-open { color:#4ade80; }
     .av-icon { font-size:0.75rem; line-height:1; }
     .av-status-text { font-size:0.58rem; }
+
+    /* ── Support chat FAB ── */
+    .dm-chat-fab {
+      position: fixed;
+      bottom: 76px;
+      right: 16px;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: #9f7338;
+      color: #fff;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+      z-index: 200;
+      transition: background 0.18s, transform 0.18s;
+    }
+    .dm-chat-fab:hover { background: #7d5a2a; transform: scale(1.07); }
+    .dm-chat-badge {
+      position: absolute;
+      top: -3px;
+      right: -3px;
+      background: #ef4444;
+      color: #fff;
+      font-size: 0.62rem;
+      font-weight: 700;
+      min-width: 17px;
+      height: 17px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 3px;
+      border: 2px solid #0c1a11;
+    }
+    @media (min-width: 769px) {
+      .dm-chat-fab { bottom: 24px; right: 24px; }
+    }
   `],
 })
 export class PlayerDashboardComponent implements OnInit, OnDestroy {
@@ -1016,6 +1083,13 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     return this.pendingByCourtMap.get(court)?.has(slot) ?? false;
   }
 
+  // ── Support chat FAB ──
+  supportChatOpen = false;
+  supportContactId = '';
+  supportContactName = 'CourtGo Support';
+  messageUnreadCount = 0;
+  private msgPollInterval: ReturnType<typeof setInterval> | null = null;
+
   constructor(
     public auth: AuthService,
     private chargesService: ChargesService,
@@ -1026,11 +1100,31 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private router: Router,
     private renderer: Renderer2,
+    private adminMessages: AdminMessagesService,
+    private sound: SoundService,
   ) {}
 
   ngOnInit() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
+
+    if (this.auth.isAdmin() && !this.auth.isSuperAdmin()) {
+      this.adminMessages.getUnreadCount().subscribe({
+        next: ({ count }) => { this.messageUnreadCount = count; this.cdr.detectChanges(); },
+        error: () => {},
+      });
+      this.msgPollInterval = setInterval(() => {
+        if (this.supportChatOpen) return;
+        this.adminMessages.getUnreadCount().subscribe({
+          next: ({ count }) => {
+            if (count > this.messageUnreadCount) this.sound.notification();
+            this.messageUnreadCount = count;
+            this.cdr.detectChanges();
+          },
+          error: () => {},
+        });
+      }, 20_000);
+    }
 
     this.chargesService.getMyCharges().subscribe({
       next: (charges) => {
@@ -1102,6 +1196,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.renderer.removeClass(document.documentElement, 'dark-player-page');
     this.renderer.removeClass(document.body, 'dark-player-page');
+    if (this.msgPollInterval) clearInterval(this.msgPollInterval);
   }
 
   copyPublicLink() {
@@ -1146,5 +1241,34 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
 
   isPlayerObject(player: string | ReservationPlayer | any): player is ReservationPlayer {
     return player && typeof player === 'object' && 'name' in player;
+  }
+
+  toggleSupportChat() {
+    if (this.supportChatOpen) {
+      this.closeSupportChat();
+      return;
+    }
+    if (this.supportContactId) {
+      this.supportChatOpen = true;
+      this.cdr.detectChanges();
+      return;
+    }
+    this.adminMessages.getSupportContact().subscribe({
+      next: (contact) => {
+        this.supportContactId = contact._id;
+        this.supportContactName = contact.name;
+        this.supportChatOpen = true;
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
+  }
+
+  closeSupportChat() {
+    this.supportChatOpen = false;
+    this.adminMessages.getUnreadCount().subscribe({
+      next: ({ count }) => { this.messageUnreadCount = count; this.cdr.detectChanges(); },
+      error: () => {},
+    });
   }
 }

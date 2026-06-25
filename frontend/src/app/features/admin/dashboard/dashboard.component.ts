@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef, ElementRef, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -9,12 +9,15 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ClubService, Club } from '../../../core/services/club.service';
 import { PublicBookingService } from '../../../core/services/public-booking.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
+import { AdminMessagesService } from '../../../core/services/admin-messages.service';
+import { AdminChatModalComponent } from '../../../shared/components/admin-chat-modal/admin-chat-modal.component';
+import { SoundService } from '../../../core/services/sound.service';
 import { forkJoin, timeout, of, catchError } from 'rxjs';
 
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, AdminChatModalComponent],
   template: `
     <section class="dashboard-shell">
       <header class="hero-panel">
@@ -155,6 +158,16 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
                 <span class="action-title">Reservations Report</span>
                 <span class="action-sub">All reservations with status — superadmin view</span>
               </a>
+              <a routerLink="/admin/admins" class="action-card">
+                <span class="action-icon" style="position:relative;display:inline-block;">
+                  <i class="fas fa-user-shield"></i>
+                  @if (messageUnreadCount > 0) {
+                    <span class="msg-badge">{{ messageUnreadCount }}</span>
+                  }
+                </span>
+                <span class="action-title">Club Admins</span>
+                <span class="action-sub">Manage admin accounts and send messages</span>
+              </a>
             }
             <a routerLink="/admin/rates" class="action-card">
               <span class="action-icon"><i class="fas fa-money-bill-wave"></i></span>
@@ -178,27 +191,41 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
               <span class="action-title">Inquiries</span>
               <span class="action-sub">View and reply to guest messages</span>
             </a>
+            @if (!authService.isSuperAdmin()) {
+              <button class="action-card action-card--btn" (click)="openSupportChat()">
+                <span class="action-icon" style="position:relative;display:inline-block;">
+                  <i class="fas fa-comments"></i>
+                  @if (messageUnreadCount > 0) {
+                    <span class="msg-badge">{{ messageUnreadCount }}</span>
+                  }
+                </span>
+                <span class="action-title">Messages</span>
+                <span class="action-sub">Chat with CourtGo support</span>
+              </button>
+            }
             <a routerLink="/admin/open-play" class="action-card">
               <span class="action-icon"><i class="fas fa-table-tennis-paddle-ball"></i></span>
               <span class="action-title">Open Play</span>
               <span class="action-sub">Run skill-balanced sessions and track CRI ratings</span>
             </a>
-            <a routerLink="/features" target="_blank" class="action-card action-card--features">
-              <span class="action-icon"><i class="fas fa-star"></i></span>
-              <span class="action-title" style="display:flex;align-items:center;gap:4px;">
-                Features Page
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="opacity:0.55"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-              </span>
-              <span class="action-sub">Public showcase — share with new clubs &amp; players</span>
-            </a>
-            <a href="/video/courtgo-features.mp4" target="_blank" class="action-card">
-              <span class="action-icon"><i class="fas fa-film"></i></span>
-              <span class="action-title" style="display:flex;align-items:center;gap:4px;">
-                Feature Video
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="opacity:0.55"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-              </span>
-              <span class="action-sub">Animated walkthrough video — share or download</span>
-            </a>
+            @if (authService.isSuperAdmin()) {
+              <a routerLink="/features" target="_blank" class="action-card action-card--features">
+                <span class="action-icon"><i class="fas fa-star"></i></span>
+                <span class="action-title" style="display:flex;align-items:center;gap:4px;">
+                  Features Page
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="opacity:0.55"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </span>
+                <span class="action-sub">Public showcase — share with new clubs &amp; players</span>
+              </a>
+              <a href="/video/courtgo-features.mp4" target="_blank" class="action-card">
+                <span class="action-icon"><i class="fas fa-film"></i></span>
+                <span class="action-title" style="display:flex;align-items:center;gap:4px;">
+                  Feature Video
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="opacity:0.55"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </span>
+                <span class="action-sub">Animated walkthrough video — share or download</span>
+              </a>
+            }
           </div>
         </section>
 
@@ -317,6 +344,14 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         </section>
       }
     </section>
+
+    @if (supportChatOpen) {
+      <app-admin-chat-modal
+        [recipientId]="supportContactId"
+        [recipientName]="supportContactName"
+        (closed)="closeSupportChat()"
+      />
+    }
   `,
   styles: [
     `
@@ -724,6 +759,29 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         border-color: rgba(163,230,53,0.28);
       }
 
+      .action-card--btn {
+        cursor: pointer;
+        text-align: left;
+        font-family: inherit;
+      }
+
+      .msg-badge {
+        position: absolute;
+        top: -5px;
+        right: -6px;
+        background: #ef4444;
+        color: #fff;
+        font-size: 0.65rem;
+        font-weight: 700;
+        min-width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 3px;
+      }
+
       .action-icon {
         width: 32px;
         height: 32px;
@@ -926,7 +984,7 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
     `,
   ],
 })
-export class AdminDashboardComponent implements OnInit {
+export class AdminDashboardComponent implements OnInit, OnDestroy {
   loading = true;
   errorMsg = '';
   pendingCount = 0;
@@ -947,6 +1005,13 @@ export class AdminDashboardComponent implements OnInit {
   capturingPoster = false;
   posterCopied = false;
 
+  // ── Support chat (club admin only) ──
+  messageUnreadCount = 0;
+  supportChatOpen = false;
+  supportContactId = '';
+  supportContactName = 'CourtGo Support';
+  private msgPollInterval: ReturnType<typeof setInterval> | null = null;
+
   constructor(
     private usersService: UsersService,
     private sessionsService: SessionsService,
@@ -956,6 +1021,8 @@ export class AdminDashboardComponent implements OnInit {
     private clubService: ClubService,
     private publicBooking: PublicBookingService,
     private cloudinary: CloudinaryService,
+    private adminMessages: AdminMessagesService,
+    private sound: SoundService,
   ) {}
 
   ngOnInit() {
@@ -967,6 +1034,22 @@ export class AdminDashboardComponent implements OnInit {
         next: (c) => { this.club = c; this.loadPosterSlots(); this.cdr.detectChanges(); },
       });
     }
+
+    this.adminMessages.getUnreadCount().subscribe({
+      next: ({ count }) => { this.messageUnreadCount = count; this.cdr.detectChanges(); },
+      error: () => {},
+    });
+    this.msgPollInterval = setInterval(() => {
+      if (this.supportChatOpen) return;
+      this.adminMessages.getUnreadCount().subscribe({
+        next: ({ count }) => {
+          if (count > this.messageUnreadCount) this.sound.notification();
+          this.messageUnreadCount = count;
+          this.cdr.detectChanges();
+        },
+        error: () => {},
+      });
+    }, 20_000);
 
     console.log('Dashboard ngOnInit — starting API calls');
 
@@ -1220,6 +1303,34 @@ export class AdminDashboardComponent implements OnInit {
       letterSpacing: '1px',
       flexShrink: '0',
     };
+  }
+
+  ngOnDestroy() {
+    if (this.msgPollInterval) clearInterval(this.msgPollInterval);
+  }
+
+  openSupportChat() {
+    if (this.supportContactId) {
+      this.supportChatOpen = true;
+      return;
+    }
+    this.adminMessages.getSupportContact().subscribe({
+      next: (contact) => {
+        this.supportContactId = contact._id;
+        this.supportContactName = contact.name;
+        this.supportChatOpen = true;
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
+  }
+
+  closeSupportChat() {
+    this.supportChatOpen = false;
+    this.adminMessages.getUnreadCount().subscribe({
+      next: ({ count }) => { this.messageUnreadCount = count; this.cdr.detectChanges(); },
+      error: () => {},
+    });
   }
 }
 

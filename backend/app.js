@@ -44,6 +44,7 @@ const inquiriesRoutes = require("./routes/inquiries.routes");
 const pushRoutes = require("./routes/push.routes");
 const openPlayRoutes = require("./routes/open-play.routes");
 const notificationsRoutes = require("./routes/notifications.routes");
+const adminMessagesRoutes = require("./routes/admin-messages.routes");
 
 const app = express();
 
@@ -150,5 +151,6 @@ app.use("/api/inquiries", inquiriesRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/open-play", openPlayRoutes);
 app.use("/api/notifications", notificationsRoutes);
+app.use("/api/admin-messages", adminMessagesRoutes);
 
 module.exports = app;

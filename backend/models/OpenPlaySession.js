@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 
 const openPlaySessionSchema = new mongoose.Schema(
   {
@@ -13,6 +14,12 @@ const openPlaySessionSchema = new mongoose.Schema(
     matchType: { type: String, enum: ["doubles", "singles"], default: "doubles" },
     courts: [{ type: Number }],
     status: { type: String, enum: ["open", "in_progress", "completed", "cancelled"], default: "open" },
+    publicToken: {
+      type: String,
+      unique: true,
+      sparse: true,
+      default: () => crypto.randomBytes(20).toString("hex"),
+    },
   },
   { timestamps: true },
 );
