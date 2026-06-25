@@ -16,8 +16,11 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       Charge.aggregate([
         { $match: { chargeType: "reservation" } },
         { $lookup: { from: "reservations", localField: "reservationId", foreignField: "_id", as: "reservation" } },
-        { $unwind: "$reservation" },
-        { $match: { "reservation.status": "confirmed" } },
+        { $unwind: { path: "$reservation", preserveNullAndEmptyArrays: true } },
+        { $match: { $or: [
+          { "reservation.status": "confirmed" },
+          { "reservation": { $exists: false }, approvalStatus: "approved" },
+        ]}},
         {
           $group: {
             _id: "$clubId",

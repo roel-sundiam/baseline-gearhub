@@ -972,7 +972,12 @@ export class AdminReservationsComponent implements OnInit {
         this.cdr.detectChanges();
         this.reservationService.delete(r._id).subscribe({
           next: () => { this.acting = ''; this.load(); },
-          error: () => { this.acting = ''; this.cdr.detectChanges(); },
+          error: (err) => {
+            this.acting = '';
+            const msg = err?.error?.error ?? 'Failed to delete reservation.';
+            this.confirmModal = { title: 'Cannot Delete', message: msg, confirmLabel: 'OK', danger: false, onConfirm: () => { this.confirmModal = null; this.cdr.detectChanges(); } };
+            this.cdr.detectChanges();
+          },
         });
       },
     };

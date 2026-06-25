@@ -593,8 +593,16 @@ router.patch("/:id/cancel", auth, async (req, res) => {
 // DELETE /api/reservations/:id — hard delete (admin)
 router.delete("/:id", auth, admin, async (req, res) => {
   try {
-    const reservation = await Reservation.findByIdAndDelete(req.params.id);
+    const reservation = await Reservation.findById(req.params.id);
     if (!reservation) return res.status(404).json({ error: "Reservation not found" });
+
+    const approvedCharge = await Charge.findOne({ reservationId: reservation._id, approvalStatus: "approved" });
+    if (approvedCharge) {
+      return res.status(400).json({ error: "Cannot delete a reservation with an approved payment. Cancel it instead." });
+    }
+
+    await Charge.deleteMany({ reservationId: reservation._id });
+    await Reservation.findByIdAndDelete(req.params.id);
     res.json({ message: "Deleted" });
   } catch (err) {
     console.error(err);

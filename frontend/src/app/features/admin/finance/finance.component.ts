@@ -998,7 +998,8 @@ export class FinanceComponent implements OnInit {
       next: ({ charges, allCharges, payments, feeInfo }) => {
         this.charges = charges.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
         this.allReservationCharges = allCharges
-          .filter(c => c.chargeType === 'reservation' && c.reservationId?.status === 'confirmed')
+          .filter(c => c.chargeType === 'reservation' &&
+            (c.reservationId?.status === 'confirmed' || (c.approvalStatus === 'approved' && !c.reservationId)))
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         this.allOpenPlayCharges = allCharges
           .filter(c => c.chargeType === 'open_play_session')
