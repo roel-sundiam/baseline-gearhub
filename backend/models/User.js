@@ -27,6 +27,7 @@ const userSchema = new mongoose.Schema(
     gender: { type: String, enum: ["Male", "Female"] },
     profileImage: { type: String, default: null },
     clubId: { type: mongoose.Schema.Types.ObjectId, ref: "Club" },
+    termsAcceptedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

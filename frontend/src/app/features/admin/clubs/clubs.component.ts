@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -11,6 +11,9 @@ import { AppServicePaymentsService, AppServicePayment } from '../../../core/serv
 import { AuthService } from '../../../core/services/auth.service';
 import { InquiriesService, Inquiry } from '../../../core/services/inquiries.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { AdminMessagesService } from '../../../core/services/admin-messages.service';
+import { AdminChatModalComponent } from '../../../shared/components/admin-chat-modal/admin-chat-modal.component';
+import { SoundService } from '../../../core/services/sound.service';
 
 interface AdminUser {
   _id: string;
@@ -27,7 +30,7 @@ interface AdminUser {
 @Component({
   selector: 'app-admin-clubs',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, AdminChatModalComponent],
   template: `
     <div class="clubs-page">
 
@@ -219,11 +222,26 @@ interface AdminUser {
                     <i class="fas fa-ban"></i> Suspended
                   </span>
                 }
+                @if (club.adminTermsAccepted) {
+                  <span class="pill pill-terms-ok">
+                    <i class="fas fa-file-contract"></i> T&amp;C Accepted
+                  </span>
+                } @else {
+                  <span class="pill pill-terms-pending">
+                    <i class="fas fa-file-circle-exclamation"></i> T&amp;C Pending
+                  </span>
+                }
               </div>
 
               <div class="club-actions">
                 <button type="button" class="btn btn-sm btn-primary" (click)="$event.stopPropagation(); selectClub(club)">
                   <i class="fas fa-user-cog"></i> Admins
+                </button>
+                <button type="button" class="btn btn-sm btn-message" (click)="$event.stopPropagation(); messageClubAdmin(club)" style="position:relative;">
+                  <i class="fas fa-comment-dots"></i> Message
+                  @if (getClubUnread(club) > 0) {
+                    <span class="msg-badge" style="position:absolute;top:-6px;right:-6px;background:#dc2626;color:#fff;font-size:0.65rem;font-weight:700;min-width:16px;height:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 3px;pointer-events:none;">{{ getClubUnread(club) }}</span>
+                  }
                 </button>
                 <a [routerLink]="['/admin/clubs', club._id, 'edit']" class="btn btn-sm btn-outline" (click)="$event.stopPropagation()">
                   <i class="fas fa-pen"></i> Edit
@@ -945,6 +963,14 @@ interface AdminUser {
         </div>
       </div>
     }
+
+    @if (chatTarget) {
+      <app-admin-chat-modal
+        [recipientId]="chatTarget._id"
+        [recipientName]="chatTarget.name"
+        (closed)="chatTarget = null"
+      />
+    }
   `,
   styles: [`
     :host {
@@ -1102,6 +1128,13 @@ interface AdminUser {
       border-color: rgba(20,184,166,0.3);
     }
     .btn-teal:hover:not(:disabled) { background: rgba(20,184,166,0.18); transform: translateY(-1px); }
+
+    .btn-message {
+      background: rgba(159,115,56,0.08);
+      color: #9f7338;
+      border-color: rgba(159,115,56,0.3);
+    }
+    .btn-message:hover:not(:disabled) { background: #9f7338; color: #fff; transform: translateY(-1px); }
 
     .btn-danger {
       background: #fff3f3;
@@ -1394,6 +1427,19 @@ interface AdminUser {
       font-weight: 700;
     }
     .pill-suspended i { color: #ea580c; }
+
+    .pill-terms-ok {
+      background: rgba(34,197,94,0.15);
+      border: 1px solid rgba(34,197,94,0.25);
+      color: #4ade80;
+      font-weight: 600;
+    }
+    .pill-terms-pending {
+      background: rgba(234,179,8,0.15);
+      border: 1px solid rgba(234,179,8,0.25);
+      color: #facc15;
+      font-weight: 600;
+    }
 
     /* Club actions */
     .club-actions {
@@ -2651,7 +2697,7 @@ interface AdminUser {
     }
   `],
 })
-export class AdminClubsComponent implements OnInit {
+export class AdminClubsComponent implements OnInit, OnDestroy {
   clubs: Club[] = [];
   selectedClub: Club | null = null;
   clubListTab: 'active' | 'suspended' = 'active';
@@ -2778,6 +2824,14 @@ export class AdminClubsComponent implements OnInit {
   mirroringUserId: string | null = null;
   dbStatus = signal<{ db: string; dbHost: string } | null>(null);
 
+  chatTarget: AdminUser | null = null;
+
+  // ── Message unread tracking ──
+  messageUnreadCount = 0;
+  threadUnreadMap: Record<string, number> = {};  // userId → unread count
+  clubAdminMap: Record<string, string> = {};     // clubId → primary admin userId
+  private msgPollInterval: ReturnType<typeof setInterval> | null = null;
+
   constructor(
     private clubService: ClubService,
     private usersService: UsersService,
@@ -2789,6 +2843,8 @@ export class AdminClubsComponent implements OnInit {
     private cdr: ChangeDetectorRef,
     readonly notifService: NotificationService,
     private http: HttpClient,
+    private adminMessages: AdminMessagesService,
+    private sound: SoundService,
   ) {}
 
   loginAs(user: AdminUser): void {
@@ -2811,6 +2867,52 @@ export class AdminClubsComponent implements OnInit {
       next: (res) => this.dbStatus.set(res),
       error: () => {},
     });
+    this.loadMessageData();
+    this.msgPollInterval = setInterval(() => {
+      if (this.chatTarget) return;
+      this.loadMessageData(true);
+    }, 20_000);
+  }
+
+  ngOnDestroy() {
+    if (this.msgPollInterval) clearInterval(this.msgPollInterval);
+  }
+
+  private loadMessageData(playSound = false) {
+    this.usersService.getAdmins().subscribe({
+      next: (admins) => {
+        const map: Record<string, string> = {};
+        for (const admin of admins) {
+          if (admin.role === 'admin' && admin.clubId) {
+            const clubId = typeof admin.clubId === 'object' ? (admin.clubId as any)._id : admin.clubId;
+            if (clubId) map[clubId] = admin._id;
+          }
+        }
+        this.clubAdminMap = map;
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
+    this.adminMessages.getThreads().subscribe({
+      next: (threads) => {
+        const map: Record<string, number> = {};
+        let total = 0;
+        for (const t of threads) {
+          map[t.user._id] = t.unreadCount;
+          total += t.unreadCount;
+        }
+        if (playSound && total > this.messageUnreadCount) this.sound.notification();
+        this.messageUnreadCount = total;
+        this.threadUnreadMap = map;
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
+  }
+
+  getClubUnread(club: Club): number {
+    const adminId = this.clubAdminMap[club._id];
+    return adminId ? (this.threadUnreadMap[adminId] ?? 0) : 0;
   }
 
   // ── Club loading ──
@@ -3176,5 +3278,15 @@ export class AdminClubsComponent implements OnInit {
   isNewClub(club: Club): boolean {
     if (!club.createdAt) return false;
     return Date.now() - new Date(club.createdAt).getTime() < 24 * 60 * 60 * 1000;
+  }
+
+  messageClubAdmin(club: Club) {
+    this.usersService.getAdmins(club._id).subscribe({
+      next: (admins) => {
+        const admin = admins.find(a => a.role === 'admin');
+        if (admin) { this.chatTarget = admin; this.cdr.detectChanges(); }
+      },
+      error: () => {},
+    });
   }
 }

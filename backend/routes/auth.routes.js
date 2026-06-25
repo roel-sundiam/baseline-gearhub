@@ -158,8 +158,20 @@ router.post("/login", async (req, res) => {
         role: user.role,
         profileImage: user.profileImage || null,
         clubId: user.clubId,
+        termsAccepted: !!user.termsAcceptedAt,
       },
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/auth/accept-terms
+router.post("/accept-terms", authMiddleware, async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user.userId, { termsAcceptedAt: new Date() });
+    res.json({ message: "Terms accepted" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

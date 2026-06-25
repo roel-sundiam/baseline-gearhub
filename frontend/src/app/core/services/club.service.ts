@@ -38,6 +38,7 @@ export interface Club {
   rating?: number;
   reviewCount?: number;
   totalBookings?: number;
+  adminTermsAccepted?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

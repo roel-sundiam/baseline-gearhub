@@ -3,6 +3,7 @@ const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
 const superadmin = require("../middleware/superadmin");
 const Club = require("../models/Club");
+const User = require("../models/User");
 
 const router = express.Router();
 
@@ -10,7 +11,13 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const clubs = await Club.find().sort({ name: 1 }).lean();
-    res.json(clubs);
+    const admins = await User.find(
+      { role: "admin", clubId: { $in: clubs.map((c) => c._id) } },
+      "clubId termsAcceptedAt",
+    ).lean();
+    const termsMap = {};
+    admins.forEach((a) => { termsMap[a.clubId.toString()] = !!a.termsAcceptedAt; });
+    res.json(clubs.map((c) => ({ ...c, adminTermsAccepted: termsMap[c._id.toString()] ?? false })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

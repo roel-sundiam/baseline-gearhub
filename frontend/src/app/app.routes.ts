@@ -2,6 +2,7 @@ import { inject } from '@angular/core';
 import { Routes, Router } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
+import { termsGuard } from './core/guards/terms.guard';
 
 export const routes: Routes = [
   {
@@ -36,8 +37,16 @@ export const routes: Routes = [
       import('./features/auth/register-club/register-club.component').then((m) => m.RegisterClubComponent),
   },
   {
-    path: 'admin',
+    path: 'admin/accept-terms',
     canActivate: [authGuard, adminGuard],
+    loadComponent: () =>
+      import('./features/auth/accept-terms/accept-terms.component').then(
+        (m) => m.AcceptTermsComponent,
+      ),
+  },
+  {
+    path: 'admin',
+    canActivate: [authGuard, adminGuard, termsGuard],
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       {

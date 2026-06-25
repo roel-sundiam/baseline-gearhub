@@ -274,6 +274,10 @@ export class LoginComponent {
           this.router.navigate(['/admin/clubs']);
           return;
         }
+        if (role === 'admin') {
+          this.router.navigate(['/admin/dashboard']);
+          return;
+        }
         this.router.navigate(['/player/dashboard']);
       },
       error: (err) => {

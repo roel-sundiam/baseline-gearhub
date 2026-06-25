@@ -12,6 +12,7 @@ export interface AuthUser {
   role: 'admin' | 'player' | 'superadmin';
   profileImage?: string | null;
   clubId?: string;
+  termsAccepted?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -31,6 +32,9 @@ export class AuthService {
     () => this._user()?.role === 'admin' || this._user()?.role === 'superadmin',
   );
   readonly isSuperAdmin = computed(() => this._user()?.role === 'superadmin');
+  readonly needsTermsAcceptance = computed(
+    () => this._user()?.role === 'admin' && !this._user()?.termsAccepted,
+  );
 
   private _isImpersonating = signal<boolean>(!!localStorage.getItem('pv_tennis_superadmin_backup_token'));
   readonly isImpersonating = this._isImpersonating.asReadonly();
@@ -88,6 +92,21 @@ export class AuthService {
           this._user.set(res.user);
         }),
       );
+  }
+
+  acceptTerms() {
+    return this.http.post<{ message: string }>(`${environment.apiUrl}/auth/accept-terms`, {}).pipe(
+      tap(() => {
+        const u = this._user();
+        if (u) {
+          const updated = { ...u, termsAccepted: true };
+          try {
+            localStorage.setItem(this.USER_KEY, JSON.stringify(updated));
+          } catch {}
+          this._user.set(updated);
+        }
+      }),
+    );
   }
 
   logout() {
