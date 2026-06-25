@@ -227,6 +227,7 @@ router.get("/:clubId", async (req, res) => {
       convenienceFeeRate: typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.05,
       convenienceFeeMode: club.convenienceFeeMode ?? 'per_hour',
       additionalFees: (club.additionalFees ?? []).filter(f => f.isEnabled),
+      requirePaymentScreenshot: club.requirePaymentScreenshot ?? false,
       mobile: club.mobile,
       email: club.email,
       description: club.description,
@@ -396,6 +397,7 @@ router.post("/:clubId/reserve", async (req, res) => {
       bookingType = 'standard',
       coachingRequested = false,
       coachingPax = 0,
+      paymentScreenshot = null,
     } = req.body;
     const durationHours = Math.max(1, Math.min(12, Math.floor(Number(req.body.durationHours) || 1)));
 
@@ -605,6 +607,7 @@ router.post("/:clubId/reserve", async (req, res) => {
       chargeType: "reservation",
       approvalStatus: "pending",
       paymentMethod: autoPaymentMethod,
+      paymentScreenshot: typeof paymentScreenshot === 'string' && paymentScreenshot.startsWith('https://') ? paymentScreenshot : null,
     });
 
     Club.findByIdAndUpdate(club._id, { $inc: { totalBookings: 1 } }).catch(() => {});

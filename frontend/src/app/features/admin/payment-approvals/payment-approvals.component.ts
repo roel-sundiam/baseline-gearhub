@@ -218,6 +218,11 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
 
                   <!-- Actions -->
                   <div class="pa-card-right">
+                    @if (charge.paymentScreenshot) {
+                      <a class="pa-btn-screenshot" [href]="charge.paymentScreenshot" target="_blank" rel="noopener noreferrer">
+                        <i class="fas fa-image"></i> View Screenshot
+                      </a>
+                    }
                     @if (charge.approvalStatus === 'pending') {
                       <div class="pa-action-btns">
                         <button class="pa-btn-approve"
@@ -597,6 +602,27 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
       border-color: rgba(239,68,68,0.45);
     }
     .pa-btn-reject:disabled { opacity: 0.5; cursor: not-allowed; }
+    .pa-btn-screenshot {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.48rem 0.9rem;
+      background: rgba(99,179,237,0.1);
+      color: #63b3ed;
+      border: 1px solid rgba(99,179,237,0.3);
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-decoration: none;
+      width: 100%;
+      margin-bottom: 0.4rem;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .pa-btn-screenshot:hover {
+      background: rgba(99,179,237,0.2);
+      border-color: rgba(99,179,237,0.5);
+    }
 
     /* Fee breakdown */
     .pa-breakdown {

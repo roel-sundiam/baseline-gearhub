@@ -49,6 +49,7 @@ export interface GuestBookingPayload {
   bookingType?: 'standard' | 'exclusive_event';
   coachingRequested?: boolean;
   coachingPax?: number;
+  paymentScreenshot?: string;
 }
 
 export interface GuestBookingResult {
@@ -84,6 +85,7 @@ export class PublicBookingService {
       paymentMethods?: string[]; paymentAccounts?: Record<string, string>; paymentQrCodes?: Record<string, string>;
       convenienceFeeRate?: number; convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat';
       additionalFees?: { name: string; amount: number; type: 'fixed' | 'per_person'; isEnabled: boolean; isOptional: boolean }[];
+      requirePaymentScreenshot?: boolean;
       mobile?: string; email?: string;
       description?: string; photos?: string[];
       socialLinks?: { facebook?: string; instagram?: string; reclub?: string };

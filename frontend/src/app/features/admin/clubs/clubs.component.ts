@@ -666,6 +666,35 @@ interface AdminUser {
 
             <!-- ── EXTRA FEES TAB ── -->
             @if (activeTab === 'extrafees' && auth.isSuperAdmin()) {
+              <!-- Payment Settings card -->
+              <div class="list-card" style="margin-bottom:12px">
+                <div class="cfs-card">
+                  <div class="cfs-header">
+                    <div class="cfs-header-left">
+                      <span class="cfs-icon"><i class="fas fa-camera"></i></span>
+                      <div>
+                        <div class="cfs-title">Payment Settings</div>
+                        <div class="cfs-subtitle">Control whether guests must upload a payment screenshot</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="cfs-body">
+                    <label class="xfee-toggle-label" style="font-size:0.95rem;gap:10px">
+                      <input type="checkbox" [(ngModel)]="requireScreenshot" />
+                      Require payment screenshot from guests
+                    </label>
+                    <div class="cfs-actions" style="margin-top:12px">
+                      <button type="button" class="btn-primary" (click)="saveScreenshotSetting()" [disabled]="savingScreenshotSetting">
+                        @if (savingScreenshotSetting) { <i class="fas fa-circle-notch fa-spin"></i> } Save
+                      </button>
+                      @if (screenshotSettingSaveMsg) {
+                        <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ screenshotSettingSaveMsg }}</span>
+                      }
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div class="list-card">
                 <div class="cfs-card">
                   <div class="cfs-header">
@@ -2785,6 +2814,11 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   billingMonthLoading = false;
   billingMonthMsg = '';
 
+  // ── Payment settings ──
+  requireScreenshot = false;
+  savingScreenshotSetting = false;
+  screenshotSettingSaveMsg = '';
+
   // ── Additional (extra) fees ──
   editingExtraFees: AdditionalFee[] = [];
   newExtraFeeName = '';
@@ -2961,6 +2995,8 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     this.editConvenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
     this.feeModeSaveMsg = '';
     this.billingMonthMsg = '';
+    this.requireScreenshot = club.requirePaymentScreenshot ?? false;
+    this.screenshotSettingSaveMsg = '';
     this.editingExtraFees = (club.additionalFees ?? []).map(f => ({ ...f }));
     this.newExtraFeeName = '';
     this.newExtraFeeAmount = 0;
@@ -3194,6 +3230,23 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
 
   removeExtraFee(index: number) {
     this.editingExtraFees = this.editingExtraFees.filter((_, i) => i !== index);
+  }
+
+  saveScreenshotSetting() {
+    if (!this.selectedClub?._id) return;
+    this.savingScreenshotSetting = true;
+    this.screenshotSettingSaveMsg = '';
+    this.clubService.patchScreenshotSetting(this.selectedClub._id, this.requireScreenshot).subscribe({
+      next: (updated) => {
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, requirePaymentScreenshot: updated.requirePaymentScreenshot } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, requirePaymentScreenshot: updated.requirePaymentScreenshot };
+        this.savingScreenshotSetting = false;
+        this.screenshotSettingSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.screenshotSettingSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingScreenshotSetting = false; this.screenshotSettingSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
   }
 
   saveExtraFees() {

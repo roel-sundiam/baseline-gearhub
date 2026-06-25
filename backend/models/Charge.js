@@ -37,6 +37,7 @@ const chargeSchema = new mongoose.Schema(
     paymentMethod: { type: String, enum: ["GCash", "Cash", "Bank Transfer", "GoTyme"] },
     paidAt: { type: Date },
     adminNote: { type: String },
+    paymentScreenshot: { type: String, default: null },
     clubId: { type: mongoose.Schema.Types.ObjectId, ref: "Club", required: true },
   },
   { timestamps: true },

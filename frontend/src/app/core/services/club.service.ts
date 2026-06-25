@@ -39,6 +39,7 @@ export interface Club {
   reviewCount?: number;
   totalBookings?: number;
   adminTermsAccepted?: boolean;
+  requirePaymentScreenshot?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -84,6 +85,10 @@ export class ClubService {
 
   updateAdditionalFees(id: string, additionalFees: AdditionalFee[]) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/additional-fees`, { additionalFees });
+  }
+
+  patchScreenshotSetting(id: string, requirePaymentScreenshot: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/screenshot-setting`, { requirePaymentScreenshot });
   }
 
   patchBookingQrCode(id: string, bookingQrCode: string | null) {

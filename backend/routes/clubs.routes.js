@@ -152,6 +152,26 @@ router.patch("/:id/additional-fees", auth, superadmin, async (req, res) => {
   }
 });
 
+// PATCH /api/clubs/:id/screenshot-setting — toggle payment screenshot required/optional (superadmin only)
+router.patch("/:id/screenshot-setting", auth, superadmin, async (req, res) => {
+  try {
+    const { requirePaymentScreenshot } = req.body;
+    if (typeof requirePaymentScreenshot !== 'boolean') {
+      return res.status(400).json({ error: "requirePaymentScreenshot must be a boolean" });
+    }
+    const club = await Club.findByIdAndUpdate(
+      req.params.id,
+      { requirePaymentScreenshot },
+      { new: true },
+    ).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json(club);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // PATCH /api/clubs/:id/booking-qr — set or clear the booking QR code (admin only)
 router.patch("/:id/booking-qr", auth, admin, async (req, res) => {
   try {

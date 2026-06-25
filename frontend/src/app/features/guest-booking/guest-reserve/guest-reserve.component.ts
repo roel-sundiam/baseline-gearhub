@@ -4,8 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { PublicBookingService, PublicRates, GuestBookingResult } from '../../../core/services/public-booking.service';
 import { AdditionalFee } from '../../../core/services/club.service';
+import { CloudinaryService } from '../../../core/services/cloudinary.service';
 
-const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm']);
+const LIGHT_SLOTS = new Set(['5am','5pm','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
 const WEEKEND_DAYS = new Set([0, 5, 6]);
 
 function slotToHour(slot: string): number {
@@ -251,6 +252,30 @@ function localDateStr(): string {
                       <span class="gr-slot-badge gr-slot-badge-date">{{ navDate() | date: 'MMM d' }}</span>
                     </div>
 
+                    <!-- Toggles -->
+                    <div class="gr-toggles-col">
+                      @if (holidayRate > 0) {
+                        <label class="gr-sw-row">
+                          <span class="gr-sw-label">&#127958; Holiday rate</span>
+                          <span class="gr-sw-meta">{{ holidayRate | currency:'PHP':'symbol' }}/hr</span>
+                          <span class="gr-sw-track" [class.on]="isHoliday">
+                            <input type="checkbox" [(ngModel)]="isHoliday" class="gr-sw-input" />
+                            <span class="gr-sw-thumb"></span>
+                          </span>
+                        </label>
+                      }
+                      @if (ballBoyRate > 0) {
+                        <label class="gr-sw-row">
+                          <span class="gr-sw-label">&#127934; Ball Boy</span>
+                          <span class="gr-sw-meta">+₱{{ ballBoyRate }}/hr</span>
+                          <span class="gr-sw-track" [class.on]="ballBoyRequested">
+                            <input type="checkbox" [(ngModel)]="ballBoyRequested" class="gr-sw-input" />
+                            <span class="gr-sw-thumb"></span>
+                          </span>
+                        </label>
+                      }
+                    </div>
+
                     <!-- Booking type selector -->
                     @if (exclusiveEventEnabled) {
                       <div class="gr-type-grid">
@@ -286,38 +311,6 @@ function localDateStr(): string {
                         </div>
                       }
                     }
-
-                    <!-- Toggles -->
-                    <div class="gr-toggles-col">
-                      <label class="gr-sw-row">
-                        <span class="gr-sw-label">&#128161; Lights</span>
-                        <span class="gr-sw-meta">{{ lightsRate > 0 ? '+₱' + lightsRate + '/hr' : 'Free' }}</span>
-                        <span class="gr-sw-track" [class.on]="lightsRequested">
-                          <input type="checkbox" [(ngModel)]="lightsRequested" class="gr-sw-input" />
-                          <span class="gr-sw-thumb"></span>
-                        </span>
-                      </label>
-                      @if (holidayRate > 0) {
-                        <label class="gr-sw-row">
-                          <span class="gr-sw-label">&#127958; Holiday rate</span>
-                          <span class="gr-sw-meta">{{ holidayRate | currency:'PHP':'symbol' }}/hr</span>
-                          <span class="gr-sw-track" [class.on]="isHoliday">
-                            <input type="checkbox" [(ngModel)]="isHoliday" class="gr-sw-input" />
-                            <span class="gr-sw-thumb"></span>
-                          </span>
-                        </label>
-                      }
-                      @if (ballBoyRate > 0) {
-                        <label class="gr-sw-row">
-                          <span class="gr-sw-label">&#127934; Ball Boy</span>
-                          <span class="gr-sw-meta">+₱{{ ballBoyRate }}/hr</span>
-                          <span class="gr-sw-track" [class.on]="ballBoyRequested">
-                            <input type="checkbox" [(ngModel)]="ballBoyRequested" class="gr-sw-input" />
-                            <span class="gr-sw-thumb"></span>
-                          </span>
-                        </label>
-                      }
-                    </div>
 
                     <!-- Guests / Attendees -->
                     @if (bookingType === 'exclusive_event' || guestFeeRate > 0) {
@@ -483,6 +476,12 @@ function localDateStr(): string {
                         <span>&#127955; Court rental <span class="gr-sum-pct">({{ selectedDuration }}hr)</span></span>
                         <strong>{{ subtotal | currency: 'PHP' : 'symbol' }}</strong>
                       </div>
+                      @if (lightsRequested && lightsRate > 0) {
+                        <div class="gr-sum-row">
+                          <span>&#128161; Lights <span class="gr-sum-pct">({{ lightHours }}hr)</span></span>
+                          <strong>{{ lightsRate * lightHours | currency: 'PHP' : 'symbol' }}</strong>
+                        </div>
+                      }
                       @if (convenienceFeeMode !== 'monthly_flat') {
                         <div class="gr-sum-row">
                           <span>&#128179; Convenience fee <span class="gr-sum-pct">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
@@ -588,12 +587,19 @@ function localDateStr(): string {
 
                     <!-- Payment screenshot -->
                     <div class="gr-field-group">
-                      <label class="gr-field-label">Payment screenshot <span class="gr-optional">optional</span></label>
-                      <label class="gr-file-label">
+                      <label class="gr-field-label">Payment screenshot
+                        <span [class]="requirePaymentScreenshot ? 'gr-required' : 'gr-optional'">
+                          {{ requirePaymentScreenshot ? 'required' : 'optional' }}
+                        </span>
+                      </label>
+                      <label class="gr-file-label" [class.gr-file-label-error]="guestSubmitted && requirePaymentScreenshot && !paymentScreenshot">
                         <input type="file" accept="image/*" class="gr-file-input" (change)="onScreenshotChange($event)" />
                         <span class="gr-file-btn">Choose File</span>
                         <span class="gr-file-name">{{ paymentScreenshot ? paymentScreenshot.name : 'No file chosen' }}</span>
                       </label>
+                      @if (guestSubmitted && requirePaymentScreenshot && !paymentScreenshot) {
+                        <div class="gr-field-error" style="margin-top:4px"><i class="fas fa-exclamation-circle"></i> Please upload a payment screenshot.</div>
+                      }
                     </div>
 
                     <!-- Terms -->
@@ -1117,6 +1123,7 @@ function localDateStr(): string {
       letter-spacing: 0.07em; color: rgba(255,255,255,0.4);
     }
     .gr-optional { font-weight: 400; text-transform: none; letter-spacing: 0; color: rgba(255,255,255,0.25); }
+    .gr-required { font-weight: 400; text-transform: none; letter-spacing: 0; color: #f87171; }
     .gr-input {
       padding: 0.65rem 0.85rem;
       border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
@@ -1217,6 +1224,7 @@ function localDateStr(): string {
       transition: background 0.15s;
     }
     .gr-file-label:hover .gr-file-btn { background: rgba(255,255,255,0.14); }
+    .gr-file-label-error .gr-file-btn { border-color: #f87171; }
     .gr-file-name { font-size: 0.8rem; color: rgba(255,255,255,0.4); }
 
     .gr-terms-row {
@@ -1497,7 +1505,20 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   rentalBallMachineRate = 0;
   rentalRacketRate = 0;
 
-  lightsRequested = false;
+  get lightHours(): number {
+    if (!this.selectedSlot) return 0;
+    const startHour = slotToHour(this.selectedSlot);
+    const endHour = startHour + this.selectedDuration;
+    let count = 0;
+    for (let h = startHour; h < endHour; h++) {
+      if (this.lightSlots.has(hourToSlot(h))) count++;
+    }
+    return count;
+  }
+
+  get lightsRequested(): boolean {
+    return this.lightHours > 0;
+  }
   ballBoyRequested = false;
   isHoliday = false;
   guestCount = 0;
@@ -1512,6 +1533,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   selectedPaymentMethod = '';
   copiedMethod = '';
   paymentScreenshot: File | null = null;
+  requirePaymentScreenshot = false;
   agreedToTerms = false;
   showTerms = false;
 
@@ -1594,7 +1616,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
 
   get subtotal(): number {
     return this.baseCourtFee
-      + (this.lightsRequested ? this.lightsRate * this.selectedDuration : 0)
+      + this.lightHours * this.lightsRate
       + (this.ballBoyRequested ? this.ballBoyRate * this.selectedDuration : 0)
       + this.totalGuestFee
       + this.totalRentalFee;
@@ -1690,6 +1712,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     private publicBookingService: PublicBookingService,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   ngOnInit() {
@@ -1723,6 +1746,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
           this.selectedExtraFeeNames = new Set(
             this.availableExtraFees.filter(f => !f.isOptional).map(f => f.name)
           );
+          this.requirePaymentScreenshot = club.requirePaymentScreenshot ?? false;
           this.clubPhotos.set(club.photos ?? []);
           this.loadAvailability();
         }
@@ -2031,12 +2055,13 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  submit() {
+  async submit() {
     this.guestSubmitted = true;
     this.cdr.detectChanges();
     if (!this.navDate() || !this.selectedCourt || !this.selectedSlot) return;
     if (!this.guestName.trim() || !this.guestEmail.trim() || !this.agreedToTerms) return;
     if (this.paymentMethods.length > 0 && !this.selectedPaymentMethod) return;
+    if (this.requirePaymentScreenshot && !this.paymentScreenshot) return;
     if (this.bookingType === 'exclusive_event' && !this.policiesAcknowledged) {
       this.errorMsg = 'Please acknowledge the event policies before confirming.';
       return;
@@ -2044,6 +2069,18 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     this.guestSubmitted = false;
     this.booking = true;
     this.errorMsg = '';
+
+    let paymentScreenshotUrl: string | undefined;
+    if (this.paymentScreenshot) {
+      try {
+        paymentScreenshotUrl = await this.cloudinaryService.uploadImage(this.paymentScreenshot);
+      } catch {
+        this.booking = false;
+        this.errorMsg = 'Failed to upload payment screenshot. Please try again.';
+        this.cdr.detectChanges();
+        return;
+      }
+    }
 
     const payload = {
       court: this.selectedCourt as number,
@@ -2069,6 +2106,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
       bookingType: this.bookingType,
       coachingRequested: this.bookingType === 'exclusive_event' ? false : this.coachingRequested,
       coachingPax: this.coachingPax,
+      paymentScreenshot: paymentScreenshotUrl,
     };
     console.log('[GuestReserve] submit payload:', payload);
 

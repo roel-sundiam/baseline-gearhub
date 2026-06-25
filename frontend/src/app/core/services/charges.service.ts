@@ -18,6 +18,7 @@ export interface Charge {
   paymentMethod?: 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme';
   paidAt?: string;
   adminNote?: string;
+  paymentScreenshot?: string | null;
   createdAt: string;
   updatedAt: string;
 }
