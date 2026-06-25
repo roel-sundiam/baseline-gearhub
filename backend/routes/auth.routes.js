@@ -278,6 +278,7 @@ router.post('/impersonate/:userId', authMiddleware, superadminMiddleware, async 
         role: target.role,
         profileImage: target.profileImage || null,
         clubId: target.clubId,
+        termsAccepted: !!target.termsAcceptedAt,
       },
     });
   } catch (err) {
