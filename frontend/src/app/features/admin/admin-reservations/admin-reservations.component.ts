@@ -138,7 +138,7 @@ function hoursToSlots(opening: number, closing: number): string[] {
                           <i class="fas fa-pen"></i> Edit
                         </button>
                       }
-                      @if (r.status === 'confirmed') {
+                      @if (r.status === 'confirmed' || r.status === 'pending_payment') {
                         <button class="btn-action btn-cancel-res" [disabled]="acting === r._id" (click)="cancel(r)">
                           {{ acting === r._id ? '…' : 'Cancel' }}
                         </button>

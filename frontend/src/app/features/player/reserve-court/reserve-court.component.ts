@@ -9,7 +9,7 @@ import { RatesService } from '../../../core/services/rates.service';
 import { SoundService } from '../../../core/services/sound.service';
 import { ClubService, AdditionalFee } from '../../../core/services/club.service';
 
-const LIGHT_SLOTS = new Set(['5am','5pm','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
+const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
 
 function slotToHour(slot: string): number {
   const m = slot.match(/^(\d+)(am|pm)$/);

@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ClubService } from '../../../core/services/club.service';
+import { CloudinaryService } from '../../../core/services/cloudinary.service';
 
 type FilterTab = 'all' | 'unpaid' | 'paid';
 
@@ -291,9 +292,32 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                   }
                 </div>
 
+                <!-- Screenshot upload -->
+                <div class="dm-screenshot-section">
+                  <div class="dm-screenshot-label">
+                    Payment Screenshot
+                    @if (requirePaymentScreenshot) { <span class="dm-req">Required</span> }
+                    @else { <span class="dm-opt">Optional</span> }
+                  </div>
+                  @if (paymentScreenshot) {
+                    <div class="dm-screenshot-preview">
+                      <img [src]="screenshotPreviewUrl" alt="Payment screenshot" class="dm-screenshot-img" />
+                      <button type="button" class="dm-screenshot-remove" (click)="removeScreenshot()">
+                        <i class="fas fa-times"></i>
+                      </button>
+                    </div>
+                  } @else {
+                    <label class="dm-screenshot-upload">
+                      <input type="file" accept="image/*" (change)="onScreenshotChange($event)" />
+                      <i class="fas fa-camera"></i>
+                      <span>Tap to attach screenshot</span>
+                    </label>
+                  }
+                </div>
+
                 <div class="dm-modal-footer">
                   <button class="dm-modal-cancel" (click)="closePaymentModal()">Cancel</button>
-                  <button class="dm-modal-submit" [disabled]="!selectedPaymentMethod || submittingPayment" (click)="submitPayment()">
+                  <button class="dm-modal-submit" [disabled]="!selectedPaymentMethod || submittingPayment || (requirePaymentScreenshot && !paymentScreenshot)" (click)="submitPayment()">
                     @if (submittingPayment) { <i class="fas fa-circle-notch fa-spin"></i> Processing… }
                     @else { Confirm Payment }
                   </button>
@@ -916,6 +940,93 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
     .dm-modal-submit:hover:not(:disabled) { background: #b8f040; }
     .dm-modal-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    /* Screenshot upload */
+    .dm-screenshot-section {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .dm-screenshot-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .dm-req {
+      font-size: 0.68rem;
+      background: #f59e0b22;
+      color: #f59e0b;
+      border: 1px solid #f59e0b55;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-weight: 700;
+    }
+
+    .dm-opt {
+      font-size: 0.68rem;
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.35);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+
+    .dm-screenshot-upload {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 1.2rem;
+      background: rgba(255,255,255,0.04);
+      border: 1.5px dashed rgba(255,255,255,0.15);
+      border-radius: 10px;
+      cursor: pointer;
+      color: rgba(255,255,255,0.4);
+      font-size: 0.82rem;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .dm-screenshot-upload:hover { border-color: #a3e635; background: rgba(163,230,53,0.05); color: #a3e635; }
+    .dm-screenshot-upload input { display: none; }
+    .dm-screenshot-upload i { font-size: 1.4rem; }
+
+    .dm-screenshot-preview {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .dm-screenshot-img {
+      width: 100%;
+      max-height: 160px;
+      object-fit: cover;
+      display: block;
+      border-radius: 10px;
+    }
+
+    .dm-screenshot-remove {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: rgba(0,0,0,0.6);
+      border: none;
+      color: #fff;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+
     /* Bottom nav */
     .dm-bottom-nav {
       position: fixed;
@@ -981,6 +1092,9 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
   payingChargeId: string | null = null;
   submittingPayment = false;
   paymentSuccessful = false;
+  requirePaymentScreenshot = false;
+  paymentScreenshot: File | null = null;
+  screenshotPreviewUrl: string | null = null;
 
   constructor(
     private chargesService: ChargesService,
@@ -989,6 +1103,7 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
     private clubService: ClubService,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   ngOnInit() {
@@ -1008,6 +1123,7 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
         }
         this.paymentAccounts = club.paymentAccounts ?? {};
         this.paymentQrCodes = club.paymentQrCodes ?? {};
+        this.requirePaymentScreenshot = club.requirePaymentScreenshot ?? false;
         this.cdr.markForCheck();
       },
     });
@@ -1093,6 +1209,8 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
   openPaymentModal(charge: Charge) {
     this.selectedCharge = charge;
     this.selectedPaymentMethod = this.paymentMethods.length === 1 ? this.paymentMethods[0] : '';
+    this.paymentScreenshot = null;
+    this.screenshotPreviewUrl = null;
     this.showPaymentModal = true;
   }
 
@@ -1101,16 +1219,46 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
     this.selectedCharge = null;
     this.selectedPaymentMethod = '';
     this.paymentSuccessful = false;
+    this.paymentScreenshot = null;
+    this.screenshotPreviewUrl = null;
   }
 
-  submitPayment() {
+  onScreenshotChange(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    this.paymentScreenshot = file;
+    this.screenshotPreviewUrl = URL.createObjectURL(file);
+    this.cdr.markForCheck();
+  }
+
+  removeScreenshot() {
+    this.paymentScreenshot = null;
+    this.screenshotPreviewUrl = null;
+    this.cdr.markForCheck();
+  }
+
+  async submitPayment() {
     if (!this.selectedCharge || !this.selectedPaymentMethod) return;
+    if (this.requirePaymentScreenshot && !this.paymentScreenshot) return;
+
     this.submittingPayment = true;
     this.payingChargeId = this.selectedCharge._id;
-    console.log('Submitting payment for charge:', this.selectedCharge._id, 'Method:', this.selectedPaymentMethod);
-    this.chargesService.markAsPaid(this.selectedCharge._id, this.selectedPaymentMethod as 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme').subscribe({
+
+    let screenshotUrl: string | undefined;
+    if (this.paymentScreenshot) {
+      try {
+        screenshotUrl = await this.cloudinaryService.uploadImage(this.paymentScreenshot, 'payment-screenshots');
+      } catch {
+        alert('Failed to upload payment screenshot. Please try again.');
+        this.submittingPayment = false;
+        this.payingChargeId = null;
+        this.cdr.markForCheck();
+        return;
+      }
+    }
+
+    this.chargesService.markAsPaid(this.selectedCharge._id, this.selectedPaymentMethod as 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme', screenshotUrl).subscribe({
       next: (res) => {
-        console.log('Payment successful:', res);
         if (res.charge) {
           const idx = this.charges.findIndex((c) => c._id === this.selectedCharge!._id);
           if (idx >= 0) this.charges[idx] = res.charge;

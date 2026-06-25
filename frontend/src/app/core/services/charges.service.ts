@@ -45,11 +45,11 @@ export class ChargesService {
   }
 
   // Mark charge as paid
-  markAsPaid(id: string, paymentMethod: 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme') {
+  markAsPaid(id: string, paymentMethod: 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme', paymentScreenshot?: string) {
     console.log(`ChargesService: Calling PATCH /api/charges/${id}/pay with method:`, paymentMethod);
     return this.http.patch<{ message: string; charge: Charge }>(
       `${environment.apiUrl}/charges/${id}/pay`,
-      { paymentMethod }
+      { paymentMethod, paymentScreenshot }
     ).pipe(
       tap(res => console.log('ChargesService: Payment response received:', res)),
       catchError(err => {

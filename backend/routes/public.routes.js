@@ -9,6 +9,16 @@ const OpenPlaySession = require("../models/OpenPlaySession");
 const OpenPlaySessionPlayer = require("../models/OpenPlaySessionPlayer");
 const { sendPushToClubAdmins } = require("../utils/push");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
+const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
+
+function computeLightHours(timeSlot, durationHours) {
+  const startH = slotToHour(timeSlot);
+  let count = 0;
+  for (let i = 0; i < durationHours; i++) {
+    if (LIGHT_SLOTS.has(hourToSlot(startH + i))) count++;
+  }
+  return count;
+}
 
 function buildSlots(openingHour, closingHour) {
   const slots = new Set();
@@ -520,7 +530,8 @@ router.post("/:clubId/reserve", async (req, res) => {
       guestTotalFee = chargeableGuests * ratesUsed.guestFee;
     }
 
-    const lightsFee = lightsRequested ? ratesUsed.lightsRate * durationHours : 0;
+    const lightHours = lightsRequested ? computeLightHours(timeSlot, durationHours) : 0;
+    const lightsFee = lightHours * ratesUsed.lightsRate;
     const ballBoyFee = ballBoy ? ratesUsed.ballBoyRate * durationHours : 0;
     const rentalFee = rentalFeePerHour * durationHours;
     const courtFee = baseCourtFee + lightsFee + ballBoyFee + guestTotalFee + rentalFee;

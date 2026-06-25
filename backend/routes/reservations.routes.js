@@ -8,6 +8,16 @@ const Club = require("../models/Club");
 const { sendPushToClubAdmins } = require("../utils/push");
 const OpenPlaySession = require("../models/OpenPlaySession");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
+const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
+
+function computeLightHours(timeSlot, durationHours) {
+  const startH = slotToHour(timeSlot);
+  let count = 0;
+  for (let i = 0; i < durationHours; i++) {
+    if (LIGHT_SLOTS.has(hourToSlot(startH + i))) count++;
+  }
+  return count;
+}
 
 function buildSlots(openingHour, closingHour) {
   const slots = new Set();
@@ -310,7 +320,8 @@ router.post("/", auth, async (req, res) => {
 
     const sanitizedGuestCount = Math.max(0, Math.floor(Number(guestCount) || 0));
     const baseCourtFee = hourlyRate * durationHours;
-    const lightsFee = lightsRequested ? ratesUsed.lightsRate * durationHours : 0;
+    const lightHours = lightsRequested ? computeLightHours(timeSlot, durationHours) : 0;
+    const lightsFee = lightHours * ratesUsed.lightsRate;
     const ballBoyFee = ballBoy ? ratesUsed.ballBoyRate * durationHours : 0;
     const rentalFee = rentalFeePerHour * durationHours;
     const chargeableGuests = Math.max(0, sanitizedGuestCount - ratesUsed.guestFeeThreshold);
@@ -503,7 +514,8 @@ router.patch("/:id", auth, async (req, res) => {
       : isWeekend ? ratesUsed.weekendRate : ratesUsed.weekdayRate;
 
     const baseCourtFee = hourlyRate * durationHours;
-    const lightsFee    = Boolean(lightsRequested) ? ratesUsed.lightsRate * durationHours : 0;
+    const lightHoursEdit = Boolean(lightsRequested) ? computeLightHours(timeSlot, durationHours) : 0;
+    const lightsFee    = lightHoursEdit * ratesUsed.lightsRate;
     const ballBoyFee   = Boolean(ballBoy) ? ratesUsed.ballBoyRate * durationHours : 0;
     const guestTotalFee = sanitizedGuestCount * ratesUsed.guestFee;
     const rentalFeePerHour =
@@ -571,7 +583,7 @@ router.patch("/:id/cancel", auth, async (req, res) => {
     const reservation = await Reservation.findById(req.params.id);
     if (!reservation) return res.status(404).json({ error: "Reservation not found" });
 
-    const isOwner = reservation.player.toString() === req.user.userId;
+    const isOwner = reservation.player != null && reservation.player.toString() === req.user.userId;
     const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
     if (!isOwner && !isAdmin) return res.status(403).json({ error: "Access denied" });
 
@@ -597,7 +609,7 @@ router.delete("/:id", auth, admin, async (req, res) => {
     if (!reservation) return res.status(404).json({ error: "Reservation not found" });
 
     const approvedCharge = await Charge.findOne({ reservationId: reservation._id, approvalStatus: "approved" });
-    if (approvedCharge) {
+    if (approvedCharge && reservation.status !== "cancelled") {
       return res.status(400).json({ error: "Cannot delete a reservation with an approved payment. Cancel it instead." });
     }
 

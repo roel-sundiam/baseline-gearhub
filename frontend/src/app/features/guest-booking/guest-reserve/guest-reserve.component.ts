@@ -6,7 +6,7 @@ import { PublicBookingService, PublicRates, GuestBookingResult } from '../../../
 import { AdditionalFee } from '../../../core/services/club.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
 
-const LIGHT_SLOTS = new Set(['5am','5pm','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
+const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
 const WEEKEND_DAYS = new Set([0, 5, 6]);
 
 function slotToHour(slot: string): number {

@@ -222,7 +222,7 @@ router.patch("/:id/pay", auth, async (req, res) => {
     console.log("User ID:", req.user.userId);
     console.log("Request body:", req.body);
 
-    const { paymentMethod } = req.body;
+    const { paymentMethod, paymentScreenshot } = req.body;
 
     if (!paymentMethod || !["GCash", "Cash", "Bank Transfer", "GoTyme"].includes(paymentMethod)) {
       console.error("Invalid payment method:", paymentMethod);
@@ -255,6 +255,9 @@ router.patch("/:id/pay", auth, async (req, res) => {
     charge.paidAt = new Date();
     charge.approvalStatus = "pending";
     charge.adminNote = undefined;
+    charge.paymentScreenshot = typeof paymentScreenshot === "string" && paymentScreenshot.startsWith("https://")
+      ? paymentScreenshot
+      : null;
 
     await charge.save();
     console.log("Charge saved successfully:", charge._id);
