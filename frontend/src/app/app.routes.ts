@@ -167,6 +167,20 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'convenience-fee-report',
+        loadComponent: () =>
+          import('./features/admin/convenience-fee-report/convenience-fee-report.component').then(
+            (m) => m.ConvenienceFeeReportComponent,
+          ),
+      },
+      {
+        path: 'club-calendar',
+        loadComponent: () =>
+          import('./features/admin/club-calendar/club-calendar.component').then(
+            (m) => m.ClubCalendarComponent,
+          ),
+      },
+      {
         path: 'open-play',
         loadComponent: () =>
           import('./features/admin/open-play/open-play.component').then(

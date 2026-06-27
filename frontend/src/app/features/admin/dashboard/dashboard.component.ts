@@ -158,6 +158,16 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
                 <span class="action-title">Reservations Report</span>
                 <span class="action-sub">All reservations with status — superadmin view</span>
               </a>
+              <a routerLink="/admin/convenience-fee-report" class="action-card">
+                <span class="action-icon"><i class="fas fa-percent"></i></span>
+                <span class="action-title">Convenience Fee Report</span>
+                <span class="action-sub">Fee analytics by date, club, and trend</span>
+              </a>
+              <a routerLink="/admin/club-calendar" class="action-card">
+                <span class="action-icon"><i class="fas fa-calendar-alt"></i></span>
+                <span class="action-title">Club Calendar</span>
+                <span class="action-sub">View any club's court reservations by month</span>
+              </a>
               <a routerLink="/admin/admins" class="action-card">
                 <span class="action-icon" style="position:relative;display:inline-block;">
                   <i class="fas fa-user-shield"></i>
