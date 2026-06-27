@@ -8,6 +8,139 @@ const Club = require("../models/Club");
 
 const router = express.Router();
 
+// GET /api/app-service-payments/report — convenience fee analytics with date range (superadmin only)
+router.get("/report", auth, superadmin, async (req, res) => {
+  try {
+    const mongoose = require("mongoose");
+    const { startDate, endDate } = req.query;
+    const rawClubId = req.query.clubId;
+
+    // Charge uses timestamps:true — the date field is createdAt, not date
+    const dateFilter = {};
+    if (startDate) dateFilter.$gte = new Date(startDate);
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      dateFilter.$lte = end;
+    }
+
+    const initialMatch = { chargeType: "reservation" };
+    if (Object.keys(dateFilter).length) initialMatch.createdAt = dateFilter;
+    if (rawClubId && mongoose.Types.ObjectId.isValid(rawClubId)) {
+      initialMatch.clubId = new mongoose.Types.ObjectId(rawClubId);
+    }
+
+    const confirmedFilter = {
+      $or: [
+        { "res.status": "confirmed" },
+        { res: { $exists: false }, approvalStatus: "approved" },
+      ],
+    };
+
+    const basePipeline = [
+      { $match: initialMatch },
+      { $lookup: { from: "reservations", localField: "reservationId", foreignField: "_id", as: "res" } },
+      { $unwind: { path: "$res", preserveNullAndEmptyArrays: true } },
+      { $match: confirmedFilter },
+    ];
+
+    const [facetResult, txDocs, allClubs] = await Promise.all([
+      Charge.aggregate([
+        ...basePipeline,
+        {
+          $facet: {
+            summary: [
+              { $group: { _id: null, totalFees: { $sum: "$breakdown.convenienceFee" }, txCount: { $sum: 1 } } },
+            ],
+            byMonth: [
+              { $group: { _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } }, fees: { $sum: "$breakdown.convenienceFee" }, count: { $sum: 1 } } },
+              { $sort: { _id: -1 } },
+            ],
+            byDay: [
+              { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, fees: { $sum: "$breakdown.convenienceFee" }, count: { $sum: 1 } } },
+              { $sort: { _id: -1 } },
+            ],
+            byClub: [
+              { $group: { _id: "$clubId", fees: { $sum: "$breakdown.convenienceFee" }, count: { $sum: 1 } } },
+            ],
+          },
+        },
+      ]),
+      // Player name comes from playerId on Charge directly; guestName for guest bookings
+      Charge.aggregate([
+        ...basePipeline,
+        { $lookup: { from: "users", localField: "playerId", foreignField: "_id", as: "playerDoc" } },
+        { $unwind: { path: "$playerDoc", preserveNullAndEmptyArrays: true } },
+        { $sort: { createdAt: -1 } },
+        { $limit: 500 },
+        {
+          $project: {
+            date: "$createdAt",
+            clubId: 1,
+            amount: 1,
+            convenienceFee: "$breakdown.convenienceFee",
+            playerName: {
+              $cond: [
+                { $ifNull: ["$playerDoc.name", false] },
+                "$playerDoc.name",
+                {
+                  $cond: [
+                    { $ifNull: ["$guestName", false] },
+                    { $concat: ["$guestName", " (Guest)"] },
+                    "Unknown",
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      ]),
+      Club.find({ status: { $ne: "suspended" } }, "_id name convenienceFeeRate convenienceFeeMode").lean(),
+    ]);
+
+    const [result] = facetResult;
+    // clubMap only contains non-suspended clubs; byClub entries for suspended clubs are excluded below
+    const clubMap = Object.fromEntries(allClubs.map((c) => [c._id.toString(), c]));
+
+    const totalFees = result.summary[0]?.totalFees ?? 0;
+    const txCount = result.summary[0]?.txCount ?? 0;
+
+    res.json({
+      summary: {
+        totalFees: parseFloat(totalFees.toFixed(2)),
+        txCount,
+        avgFee: txCount > 0 ? parseFloat((totalFees / txCount).toFixed(2)) : 0,
+      },
+      byMonth: result.byMonth.filter((r) => r._id).map((r) => ({ month: r._id, fees: parseFloat(r.fees.toFixed(2)), count: r.count })),
+      byDay: result.byDay.filter((r) => r._id).map((r) => ({ day: r._id, fees: parseFloat(r.fees.toFixed(2)), count: r.count })),
+      byClub: result.byClub
+        .filter((r) => r._id && clubMap[r._id.toString()])
+        .map((r) => {
+          const club = clubMap[r._id.toString()];
+          return {
+            clubId: r._id,
+            clubName: club.name,
+            feeMode: club.convenienceFeeMode ?? "per_hour",
+            feeRate: club.convenienceFeeRate ?? 0.1,
+            fees: parseFloat(r.fees.toFixed(2)),
+            count: r.count,
+          };
+        })
+        .sort((a, b) => b.fees - a.fees),
+      transactions: txDocs.map((t) => ({
+        date: t.date,
+        clubName: clubMap[t.clubId?.toString()]?.name ?? "Unknown",
+        playerName: t.playerName,
+        amount: t.amount,
+        convenienceFee: t.convenienceFee ?? 0,
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // GET /api/app-service-payments/summary — cross-club overview (superadmin only)
 router.get("/summary", auth, superadmin, async (req, res) => {
   try {

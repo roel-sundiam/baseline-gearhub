@@ -54,10 +54,6 @@ app.use(
     origin: [
       "http://localhost:4200",
       "http://localhost:4201",
-      "https://baseline-gearhub.vercel.app",
-      /\.vercel\.app$/,
-      "https://baseline-gearhub.pages.dev",
-      /\.baseline-gearhub\.pages\.dev$/,
       "https://baseline-gearhub.netlify.app",
       /\.baseline-gearhub\.netlify\.app$/,
     ],

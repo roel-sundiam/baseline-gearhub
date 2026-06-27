@@ -3,6 +3,49 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
+export interface FeeReportSummary {
+  totalFees: number;
+  txCount: number;
+  avgFee: number;
+}
+
+export interface FeeReportMonthRow {
+  month: string;
+  fees: number;
+  count: number;
+}
+
+export interface FeeReportDayRow {
+  day: string;
+  fees: number;
+  count: number;
+}
+
+export interface FeeReportClubRow {
+  clubId: string;
+  clubName: string;
+  feeMode: 'per_transaction' | 'per_hour' | 'monthly_flat';
+  feeRate: number;
+  fees: number;
+  count: number;
+}
+
+export interface FeeReportTransaction {
+  date: string;
+  clubName: string;
+  playerName: string;
+  amount: number;
+  convenienceFee: number;
+}
+
+export interface FeeReport {
+  summary: FeeReportSummary;
+  byMonth: FeeReportMonthRow[];
+  byDay: FeeReportDayRow[];
+  byClub: FeeReportClubRow[];
+  transactions: FeeReportTransaction[];
+}
+
 export interface AppServicePayment {
   _id: string;
   amount: number;
@@ -74,5 +117,13 @@ export class AppServicePaymentsService {
       `${environment.apiUrl}/app-service-payments/bill-month`,
       { clubId },
     );
+  }
+
+  getFeeReport(params: { startDate?: string; endDate?: string; clubId?: string }): Observable<FeeReport> {
+    let httpParams = new HttpParams();
+    if (params.startDate) httpParams = httpParams.set('startDate', params.startDate);
+    if (params.endDate) httpParams = httpParams.set('endDate', params.endDate);
+    if (params.clubId) httpParams = httpParams.set('clubId', params.clubId);
+    return this.http.get<FeeReport>(`${environment.apiUrl}/app-service-payments/report`, { params: httpParams });
   }
 }

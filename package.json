@@ -5,7 +5,7 @@
     "scripts":  {
                     "start":  "node server.js",
                     "dev":  "netlify dev",
-                    "build":  "cd frontend \u0026\u0026 npm install \u0026\u0026 npm run build"
+                    "build":  "cd frontend && npm install && npm run build"
                 },
     "dependencies":  {
                          "bcryptjs":  "^2.4.3",
