@@ -181,6 +181,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'ledger',
+        loadComponent: () =>
+          import('./features/admin/ledger/ledger.component').then(
+            (m) => m.LedgerComponent,
+          ),
+      },
+      {
         path: 'open-play',
         loadComponent: () =>
           import('./features/admin/open-play/open-play.component').then(

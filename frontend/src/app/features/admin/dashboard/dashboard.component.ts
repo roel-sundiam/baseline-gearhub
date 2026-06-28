@@ -86,6 +86,29 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
           </article>
         </section>
 
+        @if (authService.isSuperAdmin()) {
+          <section class="quick-actions">
+            <div class="section-header">
+              <div>
+                <p class="section-kicker">Superadmin</p>
+                <h3>Superadmin Workspace</h3>
+              </div>
+            </div>
+            <div class="action-grid">
+              <a routerLink="/admin/clubs" class="action-card">
+                <span class="action-icon"><i class="fas fa-building"></i></span>
+                <span class="action-title">Club Portfolio</span>
+                <span class="action-sub">Manage clubs, admins, payments, and app service fees.</span>
+              </a>
+              <a routerLink="/admin/ledger" class="action-card">
+                <span class="action-icon"><i class="fas fa-book-open"></i></span>
+                <span class="action-title">Ledger</span>
+                <span class="action-sub">Track income and expenses with a full report.</span>
+              </a>
+            </div>
+          </section>
+        }
+
         <section class="approvals-section">
           <div class="section-header">
             <div>

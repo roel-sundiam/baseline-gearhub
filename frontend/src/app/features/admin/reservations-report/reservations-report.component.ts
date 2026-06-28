@@ -4,6 +4,14 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ReservationService, Reservation } from '../../../core/services/reservation.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { ClubService, Club } from '../../../core/services/club.service';
+
+interface ReservationRow extends Omit<Reservation, 'court' | 'date' | 'timeSlot' | 'durationHours'> {
+  court: number | null;
+  date: string | null;
+  timeSlot: string | null;
+  durationHours?: number | null;
+}
 
 function slotToHour(slot: string): number {
   const m = slot.match(/^(\d+)(am|pm)$/);
@@ -11,7 +19,8 @@ function slotToHour(slot: string): number {
   const h = parseInt(m[1], 10);
   return m[2] === 'am' ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
 }
-function timeRangeLabel(r: Reservation): string {
+function timeRangeLabel(r: ReservationRow): string {
+  if (!r.timeSlot) return '—';
   const start = slotToHour(r.timeSlot);
   const end = start + (r.durationHours ?? 1);
   const fmt = (h: number) => {
@@ -20,12 +29,12 @@ function timeRangeLabel(r: Reservation): string {
   };
   return `${fmt(start)} – ${fmt(end)}`;
 }
-function playerName(r: Reservation): string {
+function playerName(r: ReservationRow): string {
   if (r.player && typeof r.player === 'object') return r.player.name;
   if (r.guestInfo?.name) return r.guestInfo.name + ' (Guest)';
   return '—';
 }
-function playerEmail(r: Reservation): string {
+function playerEmail(r: ReservationRow): string {
   if (r.player && typeof r.player === 'object') return r.player.email;
   if (r.guestInfo?.email) return r.guestInfo.email;
   return '';
@@ -75,6 +84,12 @@ function playerEmail(r: Reservation): string {
           <option value="pending_payment">Pending Payment</option>
           <option value="cancelled">Cancelled</option>
         </select>
+        <select class="filter-input filter-club" [(ngModel)]="filterClub">
+          <option value="">All Clubs</option>
+          @for (c of clubs(); track c._id) {
+            <option [value]="c._id">{{ c.name }}</option>
+          }
+        </select>
         <input type="number" class="filter-input filter-court" [(ngModel)]="filterCourt" min="1" placeholder="Court #" />
         <button class="btn-search" (click)="load()">
           <i class="fas fa-search"></i> Search
@@ -116,16 +131,22 @@ function playerEmail(r: Reservation): string {
             </thead>
             <tbody>
               @for (r of reservations(); track r._id) {
-                <tr [class.row-cancelled]="r.status === 'cancelled'">
+                <tr [class.row-cancelled]="r.status === 'cancelled'" [class.row-orphaned]="r._orphaned">
                   <td>
                     <div class="player-name">{{ getName(r) }}</div>
                     <div class="player-email">{{ getEmail(r) }}</div>
                   </td>
                   <td class="cell-club">{{ getClub(r) }}</td>
-                  <td>Court {{ r.court }}</td>
-                  <td class="cell-date">{{ r.date | date: 'MMM d, y' : 'UTC' }}</td>
+                  <td>{{ r.court != null ? 'Court ' + r.court : '—' }}</td>
+                  <td class="cell-date">
+                    @if (r._orphaned) {
+                      <span class="deleted-badge">Record deleted</span>
+                    } @else {
+                      {{ r.date | date: 'MMM d, y' : 'UTC' }}
+                    }
+                  </td>
                   <td class="cell-time">{{ getTimeRange(r) }}</td>
-                  <td>{{ r.durationHours ?? 1 }}h</td>
+                  <td>{{ r.durationHours != null ? r.durationHours + 'h' : '—' }}</td>
                   <td>
                     <div class="addons">
                       @if (r.hasLights) { <span class="addon-chip">💡 Lights</span> }
@@ -148,7 +169,7 @@ function playerEmail(r: Reservation): string {
         <!-- Mobile cards -->
         <div class="mobile-only rr-cards">
           @for (r of reservations(); track r._id) {
-            <div class="rr-card" [class.card-cancelled]="r.status === 'cancelled'">
+            <div class="rr-card" [class.card-cancelled]="r.status === 'cancelled'" [class.card-orphaned]="r._orphaned">
               <div class="card-top">
                 <div>
                   <div class="player-name">{{ getName(r) }}</div>
@@ -158,16 +179,20 @@ function playerEmail(r: Reservation): string {
                   {{ r.status === 'pending_payment' ? 'Pending' : (r.status | titlecase) }}
                 </span>
               </div>
-              <div class="card-meta">
-                <span><i class="fas fa-building"></i> {{ getClub(r) }}</span>
-                <span><i class="fas fa-calendar-day"></i> {{ r.date | date: 'MMM d, y' : 'UTC' }}</span>
-                <span><i class="fas fa-table-tennis-paddle-ball"></i> Court {{ r.court }}</span>
-                <span><i class="fas fa-clock"></i> {{ getTimeRange(r) }}</span>
-                <span><i class="fas fa-hourglass-half"></i> {{ r.durationHours ?? 1 }}h</span>
-                @if (r.hasLights) { <span>💡 Lights</span> }
-                @if (r.ballBoy) { <span>🎾 Ball Boy</span> }
-                @if (r.guestCount && r.guestCount > 0) { <span>👥 {{ r.guestCount }} guests</span> }
-              </div>
+              @if (r._orphaned) {
+                <div class="card-orphan-notice"><i class="fas fa-triangle-exclamation"></i> Reservation record was deleted — date and court unknown</div>
+              } @else {
+                <div class="card-meta">
+                  <span><i class="fas fa-building"></i> {{ getClub(r) }}</span>
+                  <span><i class="fas fa-calendar-day"></i> {{ r.date | date: 'MMM d, y' : 'UTC' }}</span>
+                  <span><i class="fas fa-table-tennis-paddle-ball"></i> Court {{ r.court }}</span>
+                  <span><i class="fas fa-clock"></i> {{ getTimeRange(r) }}</span>
+                  <span><i class="fas fa-hourglass-half"></i> {{ r.durationHours ?? 1 }}h</span>
+                  @if (r.hasLights) { <span>💡 Lights</span> }
+                  @if (r.ballBoy) { <span>🎾 Ball Boy</span> }
+                  @if (r.guestCount && r.guestCount > 0) { <span>👥 {{ r.guestCount }} guests</span> }
+                </div>
+              }
               <div class="card-footer">
                 Booked {{ r.createdAt | date: 'MMM d, y' : 'UTC' }}
               </div>
@@ -277,6 +302,7 @@ function playerEmail(r: Reservation): string {
     }
     .filter-input:focus { border-color: var(--accent); }
     .filter-input option { background: #1b3028; }
+    .filter-club  { min-width: 150px; }
     .filter-court { width: 90px; }
     .btn-search {
       padding: .45rem 1rem;
@@ -355,6 +381,19 @@ function playerEmail(r: Reservation): string {
     .rr-table tbody tr { background: transparent; transition: background .12s; }
     .rr-table tbody tr:hover td { background: var(--surface-hover); }
     .rr-table tbody tr.row-cancelled td { opacity: .45; }
+    .rr-table tbody tr.row-orphaned td { background: rgba(245,158,11,.04); }
+    .deleted-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .3rem;
+      font-size: .7rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(245,158,11,.12);
+      color: #fcd34d;
+      white-space: nowrap;
+    }
 
     .player-name { font-weight: 600; color: var(--text); }
     .player-email { font-size: .78rem; color: var(--muted); margin-top: .1rem; }
@@ -396,6 +435,16 @@ function playerEmail(r: Reservation): string {
       padding: 1rem;
     }
     .rr-card.card-cancelled { opacity: .5; }
+    .rr-card.card-orphaned { border-color: rgba(245,158,11,.25); background: rgba(245,158,11,.04); }
+    .card-orphan-notice {
+      font-size: .78rem;
+      color: #fcd34d;
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      margin-bottom: .5rem;
+      opacity: .85;
+    }
     .card-top {
       display: flex;
       justify-content: space-between;
@@ -431,13 +480,16 @@ export class ReservationsReportComponent implements OnInit {
   private svc = inject(ReservationService);
   private auth = inject(AuthService);
   private router = inject(Router);
+  private clubSvc = inject(ClubService);
 
-  reservations = signal<Reservation[]>([]);
+  reservations = signal<ReservationRow[]>([]);
   loading = signal(false);
+  clubs = signal<Club[]>([]);
 
   filterStartDate = '';
   filterEndDate = '';
   filterStatus = '';
+  filterClub = '';
   filterCourt = '';
 
   confirmedCount = computed(() => this.reservations().filter(r => r.status === 'confirmed').length);
@@ -449,6 +501,7 @@ export class ReservationsReportComponent implements OnInit {
       this.router.navigate(['/admin/dashboard']);
       return;
     }
+    this.clubSvc.getClubs().subscribe(clubs => this.clubs.set(clubs.filter(c => c.status !== 'suspended')));
     this.load();
   }
 
@@ -458,9 +511,10 @@ export class ReservationsReportComponent implements OnInit {
     if (this.filterStartDate) filters['startDate'] = this.filterStartDate;
     if (this.filterEndDate)   filters['endDate']   = this.filterEndDate;
     if (this.filterStatus)    filters['status']    = this.filterStatus;
+    if (this.filterClub)      filters['clubId']    = this.filterClub;
     if (this.filterCourt)     filters['court']     = this.filterCourt;
     this.svc.getAll(filters).subscribe({
-      next: (data) => { this.reservations.set(data); this.loading.set(false); },
+      next: (data) => { this.reservations.set(data as ReservationRow[]); this.loading.set(false); },
       error: () => { this.loading.set(false); },
     });
   }
@@ -469,14 +523,15 @@ export class ReservationsReportComponent implements OnInit {
     this.filterStartDate = '';
     this.filterEndDate   = '';
     this.filterStatus    = '';
+    this.filterClub      = '';
     this.filterCourt     = '';
     this.load();
   }
 
-  getName(r: Reservation)  { return playerName(r); }
-  getEmail(r: Reservation) { return playerEmail(r); }
-  getTimeRange(r: Reservation) { return timeRangeLabel(r); }
-  getClub(r: Reservation): string {
+  getName(r: ReservationRow)  { return playerName(r); }
+  getEmail(r: ReservationRow) { return playerEmail(r); }
+  getTimeRange(r: ReservationRow) { return timeRangeLabel(r); }
+  getClub(r: ReservationRow): string {
     return r.clubId && typeof r.clubId === 'object' ? r.clubId.name : '—';
   }
 }

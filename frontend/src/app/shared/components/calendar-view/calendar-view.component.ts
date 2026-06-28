@@ -434,7 +434,7 @@ export class CalendarViewComponent {
   reservationsByDate = computed(() => {
     const map = new Map<string, Reservation[]>();
     for (const r of this.reservations()) {
-      if (r.status !== 'confirmed') continue;
+      if (r.status !== 'confirmed' || !r.date) continue;
       const key = r.date.split('T')[0];
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(r);

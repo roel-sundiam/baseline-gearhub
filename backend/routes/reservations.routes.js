@@ -186,8 +186,9 @@ router.get("/", auth, admin, async (req, res) => {
     }
     const validStatuses = ['confirmed', 'pending_payment', 'cancelled'];
     if (status && validStatuses.includes(status)) filter.status = status;
+    let suspendedIds = [];
     if (!clubId) {
-      const suspendedIds = await Club.find({ status: 'suspended' }).distinct('_id');
+      suspendedIds = await Club.find({ status: 'suspended' }).distinct('_id');
       if (suspendedIds.length) filter.clubId = { $nin: suspendedIds };
     }
     const reservations = (await Reservation.find(filter)
@@ -203,6 +204,43 @@ router.get("/", auth, admin, async (req, res) => {
         if (courtDiff !== 0) return courtDiff;
         return slotToHour(a.timeSlot) - slotToHour(b.timeSlot);
       });
+
+    // When no date/court filter, append orphaned charges (reservation deleted, charge survives)
+    const hasDateFilter = !!(date || startDate || endDate);
+    const hasCourtFilter = !!court;
+    const statusExcludesConfirmed = status && status !== 'confirmed';
+    if (!hasDateFilter && !hasCourtFilter && !statusExcludesConfirmed) {
+      const orphanFilter = { chargeType: 'reservation', approvalStatus: 'approved' };
+      if (clubId) {
+        orphanFilter.clubId = clubId;
+      } else if (suspendedIds.length) {
+        orphanFilter.clubId = { $nin: suspendedIds };
+      }
+      const orphanedCharges = await Charge.find(orphanFilter)
+        .populate('reservationId', '_id')
+        .populate('playerId', 'name email')
+        .populate('clubId', 'name')
+        .lean();
+      const ghosts = orphanedCharges
+        .filter(c => !c.reservationId)
+        .map(c => ({
+          _id: c._id,
+          _orphaned: true,
+          player: c.playerId || null,
+          guestInfo: c.guestName ? { name: c.guestName, email: '' } : undefined,
+          clubId: c.clubId,
+          status: 'confirmed',
+          date: null,
+          court: null,
+          timeSlot: null,
+          durationHours: null,
+          hasLights: false,
+          players: [],
+          createdAt: c.createdAt,
+        }));
+      return res.json([...reservations, ...ghosts]);
+    }
+
     res.json(reservations);
   } catch (err) {
     console.error(err);

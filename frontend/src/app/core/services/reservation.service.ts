@@ -10,6 +10,7 @@ export interface ReservationPlayer {
 
 export interface Reservation {
   _id: string;
+  _orphaned?: boolean;
   court: number;
   date: string;
   timeSlot: string;

@@ -832,7 +832,7 @@ export class AdminReservationsComponent implements OnInit {
   get visibleReservations(): Reservation[] {
     if (this.showPast) return this.reservations;
     const todayStr = new Date().toISOString().split('T')[0];
-    return this.reservations.filter(r => r.date.split('T')[0] >= todayStr);
+    return this.reservations.filter(r => r.date && r.date.split('T')[0] >= todayStr);
   }
 
   // Confirm modal state
