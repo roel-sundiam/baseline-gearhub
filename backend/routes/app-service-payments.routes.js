@@ -190,13 +190,17 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       const id = club._id.toString();
       const chargeData = chargeMap[id] || { totalCourtFees: 0, totalConvenienceFees: 0 };
       const totalCourtFees = chargeData.totalCourtFees;
-      const feesOwed = parseFloat((chargeData.totalConvenienceFees + (openPlayMap[id] ?? 0) + (billingMap[id] ?? 0)).toFixed(2));
       const convenienceFeeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10;
       const convenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
       const convenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
+      const feesOwed = convenienceFeeMode === 'monthly_flat'
+        ? parseFloat((convenienceFeeMonthlyAmount).toFixed(2))
+        : parseFloat((chargeData.totalConvenienceFees + (openPlayMap[id] ?? 0) + (billingMap[id] ?? 0)).toFixed(2));
       const totalPaid = paymentMap[id] || 0;
       const totalWaived = waiverMap[id] || 0;
-      const balance = parseFloat((feesOwed - totalPaid - totalWaived).toFixed(2));
+      const balance = convenienceFeeMode === 'monthly_flat'
+        ? parseFloat(Math.max(0, feesOwed - totalPaid).toFixed(2))
+        : parseFloat((feesOwed - totalPaid - totalWaived).toFixed(2));
       return { clubId: id, clubName: club.name, convenienceFeeRate, convenienceFeeMode, convenienceFeeMonthlyAmount, totalCourtFees, feesOwed, totalPaid, totalWaived, balance };
     });
 

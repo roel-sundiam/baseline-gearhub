@@ -969,10 +969,18 @@ export class FinanceComponent implements OnInit {
   get reservationServiceFee() { return this.reservationCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
   get openPlayServiceFee() { return this.allOpenPlayCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
   get billingTotal() { return this.appServicePayments.filter(p => p.type === 'billing').reduce((s, p) => s + p.amount, 0); }
-  get appServiceTotal() { return this.reservationServiceFee + this.openPlayServiceFee + this.billingTotal; }
+  get appServiceTotal() {
+    return this.isMonthlyFlat
+      ? this.convenienceFeeMonthlyAmount
+      : this.reservationServiceFee + this.openPlayServiceFee + this.billingTotal;
+  }
   get totalPaid() { return this.appServicePayments.filter(p => p.type === 'payment').reduce((s, p) => s + p.amount, 0); }
   get totalWaived() { return this.appServicePayments.filter(p => p.type === 'waiver').reduce((s, p) => s + p.amount, 0); }
-  get balance() { return this.appServiceTotal - this.totalPaid - this.totalWaived; }
+  get balance() {
+    return this.isMonthlyFlat
+      ? Math.max(0, this.appServiceTotal - this.totalPaid)
+      : this.appServiceTotal - this.totalPaid - this.totalWaived;
+  }
 
   constructor(
     private chargesService: ChargesService,
@@ -1031,7 +1039,7 @@ export class FinanceComponent implements OnInit {
   }
 
   openPayForm() {
-    this.payAmount = parseFloat(this.balance.toFixed(2));
+    this.payAmount = Math.max(0, parseFloat(this.balance.toFixed(2)));
     this.payMethod = 'GCash';
     this.payNote = '';
     this.payError = '';
