@@ -525,21 +525,12 @@ import { ReservationService, Reservation } from '../../../core/services/reservat
                 <button type="button" class="method-opt" [class.method-opt-gcash]="payMethod === 'GCash'" (click)="payMethod = 'GCash'">
                   <i class="fas fa-mobile-alt"></i> GCash
                 </button>
-                <button type="button" class="method-opt" [class.method-opt-qrph]="payMethod === 'QRPh'" (click)="payMethod = 'QRPh'">
-                  <i class="fas fa-qrcode"></i> QRPh
-                </button>
               </div>
             </div>
             @if (payMethod === 'GCash') {
               <div class="qr-block qr-block-gcash">
                 <p class="qr-label"><i class="fas fa-mobile-alt"></i> Scan to pay via GCash</p>
                 <img [src]="gcashQrCode" alt="Developer GCash QR Code" class="qr-img" />
-              </div>
-            }
-            @if (payMethod === 'QRPh') {
-              <div class="qr-block qr-block-qrph">
-                <p class="qr-label"><i class="fas fa-qrcode"></i> Scan to pay via QRPh</p>
-                <img [src]="qrphQrCode" alt="Developer QRPh QR Code" class="qr-img" />
               </div>
             }
             <div class="modal-field">
@@ -717,15 +708,12 @@ import { ReservationService, Reservation } from '../../../core/services/reservat
     }
     .method-opt:hover { background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.85); }
     .method-opt-gcash { background: rgba(139,92,246,0.18) !important; border-color: rgba(139,92,246,0.48) !important; color: #c4b5fd !important; }
-    .method-opt-qrph  { background: rgba(20,184,166,0.18) !important; border-color: rgba(20,184,166,0.46) !important; color: #5eead4 !important; }
     .qr-block {
       display: flex; flex-direction: column; align-items: center; gap: 10px;
       padding: 14px 12px; border-radius: 10px;
     }
     .qr-block-gcash { background: rgba(139,92,246,0.10); border: 1px solid rgba(139,92,246,0.28); }
     .qr-block-gcash .qr-label { color: #c4b5fd; }
-    .qr-block-qrph  { background: rgba(20,184,166,0.10); border: 1px solid rgba(20,184,166,0.28); }
-    .qr-block-qrph .qr-label  { color: #5eead4; }
     .qr-label { margin: 0; font-size: 0.78rem; font-weight: 700; display: flex; align-items: center; gap: 6px; }
     .qr-img { width: 180px; height: 180px; object-fit: contain; border-radius: 8px; background: #ffffff; padding: 6px; display: block; }
 
@@ -931,12 +919,11 @@ export class FinanceComponent implements OnInit {
 
   showPayForm = false;
   payAmount: number | null = null;
-  payMethod: 'GCash' | 'QRPh' = 'GCash';
+  payMethod: 'GCash' = 'GCash';
   payNote = '';
   saving = false;
   payError = '';
   readonly gcashQrCode = 'dev-gcash-qr.png';
-  readonly qrphQrCode = 'dev-qrph-qr.png';
 
   private clubId?: string;
   reservations: Reservation[] = [];

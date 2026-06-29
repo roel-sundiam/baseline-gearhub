@@ -402,27 +402,27 @@ interface AdminUser {
                 } @else if (filteredCharges.length === 0) {
                   <p class="state-msg">No {{ chargeFilter }} payment approvals.</p>
                 } @else {
-                  <div class="item-list">
+                  <div class="item-list payment-approval-list">
                     @for (charge of filteredCharges; track charge._id) {
-                      <div class="item-card" [class.item-approved]="charge.approvalStatus === 'approved'" [class.item-rejected]="charge.approvalStatus === 'rejected'">
-                        <div class="item-top">
-                          <span class="charge-amount">₱{{ charge.amount | number:'1.2-2' }}</span>
-                          <span class="badge" [class.badge-res]="charge.chargeType === 'reservation'" [class.badge-ses]="charge.chargeType === 'session'">{{ charge.chargeType }}</span>
-                          @if (charge.paymentMethod) { <span class="badge badge-purple">{{ charge.paymentMethod }}</span> }
-                          <span class="item-meta">{{ getPlayerName(charge) }}</span>
-                          @if (charge.paidAt) { <span class="item-meta">{{ formatDate(charge.paidAt) }}</span> }
-                        </div>
-                        @if (charge.approvalStatus === 'rejected' && charge.adminNote) {
-                          <p class="item-reject-note"><i class="fas fa-ban"></i> {{ charge.adminNote }}</p>
-                        }
-                        @if (charge.approvalStatus !== 'pending') {
-                          <p class="item-resolved" [class.resolved-ok]="charge.approvalStatus === 'approved'">
+                      <div class="item-card payment-approval-row" [class.item-approved]="charge.approvalStatus === 'approved'" [class.item-rejected]="charge.approvalStatus === 'rejected'">
+                        <div class="item-top payment-approval-main">
+                          <span class="charge-amount payment-approval-amount">₱{{ charge.amount | number:'1.2-2' }}</span>
+                          <span class="badge payment-approval-type" [class.badge-res]="charge.chargeType === 'reservation'" [class.badge-ses]="charge.chargeType === 'session'">{{ charge.chargeType }}</span>
+                          @if (charge.paymentMethod) { <span class="badge badge-purple payment-approval-method">{{ charge.paymentMethod }}</span> }
+                          <span class="item-meta payment-approval-player">{{ getPlayerName(charge) }}</span>
+                          @if (charge.paidAt) { <span class="item-meta payment-approval-date">{{ formatDate(charge.paidAt) }}</span> }
+                          @if (charge.approvalStatus === 'rejected' && charge.adminNote) {
+                            <span class="item-reject-note payment-approval-note" [title]="charge.adminNote"><i class="fas fa-ban"></i> {{ charge.adminNote }}</span>
+                          }
+                          @if (charge.approvalStatus !== 'pending') {
+                            <span class="item-resolved payment-approval-status" [class.resolved-ok]="charge.approvalStatus === 'approved'">
                             <i class="fas" [class.fa-check-circle]="charge.approvalStatus === 'approved'" [class.fa-times-circle]="charge.approvalStatus === 'rejected'"></i>
                             {{ charge.approvalStatus === 'approved' ? 'Approved' : 'Rejected' }}
-                          </p>
-                        }
+                            </span>
+                          }
+                        </div>
                         @if (charge.approvalStatus === 'pending') {
-                          <div class="item-actions">
+                          <div class="item-actions payment-approval-actions">
                             <button type="button" class="btn btn-sm btn-approve" (click)="approveCharge(charge)" [disabled]="processingCharge.has(charge._id)">
                               <i class="fas fa-check"></i> {{ processingCharge.has(charge._id) ? 'Approving…' : 'Approve' }}
                             </button>
@@ -1770,6 +1770,60 @@ interface AdminUser {
 
     .charge-amount { font-weight: 800; font-size: 0.92rem; color: #111827; }
 
+    .payment-approval-list { gap: 0.35rem; }
+
+    .payment-approval-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.7rem;
+      padding: 0.48rem 0.65rem;
+      min-height: 44px;
+    }
+
+    .payment-approval-main {
+      display: grid;
+      grid-template-columns: 92px 104px 86px minmax(120px, 1fr) 88px auto auto;
+      align-items: center;
+      gap: 0.45rem;
+      min-width: 0;
+      flex-wrap: nowrap;
+    }
+
+    .payment-approval-amount,
+    .payment-approval-type,
+    .payment-approval-method,
+    .payment-approval-date,
+    .payment-approval-status {
+      white-space: nowrap;
+    }
+
+    .payment-approval-player,
+    .payment-approval-note {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .payment-approval-note,
+    .payment-approval-status {
+      margin: 0;
+      font-size: 0.74rem;
+    }
+
+    .payment-approval-actions {
+      justify-content: flex-end;
+      flex-wrap: nowrap;
+      gap: 0.35rem;
+    }
+
+    .payment-approval-actions .btn-sm {
+      min-height: 30px;
+      padding: 0.34rem 0.62rem;
+      white-space: nowrap;
+    }
+
     /* Convenience Fee Settings Card */
     .cfs-card {
       border: 1px solid rgba(163,230,53,0.16); border-radius: 14px; overflow: hidden;
@@ -2066,6 +2120,20 @@ interface AdminUser {
       .hero-actions { width: 100%; }
       .count-chip, .btn-purple, .btn-primary { justify-content: center; width: 100%; }
       .asp-charge-row { flex-direction: column; align-items: flex-start; }
+      .payment-approval-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+      }
+      .payment-approval-main {
+        display: flex;
+        flex-wrap: wrap;
+      }
+      .payment-approval-actions {
+        justify-content: flex-start;
+      }
+      .payment-approval-actions .btn-sm {
+        width: auto;
+      }
     }
 
     /* Dashboard theme overrides: align /admin/clubs with /player/dashboard */
