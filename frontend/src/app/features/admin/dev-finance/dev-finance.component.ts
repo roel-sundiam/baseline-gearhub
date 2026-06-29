@@ -182,6 +182,7 @@ import {
                     <th>By</th>
                     <th>Method / Type</th>
                     <th>Note</th>
+                    <th>Proof</th>
                     <th class="col-right">Amount</th>
                   </tr>
                 </thead>
@@ -201,6 +202,15 @@ import {
                         }
                       </td>
                       <td class="col-note">{{ p.note || '—' }}</td>
+                      <td>
+                        @if (p.paymentScreenshot) {
+                          <a class="proof-link" [href]="p.paymentScreenshot" target="_blank" rel="noopener noreferrer">
+                            <i class="fas fa-image"></i> View
+                          </a>
+                        } @else {
+                          <span class="muted-dash">—</span>
+                        }
+                      </td>
                       <td class="col-right col-amount" [class.col-waived]="p.type === 'waiver'">
                         {{ p.amount | currency: 'PHP' : 'symbol' : '1.2-2' }}
                       </td>
@@ -209,7 +219,7 @@ import {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colspan="5" class="foot-label">Total ({{ payments.length }} entries)</td>
+                    <td colspan="6" class="foot-label">Total ({{ payments.length }} entries)</td>
                     <td class="col-right foot-green">{{ totalPaymentsSum | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                   </tr>
                 </tfoot>
@@ -408,6 +418,12 @@ import {
     .col-club-name { font-weight: 600; }
     .col-by { color: rgba(255,255,255,0.75); font-size: 0.85rem; }
     .col-note { color: rgba(255,255,255,0.5); font-size: 0.8rem; font-style: italic; }
+    .proof-link {
+      display: inline-flex; align-items: center; gap: 5px;
+      color: #93c5fd; font-size: 0.78rem; font-weight: 700; text-decoration: none;
+    }
+    .proof-link:hover { text-decoration: underline; }
+    .muted-dash { color: rgba(255,255,255,0.32); }
     .col-amount { color: var(--dm-accent); font-weight: 700; }
     .col-waived { color: #c4b5fd !important; }
 

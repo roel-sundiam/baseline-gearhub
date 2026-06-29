@@ -1,8 +1,10 @@
 import { Component, OnInit, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { forkJoin } from 'rxjs';
 import { Router } from '@angular/router';
 import {
+  AppServicePayment,
   AppServicePaymentsService,
   FeeReport,
   FeeReportClubRow,
@@ -26,6 +28,18 @@ import { ClubService, Club } from '../../../core/services/club.service';
           <h2 class="cfr-title">Convenience Fee Report</h2>
           <p class="cfr-subtitle">Analytics for app service fees earned from reservations</p>
         </div>
+      </div>
+
+      <div class="page-tabs">
+        <button class="page-tab" [class.active]="activeTab() === 'fees'" (click)="activeTab.set('fees')">
+          <i class="fas fa-chart-line"></i> Fee Report
+        </button>
+        <button class="page-tab" [class.active]="activeTab() === 'payments'" (click)="activeTab.set('payments')">
+          <i class="fas fa-receipt"></i> Developer Payments
+          @if (developerPayments().length > 0) {
+            <span class="tab-count">{{ developerPayments().length }}</span>
+          }
+        </button>
       </div>
 
       <!-- Filters -->
@@ -61,6 +75,70 @@ import { ClubService, Club } from '../../../core/services/club.service';
           <i class="fas fa-chart-line cfr-empty-icon"></i>
           <p>Select a date range and click Apply.</p>
         </div>
+      } @else if (activeTab() === 'payments') {
+
+        <div class="summary-bar">
+          <div class="stat-pill pill-green">
+            <span class="stat-value">{{ developerPaymentTotal() | currency: 'PHP' : 'symbol' : '1.2-2' }}</span>
+            <span class="stat-label">Paid to Developer</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-value">{{ developerPayments().length | number }}</span>
+            <span class="stat-label">Recorded Payments</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-value">{{ developerPaymentsWithProof() | number }}</span>
+            <span class="stat-label">With Screenshot</span>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header">
+            <h3 class="section-title">Developer Payment Proofs</h3>
+          </div>
+          @if (developerPayments().length === 0) {
+            <div class="cfr-empty compact-empty">
+              <i class="fas fa-inbox cfr-empty-icon"></i>
+              <p>No developer payments found for this filter.</p>
+            </div>
+          } @else {
+            <div class="table-scroll">
+              <table class="cfr-table">
+                <thead><tr>
+                  <th>Date</th>
+                  <th>Club</th>
+                  <th>Paid By</th>
+                  <th>Method</th>
+                  <th>Note</th>
+                  <th>Proof</th>
+                  <th class="num-col">Amount</th>
+                </tr></thead>
+                <tbody>
+                  @for (p of developerPayments(); track p._id) {
+                    <tr>
+                      <td class="cell-date">{{ p.createdAt | date: 'MMM d, y' : 'UTC' }}</td>
+                      <td class="club-name">{{ getPaymentClubName(p) }}</td>
+                      <td>{{ p.paidBy?.name ?? '—' }}</td>
+                      <td><span class="method-badge">{{ p.paymentMethod ?? '—' }}</span></td>
+                      <td class="muted note-cell">{{ p.note || '—' }}</td>
+                      <td>
+                        @if (p.paymentScreenshot) {
+                          <a class="proof-link" [href]="p.paymentScreenshot" target="_blank" rel="noopener noreferrer">
+                            <i class="fas fa-image"></i> View
+                          </a>
+                        } @else {
+                          <span class="missing-proof">No proof</span>
+                        }
+                      </td>
+                      <td class="num-col fee-val">{{ p.amount | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+
       } @else {
 
         <!-- Summary Pills -->
@@ -284,6 +362,41 @@ import { ClubService, Club } from '../../../core/services/club.service';
       color: var(--muted);
     }
 
+    .page-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin-bottom: 1rem;
+    }
+    .page-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      padding: .55rem .85rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: .84rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .page-tab:hover { border-color: rgba(163,230,53,.35); color: var(--accent); }
+    .page-tab.active { background: rgba(163,230,53,.12); border-color: var(--accent); color: var(--accent); }
+    .tab-count {
+      min-width: 18px;
+      height: 18px;
+      padding: 0 .35rem;
+      border-radius: 999px;
+      background: rgba(163,230,53,.18);
+      color: var(--accent);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .68rem;
+    }
+
     /* Filters */
     .filters-section {
       background: var(--surface);
@@ -386,6 +499,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
       margin-bottom: .75rem;
     }
     .cfr-empty p { font-size: .92rem; margin: 0; }
+    .compact-empty { padding: 2.5rem 1rem; }
 
     /* Summary bar */
     .summary-bar {
@@ -503,7 +617,38 @@ import { ClubService, Club } from '../../../core/services/club.service';
       color: var(--muted);
       white-space: nowrap;
     }
-
+    .method-badge {
+      display: inline-block;
+      padding: .18rem .5rem;
+      border-radius: 5px;
+      background: rgba(139,92,246,.16);
+      color: #c4b5fd;
+      font-size: .72rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .note-cell {
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .proof-link {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      color: #93c5fd;
+      font-size: .8rem;
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .proof-link:hover { text-decoration: underline; }
+    .missing-proof {
+      color: #fca5a5;
+      font-size: .78rem;
+      font-weight: 700;
+    }
     /* Export button */
     .btn-export {
       padding: .35rem .85rem;
@@ -562,10 +707,12 @@ export class ConvenienceFeeReportComponent implements OnInit {
 
   loading = signal(false);
   report = signal<FeeReport | null>(null);
+  payments = signal<AppServicePayment[]>([]);
   clubs = signal<Club[]>([]);
   startDateVal = '';
   endDateVal = '';
   selectedClubId = '';
+  activeTab = signal<'fees' | 'payments'>('fees');
   trendTab = signal<'monthly' | 'daily'>('monthly');
   page = signal(0);
   activePreset = signal<string>('last-3-months');
@@ -579,6 +726,18 @@ export class ConvenienceFeeReportComponent implements OnInit {
 
   totalPages = computed(() => Math.ceil((this.report()?.transactions.length ?? 0) / this.PAGE_SIZE));
 
+  developerPayments = computed(() =>
+    this.payments().filter((payment) => (payment.type ?? 'payment') === 'payment')
+  );
+
+  developerPaymentTotal = computed(() =>
+    this.developerPayments().reduce((sum, payment) => sum + payment.amount, 0)
+  );
+
+  developerPaymentsWithProof = computed(() =>
+    this.developerPayments().filter((payment) => !!payment.paymentScreenshot).length
+  );
+
   ngOnInit() {
     this.clubSvc.getClubs().subscribe((list) =>
       this.clubs.set(list.filter((c) => c.status !== 'suspended').sort((a, b) => a.name.localeCompare(b.name)))
@@ -589,12 +748,20 @@ export class ConvenienceFeeReportComponent implements OnInit {
   load() {
     this.loading.set(true);
     this.page.set(0);
-    this.svc.getFeeReport({
+    const params = {
       startDate: this.startDateVal || undefined,
       endDate: this.endDateVal || undefined,
       clubId: this.selectedClubId || undefined,
+    };
+    forkJoin({
+      report: this.svc.getFeeReport(params),
+      payments: this.svc.getAll(params.clubId, params.startDate, params.endDate),
     }).subscribe({
-      next: (data) => { this.report.set(data); this.loading.set(false); },
+      next: ({ report, payments }) => {
+        this.report.set(report);
+        this.payments.set(payments);
+        this.loading.set(false);
+      },
       error: () => this.loading.set(false),
     });
   }
@@ -671,6 +838,12 @@ export class ConvenienceFeeReportComponent implements OnInit {
     const total = this.report()?.summary.totalFees ?? 0;
     if (!total) return '—';
     return (fees / total * 100).toFixed(1) + '%';
+  }
+
+  getPaymentClubName(payment: AppServicePayment): string {
+    if (payment.clubId && typeof payment.clubId === 'object') return payment.clubId.name;
+    const club = this.clubs().find((c) => c._id === payment.clubId);
+    return club?.name ?? 'Unknown';
   }
 
   goBack() { this.router.navigate(['/admin/dashboard']); }

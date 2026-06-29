@@ -8,6 +8,7 @@ const appServicePaymentSchema = new mongoose.Schema(
       type: String,
       enum: ["GCash", "QRPh"],
     },
+    paymentScreenshot: { type: String, default: null },
     note: { type: String },
     paidBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     clubId: { type: mongoose.Schema.Types.ObjectId, ref: "Club", required: true },
