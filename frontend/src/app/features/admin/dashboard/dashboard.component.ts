@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, ElementRef, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, ElementRef, ViewChild, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -11,13 +11,15 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
 import { AdminMessagesService } from '../../../core/services/admin-messages.service';
 import { AdminChatModalComponent } from '../../../shared/components/admin-chat-modal/admin-chat-modal.component';
+import { BalanceAlertModalComponent } from '../../../shared/components/balance-alert-modal/balance-alert-modal.component';
 import { SoundService } from '../../../core/services/sound.service';
+import { AppServicePaymentsService } from '../../../core/services/app-service-payments.service';
 import { forkJoin, timeout, of, catchError } from 'rxjs';
 
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, AdminChatModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, AdminChatModalComponent, BalanceAlertModalComponent],
   template: `
     <section class="dashboard-shell">
       <header class="hero-panel">
@@ -383,6 +385,13 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         [recipientId]="supportContactId"
         [recipientName]="supportContactName"
         (closed)="closeSupportChat()"
+      />
+    }
+
+    @if (showBalanceAlert()) {
+      <app-balance-alert-modal
+        [balance]="balanceAlertAmount()"
+        (dismissed)="showBalanceAlert.set(false)"
       />
     }
   `,
@@ -1045,6 +1054,10 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   supportContactName = 'CourtGo Support';
   private msgPollInterval: ReturnType<typeof setInterval> | null = null;
 
+  // ── Balance alert modal ──
+  showBalanceAlert = signal(false);
+  balanceAlertAmount = signal(0);
+
   constructor(
     private usersService: UsersService,
     private sessionsService: SessionsService,
@@ -1056,6 +1069,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     private cloudinary: CloudinaryService,
     private adminMessages: AdminMessagesService,
     private sound: SoundService,
+    private appServicePayments: AppServicePaymentsService,
   ) {}
 
   ngOnInit() {
@@ -1122,6 +1136,20 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
           this.cdr.detectChanges();
         },
       });
+
+    const user = this.authService.user();
+    if (user?.role === 'admin') {
+      this.appServicePayments.getFeeInfo().subscribe({
+        next: (info) => {
+          if (info.balanceAlertEnabled && info.balance > 0) {
+            this.balanceAlertAmount.set(info.balance);
+            this.showBalanceAlert.set(true);
+            this.cdr.detectChanges();
+          }
+        },
+        error: (err) => console.error('Balance alert check failed:', err),
+      });
+    }
   }
 
   getPlayerName(charge: Charge): string {

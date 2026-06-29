@@ -14,6 +14,7 @@ import { NotificationService } from '../../../core/services/notification.service
 import { AdminMessagesService } from '../../../core/services/admin-messages.service';
 import { AdminChatModalComponent } from '../../../shared/components/admin-chat-modal/admin-chat-modal.component';
 import { SoundService } from '../../../core/services/sound.service';
+import { CloudinaryService } from '../../../core/services/cloudinary.service';
 
 interface AdminUser {
   _id: string;
@@ -649,6 +650,11 @@ interface AdminUser {
                                 <span class="badge badge-purple">{{ p.paymentMethod }}</span>
                               }
                               @if (p.note) { <span class="asp-note">{{ p.note }}</span> }
+                              @if (p.paymentScreenshot) {
+                                <a class="asp-screenshot-link" [href]="p.paymentScreenshot" target="_blank" rel="noopener noreferrer" (click)="$event.stopPropagation()">
+                                  <i class="fas fa-image"></i> Screenshot
+                                </a>
+                              }
                             </div>
                             <div class="asp-pay-right">
                               <span>{{ p.type === 'waiver' ? 'Waived by' : p.type === 'billing' ? 'Billed by' : 'Paid by' }} {{ p.paidBy?.name ?? '—' }}</span>
@@ -690,6 +696,20 @@ interface AdminUser {
                       @if (screenshotSettingSaveMsg) {
                         <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ screenshotSettingSaveMsg }}</span>
                       }
+                    </div>
+                    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--dm-border, #e5e7eb)">
+                      <label class="xfee-toggle-label" style="font-size:0.95rem;gap:10px">
+                        <input type="checkbox" [(ngModel)]="balanceAlertEnabled" />
+                        Show outstanding balance alert on club admin login
+                      </label>
+                      <div class="cfs-actions" style="margin-top:8px">
+                        <button type="button" class="btn-primary" (click)="saveBalanceAlertSetting()" [disabled]="savingBalanceAlert">
+                          @if (savingBalanceAlert) { <i class="fas fa-circle-notch fa-spin"></i> } Save Alert Setting
+                        </button>
+                        @if (balanceAlertSaveMsg) {
+                          <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ balanceAlertSaveMsg }}</span>
+                        }
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -982,9 +1002,26 @@ interface AdminUser {
             <label class="form-label">Note <span class="form-hint">optional</span>
               <input class="form-input" type="text" [(ngModel)]="aspModal.note" name="aspNote" placeholder="e.g. April 2025 app service" />
             </label>
+            <div class="form-label">
+              Payment Screenshot
+              @if (aspScreenshot) {
+                <div class="asp-proof-preview">
+                  <img [src]="aspScreenshotPreviewUrl" alt="Payment screenshot preview" class="asp-proof-img" />
+                  <button type="button" class="asp-proof-remove" (click)="removeAspScreenshot()">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              } @else {
+                <label class="asp-proof-upload">
+                  <input type="file" accept="image/*" (change)="onAspScreenshotChange($event)" />
+                  <i class="fas fa-camera"></i>
+                  <span>Attach screenshot</span>
+                </label>
+              }
+            </div>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn btn-primary" (click)="confirmAspPayment()" [disabled]="aspModal.submitting || aspModal.amount <= 0">
+            <button type="button" class="btn btn-primary" (click)="confirmAspPayment()" [disabled]="aspModal.submitting || aspModal.amount <= 0 || !aspScreenshot">
               <i class="fas fa-check"></i> {{ aspModal.submitting ? 'Saving…' : 'Record Payment' }}
             </button>
             <button type="button" class="btn btn-outline" (click)="closeAspModal()">Cancel</button>
@@ -2031,6 +2068,16 @@ interface AdminUser {
     .asp-pay-left { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
     .asp-pay-amount { font-weight: 800; font-size: 0.92rem; color: #166534; }
     .asp-note { font-size: 0.78rem; color: rgba(17,24,39,0.55); font-style: italic; }
+    .asp-screenshot-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #2563eb;
+      text-decoration: none;
+    }
+    .asp-screenshot-link:hover { text-decoration: underline; }
     .asp-pay-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem; font-size: 0.75rem; color: rgba(17,24,39,0.5); }
 
     /* ── Modal ── */
@@ -2111,6 +2158,49 @@ interface AdminUser {
     .modal-form { display: flex; flex-direction: column; gap: 0.6rem; }
 
     .modal-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+    .asp-proof-upload {
+      min-height: 86px;
+      border: 1px dashed rgba(163,230,53,0.36);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      color: var(--dm-accent);
+      background: rgba(163,230,53,0.06);
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+    .asp-proof-upload input { display: none; }
+    .asp-proof-preview {
+      position: relative;
+      border: 1px solid rgba(163,230,53,0.22);
+      border-radius: 10px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.04);
+    }
+    .asp-proof-img {
+      width: 100%;
+      max-height: 220px;
+      object-fit: contain;
+      display: block;
+      background: rgba(0,0,0,0.18);
+    }
+    .asp-proof-remove {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(0,0,0,0.65);
+      color: #fff;
+      cursor: pointer;
+    }
 
     /* ── Responsive ── */
     @media (max-width: 640px) {
@@ -2873,6 +2963,8 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   aspLoading = false;
   aspError = '';
   aspModal = { show: false, amount: 0, method: 'GCash' as 'GCash' | 'QRPh', note: '', submitting: false, error: '' };
+  aspScreenshot: File | null = null;
+  aspScreenshotPreviewUrl: string | null = null;
 
   editConvenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' = 'per_hour';
   editConvenienceFeeRate = 10;
@@ -2886,6 +2978,9 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   requireScreenshot = false;
   savingScreenshotSetting = false;
   screenshotSettingSaveMsg = '';
+  balanceAlertEnabled = false;
+  savingBalanceAlert = false;
+  balanceAlertSaveMsg = '';
 
   // ── Additional (extra) fees ──
   editingExtraFees: AdditionalFee[] = [];
@@ -2947,6 +3042,7 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     private http: HttpClient,
     private adminMessages: AdminMessagesService,
     private sound: SoundService,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   loginAs(user: AdminUser): void {
@@ -3065,6 +3161,8 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     this.billingMonthMsg = '';
     this.requireScreenshot = club.requirePaymentScreenshot ?? false;
     this.screenshotSettingSaveMsg = '';
+    this.balanceAlertEnabled = club.balanceAlertEnabled ?? false;
+    this.balanceAlertSaveMsg = '';
     this.editingExtraFees = (club.additionalFees ?? []).map(f => ({ ...f }));
     this.newExtraFeeName = '';
     this.newExtraFeeAmount = 0;
@@ -3317,6 +3415,23 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     });
   }
 
+  saveBalanceAlertSetting() {
+    if (!this.selectedClub?._id) return;
+    this.savingBalanceAlert = true;
+    this.balanceAlertSaveMsg = '';
+    this.clubService.patchBalanceAlert(this.selectedClub._id, this.balanceAlertEnabled).subscribe({
+      next: (updated) => {
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, balanceAlertEnabled: updated.balanceAlertEnabled } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, balanceAlertEnabled: updated.balanceAlertEnabled };
+        this.savingBalanceAlert = false;
+        this.balanceAlertSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.balanceAlertSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingBalanceAlert = false; this.balanceAlertSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
   saveExtraFees() {
     if (!this.selectedClub?._id) return;
     this.savingExtraFees = true;
@@ -3353,17 +3468,81 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
 
   openAspModal() {
     this.aspModal = { show: true, amount: parseFloat(this.aspBalance.toFixed(2)), method: 'GCash', note: '', submitting: false, error: '' };
+    this.aspScreenshot = null;
+    this.aspScreenshotPreviewUrl = null;
   }
-  closeAspModal() { this.aspModal = { show: false, amount: 0, method: 'GCash', note: '', submitting: false, error: '' }; }
+  closeAspModal() {
+    this.aspModal = { show: false, amount: 0, method: 'GCash', note: '', submitting: false, error: '' };
+    this.aspScreenshot = null;
+    this.aspScreenshotPreviewUrl = null;
+  }
 
-  confirmAspPayment() {
+  onAspScreenshotChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const validationError = this.cloudinaryService.validateImage(file);
+    if (validationError) {
+      this.aspModal = { ...this.aspModal, error: validationError };
+      input.value = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.aspScreenshot = file;
+    this.aspScreenshotPreviewUrl = URL.createObjectURL(file);
+    this.aspModal = { ...this.aspModal, error: '' };
+    this.cdr.detectChanges();
+  }
+
+  removeAspScreenshot() {
+    this.aspScreenshot = null;
+    this.aspScreenshotPreviewUrl = null;
+    this.cdr.detectChanges();
+  }
+
+  async confirmAspPayment() {
     if (!this.selectedClub?._id || this.aspModal.amount <= 0) return;
+    if (!this.aspScreenshot) {
+      this.aspModal = { ...this.aspModal, error: 'Attach a payment screenshot.' };
+      return;
+    }
     this.aspModal = { ...this.aspModal, submitting: true, error: '' };
-    this.aspService.record(this.aspModal.amount, this.aspModal.method, this.aspModal.note || undefined, this.selectedClub._id).subscribe({
+
+    let screenshotUrl: string;
+    try {
+      screenshotUrl = await this.cloudinaryService.uploadImage(this.aspScreenshot, 'developer-payment-screenshots');
+    } catch {
+      this.aspModal = { ...this.aspModal, submitting: false, error: 'Failed to upload payment screenshot. Please try again.' };
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.aspService.record({
+      amount: this.aspModal.amount,
+      paymentMethod: this.aspModal.method,
+      note: this.aspModal.note || undefined,
+      clubId: this.selectedClub._id,
+      paymentScreenshot: screenshotUrl,
+    }).subscribe({
       next: (res) => {
-        this.aspPayments = [res.payment, ...this.aspPayments];
-        this.closeAspModal();
-        this.cdr.detectChanges();
+        const finish = (payment: AppServicePayment) => {
+          this.aspPayments = [payment, ...this.aspPayments];
+          this.closeAspModal();
+          this.cdr.detectChanges();
+        };
+        if (!res.payment.paymentScreenshot) {
+          this.aspService.attachScreenshot(res.payment._id, screenshotUrl).subscribe({
+            next: ({ payment }) => finish(payment),
+            error: () => {
+              this.aspModal = { ...this.aspModal, submitting: false, error: 'Payment was recorded, but the screenshot was not saved. Please try again.' };
+              this.cdr.detectChanges();
+            },
+          });
+          return;
+        }
+        finish(res.payment);
       },
       error: (err) => { this.aspModal = { ...this.aspModal, submitting: false, error: err?.error?.error || 'Failed to record payment.' }; this.cdr.detectChanges(); },
     });

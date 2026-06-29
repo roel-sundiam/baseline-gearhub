@@ -51,10 +51,19 @@ export interface AppServicePayment {
   amount: number;
   type?: 'payment' | 'waiver' | 'billing';
   paymentMethod?: 'GCash' | 'QRPh';
+  paymentScreenshot?: string | null;
   note?: string;
   paidBy: { _id: string; name: string; email: string };
   clubId?: { _id: string; name: string } | string;
   createdAt: string;
+}
+
+export interface RecordAppServicePaymentPayload {
+  amount: number;
+  paymentMethod: 'GCash' | 'QRPh';
+  note?: string;
+  clubId?: string;
+  paymentScreenshot?: string;
 }
 
 export interface ClubServiceSummary {
@@ -81,15 +90,25 @@ export interface ServiceSummaryTotals {
 export class AppServicePaymentsService {
   constructor(private http: HttpClient) {}
 
-  getAll(clubId?: string) {
-    const params = clubId ? new HttpParams().set('clubId', clubId) : undefined;
+  getAll(clubId?: string, startDate?: string, endDate?: string) {
+    let params = new HttpParams();
+    if (clubId) params = params.set('clubId', clubId);
+    if (startDate) params = params.set('startDate', startDate);
+    if (endDate) params = params.set('endDate', endDate);
     return this.http.get<AppServicePayment[]>(`${environment.apiUrl}/app-service-payments`, { params });
   }
 
-  record(amount: number, paymentMethod: 'GCash' | 'QRPh', note?: string, clubId?: string) {
+  record(payload: RecordAppServicePaymentPayload) {
     return this.http.post<{ message: string; payment: AppServicePayment }>(
       `${environment.apiUrl}/app-service-payments`,
-      { amount, paymentMethod, note, ...(clubId ? { clubId } : {}) }
+      payload
+    );
+  }
+
+  attachScreenshot(id: string, paymentScreenshot: string) {
+    return this.http.patch<{ message: string; payment: AppServicePayment }>(
+      `${environment.apiUrl}/app-service-payments/${id}/screenshot`,
+      { paymentScreenshot },
     );
   }
 
@@ -106,8 +125,8 @@ export class AppServicePaymentsService {
     );
   }
 
-  getFeeInfo(): Observable<{ convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat'; convenienceFeeMonthlyAmount: number }> {
-    return this.http.get<{ convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat'; convenienceFeeMonthlyAmount: number }>(
+  getFeeInfo(): Observable<{ convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat'; convenienceFeeMonthlyAmount: number; balanceAlertEnabled: boolean; balance: number }> {
+    return this.http.get<{ convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat'; convenienceFeeMonthlyAmount: number; balanceAlertEnabled: boolean; balance: number }>(
       `${environment.apiUrl}/app-service-payments/fee-info`,
     );
   }

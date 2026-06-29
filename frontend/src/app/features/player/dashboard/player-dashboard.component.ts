@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2 } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
@@ -9,13 +9,15 @@ import { TournamentService, Tournament } from '../../../core/services/tournament
 import { NewsService, ClubNews } from '../../../core/services/news.service';
 import { AdminMessagesService } from '../../../core/services/admin-messages.service';
 import { AdminChatModalComponent } from '../../../shared/components/admin-chat-modal/admin-chat-modal.component';
+import { BalanceAlertModalComponent } from '../../../shared/components/balance-alert-modal/balance-alert-modal.component';
+import { AppServicePaymentsService } from '../../../core/services/app-service-payments.service';
 import { SoundService } from '../../../core/services/sound.service';
 import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'app-player-dashboard',
   standalone: true,
-  imports: [CommonModule, AdminChatModalComponent],
+  imports: [CommonModule, AdminChatModalComponent, BalanceAlertModalComponent],
   template: `
     <div class="dm-shell">
 
@@ -379,6 +381,13 @@ import { forkJoin } from 'rxjs';
             (closed)="closeSupportChat()"
           />
         }
+      }
+
+      @if (showBalanceAlert()) {
+        <app-balance-alert-modal
+          [balance]="balanceAlertAmount()"
+          (dismissed)="showBalanceAlert.set(false)"
+        />
       }
 
     </div>
@@ -1090,6 +1099,9 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   messageUnreadCount = 0;
   private msgPollInterval: ReturnType<typeof setInterval> | null = null;
 
+  showBalanceAlert = signal(false);
+  balanceAlertAmount = signal(0);
+
   constructor(
     public auth: AuthService,
     private chargesService: ChargesService,
@@ -1102,6 +1114,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     private renderer: Renderer2,
     private adminMessages: AdminMessagesService,
     private sound: SoundService,
+    private appServicePayments: AppServicePaymentsService,
   ) {}
 
   ngOnInit() {
@@ -1109,6 +1122,17 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     this.renderer.addClass(document.body, 'dark-player-page');
 
     if (this.auth.isAdmin() && !this.auth.isSuperAdmin()) {
+      this.appServicePayments.getFeeInfo().subscribe({
+        next: (info) => {
+          if (info.balanceAlertEnabled && info.balance > 0) {
+            this.balanceAlertAmount.set(info.balance);
+            this.showBalanceAlert.set(true);
+            this.cdr.detectChanges();
+          }
+        },
+        error: (err) => console.error('Balance alert check failed:', err),
+      });
+
       this.adminMessages.getUnreadCount().subscribe({
         next: ({ count }) => { this.messageUnreadCount = count; this.cdr.detectChanges(); },
         error: () => {},

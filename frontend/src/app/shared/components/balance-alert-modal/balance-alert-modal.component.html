@@ -1,0 +1,27 @@
+<div class="bal-backdrop">
+  <div class="bal-modal" role="dialog" aria-modal="true" aria-labelledby="bal-title">
+
+    <div class="bal-header">
+      <i class="fas fa-calendar-alt bal-icon"></i>
+      <span id="bal-title">Monthly Reminder</span>
+    </div>
+
+    <div class="bal-body">
+      <p class="bal-msg">
+        Hi! It's that time of the month again. Your club has an outstanding App Service balance of
+        <strong>₱{{ balance | number:'1.2-2' }}</strong>.
+      </p>
+      <p class="bal-sub">Please settle your account at your earliest convenience so we can keep things running smoothly for you. Thank you!</p>
+    </div>
+
+    <div class="bal-footer">
+      <button type="button" class="bal-dismiss-btn" (click)="dismissed.emit()">
+        Dismiss
+      </button>
+      <button type="button" class="bal-pay-btn" (click)="goToPayment()">
+        <i class="fas fa-paper-plane"></i> Record Payment
+      </button>
+    </div>
+
+  </div>
+</div>

@@ -275,7 +275,7 @@ export class LoginComponent {
           return;
         }
         if (role === 'admin') {
-          this.router.navigate(['/admin/dashboard']);
+          this.router.navigate(['/player/dashboard']);
           return;
         }
         this.router.navigate(['/player/dashboard']);

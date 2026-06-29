@@ -7,6 +7,7 @@ import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AppServicePaymentsService, AppServicePayment } from '../../../core/services/app-service-payments.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ReservationService, Reservation } from '../../../core/services/reservation.service';
+import { CloudinaryService } from '../../../core/services/cloudinary.service';
 
 @Component({
   selector: 'app-finance',
@@ -475,6 +476,11 @@ import { ReservationService, Reservation } from '../../../core/services/reservat
                           @if (p.note) {
                             <div class="paid-fee-note">📝 {{ p.note }}</div>
                           }
+                          @if (p.paymentScreenshot) {
+                            <a class="paid-fee-screenshot" [href]="p.paymentScreenshot" target="_blank" rel="noopener noreferrer">
+                              <i class="fas fa-image"></i> View screenshot
+                            </a>
+                          }
                         </div>
                       </div>
                       <div class="paid-fee-right">
@@ -534,6 +540,23 @@ import { ReservationService, Reservation } from '../../../core/services/reservat
               </div>
             }
             <div class="modal-field">
+              <label>Payment Screenshot</label>
+              @if (payScreenshot) {
+                <div class="pay-screenshot-preview">
+                  <img [src]="payScreenshotPreviewUrl" alt="Payment screenshot preview" class="pay-screenshot-img" />
+                  <button type="button" class="pay-screenshot-remove" (click)="removePayScreenshot()">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              } @else {
+                <label class="pay-screenshot-upload">
+                  <input type="file" accept="image/*" (change)="onPayScreenshotChange($event)" />
+                  <i class="fas fa-camera"></i>
+                  <span>Attach screenshot</span>
+                </label>
+              }
+            </div>
+            <div class="modal-field">
               <label>Note <span class="optional">(optional)</span></label>
               <input type="text" [(ngModel)]="payNote" placeholder="e.g. April 2025 app service" />
             </div>
@@ -543,7 +566,7 @@ import { ReservationService, Reservation } from '../../../core/services/reservat
           </div>
           <div class="modal-footer">
             <button class="btn-cancel-pay" (click)="cancelPayForm()" [disabled]="saving">Cancel</button>
-            <button class="btn-confirm-pay" (click)="submitPayment()" [disabled]="saving || !payAmount">
+            <button class="btn-confirm-pay" (click)="submitPayment()" [disabled]="saving || !payAmount || !payScreenshot">
               @if (saving) { <i class="fas fa-circle-notch fa-spin"></i> Saving... }
               @else { <i class="fas fa-check"></i> Confirm Payment }
             </button>
@@ -716,6 +739,23 @@ import { ReservationService, Reservation } from '../../../core/services/reservat
     .qr-block-gcash .qr-label { color: #c4b5fd; }
     .qr-label { margin: 0; font-size: 0.78rem; font-weight: 700; display: flex; align-items: center; gap: 6px; }
     .qr-img { width: 180px; height: 180px; object-fit: contain; border-radius: 8px; background: #ffffff; padding: 6px; display: block; }
+    .pay-screenshot-upload {
+      min-height: 88px; border: 1px dashed rgba(163,230,53,0.34); border-radius: 10px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+      color: var(--dm-accent); background: rgba(163,230,53,0.06); cursor: pointer;
+      font-size: 0.82rem; font-weight: 700;
+    }
+    .pay-screenshot-upload input { display: none; }
+    .pay-screenshot-upload i { font-size: 1.1rem; }
+    .pay-screenshot-preview {
+      position: relative; border: 1px solid rgba(163,230,53,0.22); border-radius: 10px;
+      overflow: hidden; background: rgba(255,255,255,0.04);
+    }
+    .pay-screenshot-img { width: 100%; max-height: 220px; object-fit: contain; display: block; background: rgba(0,0,0,0.18); }
+    .pay-screenshot-remove {
+      position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.65); color: #fff; cursor: pointer;
+    }
 
     .section-heading {
       font-size: 0.85rem; font-weight: 700; color: rgba(255,255,255,0.72); text-transform: uppercase;
@@ -761,6 +801,11 @@ import { ReservationService, Reservation } from '../../../core/services/reservat
     .paid-fee-date { font-size: 0.875rem; font-weight: 700; color: #ffffff; }
     .paid-fee-by { font-size: 0.78rem; color: rgba(255,255,255,0.62); margin-top: 2px; }
     .paid-fee-note { font-size: 0.78rem; color: var(--dm-accent); margin-top: 3px; font-style: italic; }
+    .paid-fee-screenshot {
+      display: inline-flex; align-items: center; gap: 5px; margin-top: 4px;
+      color: #93c5fd; font-size: 0.78rem; font-weight: 700; text-decoration: none;
+    }
+    .paid-fee-screenshot:hover { text-decoration: underline; }
     .paid-fee-right {
       display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0;
     }
@@ -921,6 +966,8 @@ export class FinanceComponent implements OnInit {
   payAmount: number | null = null;
   payMethod: 'GCash' = 'GCash';
   payNote = '';
+  payScreenshot: File | null = null;
+  payScreenshotPreviewUrl: string | null = null;
   saving = false;
   payError = '';
   readonly gcashQrCode = 'dev-gcash-qr.png';
@@ -976,9 +1023,16 @@ export class FinanceComponent implements OnInit {
     private auth: AuthService,
     private router: Router,
     private cdr: ChangeDetectorRef,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   ngOnInit() {
+    if (history.state?.openPayForm) {
+      this.showPayForm = true;
+      if (history.state.payAmount) {
+        this.payAmount = history.state.payAmount;
+      }
+    }
     this.clubId = this.auth.isSuperAdmin() ? undefined : (this.auth.user()?.clubId ?? undefined);
     const today = new Date();
     this.bookingEndDate = today.toISOString().slice(0, 10);
@@ -1029,28 +1083,95 @@ export class FinanceComponent implements OnInit {
     this.payAmount = Math.max(0, parseFloat(this.balance.toFixed(2)));
     this.payMethod = 'GCash';
     this.payNote = '';
+    this.payScreenshot = null;
+    this.payScreenshotPreviewUrl = null;
     this.payError = '';
     this.showPayForm = true;
   }
 
   cancelPayForm() {
     this.showPayForm = false;
+    this.payScreenshot = null;
+    this.payScreenshotPreviewUrl = null;
     this.payError = '';
   }
 
-  submitPayment() {
+  onPayScreenshotChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const validationError = this.cloudinaryService.validateImage(file);
+    if (validationError) {
+      this.payError = validationError;
+      input.value = '';
+      return;
+    }
+
+    this.payScreenshot = file;
+    this.payScreenshotPreviewUrl = URL.createObjectURL(file);
+    this.payError = '';
+    this.cdr.detectChanges();
+  }
+
+  removePayScreenshot() {
+    this.payScreenshot = null;
+    this.payScreenshotPreviewUrl = null;
+    this.cdr.detectChanges();
+  }
+
+  async submitPayment() {
     if (!this.payAmount || this.payAmount <= 0) {
       this.payError = 'Enter a valid amount.';
       return;
     }
+    if (!this.payScreenshot) {
+      this.payError = 'Attach a payment screenshot.';
+      return;
+    }
     this.saving = true;
     this.payError = '';
-    this.appServicePaymentsService.record(this.payAmount, this.payMethod, this.payNote || undefined).subscribe({
-      next: ({ payment }) => {
-        this.appServicePayments = [payment, ...this.appServicePayments];
-        this.showPayForm = false;
+
+    let screenshotUrl: string | undefined;
+    if (this.payScreenshot) {
+      try {
+        screenshotUrl = await this.cloudinaryService.uploadImage(this.payScreenshot, 'developer-payment-screenshots');
+      } catch {
+        this.payError = 'Failed to upload payment screenshot. Please try again.';
         this.saving = false;
         this.cdr.detectChanges();
+        return;
+      }
+    }
+
+    const finishPaymentSave = (payment: AppServicePayment) => {
+      this.appServicePayments = [payment, ...this.appServicePayments];
+      this.showPayForm = false;
+      this.payScreenshot = null;
+      this.payScreenshotPreviewUrl = null;
+      this.saving = false;
+      this.cdr.detectChanges();
+    };
+
+    this.appServicePaymentsService.record({
+      amount: this.payAmount,
+      paymentMethod: this.payMethod,
+      note: this.payNote || undefined,
+      paymentScreenshot: screenshotUrl,
+    }).subscribe({
+      next: ({ payment }) => {
+        if (!payment.paymentScreenshot) {
+          this.appServicePaymentsService.attachScreenshot(payment._id, screenshotUrl!).subscribe({
+            next: ({ payment: updatedPayment }) => finishPaymentSave(updatedPayment),
+            error: () => {
+              this.payError = 'Payment was recorded, but the screenshot was not saved. Please restart the backend and try again.';
+              this.saving = false;
+              this.cdr.detectChanges();
+            },
+          });
+          return;
+        }
+        finishPaymentSave(payment);
       },
       error: (err) => {
         this.payError = err.error?.error || 'Failed to record payment.';

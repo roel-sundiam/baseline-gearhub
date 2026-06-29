@@ -40,6 +40,7 @@ export interface Club {
   totalBookings?: number;
   adminTermsAccepted?: boolean;
   requirePaymentScreenshot?: boolean;
+  balanceAlertEnabled?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -89,6 +90,10 @@ export class ClubService {
 
   patchScreenshotSetting(id: string, requirePaymentScreenshot: boolean) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/screenshot-setting`, { requirePaymentScreenshot });
+  }
+
+  patchBalanceAlert(id: string, balanceAlertEnabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/balance-alert`, { balanceAlertEnabled });
   }
 
   patchBookingQrCode(id: string, bookingQrCode: string | null) {

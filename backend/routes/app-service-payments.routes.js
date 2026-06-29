@@ -270,16 +270,54 @@ router.post("/bill-month", auth, superadmin, async (req, res) => {
   }
 });
 
-// GET /api/app-service-payments/fee-info — get this club's convenience fee settings (admin only)
+// GET /api/app-service-payments/fee-info — get this club's fee settings + balance alert state (admin only)
 router.get("/fee-info", auth, admin, async (req, res) => {
   try {
     const clubId = req.user.clubId;
     if (!clubId) return res.status(400).json({ error: "No club associated with this user" });
-    const club = await Club.findById(clubId).select("convenienceFeeMode convenienceFeeMonthlyAmount").lean();
+    const mongoose = require("mongoose");
+    const clubObjId = new mongoose.Types.ObjectId(clubId);
+
+    const [club, chargeAgg, paymentAgg, waiverAgg, billingAgg] = await Promise.all([
+      Club.findById(clubId).select("convenienceFeeMode convenienceFeeMonthlyAmount balanceAlertEnabled").lean(),
+      // All charges regardless of approval/reservation status — matches client-side aspBalance calculation
+      Charge.aggregate([
+        { $match: { chargeType: { $in: ["reservation", "open_play_session"] }, clubId: clubObjId } },
+        { $group: { _id: null, totalConvenienceFees: { $sum: "$breakdown.convenienceFee" } } },
+      ]),
+      AppServicePayment.aggregate([
+        { $match: { type: "payment", clubId: clubObjId } },
+        { $group: { _id: null, totalPaid: { $sum: "$amount" } } },
+      ]),
+      AppServicePayment.aggregate([
+        { $match: { type: "waiver", clubId: clubObjId } },
+        { $group: { _id: null, totalWaived: { $sum: "$amount" } } },
+      ]),
+      AppServicePayment.aggregate([
+        { $match: { type: "billing", clubId: clubObjId } },
+        { $group: { _id: null, totalBilled: { $sum: "$amount" } } },
+      ]),
+    ]);
+
     if (!club) return res.status(404).json({ error: "Club not found" });
+
+    const convenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
+    const convenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
+    const totalConvenienceFees = chargeAgg[0]?.totalConvenienceFees ?? 0;
+    const totalBilled = billingAgg[0]?.totalBilled ?? 0;
+    const totalPaid = paymentAgg[0]?.totalPaid ?? 0;
+    const totalWaived = waiverAgg[0]?.totalWaived ?? 0;
+
+    const feesOwed = convenienceFeeMode === 'monthly_flat'
+      ? convenienceFeeMonthlyAmount + totalBilled
+      : totalConvenienceFees + totalBilled;
+    const balance = parseFloat(Math.max(0, feesOwed - totalPaid - totalWaived).toFixed(2));
+
     res.json({
-      convenienceFeeMode: club.convenienceFeeMode ?? 'per_hour',
-      convenienceFeeMonthlyAmount: club.convenienceFeeMonthlyAmount ?? 0,
+      convenienceFeeMode,
+      convenienceFeeMonthlyAmount,
+      balanceAlertEnabled: club.balanceAlertEnabled ?? false,
+      balance,
     });
   } catch (err) {
     res.status(500).json({ error: "Server error" });
@@ -291,8 +329,19 @@ router.get("/", auth, admin, async (req, res) => {
   try {
     const raw = req.query.clubId;
     const clubId = (Array.isArray(raw) ? raw[0] : raw) || req.user.clubId;
-    const payments = await AppServicePayment.find(clubId ? { clubId } : {})
+    const filter = clubId ? { clubId } : {};
+    const dateFilter = {};
+    if (req.query.startDate) dateFilter.$gte = new Date(req.query.startDate);
+    if (req.query.endDate) {
+      const end = new Date(req.query.endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      dateFilter.$lte = end;
+    }
+    if (Object.keys(dateFilter).length) filter.createdAt = dateFilter;
+
+    const payments = await AppServicePayment.find(filter)
       .populate("paidBy", "name email")
+      .populate("clubId", "name")
       .sort({ createdAt: -1 });
     res.json(payments);
   } catch (err) {
@@ -304,7 +353,7 @@ router.get("/", auth, admin, async (req, res) => {
 router.post("/", auth, admin, async (req, res) => {
   try {
     const clubId = req.body.clubId || req.user.clubId;
-    const { amount, paymentMethod, note } = req.body;
+    const { amount, paymentMethod, note, paymentScreenshot } = req.body;
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: "Valid amount required" });
     }
@@ -315,11 +364,42 @@ router.post("/", auth, admin, async (req, res) => {
       clubId,
       amount,
       paymentMethod,
+      paymentScreenshot: typeof paymentScreenshot === "string" && paymentScreenshot.startsWith("https://")
+        ? paymentScreenshot
+        : null,
       note: note || undefined,
       paidBy: req.user.userId,
     });
     await payment.populate("paidBy", "name email");
     res.status(201).json({ message: "Payment recorded", payment });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /api/app-service-payments/:id/screenshot — attach/replace developer payment proof
+router.patch("/:id/screenshot", auth, admin, async (req, res) => {
+  try {
+    const { paymentScreenshot } = req.body;
+    if (typeof paymentScreenshot !== "string" || !paymentScreenshot.startsWith("https://")) {
+      return res.status(400).json({ error: "Valid paymentScreenshot URL required" });
+    }
+
+    const payment = await AppServicePayment.findById(req.params.id);
+    if (!payment) return res.status(404).json({ error: "Payment not found" });
+
+    const isSuperadmin = req.user.role === "superadmin";
+    const sameClub = req.user.clubId && payment.clubId?.toString() === req.user.clubId;
+    if (!isSuperadmin && !sameClub) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    payment.paymentScreenshot = paymentScreenshot;
+    await payment.save();
+    await payment.populate("paidBy", "name email");
+    await payment.populate("clubId", "name");
+
+    res.json({ message: "Payment screenshot saved", payment });
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
