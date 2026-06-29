@@ -672,39 +672,65 @@ interface AdminUser {
 
             <!-- ── EXTRA FEES TAB ── -->
             @if (activeTab === 'extrafees' && auth.isSuperAdmin()) {
-              <!-- Payment Settings card -->
-              <div class="list-card" style="margin-bottom:12px">
-                <div class="cfs-card">
-                  <div class="cfs-header">
-                    <div class="cfs-header-left">
-                      <span class="cfs-icon"><i class="fas fa-camera"></i></span>
-                      <div>
-                        <div class="cfs-title">Payment Settings</div>
-                        <div class="cfs-subtitle">Control whether guests must upload a payment screenshot</div>
+              <div class="xfee-page">
+                <div class="xfee-settings-grid">
+                  <!-- Payment Settings card -->
+                  <div class="cfs-card xfee-setting-card">
+                    <div class="cfs-header">
+                      <div class="cfs-header-left">
+                        <span class="cfs-icon"><i class="fas fa-camera"></i></span>
+                        <div>
+                          <div class="cfs-title">Payment Proof</div>
+                          <div class="cfs-subtitle">Guest screenshot requirement</div>
+                        </div>
+                      </div>
+                      <span class="xfee-status-pill" [class.xfee-status-off]="!requireScreenshot">
+                        {{ requireScreenshot ? 'Required' : 'Optional' }}
+                      </span>
+                    </div>
+                    <div class="cfs-body xfee-setting-body">
+                      <label class="xfee-switch-row">
+                        <input type="checkbox" [(ngModel)]="requireScreenshot" />
+                        <span class="xfee-switch-copy">
+                          <span class="xfee-switch-title">Require payment screenshot</span>
+                          <span class="xfee-switch-note">Applies when guests submit booking payments.</span>
+                        </span>
+                      </label>
+                      <div class="cfs-actions xfee-actions">
+                        <button type="button" class="cfs-save-btn" (click)="saveScreenshotSetting()" [disabled]="savingScreenshotSetting">
+                          @if (savingScreenshotSetting) { <i class="fas fa-circle-notch fa-spin"></i> } Save
+                        </button>
+                        @if (screenshotSettingSaveMsg) {
+                          <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ screenshotSettingSaveMsg }}</span>
+                        }
                       </div>
                     </div>
                   </div>
-                  <div class="cfs-body">
-                    <label class="xfee-toggle-label" style="font-size:0.95rem;gap:10px">
-                      <input type="checkbox" [(ngModel)]="requireScreenshot" />
-                      Require payment screenshot from guests
-                    </label>
-                    <div class="cfs-actions" style="margin-top:12px">
-                      <button type="button" class="btn-primary" (click)="saveScreenshotSetting()" [disabled]="savingScreenshotSetting">
-                        @if (savingScreenshotSetting) { <i class="fas fa-circle-notch fa-spin"></i> } Save
-                      </button>
-                      @if (screenshotSettingSaveMsg) {
-                        <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ screenshotSettingSaveMsg }}</span>
-                      }
+
+                  <div class="cfs-card xfee-setting-card">
+                    <div class="cfs-header">
+                      <div class="cfs-header-left">
+                        <span class="cfs-icon"><i class="fas fa-bell"></i></span>
+                        <div>
+                          <div class="cfs-title">Balance Alert</div>
+                          <div class="cfs-subtitle">Club admin login notice</div>
+                        </div>
+                      </div>
+                      <span class="xfee-status-pill" [class.xfee-status-off]="!balanceAlertEnabled">
+                        {{ balanceAlertEnabled ? 'Shown' : 'Hidden' }}
+                      </span>
                     </div>
-                    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--dm-border, #e5e7eb)">
-                      <label class="xfee-toggle-label" style="font-size:0.95rem;gap:10px">
+                    <div class="cfs-body xfee-setting-body">
+                      <label class="xfee-switch-row">
                         <input type="checkbox" [(ngModel)]="balanceAlertEnabled" />
-                        Show outstanding balance alert on club admin login
+                        <span class="xfee-switch-copy">
+                          <span class="xfee-switch-title">Show outstanding balance alert</span>
+                          <span class="xfee-switch-note">Highlights unpaid app service balance after login.</span>
+                        </span>
                       </label>
-                      <div class="cfs-actions" style="margin-top:8px">
-                        <button type="button" class="btn-primary" (click)="saveBalanceAlertSetting()" [disabled]="savingBalanceAlert">
-                          @if (savingBalanceAlert) { <i class="fas fa-circle-notch fa-spin"></i> } Save Alert Setting
+                      <div class="cfs-actions xfee-actions">
+                        <button type="button" class="cfs-save-btn" (click)="saveBalanceAlertSetting()" [disabled]="savingBalanceAlert">
+                          @if (savingBalanceAlert) { <i class="fas fa-circle-notch fa-spin"></i> } Save
                         </button>
                         @if (balanceAlertSaveMsg) {
                           <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ balanceAlertSaveMsg }}</span>
@@ -713,23 +739,25 @@ interface AdminUser {
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div class="list-card">
-                <div class="cfs-card">
+                <div class="cfs-card xfee-fees-card">
                   <div class="cfs-header">
                     <div class="cfs-header-left">
                       <span class="cfs-icon"><i class="fas fa-tags"></i></span>
                       <div>
                         <div class="cfs-title">Additional Booking Fees</div>
-                        <div class="cfs-subtitle">Optional or required fees shown at booking time</div>
+                        <div class="cfs-subtitle">Fees shown at booking time</div>
                       </div>
                     </div>
+                    <span class="xfee-count-chip">{{ editingExtraFees.length }} {{ editingExtraFees.length === 1 ? 'fee' : 'fees' }}</span>
                   </div>
 
-                  <div class="cfs-body">
+                  <div class="cfs-body xfee-fees-body">
                     @if (editingExtraFees.length === 0) {
-                      <p class="state-msg">No additional fees configured yet.</p>
+                      <div class="xfee-empty-state">
+                        <i class="fas fa-receipt"></i>
+                        <span>No additional fees configured yet.</span>
+                      </div>
                     } @else {
                       <div class="xfee-list">
                         @for (fee of editingExtraFees; track $index) {
@@ -737,16 +765,16 @@ interface AdminUser {
                             <div class="xfee-info">
                               <span class="xfee-name">{{ fee.name }}</span>
                               <span class="xfee-amount">₱{{ fee.amount | number:'1.0-2' }}</span>
-                              <span class="badge badge-purple">{{ fee.type === 'per_person' ? 'Per Person' : 'Fixed' }}</span>
+                              <span class="xfee-type-chip">{{ fee.type === 'per_person' ? 'Per Person' : 'Fixed' }}</span>
                             </div>
                             <div class="xfee-toggles">
                               <label class="xfee-toggle-label">
                                 <input type="checkbox" [(ngModel)]="fee.isEnabled" />
-                                Enabled
+                                <span>Enabled</span>
                               </label>
                               <label class="xfee-toggle-label">
                                 <input type="checkbox" [(ngModel)]="fee.isOptional" />
-                                Optional
+                                <span>Optional</span>
                               </label>
                               <button type="button" class="icon-btn icon-btn-danger" (click)="removeExtraFee($index)" title="Remove fee">
                                 <i class="fas fa-trash"></i>
@@ -776,13 +804,13 @@ interface AdminUser {
                       </div>
                     </div>
 
-                    <div class="cfs-actions">
-                      <button type="button" class="btn-primary" (click)="saveExtraFees()" [disabled]="savingExtraFees">
-                        @if (savingExtraFees) { <i class="fas fa-circle-notch fa-spin"></i> } Save Fees
-                      </button>
+                    <div class="cfs-footer xfee-footer">
                       @if (extraFeesSaveMsg) {
                         <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ extraFeesSaveMsg }}</span>
                       }
+                      <button type="button" class="cfs-save-btn" (click)="saveExtraFees()" [disabled]="savingExtraFees">
+                        @if (savingExtraFees) { <i class="fas fa-circle-notch fa-spin"></i> } Save Fees
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1933,24 +1961,77 @@ interface AdminUser {
     .cfs-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     /* Extra (additional) fees tab */
-    .xfee-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
-    .xfee-row {
-      display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
-      background: var(--dm-surface); border: 1px solid var(--dm-border); border-radius: 10px;
-      padding: 0.6rem 0.85rem;
+    .xfee-page{display:flex;flex-direction:column;gap:1rem}
+    .xfee-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}
+    .xfee-setting-card,.xfee-fees-card{margin-bottom:0;background:rgba(28,52,39,.86);border-color:rgba(163,230,53,.18)}
+
+    .xfee-status-pill,
+    .xfee-count-chip,
+    .xfee-type-chip {
+      display:inline-flex;align-items:center;justify-content:center;min-height:26px;padding:.22rem .7rem;border-radius:999px;
+      background:rgba(163,230,53,.15);border:1px solid rgba(163,230,53,.3);color:var(--dm-accent);font-size:.74rem;font-weight:800;white-space:nowrap;
     }
-    .xfee-info { display: flex; align-items: center; gap: 0.6rem; flex: 1; flex-wrap: wrap; }
-    .xfee-name { font-size: 0.875rem; font-weight: 600; color: var(--dm-text); }
-    .xfee-amount { font-size: 0.82rem; color: var(--dm-accent); font-weight: 700; }
-    .xfee-toggles { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
-    .xfee-toggle-label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--dm-text-muted); cursor: pointer; }
-    .xfee-toggle-label input[type=checkbox] { accent-color: var(--dm-accent); }
-    .xfee-add-form { background: var(--dm-surface); border: 1px dashed var(--dm-border); border-radius: 10px; padding: 0.75rem; margin-bottom: 0.75rem; }
-    .xfee-add-title { font-size: 0.8rem; font-weight: 700; color: var(--dm-text-muted); margin-bottom: 0.5rem; }
-    .xfee-add-fields { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-    .xfee-add-fields .form-input { flex: 1; min-width: 120px; }
-    .xfee-amount-input { max-width: 110px !important; }
-    .xfee-add-fields select.form-input { max-width: 130px; }
+    .xfee-status-off{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.13);color:var(--dm-muted)}
+    .xfee-switch-row{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:.8rem;padding:.8rem;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(8,25,17,.36);cursor:pointer}
+    .xfee-switch-row input{width:18px;height:18px;accent-color:var(--dm-accent)}
+    .xfee-switch-copy{display:flex;flex-direction:column;min-width:0;gap:.15rem}
+    .xfee-switch-title{color:var(--dm-text);font-size:.88rem;font-weight:800}
+    .xfee-switch-note{color:var(--dm-muted);font-size:.76rem;line-height:1.35}
+    .xfee-actions{display:flex;align-items:center;justify-content:flex-end;gap:.65rem}
+    .xfee-fees-body{padding:0;gap:0}
+    .xfee-list{display:flex;flex-direction:column;gap:.65rem;padding:1rem 1.1rem .2rem}
+    .xfee-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.75rem;min-height:62px;background:rgba(8,25,17,.34);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:.65rem .75rem}
+    .xfee-info{display:flex;align-items:center;gap:.62rem;min-width:0;flex-wrap:wrap}
+    .xfee-name{min-width:80px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.94rem;font-weight:800;color:var(--dm-text)}
+    .xfee-amount{color:var(--dm-accent);font-size:.94rem;font-weight:900;white-space:nowrap}
+    .xfee-type-chip{min-height:24px;padding-inline:.58rem;font-size:.68rem}
+    .xfee-toggles{display:flex;align-items:center;justify-content:flex-end;gap:.65rem;flex-shrink:0}
+    .xfee-toggle-label{display:inline-flex;align-items:center;gap:.35rem;min-height:28px;font-size:.82rem;font-weight:700;color:rgba(255,255,255,.86);cursor:pointer;white-space:nowrap}
+    .xfee-toggle-label input[type=checkbox]{width:16px;height:16px;accent-color:var(--dm-accent)}
+    .icon-btn{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:9px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:var(--dm-muted);cursor:pointer}
+    .icon-btn-danger{color:#fecdd3;border-color:rgba(244,63,94,.32);background:rgba(244,63,94,.12)}
+    .xfee-empty-state{display:flex;align-items:center;gap:.65rem;margin:1rem 1.1rem .2rem;min-height:64px;padding:.85rem 1rem;border:1px dashed rgba(163,230,53,.22);border-radius:12px;background:rgba(8,25,17,.28);color:var(--dm-muted);font-size:.86rem;font-weight:700}
+    .xfee-add-form{margin:1rem 1.1rem;padding:.9rem;border:1px dashed rgba(163,230,53,.24);border-radius:12px;background:rgba(8,25,17,.28)}
+    .xfee-add-title{display:flex;align-items:center;gap:.45rem;margin-bottom:.65rem;color:var(--dm-accent);font-size:.8rem;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
+    .xfee-add-fields{display:grid;grid-template-columns:minmax(180px,1fr) 128px 144px auto auto;align-items:center;gap:.6rem}
+    .xfee-add-fields .form-input{width:100%;min-width:0}
+
+    @media (max-width: 900px) {
+      .xfee-settings-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .xfee-add-fields {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .xfee-add-fields .btn-sm {
+        width: auto;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .xfee-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+      }
+
+      .xfee-toggles,
+      .xfee-actions,
+      .xfee-footer {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .xfee-add-fields {
+        grid-template-columns: 1fr;
+      }
+
+      .xfee-name {
+        max-width: 100%;
+      }
+    }
 
     /* App service fees */
     .asp-summary {
