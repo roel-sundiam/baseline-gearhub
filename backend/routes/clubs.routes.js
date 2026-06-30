@@ -192,6 +192,26 @@ router.patch("/:id/balance-alert", auth, superadmin, async (req, res) => {
   }
 });
 
+// PATCH /api/clubs/:id/booking-process — switch booking workflow (superadmin only)
+router.patch("/:id/booking-process", auth, superadmin, async (req, res) => {
+  try {
+    const { bookingProcess } = req.body;
+    if (!["reservation", "per_game"].includes(bookingProcess)) {
+      return res.status(400).json({ error: "bookingProcess must be 'reservation' or 'per_game'" });
+    }
+    const club = await Club.findByIdAndUpdate(
+      req.params.id,
+      { bookingProcess },
+      { new: true },
+    ).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json(club);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // PATCH /api/clubs/:id/booking-qr — set or clear the booking QR code (admin only)
 router.patch("/:id/booking-qr", auth, admin, async (req, res) => {
   try {

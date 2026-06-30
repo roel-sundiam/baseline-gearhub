@@ -12,6 +12,8 @@ const ratesSchema = new mongoose.Schema({
   reservationHolidayRate: { type: Number, default: 0, min: 0 },
   reservationGuestFee: { type: Number, default: 0, min: 0 },
   reservationGuestFeeThreshold: { type: Number, default: 0, min: 0 },
+  perGameFee: { type: Number, default: 0, min: 0 },
+  perGameGuestFee: { type: Number, default: 0, min: 0 },
   exclusiveEventEnabled: { type: Boolean, default: false },
   exclusiveEventRate: { type: Number, default: 0, min: 0 },
   exclusiveEventIncludedPax: { type: Number, default: 0, min: 0 },

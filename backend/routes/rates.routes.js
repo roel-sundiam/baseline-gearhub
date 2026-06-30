@@ -17,6 +17,7 @@ router.get("/", auth, async (req, res) => {
       ballBoyRate: 0,
       reservationWeekdayRate: 0, reservationWeekendRate: 0, reservationHolidayRate: 0,
       reservationGuestFee: 0,
+      perGameFee: 0, perGameGuestFee: 0,
       rentalBalls50Rate: 0, rentalBalls100Rate: 0, rentalBallMachineRate: 0, rentalRacketRate: 0,
       coachingEnabled: false, coachingMinHours: 2, coachingMaxPax: 6,
       coachingRate1Pax: 0, coachingRate2Pax: 0, coachingRate3to6Pax: 0,
@@ -51,6 +52,8 @@ router.put("/", auth, admin, async (req, res) => {
     const reservationHolidayRate = Number(req.body.reservationHolidayRate ?? 0);
     const reservationGuestFee = Number(req.body.reservationGuestFee ?? 0);
     const reservationGuestFeeThreshold = Number(req.body.reservationGuestFeeThreshold ?? 0);
+    const perGameFee = Number(req.body.perGameFee ?? 0);
+    const perGameGuestFee = Number(req.body.perGameGuestFee ?? 0);
     const exclusiveEventEnabled = Boolean(req.body.exclusiveEventEnabled);
     const exclusiveEventRate = Number(req.body.exclusiveEventRate ?? 0);
     const exclusiveEventIncludedPax = Number(req.body.exclusiveEventIncludedPax ?? 0);
@@ -76,6 +79,7 @@ router.put("/", auth, admin, async (req, res) => {
       ballBoyRate,
       reservationWeekdayRate, reservationWeekendRate, reservationHolidayRate,
       reservationGuestFee, reservationGuestFeeThreshold,
+      perGameFee, perGameGuestFee,
       rentalBalls50Rate, rentalBalls100Rate, rentalBallMachineRate, rentalRacketRate,
       coachingMinHours, coachingMaxPax,
       coachingRate1Pax, coachingRate2Pax, coachingRate3to6Pax,
@@ -97,6 +101,7 @@ router.put("/", auth, admin, async (req, res) => {
         ballBoyRate,
         reservationWeekdayRate, reservationWeekendRate, reservationHolidayRate,
         reservationGuestFee, reservationGuestFeeThreshold,
+        perGameFee, perGameGuestFee,
         exclusiveEventEnabled, exclusiveEventRate, exclusiveEventIncludedPax,
         exclusiveEventExcessPaxFee, exclusiveEventMaxPax, exclusiveEventPolicies,
         rentalBalls50Rate, rentalBalls100Rate, rentalBallMachineRate, rentalRacketRate,

@@ -243,6 +243,13 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
               <span class="action-title">Open Play</span>
               <span class="action-sub">Run skill-balanced sessions and track CRI ratings</span>
             </a>
+            @if (!authService.isSuperAdmin() && club?.bookingProcess === 'per_game') {
+              <a routerLink="/admin/per-game" class="action-card">
+                <span class="action-icon"><i class="fas fa-play-circle"></i></span>
+                <span class="action-title">Per Game</span>
+                <span class="action-sub">See joined players and record games played</span>
+              </a>
+            }
             @if (authService.isSuperAdmin()) {
               <a routerLink="/features" target="_blank" class="action-card action-card--features">
                 <span class="action-icon"><i class="fas fa-star"></i></span>

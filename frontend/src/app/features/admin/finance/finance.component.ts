@@ -276,6 +276,10 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                 <div class="summary-label">Open Play Sessions</div>
               </div>
               <div class="summary-item">
+                <div class="summary-value">{{ allPerGameCharges.length }}</div>
+                <div class="summary-label">Per Game</div>
+              </div>
+              <div class="summary-item">
                 <div class="summary-value">{{ reservationTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
                 <div class="summary-label">Total Court Fees</div>
               </div>
@@ -431,6 +435,50 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                     <tr>
                       <td colspan="4" class="foot-label">Total ({{ allOpenPlayCharges.length }} sessions)</td>
                       <td class="col-amount foot-total col-service">{{ openPlayServiceFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            }
+
+            <!-- Per Game Charges -->
+            <h4 class="section-heading" style="margin-top:24px">Per Game Charges</h4>
+            @if (allPerGameCharges.length === 0) {
+              <div class="empty-state">
+                <span>🎾</span>
+                <p>No per game charges found.</p>
+              </div>
+            } @else {
+              <div class="table-wrap">
+                <table class="finance-table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Date</th>
+                      <th>Method</th>
+                      <th class="col-amount">Game + Guest Fee</th>
+                      <th class="col-amount">Conv. Fee</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (charge of allPerGameCharges; track charge._id) {
+                      <tr>
+                        <td class="col-player">{{ getPlayerName(charge) }}</td>
+                        <td class="col-date">{{ charge.createdAt | date: 'MMM d, yyyy' : 'UTC' }}</td>
+                        <td>
+                          <span class="method-badge" [ngClass]="methodClass(charge.paymentMethod)">
+                            {{ charge.paymentMethod ?? 'Unpaid' }}
+                          </span>
+                        </td>
+                        <td class="col-amount">{{ ((charge.breakdown?.gameFee ?? 0) + (charge.breakdown?.guestFee ?? 0)) | currency: 'PHP' : 'symbol' }}</td>
+                        <td class="col-amount col-service">{{ (charge.breakdown?.convenienceFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colspan="4" class="foot-label">Total ({{ allPerGameCharges.length }} entries)</td>
+                      <td class="col-amount foot-total col-service">{{ perGameServiceFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -953,6 +1001,7 @@ export class FinanceComponent implements OnInit {
   charges: Charge[] = [];
   allReservationCharges: Charge[] = [];
   allOpenPlayCharges: Charge[] = [];
+  allPerGameCharges: Charge[] = [];
   filtered: Charge[] = [];
   appServicePayments: AppServicePayment[] = [];
   loading = true;
@@ -1002,11 +1051,12 @@ export class FinanceComponent implements OnInit {
   get reservationTotal() { return this.reservationCharges.reduce((s, c) => s + c.amount, 0); }
   get reservationServiceFee() { return this.reservationCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
   get openPlayServiceFee() { return this.allOpenPlayCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
+  get perGameServiceFee() { return this.allPerGameCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
   get billingTotal() { return this.appServicePayments.filter(p => p.type === 'billing').reduce((s, p) => s + p.amount, 0); }
   get appServiceTotal() {
     return this.isMonthlyFlat
       ? this.convenienceFeeMonthlyAmount
-      : this.reservationServiceFee + this.openPlayServiceFee + this.billingTotal;
+      : this.reservationServiceFee + this.openPlayServiceFee + this.perGameServiceFee + this.billingTotal;
   }
   get totalPaid() { return this.appServicePayments.filter(p => p.type === 'payment').reduce((s, p) => s + p.amount, 0); }
   get totalWaived() { return this.appServicePayments.filter(p => p.type === 'waiver').reduce((s, p) => s + p.amount, 0); }
@@ -1052,6 +1102,9 @@ export class FinanceComponent implements OnInit {
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         this.allOpenPlayCharges = allCharges
           .filter(c => c.chargeType === 'open_play_session')
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        this.allPerGameCharges = allCharges
+          .filter(c => c.chargeType === 'per_game')
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         this.appServicePayments = payments;
         this.convenienceFeeMode = feeInfo.convenienceFeeMode;

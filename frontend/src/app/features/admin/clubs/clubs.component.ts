@@ -892,6 +892,43 @@ interface AdminUser {
                       </div>
                     </div>
                   </div>
+
+                  <div class="cfs-card xfee-setting-card">
+                    <div class="cfs-header">
+                      <div class="cfs-header-left">
+                        <span class="cfs-icon"><i class="fas fa-calendar-check"></i></span>
+                        <div>
+                          <div class="cfs-title">Booking Process</div>
+                          <div class="cfs-subtitle">Reservation or per-game model</div>
+                        </div>
+                      </div>
+                      <span class="xfee-status-pill" [class.xfee-status-off]="bookingProcess === 'per_game'">
+                        {{ bookingProcess === 'reservation' ? 'Reservation' : 'Per Game' }}
+                      </span>
+                    </div>
+                    <div class="cfs-body xfee-setting-body">
+                      <div class="cfs-mode-grid">
+                        <button type="button" class="cfs-mode-opt" [class.cfs-mode-opt-active]="bookingProcess === 'reservation'" (click)="bookingProcess = 'reservation'">
+                          <i class="fas fa-calendar-check"></i>
+                          <span class="cfs-mode-name">Reservation</span>
+                          <span class="cfs-mode-desc">Pre-book courts by date & time</span>
+                        </button>
+                        <button type="button" class="cfs-mode-opt" [class.cfs-mode-opt-active]="bookingProcess === 'per_game'" (click)="bookingProcess = 'per_game'">
+                          <i class="fas fa-play-circle"></i>
+                          <span class="cfs-mode-name">Per Game</span>
+                          <span class="cfs-mode-desc">Players join; admin records games</span>
+                        </button>
+                      </div>
+                      <div class="cfs-actions xfee-actions">
+                        <button type="button" class="cfs-save-btn" (click)="saveBookingProcess()" [disabled]="savingBookingProcess">
+                          @if (savingBookingProcess) { <i class="fas fa-circle-notch fa-spin"></i> } Save
+                        </button>
+                        @if (bookingProcessSaveMsg) {
+                          <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ bookingProcessSaveMsg }}</span>
+                        }
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="cfs-card xfee-fees-card">
@@ -3849,6 +3886,9 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   balanceAlertEnabled = false;
   savingBalanceAlert = false;
   balanceAlertSaveMsg = '';
+  bookingProcess: 'reservation' | 'per_game' = 'reservation';
+  savingBookingProcess = false;
+  bookingProcessSaveMsg = '';
 
   // ── Additional (extra) fees ──
   editingExtraFees: AdditionalFee[] = [];
@@ -4108,6 +4148,8 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     this.screenshotSettingSaveMsg = '';
     this.balanceAlertEnabled = club.balanceAlertEnabled ?? false;
     this.balanceAlertSaveMsg = '';
+    this.bookingProcess = club.bookingProcess ?? 'reservation';
+    this.bookingProcessSaveMsg = '';
     this.editingExtraFees = (club.additionalFees ?? []).map(f => ({ ...f }));
     this.newExtraFeeName = '';
     this.newExtraFeeAmount = 0;
@@ -4374,6 +4416,23 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
         setTimeout(() => { this.balanceAlertSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
       },
       error: () => { this.savingBalanceAlert = false; this.balanceAlertSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
+  saveBookingProcess() {
+    if (!this.selectedClub?._id) return;
+    this.savingBookingProcess = true;
+    this.bookingProcessSaveMsg = '';
+    this.clubService.patchBookingProcess(this.selectedClub._id, this.bookingProcess).subscribe({
+      next: (updated) => {
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, bookingProcess: updated.bookingProcess } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, bookingProcess: updated.bookingProcess };
+        this.savingBookingProcess = false;
+        this.bookingProcessSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.bookingProcessSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingBookingProcess = false; this.bookingProcessSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
     });
   }
 

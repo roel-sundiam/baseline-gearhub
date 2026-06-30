@@ -297,6 +297,7 @@ router.get("/:clubId", async (req, res) => {
       rating: club.rating ?? 0,
       reviewCount: club.reviewCount ?? 0,
       totalBookings: club.totalBookings ?? 0,
+      bookingProcess: club.bookingProcess ?? 'reservation',
     });
   } catch (err) {
     console.error(err);
@@ -437,6 +438,8 @@ router.get("/:clubId/rates", async (req, res) => {
       coachingRate1Pax: rates.coachingRate1Pax ?? 0,
       coachingRate2Pax: rates.coachingRate2Pax ?? 0,
       coachingRate3to6Pax: rates.coachingRate3to6Pax ?? 0,
+      perGameFee: rates.perGameFee ?? 0,
+      perGameGuestFee: rates.perGameGuestFee ?? 0,
     });
   } catch (err) {
     console.error(err);

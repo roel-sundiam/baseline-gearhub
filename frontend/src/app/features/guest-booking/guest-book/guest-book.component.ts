@@ -78,15 +78,17 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
                     </div>
                   </div>
                 </button>
-                <button class="lp-cta lp-cta-guest" (click)="goToReserve()">
-                  <div class="lp-cta-left">
-                    <div class="lp-cta-icon lp-cta-icon-guest"><i class="fas fa-calendar-plus"></i></div>
-                    <div>
-                      <div class="lp-cta-title">Book as Guest</div>
-                      <div class="lp-cta-sub">No account needed — walk-in booking</div>
+                @if (!isPerGame) {
+                  <button class="lp-cta lp-cta-guest" (click)="goToReserve()">
+                    <div class="lp-cta-left">
+                      <div class="lp-cta-icon lp-cta-icon-guest"><i class="fas fa-calendar-plus"></i></div>
+                      <div>
+                        <div class="lp-cta-title">Book as Guest</div>
+                        <div class="lp-cta-sub">No account needed — walk-in booking</div>
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                }
               </div>
             }
           </div>
@@ -230,23 +232,40 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
             @if (ratesLoaded) {
               <div class="lp-card lp-pricing-card">
                 <div class="lp-section-label"><i class="fas fa-coins"></i> Pricing</div>
-                <div class="lp-pricing-grid">
-                  <div class="lp-price-tile">
-                    <div class="lp-price-label">Weekday (6AM – 5PM)</div>
-                    <div class="lp-price-amount">₱{{ weekdayRate | number }}</div>
-                    <div class="lp-price-unit">/ hour</div>
+                @if (isPerGame) {
+                  <div class="lp-pricing-grid">
+                    <div class="lp-price-tile">
+                      <div class="lp-price-label">Game Fee</div>
+                      <div class="lp-price-amount">₱{{ perGameFee | number }}</div>
+                      <div class="lp-price-unit">/ player / game</div>
+                    </div>
+                    @if (perGameGuestFee > 0) {
+                      <div class="lp-price-tile">
+                        <div class="lp-price-label">Guest Fee</div>
+                        <div class="lp-price-amount">₱{{ perGameGuestFee | number }}</div>
+                        <div class="lp-price-unit">/ guest / game</div>
+                      </div>
+                    }
                   </div>
-                  <div class="lp-price-tile">
-                    <div class="lp-price-label">Weekday (5PM – 10PM)</div>
-                    <div class="lp-price-amount">₱{{ weekdayRate | number }}</div>
-                    <div class="lp-price-unit">/ hour</div>
+                } @else {
+                  <div class="lp-pricing-grid">
+                    <div class="lp-price-tile">
+                      <div class="lp-price-label">Weekday (6AM – 5PM)</div>
+                      <div class="lp-price-amount">₱{{ weekdayRate | number }}</div>
+                      <div class="lp-price-unit">/ hour</div>
+                    </div>
+                    <div class="lp-price-tile">
+                      <div class="lp-price-label">Weekday (5PM – 10PM)</div>
+                      <div class="lp-price-amount">₱{{ weekdayRate | number }}</div>
+                      <div class="lp-price-unit">/ hour</div>
+                    </div>
+                    <div class="lp-price-tile">
+                      <div class="lp-price-label">Weekend (All Day)</div>
+                      <div class="lp-price-amount">₱{{ weekendRate | number }}</div>
+                      <div class="lp-price-unit">/ hour</div>
+                    </div>
                   </div>
-                  <div class="lp-price-tile">
-                    <div class="lp-price-label">Weekend (All Day)</div>
-                    <div class="lp-price-amount">₱{{ weekendRate | number }}</div>
-                    <div class="lp-price-unit">/ hour</div>
-                  </div>
-                </div>
+                }
               </div>
             }
 
@@ -1021,6 +1040,7 @@ export class GuestBookComponent implements OnInit, OnDestroy {
   clubLogo: string | null = null;
   clubError = '';
   clubSuspended = false;
+  isPerGame = false;
   clubMobile = '';
   clubEmail = '';
   clubDescription = '';
@@ -1033,6 +1053,8 @@ export class GuestBookComponent implements OnInit, OnDestroy {
   closingHour = 22;
   weekdayRate = 0;
   weekendRate = 0;
+  perGameFee = 0;
+  perGameGuestFee = 0;
   ratesLoaded = false;
   popularSlots: { time: string; available: number }[] = [];
 
@@ -1093,6 +1115,7 @@ export class GuestBookComponent implements OnInit, OnDestroy {
         this.openingHour = club.openingHour ?? 6;
         this.closingHour = club.closingHour ?? 22;
         if (club.status === 'suspended') this.clubSuspended = true;
+        this.isPerGame = club.bookingProcess === 'per_game';
         this.cdr.detectChanges();
       },
       error: () => {
@@ -1105,6 +1128,8 @@ export class GuestBookComponent implements OnInit, OnDestroy {
       next: (rates) => {
         this.weekdayRate = rates.reservationWeekdayRate;
         this.weekendRate = rates.reservationWeekendRate;
+        this.perGameFee = rates.perGameFee ?? 0;
+        this.perGameGuestFee = rates.perGameGuestFee ?? 0;
         this.ratesLoaded = true;
         this.cdr.detectChanges();
       },

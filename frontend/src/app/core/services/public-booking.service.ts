@@ -26,6 +26,8 @@ export interface PublicRates {
   coachingRate1Pax: number;
   coachingRate2Pax: number;
   coachingRate3to6Pax: number;
+  perGameFee: number;
+  perGameGuestFee: number;
 }
 
 export interface GuestInfo {
@@ -90,6 +92,7 @@ export class PublicBookingService {
       description?: string; photos?: string[];
       socialLinks?: { facebook?: string; instagram?: string; reclub?: string };
       rating?: number; reviewCount?: number; totalBookings?: number;
+      bookingProcess?: 'reservation' | 'per_game';
     }>(`${this.base}/${clubId}`);
   }
 

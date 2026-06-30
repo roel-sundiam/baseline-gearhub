@@ -155,6 +155,39 @@ import { AuthService } from '../../../core/services/auth.service';
               </div>
             </div>
 
+            <div class="section-divider"><span>Per Game</span></div>
+
+            <p class="section-note">
+              <i class="fas fa-info-circle"></i> Used when this club's booking process is set to <strong>Per Game</strong>. Players tap Join and the admin records games played; charges use the rates below.
+            </p>
+
+            <div class="rates-grid" style="margin-top:.75rem">
+              <div class="rate-item">
+                <div class="rate-icon">🎾</div>
+                <div class="form-group">
+                  <label for="perGameFee">Game Fee (per player)</label>
+                  <div class="input-prefix">
+                    <span>₱</span>
+                    <input id="perGameFee" type="number" [(ngModel)]="perGameFee"
+                      name="perGameFee" min="0" step="0.01" placeholder="0.00" />
+                  </div>
+                  <p class="field-help">Charged for each game a player plays.</p>
+                </div>
+              </div>
+              <div class="rate-item">
+                <div class="rate-icon">🧑‍🤝‍🧑</div>
+                <div class="form-group">
+                  <label for="perGameGuestFee">Guest Fee (per guest)</label>
+                  <div class="input-prefix">
+                    <span>₱</span>
+                    <input id="perGameGuestFee" type="number" [(ngModel)]="perGameGuestFee"
+                      name="perGameGuestFee" min="0" step="0.01" placeholder="0.00" />
+                  </div>
+                  <p class="field-help">Charged for each guest the player brings.</p>
+                </div>
+              </div>
+            </div>
+
             <div class="section-divider"><span>Exclusive Event</span></div>
 
             <div class="ee-toggle-card">
@@ -899,6 +932,8 @@ export class AdminRatesComponent implements OnInit {
   reservationHolidayRate = 0;
   reservationGuestFee = 0;
   reservationGuestFeeThreshold = 0;
+  perGameFee = 0;
+  perGameGuestFee = 0;
   exclusiveEventEnabled = false;
   exclusiveEventRate = 0;
   exclusiveEventIncludedPax = 0;
@@ -950,6 +985,8 @@ export class AdminRatesComponent implements OnInit {
           this.reservationHolidayRate = rates.reservationHolidayRate ?? 0;
           this.reservationGuestFee = rates.reservationGuestFee ?? 0;
           this.reservationGuestFeeThreshold = rates.reservationGuestFeeThreshold ?? 0;
+          this.perGameFee = rates.perGameFee ?? 0;
+          this.perGameGuestFee = rates.perGameGuestFee ?? 0;
           this.exclusiveEventEnabled = rates.exclusiveEventEnabled ?? false;
           this.exclusiveEventRate = rates.exclusiveEventRate ?? 0;
           this.exclusiveEventIncludedPax = rates.exclusiveEventIncludedPax ?? 0;
@@ -998,6 +1035,8 @@ export class AdminRatesComponent implements OnInit {
       reservationHolidayRate: Number(this.reservationHolidayRate),
       reservationGuestFee: Number(this.reservationGuestFee),
       reservationGuestFeeThreshold: Number(this.reservationGuestFeeThreshold),
+      perGameFee: Number(this.perGameFee),
+      perGameGuestFee: Number(this.perGameGuestFee),
       exclusiveEventEnabled: this.exclusiveEventEnabled,
       exclusiveEventRate: Number(this.exclusiveEventRate),
       exclusiveEventIncludedPax: Number(this.exclusiveEventIncludedPax),

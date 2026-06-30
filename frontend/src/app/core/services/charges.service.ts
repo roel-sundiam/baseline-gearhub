@@ -10,9 +10,10 @@ export interface Charge {
   reservationId?: { _id: string; date: string; court: number; timeSlot: string; durationHours?: number; status?: string };
   sessionId?: { _id: string; date: string; startTime: string; ballBoyUsed: boolean };
   openPlaySessionId?: { _id: string; title: string; sessionDate: string; startTime: string; endTime: string; sport: string };
+  gameJoinId?: string;
   amount: number;
-  breakdown: { withoutLightFee: number; lightFee: number; ballBoyFee: number; guestFee?: number; rentalFee?: number; convenienceFee?: number; extraFees?: { name: string; amount: number }[]; extraFeeTotal?: number; coachingFee?: number };
-  chargeType: 'reservation' | 'session' | 'open_play_session';
+  breakdown: { withoutLightFee: number; lightFee: number; ballBoyFee: number; guestFee?: number; rentalFee?: number; convenienceFee?: number; extraFees?: { name: string; amount: number }[]; extraFeeTotal?: number; coachingFee?: number; gameFee?: number };
+  chargeType: 'reservation' | 'session' | 'open_play_session' | 'per_game';
   status: 'unpaid' | 'paid';
   approvalStatus?: 'none' | 'pending' | 'approved' | 'rejected';
   paymentMethod?: 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme';

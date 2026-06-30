@@ -12,6 +12,7 @@ import { AdminChatModalComponent } from '../../../shared/components/admin-chat-m
 import { BalanceAlertModalComponent } from '../../../shared/components/balance-alert-modal/balance-alert-modal.component';
 import { AppServicePaymentsService } from '../../../core/services/app-service-payments.service';
 import { SoundService } from '../../../core/services/sound.service';
+import { PerGameService, GameJoin } from '../../../core/services/per-game.service';
 import { forkJoin } from 'rxjs';
 
 @Component({
@@ -70,21 +71,68 @@ import { forkJoin } from 'rxjs';
           }
         </div>
 
-        <!-- Book a Court hero card -->
-        <div class="dm-hero-card" (click)="navigateTo('/player/reserve')">
-          <div class="dm-hero-text">
-            <div class="dm-hero-icon"><i class="fas fa-calendar-alt"></i></div>
-            <h3 class="dm-hero-title">Book a Court</h3>
-            <p class="dm-hero-hours">{{ operatingHours }}</p>
-            <p class="dm-hero-desc">Find and book your preferred time.</p>
-            <button class="dm-hero-cta">Book Now</button>
+        <!-- Book a Court / Play hero card -->
+        @if (isPerGame) {
+          <div class="dm-hero-card" (click)="navigateTo('/player/per-game')">
+            <div class="dm-hero-text">
+              <div class="dm-hero-icon"><i class="fas fa-play-circle"></i></div>
+              <h3 class="dm-hero-title">Play</h3>
+              <p class="dm-hero-hours">{{ operatingHours }}</p>
+              <p class="dm-hero-desc">Tap Join to start playing. No reservation needed.</p>
+              <div class="dm-hero-actions">
+                <button class="dm-hero-cta" [disabled]="joiningToday" (click)="joinToday($event)">{{ joiningToday ? 'Joining…' : 'Join' }}</button>
+                <button class="dm-who-btn" (click)="$event.stopPropagation(); showJoinedList = !showJoinedList">
+                  <i class="fas fa-users"></i>
+                  {{ joinedPlayers.length }} playing
+                </button>
+              </div>
+            </div>
+            <div class="dm-hero-image">
+              <img src="/racketball.png" alt="Racketball" />
+            </div>
           </div>
-          <div class="dm-hero-image">
-            <img src="/racketball.png" alt="Racketball" />
+          @if (showJoinedList) {
+            <div class="dm-playing-panel">
+              <div class="dm-playing-header">
+                <span class="dm-playing-title"><i class="fas fa-users"></i> Who's Playing Today</span>
+                <button class="dm-playing-close" (click)="showJoinedList = false"><i class="fas fa-times"></i></button>
+              </div>
+              @if (joinedPlayers.length === 0) {
+                <p class="dm-playing-empty">No players have joined yet.</p>
+              } @else {
+                <div class="dm-playing-list">
+                  @for (p of joinedPlayers; track p._id) {
+                    <div class="dm-playing-row">
+                      <div class="dm-playing-avatar">
+                        {{ $any(p.playerId)?.name?.charAt(0)?.toUpperCase() ?? '?' }}
+                      </div>
+                      <span class="dm-playing-name">{{ $any(p.playerId)?.name ?? 'Player' }}</span>
+                      <span class="dm-playing-status" [class.dm-playing-recorded]="p.status === 'recorded'">
+                        {{ p.status === 'recorded' ? 'Recorded' : 'Joined' }}
+                      </span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        } @else {
+          <div class="dm-hero-card" (click)="navigateTo('/player/reserve')">
+            <div class="dm-hero-text">
+              <div class="dm-hero-icon"><i class="fas fa-calendar-alt"></i></div>
+              <h3 class="dm-hero-title">Book a Court</h3>
+              <p class="dm-hero-hours">{{ operatingHours }}</p>
+              <p class="dm-hero-desc">Find and book your preferred time.</p>
+              <button class="dm-hero-cta">Book Now</button>
+            </div>
+            <div class="dm-hero-image">
+              <img src="/racketball.png" alt="Racketball" />
+            </div>
           </div>
-        </div>
+        }
 
         <!-- Upcoming Booking -->
+        @if (!isPerGame) {
         <div class="dm-section">
           <h4 class="dm-section-label">Upcoming Booking</h4>
           @if (loading) {
@@ -107,21 +155,32 @@ import { forkJoin } from 'rxjs';
             </div>
           }
         </div>
+        }
 
         <!-- Player Action Cards -->
         <div class="dm-section">
           <h4 class="dm-section-label">Quick Actions</h4>
           <div class="dm-card-grid">
-            <button class="dm-action-card" (click)="navigateTo('/player/reserve')">
-              <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-calendar-alt"></i></div>
-              <span class="dm-ac-title">Reserve Court</span>
-              <span class="dm-ac-sub">Book a game</span>
-            </button>
-            <button class="dm-action-card" (click)="navigateTo('/player/reservations')">
-              <div class="dm-ac-icon dm-ac-teal"><i class="fas fa-calendar-check"></i></div>
-              <span class="dm-ac-title">My Reservations</span>
-              <span class="dm-ac-sub">View bookings</span>
-            </button>
+            @if (isPerGame) {
+              <button class="dm-action-card" [class.dm-ac-active]="showDatePicker" (click)="toggleDatePicker($event)">
+                <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-play-circle"></i></div>
+                <span class="dm-ac-title">Play</span>
+                <span class="dm-ac-sub">Join & play</span>
+              </button>
+            } @else {
+              <button class="dm-action-card" (click)="navigateTo('/player/reserve')">
+                <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-calendar-alt"></i></div>
+                <span class="dm-ac-title">Reserve Court</span>
+                <span class="dm-ac-sub">Book a game</span>
+              </button>
+            }
+            @if (!isPerGame) {
+              <button class="dm-action-card" (click)="navigateTo('/player/reservations')">
+                <div class="dm-ac-icon dm-ac-teal"><i class="fas fa-calendar-check"></i></div>
+                <span class="dm-ac-title">My Reservations</span>
+                <span class="dm-ac-sub">View bookings</span>
+              </button>
+            }
             <button class="dm-action-card" (click)="navigateTo('/payments')">
               <div class="dm-ac-icon dm-ac-amber"><i class="far fa-credit-card"></i></div>
               <span class="dm-ac-title">Payments</span>
@@ -160,16 +219,29 @@ import { forkJoin } from 'rxjs';
               <span class="dm-ac-title">Rules</span>
               <span class="dm-ac-sub">Club guidelines</span>
             </button>
-            <button class="dm-action-card" (click)="toggleAvailability()">
-              <div class="dm-ac-icon dm-ac-teal"><i class="fas fa-th"></i></div>
-              <span class="dm-ac-title">Court Schedule</span>
-              <span class="dm-ac-sub">Check availability</span>
-            </button>
+            @if (!isPerGame) {
+              <button class="dm-action-card" (click)="toggleAvailability()">
+                <div class="dm-ac-icon dm-ac-teal"><i class="fas fa-th"></i></div>
+                <span class="dm-ac-title">Court Schedule</span>
+                <span class="dm-ac-sub">Check availability</span>
+              </button>
+            }
           </div>
+
+          @if (isPerGame && showDatePicker) {
+            <div class="dm-date-picker-panel">
+              <div class="dm-date-picker-title"><i class="fas fa-calendar"></i> Pick a play date</div>
+              <input class="dm-date-picker-input" type="date" [value]="pickerDate" [min]="todayStr"
+                (change)="onPickerDateChange($any($event.target).value)" />
+              <button class="dm-date-picker-go" (click)="goToPerGame()">
+                <i class="fas fa-arrow-right"></i> Continue
+              </button>
+            </div>
+          }
         </div>
 
         <!-- Court Availability (toggled by Quick Action) -->
-        @if (showAvailability) {
+        @if (showAvailability && !isPerGame) {
           <div class="dm-section">
             <div class="av-header">
               <h4 class="dm-section-label" style="margin:0">Court Availability</h4>
@@ -922,6 +994,122 @@ import { forkJoin } from 'rxjs';
     .av-icon { font-size:0.75rem; line-height:1; }
     .av-status-text { font-size:0.58rem; }
 
+    /* ── Hero actions row ── */
+    .dm-hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+    }
+    .dm-who-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.75);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 0.38rem 0.85rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-family: inherit;
+    }
+    .dm-who-btn:hover { background: rgba(255,255,255,0.14); }
+    .dm-who-btn i { font-size: 0.75rem; }
+    .dm-ac-active { border-color: rgba(163,230,53,0.4) !important; background: rgba(163,230,53,0.06) !important; }
+    .dm-date-picker-panel { background: #1b3028; border: 1px solid rgba(163,230,53,0.2); border-radius: 14px; padding: 1rem 1.1rem; margin-top: .75rem; display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+    .dm-date-picker-title { font-size: .82rem; font-weight: 700; color: rgba(255,255,255,.65); display: flex; align-items: center; gap: .35rem; white-space: nowrap; }
+    .dm-date-picker-title i { color: #a3e635; }
+    .dm-date-picker-input { flex: 1; min-width: 140px; padding: .45rem .7rem; background: rgba(255,255,255,.06); border: 1px solid rgba(163,230,53,.25); border-radius: 9px; color: #a3e635; font-size: .85rem; font-weight: 600; font-family: inherit; outline: none; }
+    .dm-date-picker-input::-webkit-calendar-picker-indicator { filter: invert(1) sepia(1) saturate(5) hue-rotate(50deg); cursor: pointer; }
+    .dm-date-picker-go { padding: .45rem 1rem; background: #a3e635; color: #0c1a11; border: none; border-radius: 9px; font-size: .82rem; font-weight: 800; font-family: inherit; cursor: pointer; display: flex; align-items: center; gap: .35rem; white-space: nowrap; }
+    .dm-date-picker-go:hover { background: #b8f040; }
+
+    /* ── Playing panel ── */
+    .dm-playing-panel {
+      background: #1b3028;
+      border-radius: 14px;
+      padding: 0.9rem 1rem;
+      margin-bottom: 1.1rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    }
+    .dm-playing-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+    .dm-playing-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.6);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .dm-playing-title i { color: #a3e635; }
+    .dm-playing-close {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.35);
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 0.2rem;
+      line-height: 1;
+    }
+    .dm-playing-empty {
+      color: rgba(255,255,255,0.35);
+      font-size: 0.82rem;
+      margin: 0;
+      text-align: center;
+      padding: 0.5rem 0;
+    }
+    .dm-playing-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+    .dm-playing-row {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+    .dm-playing-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: rgba(163,230,53,0.12);
+      color: #a3e635;
+      font-size: 0.75rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .dm-playing-name {
+      flex: 1;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+    .dm-playing-status {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #a3e635;
+      background: rgba(163,230,53,0.1);
+      border-radius: 99px;
+      padding: 0.18rem 0.55rem;
+    }
+    .dm-playing-recorded {
+      color: #63b3ed;
+      background: rgba(99,179,237,0.1);
+    }
+
     /* ── Support chat FAB ── */
     .dm-chat-fab {
       position: fixed;
@@ -973,6 +1161,14 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   clubSlug = '';
   clubName = 'Baseline Club';
   clubLogo = '';
+  bookingProcess: 'reservation' | 'per_game' = 'reservation';
+  get isPerGame() { return this.bookingProcess === 'per_game'; }
+  joinedPlayers: GameJoin[] = [];
+  showJoinedList = false;
+  joiningToday = false;
+  showDatePicker = false;
+  todayStr = new Date().toISOString().slice(0, 10);
+  pickerDate = this.todayStr;
   nextReservation: Reservation | null = null;
   nextTournament: Tournament | null = null;
   newsItems: ClubNews[] = [];
@@ -1115,6 +1311,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     private adminMessages: AdminMessagesService,
     private sound: SoundService,
     private appServicePayments: AppServicePaymentsService,
+    private perGameService: PerGameService,
   ) {}
 
   ngOnInit() {
@@ -1190,10 +1387,17 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
           this.clubName    = club.name;
           this.clubSlug    = club.slug ?? '';
           this.clubLogo    = club.logo ?? '';
+          this.bookingProcess = club.bookingProcess ?? 'reservation';
           this.courtCount  = club.courtCount  ?? 2;
           this.openingHour = club.openingHour ?? 5;
           this.closingHour = club.closingHour ?? 22;
           this.buildAvailabilitySlots();
+          if (this.bookingProcess === 'per_game') {
+            this.perGameService.getPlaying().subscribe({
+              next: (entries) => { this.joinedPlayers = entries; this.cdr.detectChanges(); },
+              error: () => {},
+            });
+          }
           this.cdr.detectChanges();
         },
         error: () => {},
@@ -1231,6 +1435,32 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
       this.copiedPublicLink = true;
       this.cdr.detectChanges();
       setTimeout(() => { this.copiedPublicLink = false; this.cdr.detectChanges(); }, 2500);
+    });
+  }
+
+  toggleDatePicker(event: MouseEvent) {
+    event.stopPropagation();
+    this.showDatePicker = !this.showDatePicker;
+    this.pickerDate = this.todayStr;
+    this.cdr.detectChanges();
+  }
+
+  onPickerDateChange(val: string) { if (val) { this.pickerDate = val; this.cdr.detectChanges(); } }
+
+  goToPerGame() {
+    this.showDatePicker = false;
+    this.router.navigate(['/player/per-game'], { queryParams: { date: this.pickerDate } });
+  }
+
+  joinToday(event: MouseEvent) {
+    event.stopPropagation();
+    if (this.joiningToday) return;
+    this.joiningToday = true;
+    this.cdr.detectChanges();
+    const today = new Date().toISOString().slice(0, 10);
+    this.perGameService.join(0, today).subscribe({
+      next: () => { this.joiningToday = false; this.router.navigate(['/player/per-game']); },
+      error: () => { this.joiningToday = false; this.router.navigate(['/player/per-game']); },
     });
   }
 

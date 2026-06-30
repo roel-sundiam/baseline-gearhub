@@ -41,6 +41,7 @@ export interface Club {
   adminTermsAccepted?: boolean;
   requirePaymentScreenshot?: boolean;
   balanceAlertEnabled?: boolean;
+  bookingProcess?: 'reservation' | 'per_game';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -98,6 +99,10 @@ export class ClubService {
 
   patchBookingQrCode(id: string, bookingQrCode: string | null) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/booking-qr`, { bookingQrCode });
+  }
+
+  patchBookingProcess(id: string, bookingProcess: 'reservation' | 'per_game') {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/booking-process`, { bookingProcess });
   }
 
   setSelectedClubId(id: string) {

@@ -19,6 +19,10 @@ const chargeSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "OpenPlaySession",
     },
+    gameJoinId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "GameJoin",
+    },
     amount: { type: Number, required: true },
     breakdown: {
       withoutLightFee: { type: Number, default: 0 },
@@ -30,8 +34,9 @@ const chargeSchema = new mongoose.Schema(
       extraFees: [{ name: { type: String }, amount: { type: Number, default: 0 } }],
       extraFeeTotal: { type: Number, default: 0 },
       coachingFee: { type: Number, default: 0 },
+      gameFee: { type: Number, default: 0 },
     },
-    chargeType: { type: String, enum: ["reservation", "session", "open_play_session"], default: "reservation" },
+    chargeType: { type: String, enum: ["reservation", "session", "open_play_session", "per_game"], default: "reservation" },
     status: { type: String, enum: ["unpaid", "paid"], default: "unpaid" },
     approvalStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "none" },
     paymentMethod: { type: String, enum: ["GCash", "Cash", "Bank Transfer", "GoTyme"] },

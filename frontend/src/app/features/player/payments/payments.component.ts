@@ -76,6 +76,7 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                   <div class="dm-charge-top">
                     <div class="dm-charge-title">
                       @if (charge.chargeType === 'reservation') { Court Reservation }
+                      @else if (charge.chargeType === 'per_game') { Per Game }
                       @else { Session Charge }
                     </div>
                     @if (charge.approvalStatus === 'pending') {
@@ -114,6 +115,17 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                         <span class="dm-detail-icon"><i class="fas fa-calendar-alt"></i></span>
                         <span>{{ charge.sessionId.date | date: 'MMM d, yyyy' : 'UTC' }} · {{ charge.sessionId.startTime }}</span>
                       </div>
+                    } @else if (charge.chargeType === 'per_game') {
+                      <div class="dm-detail-row">
+                        <span class="dm-detail-icon"><i class="fas fa-table-tennis-paddle-ball"></i></span>
+                        <span>Games {{ charge.breakdown.gameFee | currency: 'PHP' : 'symbol' }}</span>
+                        @if (charge.breakdown.guestFee) {
+                          <span class="dm-detail-sep">·</span><span>Guests {{ charge.breakdown.guestFee | currency: 'PHP' : 'symbol' }}</span>
+                        }
+                        @if (charge.breakdown.convenienceFee) {
+                          <span class="dm-detail-sep">·</span><span>Fee {{ charge.breakdown.convenienceFee | currency: 'PHP' : 'symbol' }}</span>
+                        }
+                      </div>
                     }
                     @if (charge.paidAt && charge.approvalStatus !== 'rejected') {
                       <div class="dm-detail-row">
@@ -149,6 +161,12 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                         <div class="dm-bk-row">
                           <span>Ball boy</span>
                           <span>{{ charge.breakdown.ballBoyFee | currency:'PHP':'symbol' }}</span>
+                        </div>
+                      }
+                      @if ((charge.breakdown.gameFee ?? 0) > 0) {
+                        <div class="dm-bk-row">
+                          <span>Game fee</span>
+                          <span>{{ charge.breakdown.gameFee | currency:'PHP':'symbol' }}</span>
                         </div>
                       }
                       @if ((charge.breakdown.guestFee ?? 0) > 0) {

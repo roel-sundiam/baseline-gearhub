@@ -90,9 +90,21 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
 
                     <div class="pa-meta">
                       <span class="pa-meta-item">
-                        <i class="fas {{ charge.chargeType === 'reservation' ? 'fa-calendar-check' : 'fa-users' }}"></i>
-                        {{ charge.chargeType === 'reservation' ? 'Reservation' : 'Session' }}
+                        <i class="fas" [class.fa-calendar-check]="charge.chargeType === 'reservation'" [class.fa-play-circle]="charge.chargeType === 'per_game'" [class.fa-users]="charge.chargeType !== 'reservation' && charge.chargeType !== 'per_game'"></i>
+                        {{ charge.chargeType === 'reservation' ? 'Reservation' : charge.chargeType === 'per_game' ? 'Per Game' : 'Session' }}
                       </span>
+                      @if (charge.chargeType === 'per_game') {
+                        <span class="pa-meta-item">
+                          <i class="fas fa-table-tennis"></i>
+                          Games {{ charge.breakdown.gameFee | currency: 'PHP' : 'symbol' }}
+                        </span>
+                        @if (charge.breakdown.guestFee) {
+                          <span class="pa-meta-item">
+                            <i class="fas fa-user-friends"></i>
+                            Guests {{ charge.breakdown.guestFee | currency: 'PHP' : 'symbol' }}
+                          </span>
+                        }
+                      }
                       @if (charge.chargeType === 'reservation' && charge.reservationId) {
                         <span class="pa-meta-item">
                           <i class="fas fa-calendar"></i>
@@ -151,6 +163,12 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
                           <div class="pa-bk-row">
                             <span>Ball boy</span>
                             <span>{{ charge.breakdown.ballBoyFee | currency:'PHP':'symbol' }}</span>
+                          </div>
+                        }
+                        @if ((charge.breakdown.gameFee ?? 0) > 0) {
+                          <div class="pa-bk-row">
+                            <span>Game fee</span>
+                            <span>{{ charge.breakdown.gameFee | currency:'PHP':'symbol' }}</span>
                           </div>
                         }
                         @if ((charge.breakdown.guestFee ?? 0) > 0) {

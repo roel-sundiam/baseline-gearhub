@@ -195,6 +195,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'per-game',
+        loadComponent: () =>
+          import('./features/admin/per-game/per-game.component').then(
+            (m) => m.AdminPerGameComponent,
+          ),
+      },
+      {
         path: 'award-generator',
         loadComponent: () =>
           import('./features/admin/clubs/award-generator-page.component').then(
@@ -234,6 +241,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/player/reserve-court/reserve-court.component').then(
             (m) => m.ReserveCourtComponent,
+          ),
+      },
+      {
+        path: 'per-game',
+        loadComponent: () =>
+          import('./features/player/per-game/per-game.component').then(
+            (m) => m.PlayerPerGameComponent,
           ),
       },
       {

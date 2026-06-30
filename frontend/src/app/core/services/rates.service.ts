@@ -14,6 +14,8 @@ export interface Rates {
   reservationHolidayRate: number;
   reservationGuestFee: number;
   reservationGuestFeeThreshold: number;
+  perGameFee: number;
+  perGameGuestFee: number;
   exclusiveEventEnabled: boolean;
   exclusiveEventRate: number;
   exclusiveEventIncludedPax: number;
@@ -52,6 +54,8 @@ export class RatesService {
     reservationHolidayRate: number;
     reservationGuestFee: number;
     reservationGuestFeeThreshold: number;
+    perGameFee?: number;
+    perGameGuestFee?: number;
     exclusiveEventEnabled: boolean;
     exclusiveEventRate: number;
     exclusiveEventIncludedPax: number;
