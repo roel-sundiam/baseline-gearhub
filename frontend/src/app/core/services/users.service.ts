@@ -71,4 +71,8 @@ export class UsersService {
   createAdmin(data: { name: string; username: string; password: string; clubId: string; email?: string; contactNumber?: string }) {
     return this.http.post<{ message: string; userId: string }>(`${environment.apiUrl}/users/create-admin`, data);
   }
+
+  resetPassword(id: string, newPassword: string) {
+    return this.http.put<{ message: string }>(`${environment.apiUrl}/users/${id}/reset-password`, { newPassword });
+  }
 }

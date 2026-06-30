@@ -155,6 +155,9 @@ interface AdminUser {
                       <button class="btn-message" (click)="openChat(user)">
                         <i class="fas fa-comment-dots"></i> Message
                       </button>
+                      <button class="btn-reset" (click)="openReset(user)">
+                        <i class="fas fa-key"></i> Reset Password
+                      </button>
                     }
                   </td>
                 </tr>
@@ -165,6 +168,33 @@ interface AdminUser {
       }
 
     </div>
+
+    @if (resetTarget) {
+      <div class="modal-backdrop" (click)="closeReset()">
+        <div class="modal-card" (click)="$event.stopPropagation()">
+          <h3 class="modal-title"><i class="fas fa-key"></i> Reset Password</h3>
+          <p class="modal-sub">Set a new password for <strong>{{ resetTarget.username }}</strong></p>
+          @if (resetError) { <div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> {{ resetError }}</div> }
+          @if (resetSuccess) { <div class="alert alert-success"><i class="fas fa-check-circle"></i> {{ resetSuccess }}</div> }
+          @if (!resetSuccess) {
+            <div class="form-group">
+              <label>New Password</label>
+              <input type="text" [(ngModel)]="resetPassword" name="resetPassword" placeholder="Enter new password" />
+            </div>
+            <div class="form-actions">
+              <button class="btn-submit" [disabled]="resetting || resetPassword.length < 6" (click)="confirmReset()">
+                {{ resetting ? 'Resetting…' : 'Reset Password' }}
+              </button>
+              <button class="btn-cancel" (click)="closeReset()">Cancel</button>
+            </div>
+          } @else {
+            <div class="form-actions">
+              <button class="btn-cancel" (click)="closeReset()">Close</button>
+            </div>
+          }
+        </div>
+      </div>
+    }
 
     @if (chatTarget) {
       <app-admin-chat-modal
@@ -443,6 +473,58 @@ interface AdminUser {
     }
     .btn-message:hover { background: rgba(163,230,53,.1); border-color: var(--accent); }
 
+    .btn-reset {
+      padding: .3rem .75rem;
+      border: 1px solid rgba(251,191,36,.3);
+      border-radius: 7px;
+      background: transparent;
+      color: #fcd34d;
+      font-size: .78rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      transition: all .15s;
+    }
+    .btn-reset:hover { background: rgba(251,191,36,.1); border-color: #fcd34d; }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+    .modal-card {
+      background: #1b3028;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 16px;
+      padding: 1.75rem;
+      width: 100%;
+      max-width: 420px;
+    }
+    .modal-title {
+      margin: 0 0 .4rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .modal-title i { color: #fcd34d; }
+    .modal-sub {
+      margin: 0 0 1.25rem;
+      font-size: .86rem;
+      color: var(--muted);
+    }
+    .modal-sub strong { color: var(--text); }
+
     @media (max-width: 600px) {
       .form-row { grid-template-columns: 1fr; }
       .header { flex-direction: column; align-items: flex-start; }
@@ -462,6 +544,12 @@ export class ManageAdminsComponent implements OnInit {
   formSuccess = '';
   filterClubId = '';
   chatTarget: AdminUser | null = null;
+
+  resetTarget: AdminUser | null = null;
+  resetPassword = this.DEFAULT_ADMIN_PASSWORD;
+  resetting = false;
+  resetError = '';
+  resetSuccess = '';
 
   form = { name: '', username: '', password: this.DEFAULT_ADMIN_PASSWORD, email: '', clubId: '' };
 
@@ -543,5 +631,34 @@ export class ManageAdminsComponent implements OnInit {
 
   openChat(user: AdminUser) {
     this.chatTarget = user;
+  }
+
+  openReset(user: AdminUser) {
+    this.resetTarget = user;
+    this.resetPassword = this.DEFAULT_ADMIN_PASSWORD;
+    this.resetError = '';
+    this.resetSuccess = '';
+  }
+
+  closeReset() {
+    this.resetTarget = null;
+    this.resetError = '';
+    this.resetSuccess = '';
+  }
+
+  confirmReset() {
+    if (!this.resetTarget) return;
+    this.resetting = true;
+    this.resetError = '';
+    this.usersService.resetPassword(this.resetTarget._id, this.resetPassword).subscribe({
+      next: () => {
+        this.resetting = false;
+        this.resetSuccess = `Password for "${this.resetTarget!.username}" has been reset.`;
+      },
+      error: (err) => {
+        this.resetting = false;
+        this.resetError = err?.error?.error || 'Failed to reset password.';
+      },
+    });
   }
 }

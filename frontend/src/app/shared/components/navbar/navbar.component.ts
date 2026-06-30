@@ -42,6 +42,13 @@ import { PushNotificationService } from '../../../core/services/push-notificatio
             </button>
           }
 
+          @if (auth.isSuperAdmin()) {
+            <button class="btn-club-settings" (click)="navigate('/admin/admins')" title="Club Admins">
+              <i class="fas fa-user-shield"></i>
+              <span class="icon-label">Club Admins</span>
+            </button>
+          }
+
           @if (auth.isAdmin() && !auth.isSuperAdmin() && auth.user()?.clubId) {
             <button class="btn-club-settings" (click)="goToClubSettings()" title="Club Settings">
               <i class="fas fa-cog"></i>
@@ -111,6 +118,12 @@ import { PushNotificationService } from '../../../core/services/push-notificatio
                   <span class="avatar-initials">{{ getInitials() }}</span>
                 }
               </div>
+            </button>
+          }
+
+          @if (auth.isSuperAdmin()) {
+            <button class="btn-club-settings btn-club-settings-mobile" (click)="navigate('/admin/admins')" title="Club Admins">
+              <i class="fas fa-user-shield"></i>
             </button>
           }
 
