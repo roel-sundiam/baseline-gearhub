@@ -1,6 +1,17 @@
-import { Component } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { APP_VERSION } from '../../version';
+import { environment } from '../../../environments/environment';
+
+interface AppReview {
+  _id: string;
+  clubName: string;
+  rating: number;
+  text: string;
+  clubSlug: string | null;
+  clubLogo: string | null;
+}
 
 @Component({
   selector: 'app-landing',
@@ -152,6 +163,45 @@ import { APP_VERSION } from '../../version';
 
         </div>
       </section>
+
+      <!-- Reviews -->
+      @if (reviews().length > 0) {
+        <section class="reviews" id="reviews">
+          <div class="reviews-head">
+            <span class="reviews-stars-deco">★★★★★</span>
+            <h2 class="reviews-title">What Our Clubs Say</h2>
+            <p class="reviews-sub">Trusted by club managers across the country.</p>
+          </div>
+
+          <div class="reviews-grid">
+            @for (review of reviews(); track review._id) {
+              <div class="review-card">
+                <div class="review-card-top">
+                  <div class="review-stars">
+                    @for (i of starsArray; track i) {
+                      <span class="star" [class.star-filled]="i <= review.rating">★</span>
+                    }
+                  </div>
+                  @if (review.clubLogo) {
+                    <img [src]="review.clubLogo" [alt]="review.clubName" class="review-club-logo" />
+                  }
+                </div>
+                <p class="review-text">"{{ review.text }}"</p>
+                <div class="review-author">
+                  <span class="review-name">{{ review.clubName }}</span>
+                  @if (review.clubSlug) {
+                    <a [routerLink]="['/book', review.clubSlug]" class="review-book-link">
+                      Book a Court
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+                    </a>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+
+        </section>
+      }
 
       <!-- CTA strip -->
       <section class="cta-strip">
@@ -592,8 +642,150 @@ import { APP_VERSION } from '../../version';
       .features { padding: 1rem 1rem 3.5rem; }
       .cta-strip { padding: 3.5rem 1.25rem; }
     }
+
+    /* ── Reviews ──────────────────────────────── */
+    .reviews {
+      position: relative; z-index: 1;
+      padding: 4rem 3.5rem 5rem;
+      max-width: 1280px;
+      margin: 0 auto;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .reviews-head {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .reviews-stars-deco {
+      display: block;
+      font-size: 1.4rem;
+      letter-spacing: 4px;
+      color: #7cff4e;
+      margin-bottom: 1rem;
+      filter: drop-shadow(0 0 6px rgba(124,255,78,0.5));
+    }
+
+    .reviews-title {
+      font-size: clamp(1.6rem, 2.8vw, 2.2rem);
+      font-weight: 800;
+      color: #fff;
+      margin: 0 0 0.6rem;
+      letter-spacing: -0.02em;
+    }
+
+    .reviews-sub {
+      font-size: 0.95rem;
+      color: rgba(255,255,255,0.4);
+      margin: 0;
+    }
+
+    .reviews-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .review-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      padding: 1.75rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      transition: border-color 0.2s, background 0.2s, transform 0.2s;
+    }
+    .review-card:hover {
+      border-color: rgba(124,255,78,0.22);
+      background: rgba(124,255,78,0.04);
+      transform: translateY(-3px);
+    }
+
+    .review-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.15rem;
+    }
+    .review-club-logo {
+      height: 36px;
+      width: 36px;
+      object-fit: cover;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+      flex-shrink: 0;
+    }
+
+    .review-stars { display: flex; gap: 2px; }
+    .star { font-size: 1.1rem; color: rgba(255,255,255,0.15); }
+    .star-filled { color: #7cff4e; filter: drop-shadow(0 0 4px rgba(124,255,78,0.6)); }
+
+    .review-text {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.65);
+      line-height: 1.7;
+      margin: 0;
+      flex: 1;
+    }
+
+    .review-author {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      flex-wrap: wrap;
+    }
+
+    .review-name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .review-book-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #7cff4e;
+      text-decoration: none;
+      padding: 0.25rem 0.65rem;
+      border: 1px solid rgba(124,255,78,0.3);
+      border-radius: 100px;
+      transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .review-book-link:hover {
+      background: rgba(124,255,78,0.08);
+      border-color: rgba(124,255,78,0.55);
+    }
+
+    @media (max-width: 900px) {
+      .reviews { padding: 3rem 1.5rem 4rem; }
+      .reviews-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 600px) {
+      .reviews { padding: 2.5rem 1rem 3rem; }
+      .reviews-grid { grid-template-columns: 1fr; }
+    }
   `],
 })
 export class LandingComponent {
   readonly version = APP_VERSION;
+  readonly starsArray = [1, 2, 3, 4, 5];
+
+  reviews = signal<AppReview[]>([]);
+
+  private http = inject(HttpClient);
+
+  constructor() {
+    this.http.get<AppReview[]>(`${environment.apiUrl}/public/app-reviews`)
+      .subscribe({ next: r => this.reviews.set(r), error: () => {} });
+  }
 }

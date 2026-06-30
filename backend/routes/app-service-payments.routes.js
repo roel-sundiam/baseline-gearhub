@@ -280,9 +280,16 @@ router.get("/fee-info", auth, admin, async (req, res) => {
 
     const [club, chargeAgg, paymentAgg, waiverAgg, billingAgg] = await Promise.all([
       Club.findById(clubId).select("convenienceFeeMode convenienceFeeMonthlyAmount balanceAlertEnabled").lean(),
-      // All charges regardless of approval/reservation status — matches client-side aspBalance calculation
+      // Only confirmed reservation charges + all open_play_session charges — mirrors /summary logic
       Charge.aggregate([
         { $match: { chargeType: { $in: ["reservation", "open_play_session"] }, clubId: clubObjId } },
+        { $lookup: { from: "reservations", localField: "reservationId", foreignField: "_id", as: "reservation" } },
+        { $unwind: { path: "$reservation", preserveNullAndEmptyArrays: true } },
+        { $match: { $or: [
+          { chargeType: "open_play_session" },
+          { "reservation.status": "confirmed" },
+          { "reservation": { $exists: false }, approvalStatus: "approved" },
+        ]}},
         { $group: { _id: null, totalConvenienceFees: { $sum: "$breakdown.convenienceFee" } } },
       ]),
       AppServicePayment.aggregate([
@@ -311,7 +318,9 @@ router.get("/fee-info", auth, admin, async (req, res) => {
     const feesOwed = convenienceFeeMode === 'monthly_flat'
       ? convenienceFeeMonthlyAmount + totalBilled
       : totalConvenienceFees + totalBilled;
-    const balance = parseFloat(Math.max(0, feesOwed - totalPaid - totalWaived).toFixed(2));
+    const balance = convenienceFeeMode === 'monthly_flat'
+      ? parseFloat(Math.max(0, feesOwed - totalPaid).toFixed(2))
+      : parseFloat(Math.max(0, feesOwed - totalPaid - totalWaived).toFixed(2));
 
     res.json({
       convenienceFeeMode,

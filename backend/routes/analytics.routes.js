@@ -61,6 +61,59 @@ router.get("/summary", auth, superadminMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/analytics/trends - Period-over-period aggregates for the selected range
+router.get("/trends", auth, superadminMiddleware, async (req, res) => {
+  try {
+    const allowed = [7, 30, 90];
+    let days = parseInt(req.query.days, 10);
+    if (!allowed.includes(days)) days = 30;
+
+    const now = new Date();
+    const periodMs = days * 24 * 60 * 60 * 1000;
+    const currentStart = new Date(now.getTime() - periodMs);
+    const previousStart = new Date(now.getTime() - 2 * periodMs);
+
+    // Sums players[].charges.total over sessions whose `date` falls in [start, end)
+    async function revenueBetween(start, end) {
+      const sessions = await Session.find({
+        date: { $gte: start, $lt: end },
+      }).select("players.charges.total").lean();
+      let revenue = 0;
+      sessions.forEach((s) => {
+        (s.players || []).forEach((p) => {
+          revenue += p.charges?.total || 0;
+        });
+      });
+      return revenue;
+    }
+
+    async function bucket(start, end) {
+      const [newPlayers, newSessions, logins, pageVisits, periodRevenue] =
+        await Promise.all([
+          User.countDocuments({
+            role: "player",
+            createdAt: { $gte: start, $lt: end },
+          }),
+          Session.countDocuments({ date: { $gte: start, $lt: end } }),
+          LoginHistory.countDocuments({ loginTime: { $gte: start, $lt: end } }),
+          PageVisit.countDocuments({ visitTime: { $gte: start, $lt: end } }),
+          revenueBetween(start, end),
+        ]);
+      return { newPlayers, newSessions, logins, pageVisits, periodRevenue };
+    }
+
+    const [current, previous] = await Promise.all([
+      bucket(currentStart, now),
+      bucket(previousStart, currentStart),
+    ]);
+
+    res.json({ days, current, previous });
+  } catch (err) {
+    console.error("Analytics /trends error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
+});
+
 // GET /api/analytics/login-history - Get recent logins
 router.get("/login-history", auth, superadminMiddleware, async (req, res) => {
   try {

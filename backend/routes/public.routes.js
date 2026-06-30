@@ -7,6 +7,7 @@ const Club = require("../models/Club");
 const Inquiry = require("../models/Inquiry");
 const OpenPlaySession = require("../models/OpenPlaySession");
 const OpenPlaySessionPlayer = require("../models/OpenPlaySessionPlayer");
+const AppReview = require("../models/AppReview");
 const { sendPushToClubAdmins } = require("../utils/push");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
@@ -66,6 +67,56 @@ async function findClub(identifier, lean = true) {
     : Club.findOne({ slug: identifier });
   return lean ? q.lean() : q;
 }
+
+// GET /api/public/app-reviews — visible reviews for landing page
+router.get("/app-reviews", async (req, res) => {
+  try {
+    const reviews = await AppReview.find({ isVisible: true })
+      .populate("clubId", "slug logo")
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json(reviews.map(r => ({
+      _id: r._id,
+      clubName: r.clubName,
+      rating: r.rating,
+      text: r.text,
+      clubSlug: r.clubId?.slug ?? null,
+      clubLogo: r.clubId?.logo ?? null,
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/public/review/:clubId — club admin submits a review (no auth)
+router.post("/review/:clubId", async (req, res) => {
+  try {
+    const club = await findClub(req.params.clubId);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    if (club.status === "suspended") return res.status(403).json({ error: "club_suspended" });
+
+    const { reviewerName, rating, text } = req.body;
+    if (!reviewerName?.trim()) return res.status(400).json({ error: "reviewerName is required" });
+    if (!text?.trim()) return res.status(400).json({ error: "text is required" });
+    const r = Number(rating);
+    if (!Number.isInteger(r) || r < 1 || r > 5) return res.status(400).json({ error: "rating must be 1–5" });
+
+    await AppReview.create({
+      clubId: club._id,
+      reviewerName: reviewerName.trim(),
+      clubName: club.name,
+      rating: r,
+      text: text.trim(),
+      isVisible: false,
+    });
+
+    res.status(201).json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 // GET /api/public/clubs — list all active clubs
 router.get("/clubs", async (req, res) => {

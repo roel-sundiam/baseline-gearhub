@@ -316,5 +316,10 @@ export const routes: Routes = [
         (m) => m.GuestBookComponent,
       ),
   },
+  {
+    path: 'review/:clubId',
+    loadComponent: () =>
+      import('./features/review-form/review-form.component').then((m) => m.ReviewFormComponent),
+  },
   { path: '**', redirectTo: '', pathMatch: 'full' },
 ];

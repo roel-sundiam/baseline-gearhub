@@ -42,6 +42,20 @@ export interface MostVisitedPage {
   avgTimeSpent: number;
 }
 
+export interface TrendBucket {
+  newPlayers: number;
+  newSessions: number;
+  logins: number;
+  pageVisits: number;
+  periodRevenue: number;
+}
+
+export interface TrendsResponse {
+  days: number;
+  current: TrendBucket;
+  previous: TrendBucket;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AnalyticsService {
   constructor(private http: HttpClient) {}
@@ -65,6 +79,12 @@ export class AnalyticsService {
   getRecentPageVisits(limit = 100) {
     return this.http.get<{ pageVisits: PageVisitRecord[] }>(
       `${environment.apiUrl}/analytics/recent-page-visits?limit=${limit}`,
+    );
+  }
+
+  getTrends(days: number) {
+    return this.http.get<TrendsResponse>(
+      `${environment.apiUrl}/analytics/trends?days=${days}`,
     );
   }
 }

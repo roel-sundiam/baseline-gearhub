@@ -38,15 +38,18 @@ interface AdminUser {
       <!-- ── Hero ── -->
       <header class="hero-panel">
         <div class="hero-left">
-          <p class="hero-kicker"><i class="fas fa-shield-alt"></i> Superadmin Workspace</p>
-          <h2 class="hero-title">Club Portfolio</h2>
-          <p class="hero-sub">Manage clubs, admins, payments, and app service fees.</p>
-          @if (dbStatus()) {
-            <span class="db-badge" [class.db-local]="dbStatus()!.db === 'local'" [class.db-atlas]="dbStatus()!.db === 'atlas'">
-              <i class="fas fa-database"></i>
-              {{ dbStatus()!.db === 'local' ? 'Local DB' : 'Production DB' }} &middot; {{ dbStatus()!.dbHost }}
-            </span>
-          }
+          <div class="hero-badge hero-badge-logo"><img src="/CG.png" alt="CourtGo" class="hero-badge-img" /></div>
+          <div class="hero-text">
+            <p class="hero-kicker"><i class="fas fa-bolt"></i> Superadmin Workspace</p>
+            <h2 class="hero-title">Club Portfolio</h2>
+            <p class="hero-sub">Manage clubs, admins, payments, and app service fees.</p>
+            @if (dbStatus()) {
+              <span class="db-badge" [class.db-local]="dbStatus()!.db === 'local'" [class.db-atlas]="dbStatus()!.db === 'atlas'">
+                <i class="fas fa-database"></i>
+                {{ dbStatus()!.db === 'local' ? 'Local DB' : 'Production DB' }} &middot; {{ dbStatus()!.dbHost }}
+              </span>
+            }
+          </div>
         </div>
         <div class="hero-actions">
           <button type="button" class="btn btn-notif" (click)="showNotifications = !showNotifications" title="Notifications">
@@ -104,6 +107,146 @@ interface AdminUser {
         </div>
       }
 
+      <!-- ── KPI stat row ── -->
+      @if (!loading && !error && clubs.length > 0) {
+        <div class="kpi-row">
+          <div class="kpi-card kpi-lime">
+            <div class="kpi-icon"><i class="fas fa-shield-halved"></i></div>
+            <div class="kpi-meta">
+              <span class="kpi-value">{{ clubs.length }}</span>
+              <span class="kpi-label">Total Clubs</span>
+            </div>
+          </div>
+          <div class="kpi-card kpi-green">
+            <div class="kpi-icon"><i class="fas fa-circle-check"></i></div>
+            <div class="kpi-meta">
+              <span class="kpi-value">{{ activeClubCount }}</span>
+              <span class="kpi-label">Active</span>
+            </div>
+          </div>
+          <div class="kpi-card kpi-rose">
+            <div class="kpi-icon"><i class="fas fa-ban"></i></div>
+            <div class="kpi-meta">
+              <span class="kpi-value">{{ suspendedClubCount }}</span>
+              <span class="kpi-label">Suspended</span>
+            </div>
+          </div>
+          <div class="kpi-card kpi-amber">
+            <div class="kpi-icon"><i class="fas fa-file-circle-exclamation"></i></div>
+            <div class="kpi-meta">
+              <span class="kpi-value">{{ tcPendingCount }}</span>
+              <span class="kpi-label">T&amp;C Pending</span>
+            </div>
+          </div>
+          @if (auth.isSuperAdmin()) {
+            <div class="kpi-card kpi-orange">
+              <div class="kpi-icon"><i class="fas fa-coins"></i></div>
+              <div class="kpi-meta">
+                <span class="kpi-value">₱{{ outstandingTotal | number:'1.0-0' }}</span>
+                <span class="kpi-label">Outstanding</span>
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- ── App Reviews Panel (superadmin only) ── -->
+      @if (auth.isSuperAdmin()) {
+        <div class="reviews-panel">
+          <div class="reviews-panel-header" (click)="reviewsPanelOpen = !reviewsPanelOpen">
+            <span class="reviews-panel-title">
+              <i class="fas fa-star"></i> App Reviews &amp; Ratings
+            </span>
+            <i class="fas" [class.fa-chevron-down]="!reviewsPanelOpen" [class.fa-chevron-up]="reviewsPanelOpen"></i>
+          </div>
+
+          @if (reviewsPanelOpen) {
+            <div class="reviews-panel-body">
+
+              <!-- Per-club review links -->
+              <div class="reviews-section">
+                <h4 class="reviews-section-title"><i class="fas fa-link"></i> Send Review Links</h4>
+                <p class="reviews-section-desc">Each club has a unique review form. Copy the link and send it directly to the club admin.</p>
+                <div class="reviews-link-list">
+                  @for (club of clubs; track club._id) {
+                    @if (club.status !== 'suspended') {
+                      <div class="reviews-link-row">
+                        <span class="reviews-link-club-name">{{ club.name }}</span>
+                        <code class="reviews-link-url">/review/{{ club.slug || club._id }}</code>
+                        <button type="button" class="btn btn-sm btn-outline" (click)="copyReviewLink(club._id, club.name, club.slug)" title="Copy review link">
+                          <i class="fas" [class.fa-copy]="copiedClubId !== club._id" [class.fa-check]="copiedClubId === club._id"></i>
+                          {{ copiedClubId === club._id ? 'Copied!' : 'Copy' }}
+                        </button>
+                      </div>
+                    }
+                  }
+                </div>
+              </div>
+
+              <!-- Add review -->
+              <div class="reviews-section">
+                <h4 class="reviews-section-title"><i class="fas fa-plus-circle"></i> Add Review</h4>
+                <div class="reviews-add-form">
+                  <input type="text" class="reviews-input" [(ngModel)]="newReview.reviewerName" placeholder="Reviewer name (e.g., John D.)" />
+                  <input type="text" class="reviews-input" [(ngModel)]="newReview.clubName" placeholder="Club name" />
+                  <div class="reviews-rating-row">
+                    <label class="reviews-label">Rating:</label>
+                    @for (star of [1,2,3,4,5]; track star) {
+                      <button type="button" class="star-btn" [class.star-btn-filled]="star <= newReview.rating" (click)="newReview.rating = star">★</button>
+                    }
+                  </div>
+                  <textarea class="reviews-input reviews-textarea" [(ngModel)]="newReview.text" placeholder="Review text (copy from Google Form response)…" rows="3"></textarea>
+                  <button type="button" class="btn btn-primary btn-sm" (click)="addReview()" [disabled]="reviewsAdding">
+                    @if (reviewsAdding) { <i class="fas fa-spinner fa-spin"></i> } @else { <i class="fas fa-plus"></i> Add Review }
+                  </button>
+                  @if (reviewsAddMsg) {
+                    <p class="reviews-save-msg">{{ reviewsAddMsg }}</p>
+                  }
+                </div>
+              </div>
+
+              <!-- Reviews list -->
+              <div class="reviews-section">
+                <h4 class="reviews-section-title"><i class="fas fa-list"></i> All Reviews ({{ reviewsList().length }})</h4>
+                @if (reviewsLoading()) {
+                  <p class="reviews-save-msg"><i class="fas fa-spinner fa-spin"></i> Loading…</p>
+                } @else if (reviewsList().length === 0) {
+                  <p class="reviews-empty">No reviews yet. Add one above.</p>
+                } @else {
+                  <div class="reviews-list">
+                    @for (r of reviewsList(); track r._id) {
+                      <div class="reviews-list-item" [class.reviews-list-item-hidden]="!r.isVisible">
+                        <div class="reviews-list-stars">
+                          @for (star of [1,2,3,4,5]; track star) {
+                            <span [class.star-filled-sm]="star <= r.rating" [class.star-empty-sm]="star > r.rating">★</span>
+                          }
+                        </div>
+                        <div class="reviews-list-meta">
+                          <span class="reviews-list-name">{{ r.reviewerName }}</span>
+                          <span class="reviews-list-club">{{ r.clubName }}</span>
+                        </div>
+                        <p class="reviews-list-text">{{ r.text }}</p>
+                        <div class="reviews-list-actions">
+                          <button type="button" class="btn btn-sm" [class.btn-outline]="r.isVisible" [class.btn-ghost-muted]="!r.isVisible"
+                            (click)="toggleReviewVisibility(r)" [title]="r.isVisible ? 'Hide from landing page' : 'Show on landing page'">
+                            <i class="fas" [class.fa-eye]="r.isVisible" [class.fa-eye-slash]="!r.isVisible"></i>
+                            {{ r.isVisible ? 'Visible' : 'Hidden' }}
+                          </button>
+                          <button type="button" class="btn btn-sm btn-danger-ghost" (click)="deleteReview(r._id)" title="Delete review">
+                            <i class="fas fa-trash"></i>
+                          </button>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+
+            </div>
+          }
+        </div>
+      }
+
       <!-- ── Loading overlay ── -->
       @if (loading) {
         <div class="cg-loader-overlay">
@@ -137,20 +280,30 @@ interface AdminUser {
 
       <!-- ── Club grid ── -->
       @else {
-        <!-- ── List tabs ── -->
-        <div class="tabs-bar club-list-tabs-bar">
-          <button type="button" class="tab-btn" [class.tab-active]="clubListTab === 'active'" (click)="clubListTab = 'active'">
-            <i class="fas fa-circle-check"></i> Active
-            @if (activeClubCount > 0) {
-              <span class="tab-badge tab-badge-members">{{ activeClubCount }}</span>
-            }
-          </button>
-          <button type="button" class="tab-btn" [class.tab-active]="clubListTab === 'suspended'" (click)="clubListTab = 'suspended'">
-            <i class="fas fa-ban"></i> Suspended
-            @if (suspendedClubCount > 0) {
-              <span class="tab-badge">{{ suspendedClubCount }}</span>
-            }
-          </button>
+        <!-- ── List tabs + view toggle ── -->
+        <div class="list-controls">
+          <div class="tabs-bar club-list-tabs-bar">
+            <button type="button" class="tab-btn" [class.tab-active]="clubListTab === 'active'" (click)="clubListTab = 'active'">
+              <i class="fas fa-circle-check"></i> Active
+              @if (activeClubCount > 0) {
+                <span class="tab-badge tab-badge-members">{{ activeClubCount }}</span>
+              }
+            </button>
+            <button type="button" class="tab-btn" [class.tab-active]="clubListTab === 'suspended'" (click)="clubListTab = 'suspended'">
+              <i class="fas fa-ban"></i> Suspended
+              @if (suspendedClubCount > 0) {
+                <span class="tab-badge">{{ suspendedClubCount }}</span>
+              }
+            </button>
+          </div>
+          <div class="view-toggle" role="group" aria-label="View mode">
+            <button type="button" class="vt-btn" [class.vt-active]="viewMode === 'grid'" (click)="viewMode = 'grid'" title="Grid view" aria-label="Grid view">
+              <i class="fas fa-table-cells-large"></i>
+            </button>
+            <button type="button" class="vt-btn" [class.vt-active]="viewMode === 'list'" (click)="viewMode = 'list'" title="List view" aria-label="List view">
+              <i class="fas fa-list"></i>
+            </button>
+          </div>
         </div>
 
         @if (visibleClubs.length === 0) {
@@ -159,10 +312,11 @@ interface AdminUser {
             <p>No {{ clubListTab }} clubs.</p>
           </div>
         } @else {
-        <div class="clubs-grid">
+        <div class="clubs-grid" [class.clubs-list]="viewMode === 'list'">
           @for (club of visibleClubs; track club._id) {
             <article
               class="club-card"
+              [class.club-card--list]="viewMode === 'list'"
               [class.selected]="selectedClub?._id === club._id"
               (click)="selectClub(club)"
               role="button"
@@ -235,32 +389,32 @@ interface AdminUser {
               </div>
 
               <div class="club-actions">
-                <button type="button" class="btn btn-sm btn-primary" (click)="$event.stopPropagation(); selectClub(club)">
-                  <i class="fas fa-user-cog"></i> Admins
+                <button type="button" class="btn btn-sm btn-primary" (click)="$event.stopPropagation(); selectClub(club)" title="Manage admins">
+                  <i class="fas fa-user-cog"></i> <span class="btn-txt">Admins</span>
                 </button>
-                <button type="button" class="btn btn-sm btn-message" (click)="$event.stopPropagation(); messageClubAdmin(club)" style="position:relative;">
-                  <i class="fas fa-comment-dots"></i> Message
+                <button type="button" class="btn btn-sm btn-message" (click)="$event.stopPropagation(); messageClubAdmin(club)" title="Message club admin" style="position:relative;">
+                  <i class="fas fa-comment-dots"></i> <span class="btn-txt">Message</span>
                   @if (getClubUnread(club) > 0) {
                     <span class="msg-badge" style="position:absolute;top:-6px;right:-6px;background:#dc2626;color:#fff;font-size:0.65rem;font-weight:700;min-width:16px;height:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 3px;pointer-events:none;">{{ getClubUnread(club) }}</span>
                   }
                 </button>
-                <a [routerLink]="['/admin/clubs', club._id, 'edit']" class="btn btn-sm btn-outline" (click)="$event.stopPropagation()">
-                  <i class="fas fa-pen"></i> Edit
+                <a [routerLink]="['/admin/clubs', club._id, 'edit']" class="btn btn-sm btn-outline" (click)="$event.stopPropagation()" title="Edit club">
+                  <i class="fas fa-pen"></i> <span class="btn-txt">Edit</span>
                 </a>
-                <button type="button" class="btn btn-sm btn-copy" (click)="$event.stopPropagation(); copyBookingLink(club)">
+                <button type="button" class="btn btn-sm btn-copy" (click)="$event.stopPropagation(); copyBookingLink(club)" title="Copy booking link">
                   <i class="fas" [class.fa-copy]="copiedClubId !== club._id" [class.fa-check]="copiedClubId === club._id"></i>
-                  {{ copiedClubId === club._id ? 'Copied!' : 'Copy Link' }}
+                  <span class="btn-txt">{{ copiedClubId === club._id ? 'Copied!' : 'Copy Link' }}</span>
                 </button>
-                <button type="button" class="btn btn-sm btn-danger" (click)="$event.stopPropagation(); deleteClub(club)">
-                  <i class="fas fa-trash"></i> Delete
+                <button type="button" class="btn btn-sm btn-danger" (click)="$event.stopPropagation(); deleteClub(club)" title="Delete club">
+                  <i class="fas fa-trash"></i> <span class="btn-txt">Delete</span>
                 </button>
                 @if (club.status === 'suspended') {
-                  <button type="button" class="btn btn-sm btn-unsuspend" (click)="$event.stopPropagation(); suspendClub(club)">
-                    <i class="fas fa-circle-check"></i> Unsuspend
+                  <button type="button" class="btn btn-sm btn-unsuspend" (click)="$event.stopPropagation(); suspendClub(club)" title="Unsuspend club">
+                    <i class="fas fa-circle-check"></i> <span class="btn-txt">Unsuspend</span>
                   </button>
                 } @else {
-                  <button type="button" class="btn btn-sm btn-suspend" (click)="$event.stopPropagation(); suspendClub(club)">
-                    <i class="fas fa-ban"></i> Suspend
+                  <button type="button" class="btn btn-sm btn-suspend" (click)="$event.stopPropagation(); suspendClub(club)" title="Suspend club">
+                    <i class="fas fa-ban"></i> <span class="btn-txt">Suspend</span>
                   </button>
                 }
               </div>
@@ -2963,6 +3117,634 @@ interface AdminUser {
       color: rgba(255,255,255,0.88);
       border-bottom-left-radius: 3px;
     }
+
+    /* ============================================================
+       MODERN REDESIGN LAYER — professional dark / lime dashboard
+       Keeps the existing palette (dark green surfaces + lime accent),
+       restructures layout, hero, cards, tabs, panels & modals.
+       ============================================================ */
+
+    /* Wider, more spacious workspace with soft ambient glow */
+    .clubs-page {
+      max-width: 1200px;
+      gap: 1.4rem;
+      background:
+        radial-gradient(1100px 460px at 12% -8%, rgba(163,230,53,0.10), transparent 60%),
+        radial-gradient(900px 420px at 100% 0%, rgba(20,184,166,0.07), transparent 55%),
+        var(--dm-bg);
+    }
+
+    /* ── Hero ─────────────────────────────────────────────── */
+    .hero-panel {
+      position: relative;
+      overflow: hidden;
+      border-radius: 20px;
+      padding: 1.5rem 1.65rem;
+      background:
+        radial-gradient(620px 220px at 0% 0%, rgba(163,230,53,0.15), transparent 70%),
+        linear-gradient(135deg, #21392e 0%, #15261e 100%);
+      border: 1px solid rgba(163,230,53,0.16);
+      box-shadow: 0 18px 42px rgba(0,0,0,0.42);
+    }
+    .hero-panel::after {
+      content: '';
+      position: absolute;
+      right: -70px; top: -70px;
+      width: 240px; height: 240px;
+      background: radial-gradient(circle, rgba(163,230,53,0.16), transparent 70%);
+      pointer-events: none;
+    }
+    .hero-left {
+      display: flex;
+      align-items: center;
+      gap: 1.05rem;
+      position: relative;
+      z-index: 1;
+      min-width: 0;
+    }
+    .hero-badge {
+      width: 58px; height: 58px;
+      flex-shrink: 0;
+      border-radius: 17px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.55rem;
+      color: #0c1a11;
+      background: linear-gradient(135deg, #a3e635, #84cc16);
+      box-shadow: 0 10px 22px rgba(163,230,53,0.32), inset 0 1px 0 rgba(255,255,255,0.35);
+    }
+    .hero-text { min-width: 0; }
+    .hero-kicker {
+      letter-spacing: 0.14em;
+      font-size: 0.68rem;
+      color: var(--dm-accent);
+    }
+    .hero-title { font-size: 1.7rem; letter-spacing: -0.02em; }
+    .hero-actions { position: relative; z-index: 1; gap: 0.5rem; }
+
+    /* Solid lime primary CTA stands proud of the translucent toolbar */
+    .hero-actions .btn-primary {
+      background: linear-gradient(135deg, #a3e635, #84cc16);
+      color: #0c1a11;
+      border-color: transparent;
+      box-shadow: 0 8px 18px rgba(163,230,53,0.3);
+    }
+    .hero-actions .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #b6ef5a, #8fd91a);
+      color: #0c1a11;
+      box-shadow: 0 10px 22px rgba(163,230,53,0.4);
+    }
+
+    .count-chip { border-radius: 12px; padding: 0.45rem 0.9rem; }
+
+    /* ── Club grid & cards ───────────────────────────────── */
+    .clubs-grid {
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.1rem;
+    }
+    .club-card {
+      border-radius: 18px;
+      padding: 0 1.1rem 1.1rem;
+      background:
+        linear-gradient(180deg, rgba(163,230,53,0.05), transparent 40%),
+        var(--dm-surface);
+      border: 1px solid rgba(255,255,255,0.08);
+      gap: 0.95rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .club-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(163,230,53,0.45);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.44), 0 0 0 1px rgba(163,230,53,0.16);
+    }
+    .club-card.selected {
+      border-color: rgba(163,230,53,0.7);
+      box-shadow: 0 0 0 1px rgba(163,230,53,0.3), 0 20px 40px rgba(0,0,0,0.46);
+    }
+    .card-accent { height: 5px; }
+    .club-head { padding-top: 1rem; gap: 0.85rem; }
+    .club-logo,
+    .club-logo-placeholder {
+      width: 56px; height: 56px;
+      border-radius: 16px;
+    }
+    .club-logo-placeholder { font-size: 1.05rem; }
+    .club-identity h3 { font-size: 1.06rem; font-weight: 800; letter-spacing: -0.01em; }
+
+    .club-pills { gap: 0.45rem; }
+    .pill { border-radius: 8px; padding: 0.3rem 0.7rem; font-size: 0.72rem; }
+
+    .club-actions { gap: 0.55rem; }
+    .club-actions .btn-sm { border-radius: 11px; }
+
+    /* ── Tabs as segmented controls ──────────────────────── */
+    .club-list-tabs-bar {
+      display: inline-flex;
+      gap: 0.25rem;
+      padding: 0.32rem;
+      border-radius: 14px;
+      width: fit-content;
+      background: var(--dm-surface);
+      border: 1px solid rgba(255,255,255,0.07);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+      overflow: visible;
+    }
+    .club-list-tabs-bar .tab-btn {
+      border-radius: 10px;
+      padding: 0.45rem 1.05rem;
+    }
+    .club-list-tabs-bar .tab-active {
+      background: linear-gradient(135deg, #a3e635, #84cc16);
+      color: #0c1a11;
+      border-color: transparent;
+      box-shadow: 0 6px 16px rgba(163,230,53,0.32);
+    }
+
+    .clubs-menu-bar {
+      border-radius: 16px;
+      padding: 0.4rem;
+      gap: 0.25rem;
+      flex-wrap: wrap;
+    }
+    .clubs-page .clubs-menu-bar .tab-btn {
+      border-radius: 11px !important;
+      padding: 0.5rem 1rem !important;
+    }
+    .clubs-page .clubs-menu-bar .tab-btn.tab-active {
+      background: linear-gradient(135deg, #a3e635, #84cc16) !important;
+      color: #0c1a11 !important;
+      border-color: transparent !important;
+      box-shadow: 0 6px 16px rgba(163,230,53,0.34) !important;
+      transform: none !important;
+    }
+    .clubs-page .clubs-menu-bar .tab-btn.tab-active .tab-badge,
+    .clubs-page .clubs-menu-bar .tab-btn.tab-active .tab-badge-members {
+      background: rgba(12,26,17,0.22);
+      color: #0c1a11;
+      border-color: transparent;
+    }
+
+    /* ── Detail panel ────────────────────────────────────── */
+    .detail-panel {
+      border-radius: 20px;
+      border: 1px solid rgba(163,230,53,0.12);
+      box-shadow: 0 18px 42px rgba(0,0,0,0.42);
+    }
+    .detail-header {
+      padding: 1.3rem 1.5rem;
+      background: linear-gradient(135deg, #21392e 0%, #16271f 100%);
+      border-bottom: 1px solid rgba(163,230,53,0.1);
+    }
+
+    /* ── Modals ──────────────────────────────────────────── */
+    .modal-card {
+      border-radius: 20px;
+      border: 1px solid rgba(163,230,53,0.14);
+      box-shadow: 0 30px 70px rgba(0,0,0,0.6);
+    }
+    .modal-backdrop {
+      background: rgba(5,14,10,0.72);
+      backdrop-filter: blur(4px);
+    }
+
+    /* ── Forms ───────────────────────────────────────────── */
+    .form-card { border-radius: 14px; }
+    .form-input,
+    .modal-textarea { border-radius: 10px; padding: 0.62rem 0.8rem; }
+
+    /* ── State cards ─────────────────────────────────────── */
+    .state-card {
+      border-radius: 18px;
+      padding: 3rem 1.5rem;
+      border: 1px dashed rgba(163,230,53,0.2);
+      background: var(--dm-surface);
+    }
+    .state-card i { color: var(--dm-accent); }
+
+    /* ── Admin/member rows ───────────────────────────────── */
+    .admin-card { border-radius: 13px; padding: 0.85rem 1rem; }
+    .admin-avatar { border-radius: 13px; }
+
+    /* ── Stronger, more cinematic hero ───────────────────── */
+    .hero-panel {
+      padding: 1.9rem 1.9rem;
+      border-radius: 24px;
+      background:
+        radial-gradient(680px 260px at 0% 0%, rgba(163,230,53,0.18), transparent 70%),
+        radial-gradient(520px 260px at 100% 130%, rgba(20,184,166,0.13), transparent 72%),
+        linear-gradient(135deg, #23402f 0%, #142420 100%);
+      box-shadow: 0 22px 52px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .hero-badge { width: 64px; height: 64px; font-size: 1.7rem; border-radius: 19px; }
+    .hero-badge-logo {
+      background: transparent;
+      padding: 0;
+      overflow: hidden;
+      box-shadow: 0 10px 22px rgba(163,230,53,0.28);
+    }
+    .hero-badge-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      border-radius: inherit;
+    }
+    .hero-title { font-size: 1.95rem; }
+
+    /* ── Glass surfaces ──────────────────────────────────── */
+    .club-card {
+      background:
+        linear-gradient(180deg, rgba(163,230,53,0.07), rgba(27,48,40,0.55));
+      border: 1px solid rgba(255,255,255,0.1);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .detail-panel {
+      background: linear-gradient(180deg, rgba(163,230,53,0.04), rgba(27,48,40,0.62));
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+    }
+    .modal-card {
+      background: linear-gradient(180deg, rgba(33,57,46,0.97), rgba(20,36,30,0.97));
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+    }
+
+    /* ── KPI stat row ────────────────────────────────────── */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.9rem;
+    }
+    .kpi-card {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 1rem 1.1rem;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(27,48,40,0.5));
+      border: 1px solid rgba(255,255,255,0.1);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 26px rgba(0,0,0,0.32);
+      transition: transform 0.18s ease, border-color 0.18s ease;
+    }
+    .kpi-card:hover { transform: translateY(-3px); border-color: rgba(163,230,53,0.3); }
+    .kpi-icon {
+      width: 44px; height: 44px;
+      border-radius: 13px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.15rem;
+      flex-shrink: 0;
+    }
+    .kpi-meta { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+    .kpi-value { font-size: 1.45rem; font-weight: 800; color: var(--dm-text); letter-spacing: -0.02em; }
+    .kpi-label { font-size: 0.7rem; font-weight: 700; color: var(--dm-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .kpi-lime   .kpi-icon { background: rgba(163,230,53,0.16); color: #a3e635; }
+    .kpi-green  .kpi-icon { background: rgba(34,197,94,0.16);  color: #4ade80; }
+    .kpi-rose   .kpi-icon { background: rgba(244,63,94,0.16);  color: #fb7185; }
+    .kpi-amber  .kpi-icon { background: rgba(234,179,8,0.16);  color: #facc15; }
+    .kpi-orange .kpi-icon { background: rgba(249,115,22,0.16); color: #fb923c; }
+    .kpi-lime { border-color: rgba(163,230,53,0.2); }
+
+    /* ── List controls + view toggle ─────────────────────── */
+    .list-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .view-toggle {
+      display: inline-flex;
+      gap: 0.2rem;
+      padding: 0.28rem;
+      border-radius: 12px;
+      background: var(--dm-surface);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+    }
+    .vt-btn {
+      width: 38px; height: 32px;
+      border: none; border-radius: 9px;
+      background: transparent;
+      color: var(--dm-muted);
+      cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.9rem;
+      transition: background 0.15s, color 0.15s;
+    }
+    .vt-btn:hover { color: var(--dm-text); background: rgba(255,255,255,0.06); }
+    .vt-active {
+      background: linear-gradient(135deg, #a3e635, #84cc16) !important;
+      color: #0c1a11 !important;
+      box-shadow: 0 4px 12px rgba(163,230,53,0.3);
+    }
+
+    /* ── List view layout ────────────────────────────────── */
+    .clubs-list { grid-template-columns: 1fr; gap: 0.55rem; }
+    .club-card--list {
+      display: grid;
+      grid-template-columns: minmax(220px, 1.1fr) minmax(0, 1.6fr) auto;
+      align-items: center;
+      gap: 1.25rem;
+      padding: 0.7rem 1rem;
+    }
+    .club-card--list:hover { transform: none; }
+    .club-card--list .card-accent { display: none; }
+
+    /* Left: logo + identity */
+    .club-card--list .club-head { padding-top: 0; gap: 0.7rem; min-width: 0; }
+    .club-card--list .club-logo,
+    .club-card--list .club-logo-placeholder { width: 44px; height: 44px; border-radius: 12px; }
+    .club-card--list .club-identity h3 {
+      font-size: 0.95rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .club-card--list .club-id { max-width: 160px; }
+
+    /* Middle: metadata pills flow on a single tidy line */
+    .club-card--list .club-pills {
+      gap: 0.4rem;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      max-height: 4.4rem;
+      overflow: hidden;
+    }
+    .club-card--list .pill {
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Right: compact icon-only action toolbar */
+    .club-card--list .club-actions {
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: flex-end;
+      gap: 0.4rem;
+    }
+    .club-card--list .club-actions .btn-txt { display: none; }
+    .club-card--list .club-actions .btn-sm {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      justify-content: center;
+      gap: 0;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 900px) {
+      .club-card--list {
+        grid-template-columns: 1fr;
+        row-gap: 0.7rem;
+        align-items: start;
+      }
+      .club-card--list .club-pills { max-height: none; }
+      .club-card--list .club-actions { flex-wrap: wrap; justify-content: flex-start; }
+    }
+
+    @media (max-width: 768px) {
+      .hero-panel { padding: 1.3rem 1.25rem; }
+      .hero-badge { width: 50px; height: 50px; font-size: 1.3rem; border-radius: 15px; }
+      .hero-title { font-size: 1.5rem; }
+      .club-list-tabs-bar { display: flex; }
+      .club-list-tabs-bar .tab-btn { flex: 1; justify-content: center; }
+      .kpi-row { grid-template-columns: repeat(2, 1fr); }
+      .kpi-value { font-size: 1.25rem; }
+    }
+
+    /* ── App Reviews Panel ── */
+    .reviews-panel {
+      margin: 1.25rem 1.5rem;
+      background: var(--surface, #1a1a2e);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .reviews-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.4rem;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .reviews-panel-header:hover { background: rgba(255,255,255,0.03); }
+
+    .reviews-panel-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .reviews-panel-title .fas.fa-star { color: #f59e0b; }
+
+    .reviews-panel-body {
+      padding: 0 1.4rem 1.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .reviews-section {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding-top: 1.25rem;
+    }
+
+    .reviews-section-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.6);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 0 0 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .reviews-section-desc {
+      font-size: 0.82rem;
+      color: rgba(255,255,255,0.4);
+      margin: 0 0 0.75rem;
+      line-height: 1.55;
+    }
+
+    .reviews-link-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .reviews-link-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.55rem 0.8rem;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px;
+      flex-wrap: wrap;
+    }
+
+    .reviews-link-club-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #fff;
+      flex: 1;
+      min-width: 120px;
+    }
+
+    .reviews-link-url {
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.3);
+      background: rgba(255,255,255,0.04);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-family: monospace;
+      flex: 2;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .reviews-input {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 0.55rem 0.85rem;
+      color: #fff;
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.15s;
+      box-sizing: border-box;
+    }
+    .reviews-input:focus { border-color: rgba(124,255,78,0.4); }
+    .reviews-input::placeholder { color: rgba(255,255,255,0.25); }
+
+    .reviews-textarea { resize: vertical; min-height: 70px; font-family: inherit; }
+
+    .reviews-add-form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .reviews-rating-row {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .reviews-label {
+      font-size: 0.82rem;
+      color: rgba(255,255,255,0.5);
+      margin-right: 0.3rem;
+    }
+
+    .star-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.4rem;
+      color: rgba(255,255,255,0.2);
+      padding: 0;
+      line-height: 1;
+      transition: color 0.12s, transform 0.1s;
+    }
+    .star-btn:hover { transform: scale(1.15); }
+    .star-btn-filled { color: #f59e0b; }
+
+    .reviews-save-msg {
+      font-size: 0.8rem;
+      color: #7cff4e;
+      margin: 0.3rem 0 0;
+    }
+
+    .reviews-empty {
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.3);
+      margin: 0;
+    }
+
+    .reviews-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .reviews-list-item {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      grid-template-rows: auto auto auto;
+      column-gap: 0.75rem;
+      row-gap: 0.3rem;
+    }
+    .reviews-list-item-hidden { opacity: 0.45; }
+
+    .reviews-list-stars {
+      grid-column: 1;
+      grid-row: 1;
+      display: flex;
+      gap: 1px;
+      align-self: center;
+    }
+    .star-filled-sm { color: #f59e0b; font-size: 0.85rem; }
+    .star-empty-sm  { color: rgba(255,255,255,0.15); font-size: 0.85rem; }
+
+    .reviews-list-meta {
+      grid-column: 2;
+      grid-row: 1;
+      display: flex;
+      gap: 0.5rem;
+      align-items: baseline;
+    }
+
+    .reviews-list-name { font-size: 0.88rem; font-weight: 700; color: #fff; }
+    .reviews-list-club { font-size: 0.78rem; color: rgba(255,255,255,0.38); }
+
+    .reviews-list-text {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      font-size: 0.83rem;
+      color: rgba(255,255,255,0.55);
+      margin: 0;
+      line-height: 1.55;
+    }
+
+    .reviews-list-actions {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.4rem;
+    }
+
+    .btn-ghost-muted {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.4);
+    }
+    .btn-danger-ghost {
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.2);
+      color: #f87171;
+    }
+    .btn-danger-ghost:hover { background: rgba(239,68,68,0.16); }
   `],
 })
 export class AdminClubsComponent implements OnInit, OnDestroy {
@@ -2971,12 +3753,17 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   clubListTab: 'active' | 'suspended' = 'active';
   copiedClubId: string | null = null;
   showNotifications = false;
+  viewMode: 'grid' | 'list' = 'grid';
+  outstandingTotal = 0;
 
   get activeClubCount(): number {
     return this.clubs.filter(c => c.status !== 'suspended').length;
   }
   get suspendedClubCount(): number {
     return this.clubs.filter(c => c.status === 'suspended').length;
+  }
+  get tcPendingCount(): number {
+    return this.clubs.filter(c => !c.adminTermsAccepted).length;
   }
   get visibleClubs(): Club[] {
     return this.clubListTab === 'suspended'
@@ -3102,6 +3889,14 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   mirroringUserId: string | null = null;
   dbStatus = signal<{ db: string; dbHost: string } | null>(null);
 
+  // ── App Reviews ──
+  reviewsPanelOpen = false;
+  reviewsList = signal<{ _id: string; reviewerName: string; clubName: string; rating: number; text: string; isVisible: boolean }[]>([]);
+  reviewsLoading = signal(false);
+  newReview = { reviewerName: '', clubName: '', rating: 5, text: '' };
+  reviewsAdding = false;
+  reviewsAddMsg = '';
+
   chatTarget: AdminUser | null = null;
 
   // ── Message unread tracking ──
@@ -3126,6 +3921,68 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     private cloudinaryService: CloudinaryService,
   ) {}
 
+  loadReviews() {
+    this.reviewsLoading.set(true);
+    this.http.get<any[]>(`${environment.apiUrl}/reviews`).subscribe({
+      next: (r) => { this.reviewsList.set(r); this.reviewsLoading.set(false); },
+      error: () => { this.reviewsLoading.set(false); },
+    });
+  }
+
+  copyReviewLink(clubId: string, clubName: string, slug?: string) {
+    const url = `${window.location.origin}/review/${slug || clubId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      this.copiedClubId = clubId;
+      this.cdr.detectChanges();
+      setTimeout(() => { this.copiedClubId = null; this.cdr.detectChanges(); }, 2000);
+    }).catch(() => {});
+  }
+
+  addReview() {
+    if (!this.newReview.reviewerName.trim() || !this.newReview.clubName.trim() || !this.newReview.text.trim()) {
+      this.reviewsAddMsg = 'Please fill in all fields.';
+      return;
+    }
+    this.reviewsAdding = true;
+    this.reviewsAddMsg = '';
+    this.http.post<any>(`${environment.apiUrl}/reviews`, this.newReview).subscribe({
+      next: (r) => {
+        this.reviewsList.update(list => [r, ...list]);
+        this.newReview = { reviewerName: '', clubName: '', rating: 5, text: '' };
+        this.reviewsAdding = false;
+        this.reviewsAddMsg = 'Review added!';
+        setTimeout(() => { this.reviewsAddMsg = ''; this.cdr.detectChanges(); }, 2500);
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.reviewsAdding = false;
+        this.reviewsAddMsg = err?.error?.error ?? 'Failed to add review.';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  toggleReviewVisibility(review: any) {
+    this.http.patch<any>(`${environment.apiUrl}/reviews/${review._id}`, { isVisible: !review.isVisible }).subscribe({
+      next: (updated) => {
+        this.reviewsList.update(list => list.map(r => r._id === updated._id ? updated : r));
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
+  }
+
+  deleteReview(id: string) {
+    if (!confirm('Delete this review?')) return;
+    this.http.delete(`${environment.apiUrl}/reviews/${id}`).subscribe({
+      next: () => {
+        this.reviewsList.update(list => list.filter(r => r._id !== id));
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
+  }
+
   loginAs(user: AdminUser): void {
     if (this.mirroringUserId) return;
     this.mirroringUserId = user._id;
@@ -3141,7 +3998,14 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.loadClubs();
-    if (this.auth.isSuperAdmin()) this.notifService.load();
+    if (this.auth.isSuperAdmin()) {
+      this.notifService.load();
+      this.aspService.getSummary().subscribe({
+        next: (res) => { this.outstandingTotal = res.totals?.outstanding ?? 0; this.cdr.detectChanges(); },
+        error: () => {},
+      });
+      this.loadReviews();
+    }
     this.http.get<{ status: string; db: string; dbHost: string }>(`${environment.apiUrl}/health`).subscribe({
       next: (res) => this.dbStatus.set(res),
       error: () => {},

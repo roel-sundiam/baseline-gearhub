@@ -46,6 +46,7 @@ const openPlayRoutes = require("./routes/open-play.routes");
 const notificationsRoutes = require("./routes/notifications.routes");
 const adminMessagesRoutes = require("./routes/admin-messages.routes");
 const ledgerRoutes = require("./routes/ledger.routes");
+const reviewsRoutes = require("./routes/reviews.routes");
 
 const app = express();
 
@@ -150,5 +151,6 @@ app.use("/api/open-play", openPlayRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/admin-messages", adminMessagesRoutes);
 app.use("/api/ledger", ledgerRoutes);
+app.use("/api/reviews", reviewsRoutes);
 
 module.exports = app;

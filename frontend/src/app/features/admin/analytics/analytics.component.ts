@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   AnalyticsService,
@@ -6,8 +6,21 @@ import {
   LoginRecord,
   PageVisitRecord,
   MostVisitedPage,
+  TrendsResponse,
 } from '../../../core/services/analytics.service';
-import { forkJoin, timeout } from 'rxjs';
+import {
+  LiveVisitorsService,
+  LiveVisitor,
+} from '../../../core/services/live-visitors.service';
+import { forkJoin, Subscription, timeout } from 'rxjs';
+
+interface TrendCard {
+  label: string;
+  value: number;
+  isCurrency: boolean;
+  pct: number | null;
+  dir: 'up' | 'down' | 'flat';
+}
 
 @Component({
   selector: 'app-analytics',
@@ -16,36 +29,44 @@ import { forkJoin, timeout } from 'rxjs';
   template: `
     <div class="page-header">
       <h2>📊 Site Analytics</h2>
+      <div class="header-controls">
+        @if (lastUpdated()) {
+          <span class="last-updated">Updated {{ lastUpdated() | date: 'shortTime' }}</span>
+        }
+        <button class="refresh-btn" (click)="refresh()" [disabled]="refreshing()">
+          {{ refreshing() ? 'Refreshing…' : '↻ Refresh' }}
+        </button>
+      </div>
     </div>
 
-    @if (loading) {
+    @if (loading()) {
       <div class="loading">Loading analytics...</div>
-    } @else if (errorMsg) {
-      <div class="alert alert-error">{{ errorMsg }}</div>
+    } @else if (errorMsg()) {
+      <div class="alert alert-error">{{ errorMsg() }}</div>
     } @else {
       <!-- Summary Stats -->
       <div class="stats-grid">
         <div class="stat-card stat-users">
-          <div class="stat-value">{{ summary.totalPlayers }}</div>
+          <div class="stat-value">{{ summary().totalPlayers }}</div>
           <div class="stat-label">Players</div>
-          <div class="stat-meta">Active: {{ summary.activeUsers }}</div>
+          <div class="stat-meta">Active: {{ summary().activeUsers }}</div>
         </div>
 
         <div class="stat-card stat-admins">
-          <div class="stat-value">{{ summary.totalAdmins }}</div>
+          <div class="stat-value">{{ summary().totalAdmins }}</div>
           <div class="stat-label">Staff</div>
           <div class="stat-meta">Administrators</div>
         </div>
 
         <div class="stat-card stat-sessions">
-          <div class="stat-value">{{ summary.totalSessions }}</div>
+          <div class="stat-value">{{ summary().totalSessions }}</div>
           <div class="stat-label">Sessions</div>
           <div class="stat-meta">Court bookings</div>
         </div>
 
         <div class="stat-card stat-revenue">
           <div class="stat-value">
-            {{ summary.totalRevenue | currency: 'PHP' : 'symbol' : '1.0-0' }}
+            {{ summary().totalRevenue | currency: 'PHP' : 'symbol' : '1.0-0' }}
           </div>
           <div class="stat-label">Total Revenue</div>
           <div class="stat-meta">All time</div>
@@ -53,7 +74,7 @@ import { forkJoin, timeout } from 'rxjs';
 
         <div class="stat-card stat-collected">
           <div class="stat-value">
-            {{ summary.totalCollected | currency: 'PHP' : 'symbol' : '1.0-0' }}
+            {{ summary().totalCollected | currency: 'PHP' : 'symbol' : '1.0-0' }}
           </div>
           <div class="stat-label">Collected</div>
           <div class="stat-meta">Paid charges</div>
@@ -61,14 +82,14 @@ import { forkJoin, timeout } from 'rxjs';
 
         <div class="stat-card stat-outstanding">
           <div class="stat-value">
-            {{ summary.totalOutstanding | currency: 'PHP' : 'symbol' : '1.0-0' }}
+            {{ summary().totalOutstanding | currency: 'PHP' : 'symbol' : '1.0-0' }}
           </div>
           <div class="stat-label">Outstanding</div>
           <div class="stat-meta">Unpaid charges</div>
         </div>
 
         <div class="stat-card stat-pending">
-          <div class="stat-value">{{ summary.pendingUsers }}</div>
+          <div class="stat-value">{{ summary().pendingUsers }}</div>
           <div class="stat-label">Pending</div>
           <div class="stat-meta">Awaiting approval</div>
         </div>
@@ -80,6 +101,84 @@ import { forkJoin, timeout } from 'rxjs';
         </div>
       </div>
 
+      <!-- Live Visitors -->
+      <div class="live-section">
+        <div class="live-header">
+          <h3>
+            <span class="live-dot"></span> Live Visitors
+            <span class="live-count">{{ liveVisitors().length }}</span>
+          </h3>
+          <span class="live-hint">Auto-refreshes every 10s</span>
+        </div>
+        @if (liveVisitors().length === 0) {
+          <div class="empty-state">No active visitors right now</div>
+        } @else {
+          <div class="live-table">
+            <div class="table-header">
+              <div class="col-user">User</div>
+              <div class="col-role">Role</div>
+              <div class="col-page">Current Page</div>
+              <div class="col-time">Last Activity</div>
+            </div>
+            @for (v of liveVisitors(); track v.sessionId) {
+              <div class="table-row">
+                <div class="col-user">{{ v.username }}</div>
+                <div class="col-role">
+                  <span class="role-badge" [class]="'role-' + v.role">{{ v.role }}</span>
+                </div>
+                <div class="col-page">{{ v.currentPage }}</div>
+                <div class="col-time">{{ timeAgo(v.lastActivity) }}</div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Trends -->
+      <div class="trends-section">
+        <div class="trends-header">
+          <h3>Trends</h3>
+          <div class="range-toggle">
+            @for (r of ranges; track r) {
+              <button
+                class="range-btn"
+                [class.active]="range() === r"
+                (click)="setRange(r)"
+              >
+                {{ r }}d
+              </button>
+            }
+          </div>
+        </div>
+        @if (trends()) {
+          <div class="trends-grid">
+            @for (card of trendCards(); track card.label) {
+              <div class="trend-card">
+                <div class="trend-label">{{ card.label }}</div>
+                <div class="trend-value">
+                  @if (card.isCurrency) {
+                    {{ card.value | currency: 'PHP' : 'symbol' : '1.0-0' }}
+                  } @else {
+                    {{ card.value }}
+                  }
+                </div>
+                <div class="trend-delta" [class]="'delta-' + card.dir">
+                  @if (card.pct === null) {
+                    <span>— no prior data</span>
+                  } @else {
+                    <span>{{ card.dir === 'up' ? '▲' : card.dir === 'down' ? '▼' : '–' }}
+                      {{ card.pct }}%</span>
+                    <span class="trend-meta">vs prev {{ range() }}d</span>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="empty-state">No trend data</div>
+        }
+      </div>
+
       <!-- Insights Section -->
       <div class="insights-section">
         <h3>Key Insights</h3>
@@ -89,7 +188,7 @@ import { forkJoin, timeout } from 'rxjs';
             <div class="insight-text">
               <div class="insight-title">Player Engagement</div>
               <div class="insight-value">
-                {{ summary.activeUsers }} of {{ summary.totalPlayers }} players approved
+                {{ summary().activeUsers }} of {{ summary().totalPlayers }} players approved
               </div>
             </div>
           </div>
@@ -112,8 +211,13 @@ import { forkJoin, timeout } from 'rxjs';
 
       <!-- Recent Logins -->
       <div class="logins-section">
-        <h3>Recent User Activity</h3>
-        @if (logins.length === 0) {
+        <div class="section-head">
+          <h3>Recent User Activity</h3>
+          @if (logins().length > 0) {
+            <button class="export-btn" (click)="exportLogins()">⬇ Export CSV</button>
+          }
+        </div>
+        @if (logins().length === 0) {
           <div class="empty-state">No login history</div>
         } @else {
           <div class="login-table">
@@ -123,7 +227,7 @@ import { forkJoin, timeout } from 'rxjs';
               <div class="col-role">Role</div>
               <div class="col-time">Login Time</div>
             </div>
-            @for (login of logins; track login._id) {
+            @for (login of logins(); track login._id) {
               <div class="table-row">
                 <div class="col-username">{{ login.username }}</div>
                 <div class="col-club">{{ login.clubName ?? '—' }}</div>
@@ -140,11 +244,11 @@ import { forkJoin, timeout } from 'rxjs';
       <!-- Most Visited Pages -->
       <div class="pages-section">
         <h3>📄 Most Visited Pages</h3>
-        @if (mostVisitedPages.length === 0) {
+        @if (mostVisitedPages().length === 0) {
           <div class="empty-state">No page visits recorded</div>
         } @else {
           <div class="pages-grid">
-            @for (page of mostVisitedPages; track page._id) {
+            @for (page of mostVisitedPages(); track page._id) {
               <div class="page-card">
                 <div class="page-name">{{ page.pageName }}</div>
                 <div class="page-stats">
@@ -165,8 +269,13 @@ import { forkJoin, timeout } from 'rxjs';
 
       <!-- Recent Page Visits -->
       <div class="page-visits-section">
-        <h3>🔍 Recent Page Visits</h3>
-        @if (recentPageVisits.length === 0) {
+        <div class="section-head">
+          <h3>🔍 Recent Page Visits</h3>
+          @if (recentPageVisits().length > 0) {
+            <button class="export-btn" (click)="exportPageVisits()">⬇ Export CSV</button>
+          }
+        </div>
+        @if (recentPageVisits().length === 0) {
           <div class="empty-state">No page visits recorded</div>
         } @else {
           <div class="visits-table">
@@ -177,7 +286,7 @@ import { forkJoin, timeout } from 'rxjs';
               <div class="col-duration">Duration</div>
               <div class="col-time">Time</div>
             </div>
-            @for (visit of recentPageVisits; track visit._id) {
+            @for (visit of recentPageVisits(); track visit._id) {
               <div class="table-row">
                 <div class="col-user">{{ visit.username }}</div>
                 <div class="col-club">{{ visit.clubName ?? '—' }}</div>
@@ -195,11 +304,43 @@ import { forkJoin, timeout } from 'rxjs';
     `
       .page-header {
         margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
       }
       .page-header h2 {
         color: var(--dm-accent);
         font-size: 1.8rem;
         font-weight: 800;
+      }
+      .header-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .last-updated {
+        color: rgba(255,255,255,0.5);
+        font-size: 0.82rem;
+      }
+      .refresh-btn {
+        background: rgba(163,230,53,0.12);
+        color: var(--dm-accent);
+        border: 1px solid rgba(163,230,53,0.24);
+        border-radius: 8px;
+        padding: 0.5rem 0.9rem;
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .refresh-btn:hover:not(:disabled) {
+        background: rgba(163,230,53,0.2);
+      }
+      .refresh-btn:disabled {
+        opacity: 0.5;
+        cursor: default;
       }
 
       .loading {
@@ -283,6 +424,147 @@ import { forkJoin, timeout } from 'rxjs';
         font-size: 0.8rem;
       }
 
+      /* Live Visitors */
+      .live-section {
+        background: var(--dm-surface);
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.24);
+        margin-bottom: 2rem;
+        border: 1px solid rgba(163,230,53,0.12);
+      }
+      .live-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+      .live-header h3 {
+        color: var(--dm-accent);
+        font-size: 1.1rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .live-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #4ade80;
+        box-shadow: 0 0 0 0 rgba(74,222,128,0.7);
+        animation: live-pulse 1.8s infinite;
+      }
+      @keyframes live-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(74,222,128,0.55); }
+        70% { box-shadow: 0 0 0 8px rgba(74,222,128,0); }
+        100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+      }
+      .live-count {
+        background: rgba(74,222,128,0.16);
+        color: #4ade80;
+        border-radius: 20px;
+        padding: 0.1rem 0.65rem;
+        font-size: 0.9rem;
+        font-weight: 700;
+      }
+      .live-hint {
+        color: rgba(255,255,255,0.4);
+        font-size: 0.78rem;
+      }
+      .live-table {
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .live-table .table-header,
+      .live-table .table-row {
+        grid-template-columns: 1fr 0.8fr 1.2fr 1fr;
+      }
+
+      /* Trends */
+      .trends-section {
+        margin-bottom: 2rem;
+      }
+      .trends-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+      .trends-header h3 {
+        color: var(--dm-accent);
+        font-size: 1.1rem;
+        font-weight: 700;
+      }
+      .range-toggle {
+        display: inline-flex;
+        background: var(--dm-surface);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .range-btn {
+        background: transparent;
+        color: rgba(255,255,255,0.62);
+        border: none;
+        padding: 0.45rem 0.9rem;
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .range-btn:hover {
+        color: #ffffff;
+      }
+      .range-btn.active {
+        background: rgba(163,230,53,0.16);
+        color: var(--dm-accent);
+      }
+      .trends-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+      }
+      .trend-card {
+        background: var(--dm-surface);
+        border-radius: 12px;
+        padding: 1.25rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.24);
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+      .trend-label {
+        color: rgba(255,255,255,0.72);
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 0.4rem;
+      }
+      .trend-value {
+        font-size: 1.7rem;
+        font-weight: 700;
+        color: #ffffff;
+        margin-bottom: 0.4rem;
+      }
+      .trend-delta {
+        font-size: 0.82rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+      }
+      .trend-meta {
+        color: rgba(255,255,255,0.4);
+        font-weight: 500;
+      }
+      .delta-up { color: #4ade80; }
+      .delta-down { color: #fca5a5; }
+      .delta-flat { color: rgba(255,255,255,0.5); }
+
       /* Insights Section */
       .insights-section {
         margin-bottom: 2rem;
@@ -324,6 +606,34 @@ import { forkJoin, timeout } from 'rxjs';
         color: #ffffff;
         font-size: 1.1rem;
         font-weight: 700;
+      }
+
+      /* Section heads with export */
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+        gap: 1rem;
+      }
+      .section-head h3 {
+        margin-bottom: 0;
+      }
+      .export-btn {
+        background: rgba(255,255,255,0.06);
+        color: rgba(255,255,255,0.8);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 8px;
+        padding: 0.4rem 0.8rem;
+        font-weight: 600;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+      .export-btn:hover {
+        background: rgba(255,255,255,0.12);
+        color: #ffffff;
       }
 
       /* Logins Section */
@@ -419,6 +729,11 @@ import { forkJoin, timeout } from 'rxjs';
         color: #d8b4fe;
       }
 
+      .role-anonymous {
+        background: rgba(255,255,255,0.08);
+        color: rgba(255,255,255,0.6);
+      }
+
       .col-time {
         color: rgba(255,255,255,0.62);
       }
@@ -429,7 +744,7 @@ import { forkJoin, timeout } from 'rxjs';
         border-radius: 12px;
         padding: 1.5rem;
         box-shadow: 0 2px 8px rgba(0,0,0,0.24);
-        margin-bottom: 2rem;
+        margin: 2rem 0;
         border: 1px solid rgba(163,230,53,0.12);
       }
       .pages-section h3 {
@@ -552,6 +867,13 @@ import { forkJoin, timeout } from 'rxjs';
         .col-time {
           display: none;
         }
+        .live-table .table-header,
+        .live-table .table-row {
+          grid-template-columns: 1fr 1fr;
+        }
+        .live-table .col-page {
+          display: none;
+        }
         .visits-table .table-header,
         .visits-table .table-row {
           grid-template-columns: 1fr 1fr;
@@ -569,10 +891,13 @@ import { forkJoin, timeout } from 'rxjs';
     `,
   ],
 })
-export class AnalyticsComponent implements OnInit {
-  loading = true;
-  errorMsg = '';
-  summary: AnalyticsSummary = {
+export class AnalyticsComponent implements OnInit, OnDestroy {
+  loading = signal(true);
+  refreshing = signal(false);
+  errorMsg = signal('');
+  lastUpdated = signal<Date | null>(null);
+
+  summary = signal<AnalyticsSummary>({
     totalPlayers: 0,
     totalAdmins: 0,
     totalSessions: 0,
@@ -581,17 +906,60 @@ export class AnalyticsComponent implements OnInit {
     totalRevenue: 0,
     totalCollected: 0,
     totalOutstanding: 0,
-  };
-  logins: LoginRecord[] = [];
-  mostVisitedPages: MostVisitedPage[] = [];
-  recentPageVisits: PageVisitRecord[] = [];
+  });
+  logins = signal<LoginRecord[]>([]);
+  mostVisitedPages = signal<MostVisitedPage[]>([]);
+  recentPageVisits = signal<PageVisitRecord[]>([]);
+
+  liveVisitors = signal<LiveVisitor[]>([]);
+  trends = signal<TrendsResponse | null>(null);
+  range = signal<number>(30);
+  ranges = [7, 30, 90];
+
+  private liveSub?: Subscription;
+
+  trendCards = computed<TrendCard[]>(() => {
+    const t = this.trends();
+    if (!t) return [];
+    const make = (
+      label: string,
+      curr: number,
+      prev: number,
+      isCurrency = false,
+    ): TrendCard => ({
+      label,
+      value: curr,
+      isCurrency,
+      pct: this.pctChange(curr, prev),
+      dir: curr > prev ? 'up' : curr < prev ? 'down' : 'flat',
+    });
+    return [
+      make('New Players', t.current.newPlayers, t.previous.newPlayers),
+      make('New Sessions', t.current.newSessions, t.previous.newSessions),
+      make('Period Revenue', t.current.periodRevenue, t.previous.periodRevenue, true),
+      make('Logins', t.current.logins, t.previous.logins),
+      make('Page Visits', t.current.pageVisits, t.previous.pageVisits),
+    ];
+  });
 
   constructor(
     private analyticsService: AnalyticsService,
-    private cdr: ChangeDetectorRef,
+    private liveVisitorsService: LiveVisitorsService,
   ) {}
 
   ngOnInit() {
+    this.load();
+    this.loadTrends();
+    this.liveSub = this.liveVisitorsService
+      .getLiveVisitorsPolled(10000)
+      .subscribe((res) => this.liveVisitors.set(res.visitors));
+  }
+
+  ngOnDestroy() {
+    this.liveSub?.unsubscribe();
+  }
+
+  private load() {
     forkJoin({
       summary: this.analyticsService.getSummary(),
       logins: this.analyticsService.getLoginHistory(30),
@@ -601,41 +969,69 @@ export class AnalyticsComponent implements OnInit {
       .pipe(timeout(8000))
       .subscribe({
         next: ({ summary, logins, mostVisited, recentVisits }) => {
-          this.summary = summary.summary;
-          this.logins = logins.logins;
-          this.mostVisitedPages = mostVisited.pages;
-          this.recentPageVisits = recentVisits.pageVisits;
-          this.loading = false;
-          this.cdr.detectChanges();
+          this.summary.set(summary.summary);
+          this.logins.set(logins.logins);
+          this.mostVisitedPages.set(mostVisited.pages);
+          this.recentPageVisits.set(recentVisits.pageVisits);
+          this.loading.set(false);
+          this.refreshing.set(false);
+          this.lastUpdated.set(new Date());
         },
         error: (err) => {
           console.error('Analytics error', err);
-          this.loading = false;
+          this.loading.set(false);
+          this.refreshing.set(false);
           if (err.name === 'TimeoutError') {
-            this.errorMsg = 'Request timed out. Is the backend running?';
+            this.errorMsg.set('Request timed out. Is the backend running?');
           } else if (err.status === 403) {
-            this.errorMsg = 'Superadmin access required.';
+            this.errorMsg.set('Superadmin access required.');
           } else {
-            this.errorMsg = `Error: ${err.status || err.message}`;
+            this.errorMsg.set(`Error: ${err.status || err.message}`);
           }
-          this.cdr.detectChanges();
         },
       });
   }
 
+  private loadTrends() {
+    this.analyticsService.getTrends(this.range()).subscribe({
+      next: (res) => this.trends.set(res),
+      error: (err) => console.error('Trends error', err),
+    });
+  }
+
+  refresh() {
+    this.refreshing.set(true);
+    this.load();
+    this.loadTrends();
+  }
+
+  setRange(days: number) {
+    if (this.range() === days) return;
+    this.range.set(days);
+    this.loadTrends();
+  }
+
+  pctChange(curr: number, prev: number): number | null {
+    if (prev === 0) return curr === 0 ? 0 : null;
+    return Math.round(((curr - prev) / prev) * 100);
+  }
+
   getConversionRate(): number {
-    if (this.summary.totalPlayers === 0) return 0;
-    return Math.round((this.summary.activeUsers / this.summary.totalPlayers) * 100);
+    const s = this.summary();
+    if (s.totalPlayers === 0) return 0;
+    return Math.round((s.activeUsers / s.totalPlayers) * 100);
   }
 
   getCollectionRate(): number {
-    if (this.summary.totalRevenue === 0) return 0;
-    return Math.round((this.summary.totalCollected / this.summary.totalRevenue) * 100);
+    const s = this.summary();
+    if (s.totalRevenue === 0) return 0;
+    return Math.round((s.totalCollected / s.totalRevenue) * 100);
   }
 
   getAveragePerSession(): number {
-    if (this.summary.totalSessions === 0) return 0;
-    return this.summary.totalRevenue / this.summary.totalSessions;
+    const s = this.summary();
+    if (s.totalSessions === 0) return 0;
+    return s.totalRevenue / s.totalSessions;
   }
 
   formatTime(seconds: number): string {
@@ -651,6 +1047,63 @@ export class AnalyticsComponent implements OnInit {
       return `${hours}h ${mins}m`;
     }
   }
+
+  timeAgo(date: Date | string): string {
+    const then = new Date(date).getTime();
+    const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
+    if (secs < 10) return 'just now';
+    if (secs < 60) return `${secs}s ago`;
+    if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+    return `${Math.floor(secs / 3600)}h ago`;
+  }
+
+  exportLogins() {
+    this.exportCsv(
+      this.logins(),
+      [
+        { key: 'username', label: 'User' },
+        { key: 'clubName', label: 'Club' },
+        { key: 'role', label: 'Role' },
+        { key: 'loginTime', label: 'Login Time' },
+      ],
+      'recent-user-activity',
+    );
+  }
+
+  exportPageVisits() {
+    this.exportCsv(
+      this.recentPageVisits(),
+      [
+        { key: 'username', label: 'User' },
+        { key: 'clubName', label: 'Club' },
+        { key: 'pageName', label: 'Page' },
+        { key: 'timeSpent', label: 'Duration (s)' },
+        { key: 'visitTime', label: 'Time' },
+      ],
+      'recent-page-visits',
+    );
+  }
+
+  private exportCsv(
+    rows: Record<string, any>[],
+    columns: { key: string; label: string }[],
+    filename: string,
+  ) {
+    const escape = (val: any) => {
+      const s = val === null || val === undefined ? '' : String(val);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = columns.map((c) => escape(c.label)).join(',');
+    const body = rows
+      .map((row) => columns.map((c) => escape(row[c.key])).join(','))
+      .join('\n');
+    const csv = `${header}\n${body}`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 }
-
-

@@ -333,6 +333,6 @@ export class App {
 
   isAuthRoute(): boolean {
     const url = this.router.url;
-    return url === '/' || url === '' || url.includes('/player-login') || url.includes('/register') || url.startsWith('/book') || url.startsWith('/features');
+    return url === '/' || url === '' || url.includes('/player-login') || url.includes('/register') || url.startsWith('/book') || url.startsWith('/features') || url.startsWith('/review');
   }
 }
