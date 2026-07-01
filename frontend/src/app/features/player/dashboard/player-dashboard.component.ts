@@ -248,11 +248,13 @@ import { forkJoin } from 'rxjs';
               <span class="dm-ac-title">Approvals</span>
               <span class="dm-ac-sub">My requests</span>
             </button>
-            <button class="dm-action-card" (click)="navigateTo('/player/open-play')">
-              <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-table-tennis-paddle-ball"></i></div>
-              <span class="dm-ac-title">Open Play</span>
-              <span class="dm-ac-sub">Join a session</span>
-            </button>
+            @if (!isHostedPlay) {
+              <button class="dm-action-card" (click)="navigateTo('/player/open-play')">
+                <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-table-tennis-paddle-ball"></i></div>
+                <span class="dm-ac-title">Open Play</span>
+                <span class="dm-ac-sub">Join a session</span>
+              </button>
+            }
             <button class="dm-action-card" (click)="navigateTo('/player/rules')">
               <div class="dm-ac-icon dm-ac-orange"><i class="fas fa-gavel"></i></div>
               <span class="dm-ac-title">Rules</span>

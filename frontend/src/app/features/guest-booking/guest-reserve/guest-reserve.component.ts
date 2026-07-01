@@ -585,6 +585,14 @@ function localDateStr(): string {
                       }
                     }
 
+                    <!-- Payment screenshot disclaimer -->
+                    @if (requirePaymentScreenshot) {
+                      <div class="gr-payment-disclaimer">
+                        <i class="fas fa-info-circle"></i>
+                        <span><strong>Payment screenshot required.</strong> Please complete your payment and upload a screenshot below before confirming your booking. The slot will remain open for other users until your booking is confirmed.</span>
+                      </div>
+                    }
+
                     <!-- Payment screenshot -->
                     <div class="gr-field-group">
                       <label class="gr-field-label">Payment screenshot
@@ -619,7 +627,7 @@ function localDateStr(): string {
                   </div><!-- /gr-panel-body -->
 
                   <div class="gr-panel-footer">
-                    <button class="gr-submit-btn" [disabled]="booking" (click)="submit()">
+                    <button class="gr-submit-btn" [disabled]="booking || (requirePaymentScreenshot && !paymentScreenshot)" (click)="submit()">
                       @if (booking) { Submitting… } @else { Confirm booking }
                     </button>
 
@@ -1226,6 +1234,24 @@ function localDateStr(): string {
     .gr-file-label:hover .gr-file-btn { background: rgba(255,255,255,0.14); }
     .gr-file-label-error .gr-file-btn { border-color: #f87171; }
     .gr-file-name { font-size: 0.8rem; color: rgba(255,255,255,0.4); }
+
+    .gr-payment-disclaimer {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: #fff8e1;
+      border: 1px solid #f59e0b;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 0.82rem;
+      color: #78350f;
+      margin-bottom: 12px;
+    }
+    .gr-payment-disclaimer i {
+      margin-top: 2px;
+      color: #f59e0b;
+      flex-shrink: 0;
+    }
 
     .gr-terms-row {
       display: flex;
