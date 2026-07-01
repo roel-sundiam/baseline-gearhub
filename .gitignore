@@ -18,5 +18,9 @@ Thumbs.db
 
 # Sensitive files
 LOGINS.md
+*-CREDENTIALS.md
 .vercel
 .env*.local
+
+# Backups
+backups/
