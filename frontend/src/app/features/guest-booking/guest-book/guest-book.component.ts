@@ -78,7 +78,7 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
                     </div>
                   </div>
                 </button>
-                @if (!isPerGame) {
+                @if (!isPerGame && !isHostedPlay) {
                   <button class="lp-cta lp-cta-guest" (click)="goToReserve()">
                     <div class="lp-cta-left">
                       <div class="lp-cta-icon lp-cta-icon-guest"><i class="fas fa-calendar-plus"></i></div>
@@ -88,6 +88,17 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
                       </div>
                     </div>
                   </button>
+                }
+                @if (isPerGame) {
+                  <a routerLink="/register" class="lp-cta lp-cta-guest" style="text-decoration:none">
+                    <div class="lp-cta-left">
+                      <div class="lp-cta-icon lp-cta-icon-guest"><i class="fas fa-user-plus"></i></div>
+                      <div>
+                        <div class="lp-cta-title">Register to Play</div>
+                        <div class="lp-cta-sub">Create an account to join per-game sessions</div>
+                      </div>
+                    </div>
+                  </a>
                 }
               </div>
             }
@@ -104,7 +115,47 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
         } @else {
           <div class="lp-body">
 
+            <!-- Per Game Info Card -->
+            @if (isPerGame) {
+              <div class="lp-card lp-pg-card">
+                <div class="lp-section-label"><i class="fas fa-table-tennis"></i> Per Game Play</div>
+                <p class="lp-card-desc" style="margin-bottom:1.1rem">No court reservation needed — just show up and play. Pay per game at the club.</p>
+                <div class="lp-pg-steps">
+                  <div class="lp-pg-step">
+                    <div class="lp-pg-step-num">1</div>
+                    <div>
+                      <div class="lp-pg-step-title">Register or Login</div>
+                      <div class="lp-pg-step-sub">Create your player account</div>
+                    </div>
+                  </div>
+                  <div class="lp-pg-step">
+                    <div class="lp-pg-step-num">2</div>
+                    <div>
+                      <div class="lp-pg-step-title">Tap Join</div>
+                      <div class="lp-pg-step-sub">Check in when you arrive at the club</div>
+                    </div>
+                  </div>
+                  <div class="lp-pg-step">
+                    <div class="lp-pg-step-num">3</div>
+                    <div>
+                      <div class="lp-pg-step-title">Play &amp; Pay</div>
+                      <div class="lp-pg-step-sub">Games are recorded and billed per game</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="lp-pg-actions">
+                  <a routerLink="/register" class="lp-pg-btn-primary">
+                    <i class="fas fa-user-plus"></i> Register as Player
+                  </a>
+                  <button class="lp-pg-btn-secondary" (click)="goToLogin()">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                  </button>
+                </div>
+              </div>
+            }
+
             <!-- Time Slots Preview -->
+            @if (!isHostedPlay && !isPerGame) {
             <div class="lp-card lp-slots-card">
               <div class="lp-slots-header">
                 <div class="lp-slots-header-left">
@@ -132,8 +183,64 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
                 </div>
               </div>
             </div>
+            }
+
+            <!-- Hosted Play Sessions -->
+            @if (isHostedPlay) {
+              <div class="lp-card lp-op-card">
+                <div class="lp-op-toggle" style="cursor:default">
+                  <div class="lp-op-toggle-left">
+                    <div class="lp-op-icon"><i class="fas fa-calendar-check"></i></div>
+                    <div>
+                      <div class="lp-section-label" style="margin:0">Hosted Play Sessions</div>
+                      <div class="lp-op-toggle-sub">Club-organized sessions — join and play</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="lp-op-body">
+                  @if (hostedPlaySessions.length > 0) {
+                    <div class="lp-op-list">
+                      @for (s of hostedPlaySessions; track s._id) {
+                        <div class="lp-op-row">
+                          <div class="lp-op-sport">
+                            <i [class]="s.sport === 'pickleball' ? 'fas fa-table-tennis' : 'fas fa-circle-dot'"></i>
+                          </div>
+                          <div class="lp-op-info">
+                            <div class="lp-op-title">{{ s.title }}</div>
+                            <div class="lp-op-meta">
+                              <span><i class="far fa-calendar"></i> {{ s.date | date:'EEE, MMM d' : 'UTC' }}</span>
+                              <span><i class="far fa-clock"></i> {{ s.startTime }} – {{ s.endTime }}</span>
+                              <span><i class="fas fa-location-dot"></i> {{ s.venue }}</span>
+                              @if (s.feePerPlayer > 0) {
+                                <span class="lp-op-type">₱{{ s.feePerPlayer | number }}/player</span>
+                              }
+                            </div>
+                          </div>
+                          <div class="lp-op-right">
+                            <div class="lp-op-spots">{{ s.currentPlayers }}/{{ s.maxPlayers }}</div>
+                            <div class="lp-op-type">{{ s.status === 'full' ? 'Full' : 'Open' }}</div>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  } @else {
+                    <div class="lp-op-empty">
+                      <i class="fas fa-calendar-xmark lp-op-empty-icon"></i>
+                      <p class="lp-op-empty-title">No Hosted Play Sessions</p>
+                      <p class="lp-op-empty-desc">There are no upcoming hosted play sessions scheduled right now. Check back later for new sessions!</p>
+                    </div>
+                  }
+
+                  <div class="lp-op-register">
+                    <p class="lp-op-register-note"><i class="fas fa-user-plus"></i> To join a session you need a player account</p>
+                    <a routerLink="/register" class="lp-op-join">Register as Player</a>
+                  </div>
+                </div>
+              </div>
+            }
 
             <!-- Open Play -->
+            @if (!isHostedPlay && !isPerGame) {
             <div class="lp-card lp-op-card">
               <button class="lp-op-toggle" (click)="showOpenPlay = !showOpenPlay">
                 <div class="lp-op-toggle-left">
@@ -184,6 +291,7 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
                 </div>
               }
             </div>
+            }
 
             <!-- About the Club -->
             <div class="lp-card lp-about-card">
@@ -232,7 +340,9 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
             @if (ratesLoaded) {
               <div class="lp-card lp-pricing-card">
                 <div class="lp-section-label"><i class="fas fa-coins"></i> Pricing</div>
-                @if (isPerGame) {
+                @if (isHostedPlay) {
+                  <p class="lp-card-desc">Each hosted play session sets its own fee per player — see the fee on each session above. A small service fee is added at checkout.</p>
+                } @else if (isPerGame) {
                   <div class="lp-pricing-grid">
                     <div class="lp-price-tile">
                       <div class="lp-price-label">Game Fee</div>
@@ -1000,6 +1110,73 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
     .lp-error-icon { font-size: 2.5rem; color: #ef4444; margin-bottom: 1rem; }
     .lp-error-msg { font-size: 0.9rem; font-weight: 600; color: #ef4444; text-align: center; margin: 0; }
 
+    /* ── Per Game Card ── */
+    .lp-pg-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-bottom: 1.2rem;
+    }
+    .lp-pg-step {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 0.8rem 1rem;
+    }
+    .lp-pg-step-num {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: rgba(163,230,53,0.14);
+      color: #a3e635;
+      font-size: 0.85rem;
+      font-weight: 900;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .lp-pg-step-title { font-size: 0.87rem; font-weight: 700; color: #ffffff; margin-bottom: 0.1rem; }
+    .lp-pg-step-sub { font-size: 0.74rem; color: rgba(255,255,255,0.38); }
+    .lp-pg-actions {
+      display: flex;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+    }
+    .lp-pg-btn-primary {
+      flex: 1;
+      min-width: 140px;
+      display: flex; align-items: center; justify-content: center;
+      gap: 0.45rem;
+      padding: 0.72rem 1rem;
+      background: #a3e635;
+      color: #0c1a11;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      font-weight: 800;
+      font-family: inherit;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+    .lp-pg-btn-primary:hover { opacity: 0.88; }
+    .lp-pg-btn-secondary {
+      flex: 1;
+      min-width: 120px;
+      display: flex; align-items: center; justify-content: center;
+      gap: 0.45rem;
+      padding: 0.72rem 1rem;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      color: rgba(255,255,255,0.7);
+      font-size: 0.88rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .lp-pg-btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
     /* ── Footer ── */
     .lp-footer {
       padding: 2rem 2.5rem 1.5rem;
@@ -1041,6 +1218,13 @@ export class GuestBookComponent implements OnInit, OnDestroy {
   clubError = '';
   clubSuspended = false;
   isPerGame = false;
+  isHostedPlay = false;
+  hostedPlaySessions: {
+    _id: string; title: string; sport: 'tennis' | 'pickleball';
+    date: string; startTime: string; endTime: string;
+    venue: string; court?: string; feePerPlayer: number;
+    maxPlayers: number; currentPlayers: number; status: 'open' | 'full';
+  }[] = [];
   clubMobile = '';
   clubEmail = '';
   clubDescription = '';
@@ -1116,6 +1300,13 @@ export class GuestBookComponent implements OnInit, OnDestroy {
         this.closingHour = club.closingHour ?? 22;
         if (club.status === 'suspended') this.clubSuspended = true;
         this.isPerGame = club.bookingProcess === 'per_game';
+        this.isHostedPlay = club.bookingProcess === 'hosted_play';
+        if (this.isHostedPlay) {
+          this.publicBookingService.getHostedPlaySessions(this.clubId).subscribe({
+            next: (sessions) => { this.hostedPlaySessions = sessions; this.cdr.detectChanges(); },
+            error: () => {},
+          });
+        }
         this.cdr.detectChanges();
       },
       error: () => {
