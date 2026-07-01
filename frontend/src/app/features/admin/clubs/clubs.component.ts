@@ -335,6 +335,15 @@ interface AdminUser {
                 <div class="club-identity">
                   <h3>{{ club.name }}</h3>
                   <p class="club-id">{{ club._id }}</p>
+                  <span class="club-booking-badge">
+                    @if (club.bookingProcess === 'per_game') {
+                      <i class="fas fa-table-tennis-paddle-ball"></i> Per Game
+                    } @else if (club.bookingProcess === 'hosted_play') {
+                      <i class="fas fa-users"></i> Hosted Play
+                    } @else {
+                      <i class="fas fa-calendar-check"></i> Reservation
+                    }
+                  </span>
                 </div>
               </div>
 
@@ -390,31 +399,30 @@ interface AdminUser {
 
               <div class="club-actions">
                 <button type="button" class="btn btn-sm btn-primary" (click)="$event.stopPropagation(); selectClub(club)" title="Manage admins">
-                  <i class="fas fa-user-cog"></i> <span class="btn-txt">Admins</span>
+                  <i class="fas fa-user-cog"></i>
                 </button>
                 <button type="button" class="btn btn-sm btn-message" (click)="$event.stopPropagation(); messageClubAdmin(club)" title="Message club admin" style="position:relative;">
-                  <i class="fas fa-comment-dots"></i> <span class="btn-txt">Message</span>
+                  <i class="fas fa-comment-dots"></i>
                   @if (getClubUnread(club) > 0) {
                     <span class="msg-badge" style="position:absolute;top:-6px;right:-6px;background:#dc2626;color:#fff;font-size:0.65rem;font-weight:700;min-width:16px;height:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 3px;pointer-events:none;">{{ getClubUnread(club) }}</span>
                   }
                 </button>
                 <a [routerLink]="['/admin/clubs', club._id, 'edit']" class="btn btn-sm btn-outline" (click)="$event.stopPropagation()" title="Edit club">
-                  <i class="fas fa-pen"></i> <span class="btn-txt">Edit</span>
+                  <i class="fas fa-pen"></i>
                 </a>
                 <button type="button" class="btn btn-sm btn-copy" (click)="$event.stopPropagation(); copyBookingLink(club)" title="Copy booking link">
                   <i class="fas" [class.fa-copy]="copiedClubId !== club._id" [class.fa-check]="copiedClubId === club._id"></i>
-                  <span class="btn-txt">{{ copiedClubId === club._id ? 'Copied!' : 'Copy Link' }}</span>
                 </button>
                 <button type="button" class="btn btn-sm btn-danger" (click)="$event.stopPropagation(); deleteClub(club)" title="Delete club">
-                  <i class="fas fa-trash"></i> <span class="btn-txt">Delete</span>
+                  <i class="fas fa-trash"></i>
                 </button>
                 @if (club.status === 'suspended') {
                   <button type="button" class="btn btn-sm btn-unsuspend" (click)="$event.stopPropagation(); suspendClub(club)" title="Unsuspend club">
-                    <i class="fas fa-circle-check"></i> <span class="btn-txt">Unsuspend</span>
+                    <i class="fas fa-circle-check"></i>
                   </button>
                 } @else {
                   <button type="button" class="btn btn-sm btn-suspend" (click)="$event.stopPropagation(); suspendClub(club)" title="Suspend club">
-                    <i class="fas fa-ban"></i> <span class="btn-txt">Suspend</span>
+                    <i class="fas fa-ban"></i>
                   </button>
                 }
               </div>
@@ -899,11 +907,11 @@ interface AdminUser {
                         <span class="cfs-icon"><i class="fas fa-calendar-check"></i></span>
                         <div>
                           <div class="cfs-title">Booking Process</div>
-                          <div class="cfs-subtitle">Reservation or per-game model</div>
+                          <div class="cfs-subtitle">Reservation, per-game or hosted play model</div>
                         </div>
                       </div>
-                      <span class="xfee-status-pill" [class.xfee-status-off]="bookingProcess === 'per_game'">
-                        {{ bookingProcess === 'reservation' ? 'Reservation' : 'Per Game' }}
+                      <span class="xfee-status-pill" [class.xfee-status-off]="bookingProcess !== 'reservation'">
+                        {{ bookingProcess === 'reservation' ? 'Reservation' : (bookingProcess === 'per_game' ? 'Per Game' : 'Hosted Play') }}
                       </span>
                     </div>
                     <div class="cfs-body xfee-setting-body">
@@ -917,6 +925,11 @@ interface AdminUser {
                           <i class="fas fa-play-circle"></i>
                           <span class="cfs-mode-name">Per Game</span>
                           <span class="cfs-mode-desc">Players join; admin records games</span>
+                        </button>
+                        <button type="button" class="cfs-mode-opt" [class.cfs-mode-opt-active]="bookingProcess === 'hosted_play'" (click)="bookingProcess = 'hosted_play'">
+                          <i class="fas fa-calendar-check"></i>
+                          <span class="cfs-mode-name">Hosted Play</span>
+                          <span class="cfs-mode-desc">Admin schedules sessions; members join</span>
                         </button>
                       </div>
                       <div class="cfs-actions xfee-actions">
@@ -1679,6 +1692,21 @@ interface AdminUser {
       font-family: monospace;
     }
 
+    .club-booking-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      margin-top: 0.35rem;
+      padding: 0.18rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      background: rgba(99,102,241,0.12);
+      border: 1px solid rgba(99,102,241,0.28);
+      color: #818cf8;
+    }
+
     /* Pills */
     .club-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 
@@ -1728,9 +1756,16 @@ interface AdminUser {
 
     /* Club actions */
     .club-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .club-actions .btn-sm {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      justify-content: center;
+      flex-shrink: 0;
     }
 
     /* ── Detail panel ── */
@@ -3524,15 +3559,6 @@ interface AdminUser {
       justify-content: flex-end;
       gap: 0.4rem;
     }
-    .club-card--list .club-actions .btn-txt { display: none; }
-    .club-card--list .club-actions .btn-sm {
-      width: 36px;
-      height: 36px;
-      padding: 0;
-      justify-content: center;
-      gap: 0;
-      flex-shrink: 0;
-    }
 
     @media (max-width: 900px) {
       .club-card--list {
@@ -3886,7 +3912,7 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   balanceAlertEnabled = false;
   savingBalanceAlert = false;
   balanceAlertSaveMsg = '';
-  bookingProcess: 'reservation' | 'per_game' = 'reservation';
+  bookingProcess: 'reservation' | 'per_game' | 'hosted_play' = 'reservation';
   savingBookingProcess = false;
   bookingProcessSaveMsg = '';
 

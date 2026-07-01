@@ -7,6 +7,7 @@ const Club = require("../models/Club");
 const Inquiry = require("../models/Inquiry");
 const OpenPlaySession = require("../models/OpenPlaySession");
 const OpenPlaySessionPlayer = require("../models/OpenPlaySessionPlayer");
+const HostedPlay = require("../models/HostedPlay");
 const AppReview = require("../models/AppReview");
 const { sendPushToClubAdmins } = require("../utils/push");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
@@ -726,6 +727,41 @@ router.get("/:clubId/open-play", async (req, res) => {
       matchType: s.matchType,
       maxPlayers: s.maxPlayers,
       joinedPlayers: countMap[s._id.toString()] ?? 0,
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /api/public/:clubId/hosted-play — upcoming hosted play sessions (read-only, no auth)
+router.get("/:clubId/hosted-play", async (req, res) => {
+  try {
+    const club = await findClub(req.params.clubId);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const sessions = await HostedPlay.find({
+      clubId: club._id,
+      status: { $in: ["open", "full"] },
+      date: { $gte: today },
+    }).sort({ date: 1, startTime: 1 }).lean();
+
+    res.json(sessions.map(s => ({
+      _id: s._id,
+      title: s.title,
+      sport: s.sport,
+      date: s.date,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      venue: s.venue,
+      court: s.court,
+      feePerPlayer: s.feePerPlayer,
+      maxPlayers: s.maxPlayers,
+      currentPlayers: s.currentPlayers,
+      status: s.status,
     })));
   } catch (err) {
     console.error(err);

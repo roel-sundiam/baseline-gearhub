@@ -13,6 +13,7 @@ import { BalanceAlertModalComponent } from '../../../shared/components/balance-a
 import { AppServicePaymentsService } from '../../../core/services/app-service-payments.service';
 import { SoundService } from '../../../core/services/sound.service';
 import { PerGameService, GameJoin } from '../../../core/services/per-game.service';
+import { HostedPlayService, HostedPlaySession } from '../../../core/services/hosted-play.service';
 import { forkJoin } from 'rxjs';
 
 @Component({
@@ -72,7 +73,39 @@ import { forkJoin } from 'rxjs';
         </div>
 
         <!-- Book a Court / Play hero card -->
-        @if (isPerGame) {
+        @if (isHostedPlay) {
+          <div class="dm-hero-card" (click)="navigateTo('/player/hosted-play')">
+            <div class="dm-hero-text">
+              <div class="dm-hero-icon"><i class="fas fa-calendar-check"></i></div>
+              <h3 class="dm-hero-title">Hosted Play</h3>
+              @if (upcomingHostedSession) {
+                <p class="dm-hero-hours">Next session</p>
+                <div class="dm-hp-next">
+                  <div class="dm-hp-next-title">
+                    {{ upcomingHostedSession.title }}
+                    @if (upcomingHostedSession.joined) { <span class="dm-hp-joined"><i class="fas fa-circle-check"></i> Joined</span> }
+                  </div>
+                  <div class="dm-hp-next-meta">
+                    <span><i class="fas fa-calendar-day"></i> {{ upcomingHostedSession.date | date: 'EEE, MMM d' : 'UTC' }}</span>
+                    <span><i class="fas fa-clock"></i> {{ upcomingHostedSession.startTime }}</span>
+                    <span><i class="fas fa-users"></i> {{ upcomingHostedSession.currentPlayers }}/{{ upcomingHostedSession.maxPlayers }}</span>
+                  </div>
+                  <div class="dm-hp-next-meta">
+                    <span><i class="fas fa-location-dot"></i> {{ upcomingHostedSession.venue }}</span>
+                  </div>
+                </div>
+                <button class="dm-hero-cta">{{ upcomingHostedSession.joined ? 'View Session' : 'View &amp; Join' }}</button>
+              } @else {
+                <p class="dm-hero-hours">{{ operatingHours }}</p>
+                <p class="dm-hero-desc">Browse scheduled sessions and tap Join.</p>
+                <button class="dm-hero-cta">View Sessions</button>
+              }
+            </div>
+            <div class="dm-hero-image">
+              <img src="/racketball.png" alt="Racketball" />
+            </div>
+          </div>
+        } @else if (isPerGame) {
           <div class="dm-hero-card" (click)="navigateTo('/player/per-game')">
             <div class="dm-hero-text">
               <div class="dm-hero-icon"><i class="fas fa-play-circle"></i></div>
@@ -132,7 +165,7 @@ import { forkJoin } from 'rxjs';
         }
 
         <!-- Upcoming Booking -->
-        @if (!isPerGame) {
+        @if (!isPerGame && !isHostedPlay) {
         <div class="dm-section">
           <h4 class="dm-section-label">Upcoming Booking</h4>
           @if (loading) {
@@ -161,7 +194,13 @@ import { forkJoin } from 'rxjs';
         <div class="dm-section">
           <h4 class="dm-section-label">Quick Actions</h4>
           <div class="dm-card-grid">
-            @if (isPerGame) {
+            @if (isHostedPlay) {
+              <button class="dm-action-card" (click)="navigateTo('/player/hosted-play')">
+                <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-calendar-check"></i></div>
+                <span class="dm-ac-title">Hosted Play</span>
+                <span class="dm-ac-sub">Join sessions</span>
+              </button>
+            } @else if (isPerGame) {
               <button class="dm-action-card" [class.dm-ac-active]="showDatePicker" (click)="toggleDatePicker($event)">
                 <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-play-circle"></i></div>
                 <span class="dm-ac-title">Play</span>
@@ -174,7 +213,7 @@ import { forkJoin } from 'rxjs';
                 <span class="dm-ac-sub">Book a game</span>
               </button>
             }
-            @if (!isPerGame) {
+            @if (!isPerGame && !isHostedPlay) {
               <button class="dm-action-card" (click)="navigateTo('/player/reservations')">
                 <div class="dm-ac-icon dm-ac-teal"><i class="fas fa-calendar-check"></i></div>
                 <span class="dm-ac-title">My Reservations</span>
@@ -219,7 +258,7 @@ import { forkJoin } from 'rxjs';
               <span class="dm-ac-title">Rules</span>
               <span class="dm-ac-sub">Club guidelines</span>
             </button>
-            @if (!isPerGame) {
+            @if (!isPerGame && !isHostedPlay) {
               <button class="dm-action-card" (click)="toggleAvailability()">
                 <div class="dm-ac-icon dm-ac-teal"><i class="fas fa-th"></i></div>
                 <span class="dm-ac-title">Court Schedule</span>
@@ -241,7 +280,7 @@ import { forkJoin } from 'rxjs';
         </div>
 
         <!-- Court Availability (toggled by Quick Action) -->
-        @if (showAvailability && !isPerGame) {
+        @if (showAvailability && !isPerGame && !isHostedPlay) {
           <div class="dm-section">
             <div class="av-header">
               <h4 class="dm-section-label" style="margin:0">Court Availability</h4>
@@ -624,6 +663,40 @@ import { forkJoin } from 'rxjs';
       margin: 0.1rem 0 0.55rem 0;
       line-height: 1.45;
     }
+    .dm-hp-next {
+      margin: 0.35rem 0 0.6rem 0;
+    }
+    .dm-hp-next-title {
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 800;
+      margin-bottom: 0.3rem;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+    .dm-hp-joined {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.66rem;
+      font-weight: 700;
+      color: #a3e635;
+      background: rgba(163,230,53,0.14);
+      border-radius: 99px;
+      padding: 0.12rem 0.5rem;
+    }
+    .dm-hp-next-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem 0.85rem;
+      color: rgba(255,255,255,0.6);
+      font-size: 0.74rem;
+      margin-bottom: 0.25rem;
+    }
+    .dm-hp-next-meta span { display: inline-flex; align-items: center; gap: 0.3rem; }
+    .dm-hp-next-meta i { color: #a3e635; font-size: 0.7rem; }
     .dm-hero-cta {
       display: inline-block;
       background: #a3e635;
@@ -1161,9 +1234,11 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   clubSlug = '';
   clubName = 'Baseline Club';
   clubLogo = '';
-  bookingProcess: 'reservation' | 'per_game' = 'reservation';
+  bookingProcess: 'reservation' | 'per_game' | 'hosted_play' = 'reservation';
   get isPerGame() { return this.bookingProcess === 'per_game'; }
+  get isHostedPlay() { return this.bookingProcess === 'hosted_play'; }
   joinedPlayers: GameJoin[] = [];
+  upcomingHostedSession: HostedPlaySession | null = null;
   showJoinedList = false;
   joiningToday = false;
   showDatePicker = false;
@@ -1312,6 +1387,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     private sound: SoundService,
     private appServicePayments: AppServicePaymentsService,
     private perGameService: PerGameService,
+    private hostedPlayService: HostedPlayService,
   ) {}
 
   ngOnInit() {
@@ -1395,6 +1471,22 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
           if (this.bookingProcess === 'per_game') {
             this.perGameService.getPlaying().subscribe({
               next: (entries) => { this.joinedPlayers = entries; this.cdr.detectChanges(); },
+              error: () => {},
+            });
+          }
+          if (this.bookingProcess === 'hosted_play') {
+            this.hostedPlayService.listOpen().subscribe({
+              next: (sessions) => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                this.upcomingHostedSession = sessions
+                  .filter((s) => new Date(s.date) >= today)
+                  .sort((a, b) =>
+                    new Date(a.date).getTime() - new Date(b.date).getTime() ||
+                    (a.startTime || '').localeCompare(b.startTime || ''),
+                  )[0] ?? null;
+                this.cdr.detectChanges();
+              },
               error: () => {},
             });
           }

@@ -92,8 +92,17 @@ export class PublicBookingService {
       description?: string; photos?: string[];
       socialLinks?: { facebook?: string; instagram?: string; reclub?: string };
       rating?: number; reviewCount?: number; totalBookings?: number;
-      bookingProcess?: 'reservation' | 'per_game';
+      bookingProcess?: 'reservation' | 'per_game' | 'hosted_play';
     }>(`${this.base}/${clubId}`);
+  }
+
+  getHostedPlaySessions(clubId: string) {
+    return this.http.get<{
+      _id: string; title: string; sport: 'tennis' | 'pickleball';
+      date: string; startTime: string; endTime: string;
+      venue: string; court?: string; feePerPlayer: number;
+      maxPlayers: number; currentPlayers: number; status: 'open' | 'full';
+    }[]>(`${this.base}/${clubId}/hosted-play`);
   }
 
   getOpenPlaySessions(clubId: string) {

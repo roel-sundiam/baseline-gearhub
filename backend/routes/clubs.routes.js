@@ -196,8 +196,8 @@ router.patch("/:id/balance-alert", auth, superadmin, async (req, res) => {
 router.patch("/:id/booking-process", auth, superadmin, async (req, res) => {
   try {
     const { bookingProcess } = req.body;
-    if (!["reservation", "per_game"].includes(bookingProcess)) {
-      return res.status(400).json({ error: "bookingProcess must be 'reservation' or 'per_game'" });
+    if (!["reservation", "per_game", "hosted_play"].includes(bookingProcess)) {
+      return res.status(400).json({ error: "bookingProcess must be 'reservation', 'per_game' or 'hosted_play'" });
     }
     const club = await Club.findByIdAndUpdate(
       req.params.id,

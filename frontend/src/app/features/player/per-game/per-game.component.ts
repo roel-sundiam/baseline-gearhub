@@ -2,6 +2,8 @@ import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { Router, ActivatedRoute } from '@angular/router';
 import { PerGameService, GameJoin } from '../../../core/services/per-game.service';
+import { AuthService } from '../../../core/services/auth.service';
+import { ClubService } from '../../../core/services/club.service';
 
 @Component({
   selector: 'app-player-per-game',
@@ -20,10 +22,17 @@ import { PerGameService, GameJoin } from '../../../core/services/per-game.servic
       } @else {
         <div class="hero">
           <div class="hero-icon" [class.joined]="status === 'joined'" [class.recorded]="status === 'recorded'">
-            <i class="fas"
-              [class.fa-table-tennis-paddle-ball]="status === 'none'"
-              [class.fa-circle-check]="status === 'joined'"
-              [class.fa-receipt]="status === 'recorded'"></i>
+            @if (status === 'none') {
+              @if (clubLogo) {
+                <img [src]="clubLogo" [alt]="clubName" class="hero-club-logo" />
+              } @else {
+                <span class="hero-club-initials">{{ clubInitials }}</span>
+              }
+            } @else {
+              <i class="fas"
+                [class.fa-circle-check]="status === 'joined'"
+                [class.fa-receipt]="status === 'recorded'"></i>
+            }
           </div>
 
           @if (status === 'none') {
@@ -128,9 +137,11 @@ import { PerGameService, GameJoin } from '../../../core/services/per-game.servic
     .header-title { font-weight: 700; color: var(--text); font-size: 1rem; }
     .state-loading { display: flex; align-items: center; justify-content: center; gap: .6rem; padding: 4rem 0; color: var(--muted); }
     .hero { max-width: 420px; margin: 2rem auto; padding: 2rem 1.5rem; text-align: center; }
-    .hero-icon { width: 96px; height: 96px; margin: 0 auto 1.5rem; border-radius: 50%; background: rgba(163,230,53,.1); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; color: var(--accent); }
+    .hero-icon { width: 96px; height: 96px; margin: 0 auto 1.5rem; border-radius: 50%; background: rgba(163,230,53,.1); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; color: var(--accent); overflow: hidden; }
     .hero-icon.joined { background: rgba(163,230,53,.18); }
     .hero-icon.recorded { background: rgba(99,179,237,.12); color: #63b3ed; }
+    .hero-club-logo { width: 100%; height: 100%; object-fit: cover; }
+    .hero-club-initials { font-size: 1.35rem; font-weight: 900; letter-spacing: 0; }
     .hero-title { font-size: 1.6rem; font-weight: 800; color: var(--text); margin: 0 0 .5rem; }
     .hero-sub { font-size: .92rem; color: var(--muted); line-height: 1.5; margin: 0 0 1.5rem; }
     .hero-sub strong { color: var(--text); }
@@ -175,6 +186,8 @@ export class PlayerPerGameComponent implements OnInit {
   entry: GameJoin | null = null;
   errorMsg = '';
   guestCount = 0;
+  clubLogo = '';
+  clubName = 'Club';
   todayStr = new Date().toISOString().slice(0, 10);
   selectedDate = this.todayStr;
   useCalendar = false;
@@ -184,15 +197,41 @@ export class PlayerPerGameComponent implements OnInit {
     return this.entry.status === 'recorded' ? 'recorded' : 'joined';
   }
 
-  constructor(private perGame: PerGameService, public router: Router, private cdr: ChangeDetectorRef, private route: ActivatedRoute) {}
+  get clubInitials(): string {
+    return this.clubName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  }
+
+  constructor(
+    private perGame: PerGameService,
+    public router: Router,
+    private cdr: ChangeDetectorRef,
+    private route: ActivatedRoute,
+    private auth: AuthService,
+    private clubService: ClubService,
+  ) {}
 
   ngOnInit() {
+    this.loadClubIdentity();
     const dateParam = this.route.snapshot.queryParamMap.get('date');
     if (dateParam) {
       this.selectedDate = dateParam;
       this.useCalendar = dateParam !== this.todayStr;
     }
     this.refresh();
+  }
+
+  loadClubIdentity() {
+    const clubId = this.auth.user()?.clubId || this.clubService.getSelectedClubId();
+    if (!clubId) return;
+
+    this.clubService.getClub(clubId).subscribe({
+      next: (club) => {
+        this.clubName = club.name || 'Club';
+        this.clubLogo = club.logo ?? '';
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
   }
 
   refresh() {
