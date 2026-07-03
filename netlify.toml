@@ -1,6 +1,6 @@
 [build]
   base = "frontend"
-  command = "npm install && npx ng build --configuration=${BACKEND:-production}"
+  command = "npm install && npm run build"
   publish = "dist/frontend/browser"
   functions = "netlify/functions"
 

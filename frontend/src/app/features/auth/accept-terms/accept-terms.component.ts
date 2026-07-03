@@ -1,6 +1,9 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { AuthService } from '../../../core/services/auth.service';
+import { TermsService } from '../../../core/services/terms.service';
+import { marked } from 'marked';
 
 @Component({
   selector: 'app-accept-terms',
@@ -16,38 +19,11 @@ import { AuthService } from '../../../core/services/auth.service';
         <p class="card-sub">Please read and accept before continuing</p>
 
         <div class="terms-body">
-          <p class="terms-section-title">1. Acceptance of Terms</p>
-          <p>By accepting these Terms &amp; Conditions, you ("Club Administrator") agree to be bound by this agreement with CourtGo ("Platform"). If you do not agree, you may not use the Platform.</p>
-
-          <p class="terms-section-title">2. Club Administrator Responsibilities</p>
-          <p>You are responsible for:</p>
-          <ul>
-            <li>Ensuring accurate club information, court availability, and pricing are maintained on the Platform</li>
-            <li>Managing member registrations, approvals, and access within your club</li>
-            <li>Complying with all applicable local laws regarding sports facility operation</li>
-            <li>Keeping your account credentials secure and confidential</li>
-          </ul>
-
-          <p class="terms-section-title">3. Reservations &amp; Bookings</p>
-          <p>You agree to honor all reservations made through the Platform by members and guests. Cancellation policies you set must be applied fairly and consistently.</p>
-
-          <p class="terms-section-title">4. Convenience Fee</p>
-          <p>As a Club Administrator, you acknowledge that CourtGo charges a convenience fee for the use of the Platform and its services. This fee covers platform maintenance, booking management, and ongoing support. The applicable fee rate will be communicated to you separately and may be updated by CourtGo with reasonable notice. Continued use of the Platform after notice of a fee change constitutes acceptance of the updated fee.</p>
-
-          <p class="terms-section-title">5. Member Data</p>
-          <p>You will only use member information collected through the Platform for the purpose of managing club activities. You may not sell, share, or misuse member personal data.</p>
-
-          <p class="terms-section-title">6. Prohibited Conduct</p>
-          <p>You may not use the Platform to post false information, discriminate against members, or conduct any activity that violates applicable law.</p>
-
-          <p class="terms-section-title">7. Account Suspension</p>
-          <p>CourtGo reserves the right to suspend or terminate your club account for violation of these terms, fraudulent activity, or conduct harmful to members.</p>
-
-          <p class="terms-section-title">8. Limitation of Liability</p>
-          <p>CourtGo is not liable for disputes between club administrators and members, or for losses arising from your use of the Platform.</p>
-
-          <p class="terms-section-title">9. Changes to Terms</p>
-          <p>CourtGo may update these terms. Continued use of the Platform constitutes acceptance of updated terms.</p>
+          @if (loadingTerms()) {
+            <div class="terms-loading">Loading terms…</div>
+          } @else {
+            <div [innerHTML]="termsHtml()"></div>
+          }
         </div>
 
         @if (errorMsg()) {
@@ -141,12 +117,20 @@ import { AuthService } from '../../../core/services/auth.service';
       scrollbar-color: rgba(163,230,53,0.3) transparent;
     }
 
+    .terms-loading {
+      color: rgba(255,255,255,0.35);
+      font-size: 0.85rem;
+      text-align: center;
+      padding: 1rem 0;
+    }
+
     .terms-body p { margin: 0 0 0.6rem; }
 
-    .terms-section-title {
+    .terms-body h2 {
       font-weight: 700;
       color: #a3e635;
-      margin-top: 1rem !important;
+      margin-top: 1rem;
+      margin-bottom: 0.25rem;
       font-size: 0.82rem;
       text-transform: uppercase;
       letter-spacing: 0.06em;
@@ -214,12 +198,28 @@ import { AuthService } from '../../../core/services/auth.service';
     .btn-decline:disabled { opacity: 0.45; cursor: not-allowed; }
   `],
 })
-export class AcceptTermsComponent {
+export class AcceptTermsComponent implements OnInit {
   private auth = inject(AuthService);
   private router = inject(Router);
+  private termsService = inject(TermsService);
+  // Content is superadmin-managed — bypass sanitization for rendered markdown
+  private sanitizer = inject(DomSanitizer);
 
   loading = signal(false);
   errorMsg = signal('');
+  loadingTerms = signal(true);
+  termsHtml = signal<SafeHtml>('');
+
+  ngOnInit() {
+    this.termsService.getTerms().subscribe({
+      next: (res) => {
+        const html = marked.parse(res.adminTermsText) as string;
+        this.termsHtml.set(this.sanitizer.bypassSecurityTrustHtml(html));
+        this.loadingTerms.set(false);
+      },
+      error: () => this.loadingTerms.set(false),
+    });
+  }
 
   onAccept() {
     this.loading.set(true);

@@ -8,6 +8,7 @@ const Notification = require("../models/Notification");
 const authMiddleware = require("../middleware/auth");
 const superadminMiddleware = require("../middleware/superadmin");
 const { sendPushToUser } = require("../utils/push");
+const AppSettings = require("../models/AppSettings");
 
 async function notifySuperadmins(title, body, data = {}) {
   try {
@@ -170,7 +171,12 @@ router.post("/login", async (req, res) => {
 // POST /api/auth/accept-terms
 router.post("/accept-terms", authMiddleware, async (req, res) => {
   try {
-    await User.findByIdAndUpdate(req.user.userId, { termsAcceptedAt: new Date() });
+    const settings = await AppSettings.findOne({ _id: "global" }, "termsVersion").lean();
+    const version = settings?.termsVersion ?? 1;
+    await User.findByIdAndUpdate(req.user.userId, {
+      termsAcceptedAt: new Date(),
+      termsAcceptedVersion: version,
+    });
     res.json({ message: "Terms accepted" });
   } catch (err) {
     console.error(err);

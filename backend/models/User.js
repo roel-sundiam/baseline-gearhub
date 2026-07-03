@@ -28,6 +28,7 @@ const userSchema = new mongoose.Schema(
     profileImage: { type: String, default: null },
     clubId: { type: mongoose.Schema.Types.ObjectId, ref: "Club" },
     termsAcceptedAt: { type: Date, default: null },
+    termsAcceptedVersion: { type: Number, default: null },
   },
   { timestamps: true },
 );

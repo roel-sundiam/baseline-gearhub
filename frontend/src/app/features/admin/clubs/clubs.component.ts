@@ -69,6 +69,9 @@ interface AdminUser {
           <a routerLink="/player/dashboard" class="btn btn-purple">
             <i class="fas fa-user"></i> Player Dashboard
           </a>
+          <a routerLink="/admin/terms-editor" class="btn btn-dev">
+            <i class="fas fa-file-contract"></i> T&amp;C Editor
+          </a>
           <a routerLink="/admin/dev-finance" class="btn btn-dev">
             <i class="fas fa-code"></i> Dev Finance
           </a>

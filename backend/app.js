@@ -49,6 +49,7 @@ const ledgerRoutes = require("./routes/ledger.routes");
 const reviewsRoutes = require("./routes/reviews.routes");
 const perGameRoutes = require("./routes/game-join.routes");
 const hostedPlayRoutes = require("./routes/hosted-play.routes");
+const configRoutes = require("./routes/config.routes");
 
 const app = express();
 
@@ -72,7 +73,7 @@ app.use(express.json());
 app.get('/api/health', (_req, res) => {
   const uri = process.env.MONGODB_URI || '';
   const isLocal = uri.includes('localhost') || uri.includes('127.0.0.1');
-  const runtime = process.env.RENDER ? 'render' : process.env.NETLIFY ? 'netlify' : 'local';
+  const runtime = process.env.RENDER ? 'render' : (process.env.CONTEXT || process.env.SITE_ID) ? 'netlify' : 'local';
   res.json({
     status: 'ok',
     db: isLocal ? 'local' : 'atlas',
@@ -156,5 +157,6 @@ app.use("/api/ledger", ledgerRoutes);
 app.use("/api/reviews", reviewsRoutes);
 app.use("/api/per-game", perGameRoutes);
 app.use("/api/hosted-play", hostedPlayRoutes);
+app.use("/api/config", configRoutes);
 
 module.exports = app;

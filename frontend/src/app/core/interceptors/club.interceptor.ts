@@ -3,7 +3,7 @@ import { inject } from '@angular/core';
 import { ClubService } from '../services/club.service';
 import { AuthService } from '../services/auth.service';
 
-const SKIP_PATHS = ['/auth/', '/clubs', '/api/public/'];
+const SKIP_PATHS = ['/auth/', '/clubs', '/api/public/', '/config/'];
 
 export const clubInterceptor: HttpInterceptorFn = (req, next) => {
   const clubService = inject(ClubService);

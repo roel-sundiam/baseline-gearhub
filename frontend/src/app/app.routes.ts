@@ -222,6 +222,13 @@ export const routes: Routes = [
             (m) => m.AwardGeneratorPageComponent,
           ),
       },
+      {
+        path: 'terms-editor',
+        loadComponent: () =>
+          import('./features/admin/terms-editor/terms-editor.component').then(
+            (m) => m.TermsEditorComponent,
+          ),
+      },
     ],
   },
   {
