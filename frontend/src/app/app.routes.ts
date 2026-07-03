@@ -209,6 +209,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'hosted-play/:id/queue',
+        loadComponent: () =>
+          import('./features/admin/hosted-play/queue/hosted-play-queue.component').then(
+            (m) => m.AdminHostedPlayQueueComponent,
+          ),
+      },
+      {
         path: 'award-generator',
         loadComponent: () =>
           import('./features/admin/clubs/award-generator-page.component').then(
@@ -262,6 +269,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/player/hosted-play/hosted-play.component').then(
             (m) => m.PlayerHostedPlayComponent,
+          ),
+      },
+      {
+        path: 'hosted-play/:id/live',
+        loadComponent: () =>
+          import('./features/player/hosted-play/live-board.component').then(
+            (m) => m.PlayerHostedPlayLiveBoardComponent,
           ),
       },
       {

@@ -2,6 +2,13 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 
+export interface Court {
+  _id?: string;
+  name: string;
+  address?: string;
+  logo?: string;
+}
+
 export interface AdditionalFee {
   _id?: string;
   name: string;
@@ -42,6 +49,9 @@ export interface Club {
   requirePaymentScreenshot?: boolean;
   balanceAlertEnabled?: boolean;
   bookingProcess?: 'reservation' | 'per_game' | 'hosted_play';
+  hostedPlayQueueEnabled?: boolean;
+  queueManagementFeePerPlayer?: number;
+  courts?: Court[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -103,6 +113,14 @@ export class ClubService {
 
   patchBookingProcess(id: string, bookingProcess: 'reservation' | 'per_game' | 'hosted_play') {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/booking-process`, { bookingProcess });
+  }
+
+  patchHostedPlayQueue(id: string, enabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/hosted-play-queue`, { enabled });
+  }
+
+  patchQueueManagementFee(id: string, fee: number) {
+    return this.http.patch<{ queueManagementFeePerPlayer: number }>(`${environment.apiUrl}/clubs/${id}/queue-management-fee`, { fee });
   }
 
   setSelectedClubId(id: string) {

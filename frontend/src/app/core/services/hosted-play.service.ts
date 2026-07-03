@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { interval } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 export type HostedPlayStatus = 'open' | 'full' | 'closed' | 'cancelled';
@@ -18,15 +20,70 @@ export interface HostedPlaySession {
   feePerPlayer: number;
   maxPlayers: number;
   currentPlayers: number;
-  status: HostedPlayStatus;
+  status: HostedPlayStatus | 'completed';
   description?: string;
   createdBy?: string;
   createdAt?: string;
+  // Queue management config
+  numberOfCourts?: number;
+  playersPerCourt?: number;
+  queueMode?: string;
+  queueStatus?: QueueStatus;
   // Member-facing extras
   joined?: boolean;
   participants?: HostedPlayParticipant[];
   convenienceFeePerPlayer?: number;
+  queueManagementFeePerPlayer?: number;
   totalPerPlayer?: number;
+}
+
+export type QueueStatus = 'not_started' | 'running' | 'paused' | 'ended';
+export type ParticipantQueueStatus =
+  'not_checked_in' | 'waiting' | 'playing' | 'paused' | 'done';
+
+export interface QueuePlayer {
+  _id: string;
+  memberId?: string | null;
+  memberName: string;
+  isWalkIn: boolean;
+  checkedIn: boolean;
+  queueStatus: ParticipantQueueStatus;
+  queueOrder: number | null;
+  courtNumber: number | null;
+  gamesPlayed: number;
+}
+
+export interface QueueCourt {
+  courtNumber: number;
+  players: QueuePlayer[];
+}
+
+export interface QueueBoard {
+  session: {
+    _id: string;
+    title: string;
+    status: string;
+    venue?: string;
+    court?: string;
+    queueStatus: QueueStatus;
+    numberOfCourts: number;
+    playersPerCourt: number;
+    feePerPlayer?: number;
+    convenienceFeePerPlayer?: number;
+    totalPerPlayer?: number;
+  };
+  courts: QueueCourt[];
+  waiting: QueuePlayer[];
+  paused: QueuePlayer[];
+  nextGroup: QueuePlayer[];
+  roster: QueuePlayer[];
+  counts: {
+    checkedIn: number;
+    waiting: number;
+    playing: number;
+    paused: number;
+    activeGames: number;
+  };
 }
 
 export interface HostedPlayParticipant {
@@ -51,6 +108,9 @@ export interface HostedPlayInput {
   feePerPlayer: number;
   maxPlayers: number;
   description?: string;
+  numberOfCourts?: number;
+  playersPerCourt?: number;
+  queueMode?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -101,5 +161,70 @@ export class HostedPlayService {
 
   getParticipants(id: string) {
     return this.http.get<HostedPlayParticipant[]>(`${this.base}/sessions/${id}/participants`);
+  }
+
+  // ── Queue — player view (read-only) ──
+  getPlayerQueue(id: string) {
+    return this.http.get<QueueBoard>(`${this.base}/player/sessions/${id}/queue`);
+  }
+
+  pollPlayerQueue(id: string, ms = 5000) {
+    return interval(ms).pipe(switchMap(() => this.getPlayerQueue(id)));
+  }
+
+  // ── Queue Management (admin) ──
+  getQueue(id: string) {
+    return this.http.get<QueueBoard>(`${this.base}/sessions/${id}/queue`);
+  }
+
+  /** Poll the live board every `ms` while subscribed. */
+  pollQueue(id: string, ms = 5000) {
+    return interval(ms).pipe(switchMap(() => this.getQueue(id)));
+  }
+
+  startQueue(id: string) {
+    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/queue/start`, {});
+  }
+
+  endQueue(id: string) {
+    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/queue/end`, {});
+  }
+
+  checkIn(id: string, participantId: string, checkedIn: boolean) {
+    return this.http.patch<QueueBoard>(
+      `${this.base}/sessions/${id}/participants/${participantId}/check-in`, { checkedIn });
+  }
+
+  addWalkIn(id: string, name: string) {
+    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/walkins`, { name });
+  }
+
+  finishCourt(id: string, courtNumber: number) {
+    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/courts/${courtNumber}/finish`, {});
+  }
+
+  assignCourt(id: string, courtNumber: number, participantIds: string[]) {
+    return this.http.post<QueueBoard>(
+      `${this.base}/sessions/${id}/courts/${courtNumber}/assign`, { participantIds });
+  }
+
+  skipPlayer(id: string, participantId: string) {
+    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/participants/${participantId}/skip`, {});
+  }
+
+  pausePlayer(id: string, participantId: string) {
+    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/participants/${participantId}/pause`, {});
+  }
+
+  resumePlayer(id: string, participantId: string) {
+    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/participants/${participantId}/resume`, {});
+  }
+
+  removeFromQueue(id: string, participantId: string) {
+    return this.http.delete<QueueBoard>(`${this.base}/sessions/${id}/participants/${participantId}/queue`);
+  }
+
+  reorderQueue(id: string, orderedParticipantIds: string[]) {
+    return this.http.put<QueueBoard>(`${this.base}/sessions/${id}/queue/order`, { orderedParticipantIds });
   }
 }

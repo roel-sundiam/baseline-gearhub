@@ -36,6 +36,7 @@ export interface FeeReportTransaction {
   playerName: string;
   amount: number;
   convenienceFee: number;
+  chargeType?: string;
 }
 
 export interface FeeReport {
