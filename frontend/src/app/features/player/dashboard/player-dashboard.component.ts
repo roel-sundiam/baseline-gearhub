@@ -105,6 +105,17 @@ import { forkJoin } from 'rxjs';
               <img src="/racketball.png" alt="Racketball" />
             </div>
           </div>
+          @if (liveQueueSession) {
+            <div class="dm-live-queue-card" (click)="navigateTo('/player/hosted-play/' + liveQueueSession._id + '/live')">
+              <div class="dm-lq-pulse"></div>
+              <div class="dm-lq-text">
+                <span class="dm-lq-label"><i class="fas fa-circle"></i> Queue is live</span>
+                <span class="dm-lq-title">{{ liveQueueSession.title }}</span>
+                <span class="dm-lq-sub">Tap to see courts and your queue position</span>
+              </div>
+              <i class="fas fa-chevron-right dm-lq-arrow"></i>
+            </div>
+          }
         } @else if (isPerGame) {
           <div class="dm-hero-card" (click)="navigateTo('/player/per-game')">
             <div class="dm-hero-text">
@@ -200,6 +211,20 @@ import { forkJoin } from 'rxjs';
                 <span class="dm-ac-title">Hosted Play</span>
                 <span class="dm-ac-sub">Join sessions</span>
               </button>
+              @if (auth.isAdmin() && !auth.isSuperAdmin()) {
+                <button class="dm-action-card" (click)="navigateTo('/admin/hosted-play')">
+                  <div class="dm-ac-icon dm-ac-blue"><i class="fas fa-list-ol"></i></div>
+                  <span class="dm-ac-title">Queue Management</span>
+                  <span class="dm-ac-sub">Courts &amp; check-in</span>
+                </button>
+              }
+              @if (liveQueueSession) {
+                <button class="dm-action-card dm-action-card--live" (click)="navigateTo('/player/hosted-play/' + liveQueueSession._id + '/live')">
+                  <div class="dm-ac-icon dm-ac-blue"><i class="fas fa-list-ol"></i></div>
+                  <span class="dm-ac-title">Live Queue <span class="dm-ac-live-dot"></span></span>
+                  <span class="dm-ac-sub">View courts &amp; position</span>
+                </button>
+              }
             } @else if (isPerGame) {
               <button class="dm-action-card" [class.dm-ac-active]="showDatePicker" (click)="toggleDatePicker($event)">
                 <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-play-circle"></i></div>
@@ -257,7 +282,7 @@ import { forkJoin } from 'rxjs';
             }
             <button class="dm-action-card" (click)="navigateTo('/player/rules')">
               <div class="dm-ac-icon dm-ac-orange"><i class="fas fa-gavel"></i></div>
-              <span class="dm-ac-title">Rules</span>
+              <span class="dm-ac-title">Rules & Pricing</span>
               <span class="dm-ac-sub">Club guidelines</span>
             </button>
             @if (!isPerGame && !isHostedPlay) {
@@ -392,6 +417,7 @@ import { forkJoin } from 'rxjs';
                 </button>
               }
             </div>
+
           </div>
         }
 
@@ -699,6 +725,40 @@ import { forkJoin } from 'rxjs';
     }
     .dm-hp-next-meta span { display: inline-flex; align-items: center; gap: 0.3rem; }
     .dm-hp-next-meta i { color: #a3e635; font-size: 0.7rem; }
+
+    .dm-live-queue-card {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      padding: 0.85rem 1rem;
+      border-radius: 14px;
+      background: rgba(56,189,248,.08);
+      border: 1px solid rgba(56,189,248,.3);
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+      position: relative;
+      overflow: hidden;
+    }
+    .dm-live-queue-card:hover { background: rgba(56,189,248,.14); border-color: rgba(56,189,248,.5); }
+    .dm-lq-pulse {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(56,189,248,.06), transparent);
+      animation: lq-sweep 2.4s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes lq-sweep {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+    .dm-lq-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
+    .dm-lq-label { font-size: .7rem; font-weight: 900; color: #38bdf8; text-transform: uppercase; letter-spacing: .06em; display: flex; align-items: center; gap: .3rem; }
+    .dm-lq-label i { font-size: .45rem; animation: lq-blink 1.2s ease-in-out infinite; }
+    @keyframes lq-blink { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
+    .dm-lq-title { font-size: .9rem; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dm-lq-sub { font-size: .74rem; color: rgba(255,255,255,.55); }
+    .dm-lq-arrow { color: rgba(56,189,248,.6); font-size: .8rem; flex-shrink: 0; }
+
     .dm-hero-cta {
       display: inline-block;
       background: #a3e635;
@@ -842,11 +902,29 @@ import { forkJoin } from 'rxjs';
     .dm-ac-sky    { background: rgba(14,165,233,0.14);  color: #38bdf8; }
     .dm-ac-green  { background: rgba(34,197,94,0.14);   color: #4ade80; }
     .dm-ac-indigo { background: rgba(99,102,241,0.14);  color: #818cf8; }
+    .dm-action-card--live {
+      border-color: rgba(56,189,248,.3);
+      background: rgba(56,189,248,.06);
+    }
+    .dm-action-card--live:hover { border-color: rgba(56,189,248,.5); background: rgba(56,189,248,.12); }
+    .dm-ac-live-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #38bdf8;
+      margin-left: 3px;
+      vertical-align: middle;
+      animation: ac-live-blink 1.2s ease-in-out infinite;
+    }
+    @keyframes ac-live-blink { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
     .dm-ac-title {
       font-size: 0.82rem;
       font-weight: 700;
       color: #ffffff;
       line-height: 1.2;
+      display: flex;
+      align-items: center;
     }
     .dm-ac-sub {
       font-size: 0.67rem;
@@ -1226,6 +1304,7 @@ import { forkJoin } from 'rxjs';
     @media (min-width: 769px) {
       .dm-chat-fab { bottom: 24px; right: 24px; }
     }
+
   `],
 })
 export class PlayerDashboardComponent implements OnInit, OnDestroy {
@@ -1241,6 +1320,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   get isHostedPlay() { return this.bookingProcess === 'hosted_play'; }
   joinedPlayers: GameJoin[] = [];
   upcomingHostedSession: HostedPlaySession | null = null;
+  liveQueueSession: HostedPlaySession | null = null;
   showJoinedList = false;
   joiningToday = false;
   showDatePicker = false;
@@ -1487,6 +1567,9 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
                     new Date(a.date).getTime() - new Date(b.date).getTime() ||
                     (a.startTime || '').localeCompare(b.startTime || ''),
                   )[0] ?? null;
+                this.liveQueueSession = sessions.find(
+                  (s) => s.queueStatus === 'running' && s.joined,
+                ) ?? null;
                 this.cdr.detectChanges();
               },
               error: () => {},
