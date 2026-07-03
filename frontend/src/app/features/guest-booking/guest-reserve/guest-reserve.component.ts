@@ -339,6 +339,17 @@ function localDateStr(): string {
                             up to a maximum of {{ exclusiveEventMaxPax }} persons.
                           </div>
                         }
+                        @if (bookingType !== 'exclusive_event' && guestFeeRate > 0) {
+                          <div class="gr-event-pax-note">
+                            <span>&#9432;</span>
+                            @if (guestFeeThreshold > 0) {
+                              Your rental covers up to {{ guestFeeThreshold }} guest(s) at no extra charge.
+                              Additional guests are charged &#8369;{{ guestFeeRate }} each.
+                            } @else {
+                              Each non-member guest is charged &#8369;{{ guestFeeRate }}.
+                            }
+                          </div>
+                        }
                       </div>
                     }
 

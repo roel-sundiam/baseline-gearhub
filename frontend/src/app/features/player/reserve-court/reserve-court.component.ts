@@ -271,6 +271,17 @@ interface ActivePlayer { _id: string; name: string; email: string; }
               </span>
             }
           </div>
+          @if (guestFeeRate > 0) {
+            <div class="dm-guest-note">
+              <span>&#9432;</span>
+              @if (guestFeeThreshold > 0) {
+                Your rental covers up to {{ guestFeeThreshold }} guest(s) at no extra charge.
+                Additional guests are charged &#8369;{{ guestFeeRate }} each.
+              } @else {
+                Each non-member guest is charged &#8369;{{ guestFeeRate }}.
+              }
+            </div>
+          }
         </div>
 
         <!-- Rentals -->
@@ -908,6 +919,14 @@ interface ActivePlayer { _id: string; name: string; email: string; }
     .dm-counter-val.sm { min-width: 22px; font-size: 0.9rem; }
 
     .dm-counter-fee { font-size: 0.8rem; color: #a3e635; font-weight: 600; }
+
+    .dm-guest-note {
+      display: flex; align-items: flex-start; gap: 0.45rem;
+      background: rgba(163,230,53,0.05); border: 1px solid rgba(163,230,53,0.15);
+      border-radius: 8px; padding: 0.6rem 0.75rem; margin-top: 0.5rem;
+      font-size: 0.78rem; color: rgba(255,255,255,0.55); line-height: 1.5;
+    }
+    .dm-guest-note span:first-child { color: #a3e635; font-size: 0.85rem; flex-shrink: 0; margin-top: 0.05rem; }
 
     /* Rentals card */
     .dm-rentals-card {
