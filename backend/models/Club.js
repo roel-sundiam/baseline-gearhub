@@ -10,6 +10,11 @@ const clubSchema = new mongoose.Schema(
     logo: { type: String, default: null },
     status: { type: String, enum: ['active', 'suspended'], default: 'active' },
     courtCount: { type: Number, default: 2, min: 1, max: 20 },
+    courts: [{
+      name: { type: String, required: true, trim: true },
+      address: { type: String, trim: true },
+      logo: { type: String },
+    }],
     openingHour: { type: Number, default: 5, min: 0, max: 23 },
     closingHour: { type: Number, default: 22, min: 0, max: 23 },
     paymentMethods: { type: [String], default: [] },
@@ -19,6 +24,8 @@ const clubSchema = new mongoose.Schema(
     convenienceFeeMode: { type: String, enum: ['per_transaction', 'per_hour', 'monthly_flat'], default: 'per_hour' },
     convenienceFeeMonthlyAmount: { type: Number, default: 0, min: 0 },
     bookingProcess: { type: String, enum: ['reservation', 'per_game', 'hosted_play'], default: 'reservation' },
+    hostedPlayQueueEnabled: { type: Boolean, default: false },
+    queueManagementFeePerPlayer: { type: Number, default: 0, min: 0 },
     additionalFees: [{
       name: { type: String, required: true },
       amount: { type: Number, required: true, min: 0 },
