@@ -56,10 +56,10 @@ router.post("/", auth, admin, async (req, res) => {
 // PUT /api/clubs/:id — update a club (admin only)
 router.put("/:id", auth, admin, async (req, res) => {
   try {
-    const { name, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount } = req.body;
+    const { name, location, mobile, email, logo, courtCount, courts, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount } = req.body;
     const club = await Club.findByIdAndUpdate(
       req.params.id,
-      { name, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount },
+      { name, location, mobile, email, logo, courtCount, ...(courts !== undefined ? { courts } : {}), openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount },
       { new: true, runValidators: true },
     );
     if (!club) return res.status(404).json({ error: "Club not found" });
@@ -206,6 +206,40 @@ router.patch("/:id/booking-process", auth, superadmin, async (req, res) => {
     ).lean();
     if (!club) return res.status(404).json({ error: "Club not found" });
     res.json(club);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /api/clubs/:id/hosted-play-queue — enable/disable Queue Management (superadmin only)
+router.patch("/:id/hosted-play-queue", auth, superadmin, async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const club = await Club.findByIdAndUpdate(
+      req.params.id,
+      { hostedPlayQueueEnabled: !!enabled },
+      { new: true },
+    ).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json(club);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /api/clubs/:id/queue-management-fee — set Queue Management fee per player (superadmin only)
+router.patch("/:id/queue-management-fee", auth, superadmin, async (req, res) => {
+  try {
+    const fee = Math.max(0, Number(req.body.fee) || 0);
+    const club = await Club.findByIdAndUpdate(
+      req.params.id,
+      { queueManagementFeePerPlayer: fee },
+      { new: true },
+    ).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json({ queueManagementFeePerPlayer: club.queueManagementFeePerPlayer });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
