@@ -940,6 +940,45 @@ interface AdminUser {
                           <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ bookingProcessSaveMsg }}</span>
                         }
                       </div>
+
+                      @if (bookingProcess === 'hosted_play') {
+                        <div class="hpq-toggle-row">
+                          <div class="hpq-toggle-copy">
+                            <div class="hpq-toggle-title"><i class="fas fa-list-ol"></i> Queue Management</div>
+                            <div class="hpq-toggle-desc">Adds check-in, automatic court rotation and a live queue board for hosted play sessions.</div>
+                          </div>
+                          <label class="hpq-switch">
+                            <input type="checkbox" [(ngModel)]="hostedPlayQueueEnabled" />
+                            <span class="hpq-slider"></span>
+                          </label>
+                        </div>
+                        <div class="cfs-actions xfee-actions">
+                          <button type="button" class="cfs-save-btn" (click)="saveHostedPlayQueue()" [disabled]="savingHostedPlayQueue">
+                            @if (savingHostedPlayQueue) { <i class="fas fa-circle-notch fa-spin"></i> } Save Queue Setting
+                          </button>
+                          @if (hostedPlayQueueSaveMsg) {
+                            <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ hostedPlayQueueSaveMsg }}</span>
+                          }
+                        </div>
+                        @if (hostedPlayQueueEnabled) {
+                          <div class="hpq-fee-row">
+                            <div class="hpq-fee-label">
+                              <i class="fas fa-coins"></i> Queue Management Fee (per join)
+                              <span class="hpq-fee-hint">Charged to the club per player who joins — tracked in Finance › App Service</span>
+                            </div>
+                            <div class="hpq-fee-input-row">
+                              <span class="hpq-fee-prefix">₱</span>
+                              <input type="number" class="hpq-fee-input" [(ngModel)]="editQueueManagementFee" min="0" step="1" placeholder="0" />
+                              <button type="button" class="cfs-save-btn" (click)="saveQueueManagementFee()" [disabled]="savingQueueManagementFee">
+                                @if (savingQueueManagementFee) { <i class="fas fa-circle-notch fa-spin"></i> } Save
+                              </button>
+                            </div>
+                            @if (queueManagementFeeSaveMsg) {
+                              <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ queueManagementFeeSaveMsg }}</span>
+                            }
+                          </div>
+                        }
+                      }
                     </div>
                   </div>
                 </div>
@@ -2185,6 +2224,27 @@ interface AdminUser {
     }
     .cfs-save-btn:hover:not(:disabled) { background: rgba(163,230,53,0.26); transform: translateY(-1px); }
     .cfs-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Hosted Play Queue Management toggle */
+    .hpq-toggle-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:.9rem;padding:.85rem 1rem;border:1px solid rgba(163,230,53,.22);border-radius:12px;background:rgba(8,25,17,.4)}
+    .hpq-toggle-copy{display:flex;flex-direction:column;gap:.2rem;min-width:0}
+    .hpq-toggle-title{color:var(--dm-text);font-size:.9rem;font-weight:800;display:flex;align-items:center;gap:.45rem}
+    .hpq-toggle-title i{color:var(--dm-accent)}
+    .hpq-toggle-desc{color:var(--dm-muted);font-size:.78rem;line-height:1.4}
+    .hpq-switch{position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0}
+    .hpq-switch input{opacity:0;width:0;height:0}
+    .hpq-slider{position:absolute;inset:0;cursor:pointer;background:rgba(255,255,255,.16);border-radius:999px;transition:.2s}
+    .hpq-slider:before{content:"";position:absolute;height:20px;width:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+    .hpq-switch input:checked + .hpq-slider{background:var(--dm-accent)}
+    .hpq-switch input:checked + .hpq-slider:before{transform:translateX(20px)}
+    .hpq-fee-row{margin-top:.75rem;padding:.85rem 1rem;border:1px solid rgba(163,230,53,.15);border-radius:12px;background:rgba(8,25,17,.4);display:flex;flex-direction:column;gap:.5rem}
+    .hpq-fee-label{font-size:.82rem;font-weight:700;color:rgba(255,255,255,.8);display:flex;flex-direction:column;gap:.18rem}
+    .hpq-fee-label i{color:#a3e635;margin-right:.35rem}
+    .hpq-fee-hint{font-size:.72rem;font-weight:400;color:rgba(255,255,255,.45)}
+    .hpq-fee-input-row{display:flex;align-items:center;gap:.5rem}
+    .hpq-fee-prefix{color:#a3e635;font-weight:900;font-size:.95rem}
+    .hpq-fee-input{width:100px;padding:.45rem .65rem;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:.88rem;font-family:inherit}
+    .hpq-fee-input:focus{outline:none;border-color:rgba(163,230,53,.4)}
 
     /* Extra (additional) fees tab */
     .xfee-page{display:flex;flex-direction:column;gap:1rem}
@@ -3915,6 +3975,12 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   bookingProcess: 'reservation' | 'per_game' | 'hosted_play' = 'reservation';
   savingBookingProcess = false;
   bookingProcessSaveMsg = '';
+  hostedPlayQueueEnabled = false;
+  savingHostedPlayQueue = false;
+  hostedPlayQueueSaveMsg = '';
+  editQueueManagementFee = 0;
+  savingQueueManagementFee = false;
+  queueManagementFeeSaveMsg = '';
 
   // ── Additional (extra) fees ──
   editingExtraFees: AdditionalFee[] = [];
@@ -4176,6 +4242,10 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     this.balanceAlertSaveMsg = '';
     this.bookingProcess = club.bookingProcess ?? 'reservation';
     this.bookingProcessSaveMsg = '';
+    this.hostedPlayQueueEnabled = club.hostedPlayQueueEnabled ?? false;
+    this.hostedPlayQueueSaveMsg = '';
+    this.editQueueManagementFee = club.queueManagementFeePerPlayer ?? 0;
+    this.queueManagementFeeSaveMsg = '';
     this.editingExtraFees = (club.additionalFees ?? []).map(f => ({ ...f }));
     this.newExtraFeeName = '';
     this.newExtraFeeAmount = 0;
@@ -4459,6 +4529,39 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
         setTimeout(() => { this.bookingProcessSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
       },
       error: () => { this.savingBookingProcess = false; this.bookingProcessSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
+  saveHostedPlayQueue() {
+    if (!this.selectedClub?._id) return;
+    this.savingHostedPlayQueue = true;
+    this.hostedPlayQueueSaveMsg = '';
+    this.clubService.patchHostedPlayQueue(this.selectedClub._id, this.hostedPlayQueueEnabled).subscribe({
+      next: (updated) => {
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, hostedPlayQueueEnabled: updated.hostedPlayQueueEnabled } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, hostedPlayQueueEnabled: updated.hostedPlayQueueEnabled };
+        this.savingHostedPlayQueue = false;
+        this.hostedPlayQueueSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.hostedPlayQueueSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingHostedPlayQueue = false; this.hostedPlayQueueSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
+  saveQueueManagementFee() {
+    if (!this.selectedClub?._id) return;
+    this.savingQueueManagementFee = true;
+    this.queueManagementFeeSaveMsg = '';
+    this.clubService.patchQueueManagementFee(this.selectedClub._id, this.editQueueManagementFee).subscribe({
+      next: (res) => {
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, queueManagementFeePerPlayer: res.queueManagementFeePerPlayer };
+        this.savingQueueManagementFee = false;
+        this.queueManagementFeeSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.queueManagementFeeSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingQueueManagementFee = false; this.queueManagementFeeSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
     });
   }
 

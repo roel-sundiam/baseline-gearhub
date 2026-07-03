@@ -257,6 +257,15 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
                 <span class="action-sub">Schedule play sessions and manage participants</span>
               </a>
             }
+            @if (!authService.isSuperAdmin() && club?.bookingProcess === 'hosted_play' && club?.hostedPlayQueueEnabled) {
+              <a routerLink="/admin/hosted-play" class="action-card action-card--queue">
+                <span class="action-icon action-icon--queue"><i class="fas fa-list-ol"></i></span>
+                <span class="action-title">Queue Management
+                  <span class="queue-live-badge"><i class="fas fa-circle"></i> Live</span>
+                </span>
+                <span class="action-sub">Check in players, manage courts and live rotation</span>
+              </a>
+            }
             @if (authService.isSuperAdmin()) {
               <a routerLink="/features" target="_blank" class="action-card action-card--features">
                 <span class="action-icon"><i class="fas fa-star"></i></span>
@@ -853,11 +862,46 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
       .action-title {
         font-weight: 800;
         font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: .45rem;
       }
 
       .action-sub {
         font-size: 0.78rem;
         color: rgba(255,255,255,0.72);
+      }
+
+      .action-card--queue {
+        border-color: rgba(56,189,248,.22);
+        background: rgba(56,189,248,.05);
+      }
+      .action-card--queue:hover {
+        border-color: rgba(56,189,248,.45);
+        box-shadow: 0 10px 22px rgba(56,189,248,.1);
+      }
+      .action-icon--queue {
+        background: rgba(56,189,248,.14);
+        color: #38bdf8;
+      }
+      .queue-live-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        font-size: .62rem;
+        font-weight: 900;
+        color: #07130d;
+        background: #a3e635;
+        border-radius: 99px;
+        padding: .1rem .4rem;
+      }
+      .queue-live-badge i {
+        font-size: .45rem;
+        animation: pulse-dot 1.4s ease-in-out infinite;
+      }
+      @keyframes pulse-dot {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .3; }
       }
 
       @keyframes shimmer {

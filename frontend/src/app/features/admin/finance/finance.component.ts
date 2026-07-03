@@ -732,6 +732,9 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .summary-item.highlight-purple { background: rgba(139,92,246,0.14); border-radius: 8px; }
     .summary-item.highlight-purple .summary-value { color: #c4b5fd; font-size: 1.1rem; }
     .summary-item.highlight-purple .summary-label { color: rgba(196,181,253,0.8); }
+    .summary-item.highlight-orange { background: rgba(251,146,60,0.14); border-radius: 8px; }
+    .summary-item.highlight-orange .summary-value { color: #fdba74; font-size: 1.1rem; }
+    .summary-item.highlight-orange .summary-label { color: rgba(253,186,116,0.8); }
     .summary-value { font-size: 1.1rem; font-weight: 700; color: #ffffff; }
     .summary-label { font-size: 0.72rem; color: rgba(255,255,255,0.62); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
 
@@ -939,6 +942,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .finance-table tbody tr:hover { background: rgba(255,255,255,0.02); }
     .col-amount { text-align: right; font-weight: 700; color: var(--dm-accent); }
     .col-service { color: #93c5fd !important; }
+    .col-queue-fee { color: #fdba74 !important; }
     .col-date { color: rgba(255,255,255,0.72); font-size: 0.82rem; white-space: nowrap; }
     .col-player { font-weight: 600; color: #ffffff; }
     .col-note { color: #666; font-size: 0.82rem; font-style: italic; }

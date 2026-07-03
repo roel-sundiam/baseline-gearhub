@@ -7,7 +7,6 @@ import {
   AppServicePayment,
   AppServicePaymentsService,
   FeeReport,
-  FeeReportClubRow,
   FeeReportTransaction,
 } from '../../../core/services/app-service-payments.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -26,7 +25,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
         <div class="header-info">
           <p class="cfr-kicker"><i class="fas fa-percent"></i> Superadmin</p>
           <h2 class="cfr-title">Convenience Fee Report</h2>
-          <p class="cfr-subtitle">Analytics for app service fees earned from reservations</p>
+          <p class="cfr-subtitle">Analytics for app service fees earned across all booking types</p>
         </div>
       </div>
 
@@ -149,7 +148,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
           </div>
           <div class="stat-pill">
             <span class="stat-value">{{ report()!.summary.txCount | number }}</span>
-            <span class="stat-label">Reservations with Fee</span>
+            <span class="stat-label">Bookings with Fee</span>
           </div>
           <div class="stat-pill">
             <span class="stat-value">{{ report()!.summary.avgFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</span>
@@ -179,7 +178,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
                 <table class="cfr-table">
                   <thead><tr>
                     <th>Month</th>
-                    <th class="num-col">Reservations</th>
+                    <th class="num-col">Bookings</th>
                     <th class="num-col">Fees Earned</th>
                     <th class="num-col">Avg Fee</th>
                   </tr></thead>
@@ -200,7 +199,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
                 <table class="cfr-table">
                   <thead><tr>
                     <th>Date</th>
-                    <th class="num-col">Reservations</th>
+                    <th class="num-col">Bookings</th>
                     <th class="num-col">Fees Earned</th>
                     <th class="num-col">Avg Fee</th>
                   </tr></thead>
@@ -264,6 +263,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
                   <th>Date</th>
                   <th>Club</th>
                   <th>Player</th>
+                  <th>Type</th>
                   <th class="num-col">Booking Amt</th>
                   <th class="num-col">Conv. Fee</th>
                 </tr></thead>
@@ -273,6 +273,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
                       <td class="cell-date">{{ tx.date | date: 'MMM d, y' : 'UTC' }}</td>
                       <td class="club-name">{{ tx.clubName }}</td>
                       <td>{{ tx.playerName }}</td>
+                      <td><span class="type-badge type-{{ tx.chargeType ?? 'reservation' }}">{{ formatChargeType(tx.chargeType) }}</span></td>
                       <td class="num-col muted">{{ tx.amount | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       <td class="num-col fee-val">{{ tx.convenienceFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     </tr>
@@ -293,6 +294,41 @@ import { ClubService, Club } from '../../../core/services/club.service';
               </div>
             }
           </div>
+
+          <!-- Queue Management Fees -->
+          @if (queueMgmtBillings().length > 0) {
+            <div class="section-card">
+              <div class="section-header">
+                <h3 class="section-title">Queue Management Fees <span class="tx-count">({{ queueMgmtBillings().length }})</span></h3>
+                <div class="stat-inline">
+                  <span class="fee-val">{{ queueMgmtBillingTotal() | currency: 'PHP' : 'symbol' : '1.2-2' }}</span>
+                  <span class="muted"> total billed</span>
+                </div>
+              </div>
+              <div class="table-scroll">
+                <table class="cfr-table">
+                  <thead><tr>
+                    <th>Date</th>
+                    <th>Club</th>
+                    <th>Billed By</th>
+                    <th>Note</th>
+                    <th class="num-col">Amount</th>
+                  </tr></thead>
+                  <tbody>
+                    @for (p of queueMgmtBillings(); track p._id) {
+                      <tr>
+                        <td class="cell-date">{{ p.createdAt | date: 'MMM d, y' : 'UTC' }}</td>
+                        <td class="club-name">{{ getPaymentClubName(p) }}</td>
+                        <td>{{ p.paidBy?.name ?? '—' }}</td>
+                        <td class="muted note-cell">{{ p.note || '—' }}</td>
+                        <td class="num-col fee-val">{{ p.amount | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
 
         }
       }
@@ -693,6 +729,23 @@ import { ClubService, Club } from '../../../core/services/club.service';
     .page-btn:disabled { opacity: .35; cursor: default; }
     .page-info { font-size: .82rem; color: var(--muted); }
 
+    .type-badge {
+      display: inline-block;
+      padding: .18rem .5rem;
+      border-radius: 5px;
+      font-size: .7rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .type-reservation { background: rgba(99,102,241,.18); color: #a5b4fc; }
+    .type-open_play_session { background: rgba(234,179,8,.14); color: #fde047; }
+    .type-per_game { background: rgba(249,115,22,.14); color: #fdba74; }
+    .type-hosted_play { background: rgba(163,230,53,.14); color: #a3e635; }
+
+    .stat-inline {
+      font-size: .88rem;
+    }
+
     @media (max-width: 600px) {
       .cfr-shell { padding: 1rem .75rem 3rem; }
       .stat-pill { min-width: unset; flex: 1 1 120px; }
@@ -736,6 +789,14 @@ export class ConvenienceFeeReportComponent implements OnInit {
 
   developerPaymentsWithProof = computed(() =>
     this.developerPayments().filter((payment) => !!payment.paymentScreenshot).length
+  );
+
+  queueMgmtBillings = computed(() =>
+    this.payments().filter((p) => p.type === 'billing')
+  );
+
+  queueMgmtBillingTotal = computed(() =>
+    this.queueMgmtBillings().reduce((sum, p) => sum + p.amount, 0)
   );
 
   ngOnInit() {
@@ -799,11 +860,12 @@ export class ConvenienceFeeReportComponent implements OnInit {
   exportCsv() {
     const txs = this.report()?.transactions ?? [];
     if (!txs.length) return;
-    const header = 'Date,Club,Player,Booking Amount,Convenience Fee';
+    const header = 'Date,Club,Player,Type,Booking Amount,Convenience Fee';
     const rows = txs.map((t) => [
       new Date(t.date).toLocaleDateString('en-US'),
       `"${t.clubName.replace(/"/g, '""')}"`,
       `"${t.playerName.replace(/"/g, '""')}"`,
+      this.formatChargeType(t.chargeType),
       t.amount.toFixed(2),
       t.convenienceFee.toFixed(2),
     ].join(','));
@@ -828,6 +890,15 @@ export class ConvenienceFeeReportComponent implements OnInit {
     if (!day) return 'Unknown';
     const [year, m, d] = day.split('-');
     return new Date(+year, +m - 1, +d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  formatChargeType(type?: string): string {
+    return ({
+      reservation: 'Reservation',
+      open_play_session: 'Open Play',
+      per_game: 'Per Game',
+      hosted_play: 'Hosted Play',
+    } as Record<string, string>)[type ?? 'reservation'] ?? type ?? 'Reservation';
   }
 
   formatFeeMode(mode: string): string {
