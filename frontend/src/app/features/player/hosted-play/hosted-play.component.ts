@@ -3,7 +3,7 @@ import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { HostedPlayService, HostedPlaySession, HostedPlayParticipant } from '../../../core/services/hosted-play.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { ClubService } from '../../../core/services/club.service';
+import { ClubService, Court } from '../../../core/services/club.service';
 
 @Component({
   selector: 'app-player-hosted-play',
@@ -63,10 +63,10 @@ import { ClubService } from '../../../core/services/club.service';
             <article class="session-card" [class.session-card--joined]="s.joined">
               <div class="card-head">
                 <div class="club-mark">
-                  @if (clubLogo) {
-                    <img [src]="clubLogo" [alt]="clubName" class="club-mark-img" />
+                  @if (venueLogo(s)) {
+                    <img [src]="venueLogo(s)" [alt]="venueLabel(s)" class="club-mark-img" />
                   } @else {
-                    <span class="club-mark-initials">{{ clubInitials }}</span>
+                    <span class="club-mark-initials">{{ venueInitials(s) }}</span>
                   }
                 </div>
                 <div class="title-block">
@@ -138,6 +138,11 @@ import { ClubService } from '../../../core/services/club.service';
               <div class="action-area">
                 @if (s.joined) {
                   <div class="joined-note"><i class="fas fa-circle-check"></i> You're in for this session.</div>
+                  @if (s.queueStatus === 'running') {
+                    <button class="btn-live" (click)="openLiveBoard(s)">
+                      <i class="fas fa-signal"></i> View Live Board
+                    </button>
+                  }
                   <button class="btn-cancel" [disabled]="busyId === s._id" (click)="cancel(s)">
                     {{ busyId === s._id ? 'Cancelling...' : 'Cancel my spot' }}
                   </button>
@@ -518,7 +523,8 @@ import { ClubService } from '../../../core/services/club.service';
     }
 
     .btn-join,
-    .btn-cancel {
+    .btn-cancel,
+    .btn-live {
       width: 100%;
       min-height: 46px;
       padding: .85rem;
@@ -529,10 +535,16 @@ import { ClubService } from '../../../core/services/club.service';
       font-family: inherit;
       cursor: pointer;
       transition: opacity .15s, transform .15s, background .15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .45rem;
     }
 
     .btn-join { background: var(--accent); color: #07130d; box-shadow: 0 10px 22px rgba(163,230,53,.18); }
     .btn-cancel { background: rgba(255,255,255,.08); color: var(--text); border: 1px solid var(--border); }
+    .btn-live { background: rgba(56,189,248,.12); color: #38bdf8; border: 1px solid rgba(56,189,248,.3); }
+    .btn-live:hover { background: rgba(56,189,248,.2); border-color: rgba(56,189,248,.45); transform: translateY(-1px); }
     .btn-join:hover:not(:disabled), .btn-cancel:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
     .btn-join:disabled { opacity: .45; cursor: not-allowed; }
     .btn-cancel:disabled { opacity: .5; cursor: not-allowed; }
@@ -581,8 +593,7 @@ export class PlayerHostedPlayComponent implements OnInit {
   busyId: string | null = null;
   sessions: HostedPlaySession[] = [];
   errorMap: Record<string, string> = {};
-  clubLogo = '';
-  clubName = 'Club';
+  clubCourts: Court[] = [];
 
   expandedId: string | null = null;
   playersLoading = false;
@@ -597,26 +608,44 @@ export class PlayerHostedPlayComponent implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.loadClubIdentity();
+    this.loadClubCourts();
     this.refresh();
   }
 
-  get clubInitials(): string {
-    return this.clubName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
-  }
-
-  loadClubIdentity() {
+  loadClubCourts() {
     const clubId = this.auth.user()?.clubId || this.clubService.getSelectedClubId();
     if (!clubId) return;
 
     this.clubService.getClub(clubId).subscribe({
       next: (club) => {
-        this.clubName = club.name || 'Club';
-        this.clubLogo = club.logo ?? '';
+        this.clubCourts = club.courts ?? [];
         this.cdr.detectChanges();
       },
       error: () => {},
     });
+  }
+
+  courtForSession(s: HostedPlaySession): Court | undefined {
+    const venue = (s.venue || '').trim().toLowerCase();
+    const court = (s.court || '').trim().toLowerCase();
+    return this.clubCourts.find(c => {
+      const name = c.name.trim().toLowerCase();
+      return name === venue || (!!court && name === court);
+    });
+  }
+
+  venueLogo(s: HostedPlaySession): string {
+    return this.courtForSession(s)?.logo || '';
+  }
+
+  venueLabel(s: HostedPlaySession): string {
+    return this.courtForSession(s)?.name || s.court || s.venue || s.title || 'Venue';
+  }
+
+  venueInitials(s: HostedPlaySession): string {
+    const parts = this.venueLabel(s).split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'V';
+    return parts.slice(0, 2).map(part => part[0]).join('').toUpperCase();
   }
 
   togglePlayers(s: HostedPlaySession) {
@@ -709,6 +738,10 @@ export class PlayerHostedPlayComponent implements OnInit {
         this.cdr.detectChanges();
       },
     });
+  }
+
+  openLiveBoard(s: HostedPlaySession) {
+    this.router.navigate(['/player/hosted-play', s._id, 'live']);
   }
 
   goBack() { this.router.navigate(['/player/dashboard']); }
