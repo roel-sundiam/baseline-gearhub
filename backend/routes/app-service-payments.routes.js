@@ -24,7 +24,7 @@ router.get("/report", auth, superadmin, async (req, res) => {
       dateFilter.$lte = end;
     }
 
-    const initialMatch = { chargeType: { $in: ["reservation", "open_play_session", "per_game"] } };
+    const initialMatch = { chargeType: { $in: ["reservation", "open_play_session", "per_game", "hosted_play"] } };
     if (Object.keys(dateFilter).length) initialMatch.createdAt = dateFilter;
     if (rawClubId && mongoose.Types.ObjectId.isValid(rawClubId)) {
       initialMatch.clubId = new mongoose.Types.ObjectId(rawClubId);
@@ -32,7 +32,7 @@ router.get("/report", auth, superadmin, async (req, res) => {
 
     const confirmedFilter = {
       $or: [
-        { chargeType: { $in: ["open_play_session", "per_game"] } },
+        { chargeType: { $in: ["open_play_session", "per_game", "hosted_play"] } },
         { "res.status": "confirmed" },
         { res: { $exists: false }, approvalStatus: "approved" },
       ],
@@ -79,6 +79,7 @@ router.get("/report", auth, superadmin, async (req, res) => {
             date: "$createdAt",
             clubId: 1,
             amount: 1,
+            chargeType: 1,
             convenienceFee: "$breakdown.convenienceFee",
             playerName: {
               $cond: [
@@ -134,6 +135,7 @@ router.get("/report", auth, superadmin, async (req, res) => {
         playerName: t.playerName,
         amount: t.amount,
         convenienceFee: t.convenienceFee ?? 0,
+        chargeType: t.chargeType ?? "reservation",
       })),
     });
   } catch (err) {
@@ -145,7 +147,7 @@ router.get("/report", auth, superadmin, async (req, res) => {
 // GET /api/app-service-payments/summary — cross-club overview (superadmin only)
 router.get("/summary", auth, superadmin, async (req, res) => {
   try {
-    const [clubs, chargeAgg, openPlayAgg, perGameAgg, paymentAgg, waiverAgg, billingAgg] = await Promise.all([
+    const [clubs, chargeAgg, openPlayAgg, perGameAgg, hostedPlayAgg, paymentAgg, waiverAgg, billingAgg] = await Promise.all([
       Club.find({ status: { $ne: "suspended" } }, "_id name convenienceFeeRate convenienceFeeMode convenienceFeeMonthlyAmount").lean(),
       Charge.aggregate([
         { $match: { chargeType: "reservation" } },
@@ -171,6 +173,10 @@ router.get("/summary", auth, superadmin, async (req, res) => {
         { $match: { chargeType: "per_game" } },
         { $group: { _id: "$clubId", totalPerGameFees: { $sum: "$breakdown.convenienceFee" } } },
       ]),
+      Charge.aggregate([
+        { $match: { chargeType: "hosted_play" } },
+        { $group: { _id: "$clubId", totalHostedPlayFees: { $sum: "$breakdown.convenienceFee" } } },
+      ]),
       AppServicePayment.aggregate([
         { $match: { type: "payment" } },
         { $group: { _id: "$clubId", totalPaid: { $sum: "$amount" } } },
@@ -188,6 +194,7 @@ router.get("/summary", auth, superadmin, async (req, res) => {
     const chargeMap = Object.fromEntries(chargeAgg.map((r) => [r._id.toString(), { totalCourtFees: r.totalCourtFees, totalConvenienceFees: r.totalConvenienceFees }]));
     const openPlayMap = Object.fromEntries(openPlayAgg.map((r) => [r._id.toString(), r.totalOpenPlayFees]));
     const perGameMap = Object.fromEntries(perGameAgg.map((r) => [r._id.toString(), r.totalPerGameFees]));
+    const hostedPlayMap = Object.fromEntries(hostedPlayAgg.map((r) => [r._id.toString(), r.totalHostedPlayFees]));
     const paymentMap = Object.fromEntries(paymentAgg.map((r) => [r._id.toString(), r.totalPaid]));
     const waiverMap = Object.fromEntries(waiverAgg.map((r) => [r._id.toString(), r.totalWaived]));
     const billingMap = Object.fromEntries(billingAgg.map((r) => [r._id.toString(), r.totalBilled]));
@@ -201,7 +208,7 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       const convenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
       const feesOwed = convenienceFeeMode === 'monthly_flat'
         ? parseFloat((convenienceFeeMonthlyAmount).toFixed(2))
-        : parseFloat((chargeData.totalConvenienceFees + (openPlayMap[id] ?? 0) + (perGameMap[id] ?? 0) + (billingMap[id] ?? 0)).toFixed(2));
+        : parseFloat((chargeData.totalConvenienceFees + (openPlayMap[id] ?? 0) + (perGameMap[id] ?? 0) + (hostedPlayMap[id] ?? 0) + (billingMap[id] ?? 0)).toFixed(2));
       const totalPaid = paymentMap[id] || 0;
       const totalWaived = waiverMap[id] || 0;
       const balance = convenienceFeeMode === 'monthly_flat'
@@ -286,14 +293,15 @@ router.get("/fee-info", auth, admin, async (req, res) => {
 
     const [club, chargeAgg, paymentAgg, waiverAgg, billingAgg] = await Promise.all([
       Club.findById(clubId).select("convenienceFeeMode convenienceFeeMonthlyAmount balanceAlertEnabled").lean(),
-      // Only confirmed reservation charges + all open_play_session charges — mirrors /summary logic
+      // Only confirmed reservation charges + all open_play_session / per_game / hosted_play charges
       Charge.aggregate([
-        { $match: { chargeType: { $in: ["reservation", "open_play_session", "per_game"] }, clubId: clubObjId } },
+        { $match: { chargeType: { $in: ["reservation", "open_play_session", "per_game", "hosted_play"] }, clubId: clubObjId } },
         { $lookup: { from: "reservations", localField: "reservationId", foreignField: "_id", as: "reservation" } },
         { $unwind: { path: "$reservation", preserveNullAndEmptyArrays: true } },
         { $match: { $or: [
           { chargeType: "open_play_session" },
           { chargeType: "per_game" },
+          { chargeType: "hosted_play" },
           { "reservation.status": "confirmed" },
           { "reservation": { $exists: false }, approvalStatus: "approved" },
         ]}},
