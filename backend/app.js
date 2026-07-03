@@ -58,6 +58,8 @@ app.use(
     origin: [
       "http://localhost:4200",
       "http://localhost:4201",
+      "https://courtgo.club",
+      "https://www.courtgo.club",
       "https://baseline-gearhub.netlify.app",
       /\.baseline-gearhub\.netlify\.app$/,
     ],
@@ -66,18 +68,16 @@ app.use(
 );
 app.use(express.json());
 
-// In Vercel deployments, `/` can be routed to the API function.
-// Redirect to the SPA entry so the app still loads.
-app.get('/', (_req, res) => res.redirect(302, '/index.html'));
-
 // Health check should respond even when DB is unavailable.
 app.get('/api/health', (_req, res) => {
   const uri = process.env.MONGODB_URI || '';
   const isLocal = uri.includes('localhost') || uri.includes('127.0.0.1');
+  const runtime = process.env.RENDER ? 'render' : process.env.NETLIFY ? 'netlify' : 'local';
   res.json({
     status: 'ok',
     db: isLocal ? 'local' : 'atlas',
     dbHost: isLocal ? 'localhost:27017' : 'MongoDB Atlas',
+    runtime,
   });
 });
 

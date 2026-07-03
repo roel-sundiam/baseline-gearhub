@@ -48,6 +48,10 @@ interface AdminUser {
                 <i class="fas fa-database"></i>
                 {{ dbStatus()!.db === 'local' ? 'Local DB' : 'Production DB' }} &middot; {{ dbStatus()!.dbHost }}
               </span>
+              <span class="db-badge" [class.db-local]="dbStatus()!.runtime === 'local'" [class.db-atlas]="dbStatus()!.runtime !== 'local'">
+                <i class="fas fa-server"></i>
+                {{ dbStatus()!.runtime === 'render' ? 'Render' : dbStatus()!.runtime === 'netlify' ? 'Netlify Functions' : 'Local Server' }}
+              </span>
             }
           </div>
         </div>
@@ -4019,7 +4023,7 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   }
 
   mirroringUserId: string | null = null;
-  dbStatus = signal<{ db: string; dbHost: string } | null>(null);
+  dbStatus = signal<{ db: string; dbHost: string; runtime: string } | null>(null);
 
   // ── App Reviews ──
   reviewsPanelOpen = false;
@@ -4138,7 +4142,7 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
       });
       this.loadReviews();
     }
-    this.http.get<{ status: string; db: string; dbHost: string }>(`${environment.apiUrl}/health`).subscribe({
+    this.http.get<{ status: string; db: string; dbHost: string; runtime: string }>(`${environment.apiUrl}/health`).subscribe({
       next: (res) => this.dbStatus.set(res),
       error: () => {},
     });

@@ -106,6 +106,27 @@
                   "with": "src/environments/environment.mobile.ts"
                 }
               ]
+            },
+            "render": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "500kB",
+                  "maximumError": "1MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "20kB",
+                  "maximumError": "56kB"
+                }
+              ],
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.render.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
