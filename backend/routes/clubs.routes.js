@@ -263,6 +263,32 @@ router.patch("/:id/booking-qr", auth, admin, async (req, res) => {
   }
 });
 
+// PATCH /api/clubs/:id/guest-terms — set per-club guest T&C text and/or notification (superadmin or club's own admin)
+router.patch("/:id/guest-terms", auth, admin, async (req, res) => {
+  try {
+    const { guestTermsText, guestTermsNotification } = req.body;
+    if (typeof guestTermsText !== "string" && guestTermsNotification === undefined) {
+      return res.status(400).json({ error: "guestTermsText or guestTermsNotification must be provided" });
+    }
+    if (req.user.role !== "superadmin") {
+      const club = await Club.findById(req.params.id, "_id clubId").lean();
+      if (!club) return res.status(404).json({ error: "Club not found" });
+      if (String(req.user.clubId) !== String(req.params.id)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+    }
+    const update = {};
+    if (typeof guestTermsText === "string") update.guestTermsText = guestTermsText || null;
+    if (guestTermsNotification !== undefined) update.guestTermsNotification = guestTermsNotification || null;
+    const updated = await Club.findByIdAndUpdate(req.params.id, update, { new: true }).lean();
+    if (!updated) return res.status(404).json({ error: "Club not found" });
+    res.json({ guestTermsText: updated.guestTermsText, guestTermsNotification: updated.guestTermsNotification });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // DELETE /api/clubs/:id — delete a club (admin only)
 router.delete("/:id", auth, admin, async (req, res) => {
   try {

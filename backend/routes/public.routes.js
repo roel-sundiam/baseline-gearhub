@@ -6,6 +6,7 @@ const Rates = require("../models/Rates");
 const Club = require("../models/Club");
 const Inquiry = require("../models/Inquiry");
 const OpenPlaySession = require("../models/OpenPlaySession");
+const AppSettings = require("../models/AppSettings");
 const OpenPlaySessionPlayer = require("../models/OpenPlaySessionPlayer");
 const HostedPlay = require("../models/HostedPlay");
 const AppReview = require("../models/AppReview");
@@ -273,6 +274,15 @@ router.get("/:clubId", async (req, res) => {
   try {
     const club = await findClub(req.params.clubId);
     if (!club) return res.status(404).json({ error: "Club not found" });
+    let guestTermsText = club.guestTermsText || null;
+    if (!guestTermsText) {
+      const settings = await AppSettings.findOneAndUpdate(
+        { _id: "global" },
+        {},
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      ).lean();
+      guestTermsText = settings.guestTermsText;
+    }
     res.json({
       _id: club._id,
       name: club.name,
@@ -299,6 +309,8 @@ router.get("/:clubId", async (req, res) => {
       reviewCount: club.reviewCount ?? 0,
       totalBookings: club.totalBookings ?? 0,
       bookingProcess: club.bookingProcess ?? 'reservation',
+      guestTermsText,
+      guestTermsNotification: club.guestTermsNotification ?? null,
     });
   } catch (err) {
     console.error(err);

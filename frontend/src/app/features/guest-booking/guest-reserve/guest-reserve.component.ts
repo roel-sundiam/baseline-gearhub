@@ -2,9 +2,11 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2, signal, com
 import { CommonModule, CurrencyPipe, DecimalPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { PublicBookingService, PublicRates, GuestBookingResult } from '../../../core/services/public-booking.service';
 import { AdditionalFee } from '../../../core/services/club.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
+import { marked } from 'marked';
 
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
 const WEEKEND_DAYS = new Set([0, 5, 6]);
@@ -247,7 +249,7 @@ function localDateStr(): string {
                     <div class="gr-slot-summary">
                       <span class="gr-slot-badge">Court {{ selectedCourt }}</span>
                       <span class="gr-slot-badge gr-slot-badge-time">
-                        {{ selectedSlot }}{{ selectedDuration > 1 ? ' – ' + endSlotLabel : '' }}
+                        {{ selectedSlot }}{{ selectedDuration >= 1 ? ' – ' + endSlotLabel : '' }}
                       </span>
                       <span class="gr-slot-badge gr-slot-badge-date">{{ navDate() | date: 'MMM d' }}</span>
                     </div>
@@ -622,6 +624,12 @@ function localDateStr(): string {
                     </div>
 
                     <!-- Terms -->
+                    @if (guestTermsNotification) {
+                      <div class="gr-terms-notice">
+                        <i class="fas fa-circle-exclamation"></i>
+                        {{ guestTermsNotification }}
+                      </div>
+                    }
                     <div class="gr-terms-row" [class.gr-terms-row-error]="guestSubmitted && !agreedToTerms">
                       <button type="button" class="gr-terms-btn" (click)="showTerms = !showTerms">
                         View Terms &amp; Conditions
@@ -703,45 +711,47 @@ function localDateStr(): string {
         <div class="gr-modal-overlay" (click)="showTerms = false">
           <div class="gr-terms-modal" (click)="$event.stopPropagation()">
             <div class="gr-terms-modal-header">
-              <div class="gr-terms-modal-title">Terms &amp; Conditions</div>
-              <button class="gr-modal-close" (click)="showTerms = false">&#10005;</button>
+              <div class="gr-terms-heading">
+                <span class="gr-terms-heading-icon"><i class="fas fa-file-shield"></i></span>
+                <div>
+                  <div class="gr-terms-modal-title">Terms &amp; Conditions</div>
+                  <p>Review the court rules before confirming your booking.</p>
+                </div>
+              </div>
+              <button class="gr-modal-close" (click)="showTerms = false" aria-label="Close terms"><i class="fas fa-xmark"></i></button>
             </div>
             <div class="gr-terms-modal-body">
-              <p class="gr-terms-intro">By proceeding with your booking, you confirm that you have read, understood, and agreed to follow the rules outlined below. Any violation may result in actions such as removal from the premises, penalties, or suspension of access, as determined by management.</p>
+              <div class="gr-terms-callout">
+                <i class="fas fa-circle-info"></i>
+                <span>By continuing, you agree to follow the club's rules, respect your booking time, and accept any applicable charges.</span>
+              </div>
+              @if (termsLoadError) {
+                <div class="gr-terms-state">
+                  <i class="fas fa-triangle-exclamation"></i>
+                  <strong>Unable to load terms</strong>
+                  <span>Please contact management before completing your booking.</span>
+                </div>
+              } @else if (guestTermsHtml) {
+                <div class="gr-terms-doc" [innerHTML]="guestTermsHtml"></div>
+              } @else {
+                <div class="gr-terms-doc">
+                  <h2>Respect the Court</h2>
+                  <p>Please use the court, equipment, and facilities with care. Any damage, unsafe behavior, or misuse may result in additional charges or loss of booking privileges.</p>
 
-              <div class="gr-terms-item">
-                <div class="gr-terms-item-title">1. Respect the Court</div>
-                <p>Please treat the court, equipment, and other players with courtesy and care at all times. Unsportsmanlike conduct will not be tolerated.</p>
-              </div>
-              <div class="gr-terms-item">
-                <div class="gr-terms-item-title">2. No Smoking &#128683;</div>
-                <p>Smoking is strictly prohibited within the court premises.</p>
-              </div>
-              <div class="gr-terms-item">
-                <div class="gr-terms-item-title">3. Clean As You Go (CLAYGO) &#128465;</div>
-                <p>Dispose of all trash properly and help maintain cleanliness. Kindly leave the court in better condition than you found it.</p>
-              </div>
-              <div class="gr-terms-item">
-                <div class="gr-terms-item-title">4. Court Time &#9200;</div>
-                <p>Please be ready to play at your scheduled time. Delays or late arrivals will still be counted within your reserved slot.</p>
-              </div>
-              <div class="gr-terms-item">
-                <div class="gr-terms-item-title">5. Proper Footwear &#128099;</div>
-                <p>Players are encouraged to wear non-marking sports shoes to ensure safety and protect the court surface.</p>
-              </div>
-              <div class="gr-terms-item">
-                <div class="gr-terms-item-title">6. Play with Respect &amp; Enjoyment &#127859;</div>
-                <p>Play responsibly, keep the competition friendly, and avoid unnecessary conflicts. Let's keep the atmosphere fun and welcoming for everyone.</p>
-              </div>
-              <div class="gr-terms-item">
-                <div class="gr-terms-item-title">7. Share the Court &#10084;</div>
-                <p>Support fellow players, keep disagreements respectful, and remember that everyone is here to enjoy the game.</p>
-              </div>
+                  <h2>Arrive on Time</h2>
+                  <p>Your reservation begins and ends at the selected time. Late arrival does not extend the booking, and overtime may be charged according to club policy.</p>
 
-              <p class="gr-terms-footer-note">By continuing with your booking, you acknowledge and accept these terms. Management reserves the right to enforce rules and apply appropriate consequences for any violations.</p>
+                  <h2>Keep the Area Clean</h2>
+                  <p>Dispose of trash properly and leave the court ready for the next players.</p>
+
+                  <h2>Play Safely and Respectfully</h2>
+                  <p>Wear proper footwear, follow posted club rules, and treat staff and other players with courtesy.</p>
+                </div>
+              }
             </div>
             <div class="gr-terms-modal-footer">
-              <button class="gr-submit-btn" (click)="agreeAndClose()">I Agree</button>
+              <p>Acceptance is required to submit this booking.</p>
+              <button class="gr-submit-btn" (click)="agreeAndClose()"><i class="fas fa-check"></i> I Agree</button>
             </div>
           </div>
         </div>
@@ -1264,6 +1274,20 @@ function localDateStr(): string {
       flex-shrink: 0;
     }
 
+    .gr-terms-notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      border: 1px solid rgba(248,113,113,.35);
+      background: rgba(248,113,113,.08);
+      color: #fca5a5;
+      font-size: 0.82rem;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+    .gr-terms-notice i { flex-shrink: 0; margin-top: 0.1rem; }
     .gr-terms-row {
       display: flex;
       align-items: center;
@@ -1295,37 +1319,99 @@ function localDateStr(): string {
       padding: 1rem;
     }
     .gr-modal-close {
-      background: none; border: none;
-      color: rgba(255,255,255,0.4); font-size: 1rem;
-      cursor: pointer; padding: 0.2rem; border-radius: 4px;
-      transition: color 0.15s;
+      width: 38px;
+      height: 38px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.68);
+      font-size: 1rem;
+      cursor: pointer;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s, color 0.15s;
     }
-    .gr-modal-close:hover { color: #fff; }
+    .gr-modal-close:hover { background: rgba(255,255,255,0.12); color: #fff; }
 
     .gr-terms-modal {
-      background: #1b3028;
-      border: 1px solid rgba(163,230,53,0.15);
-      border-radius: 16px;
+      background: #12251d;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
       width: 100%;
-      max-width: 560px;
+      max-width: 660px;
       max-height: 85vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      box-shadow: 0 28px 80px rgba(0,0,0,0.58);
     }
     .gr-terms-modal-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 1.1rem 1.5rem;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      gap: 1rem;
+      padding: 1rem 1.1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background:
+        linear-gradient(135deg, rgba(25,53,42,0.96), rgba(9,27,17,0.96)),
+        url('/tennis-court-surface.png') center / cover;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .gr-terms-modal-header::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, rgba(7,19,13,0.08), rgba(7,19,13,0.68));
+      pointer-events: none;
+    }
+    .gr-terms-modal-header > * { position: relative; z-index: 1; }
+    .gr-terms-heading { display: flex; align-items: center; gap: 0.8rem; min-width: 0; }
+    .gr-terms-heading-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 8px;
+      background: rgba(163,230,53,0.13);
+      border: 1px solid rgba(163,230,53,0.22);
+      color: #a3e635;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       flex-shrink: 0;
     }
-    .gr-terms-modal-title { font-size: 1.05rem; font-weight: 700; color: #fff; }
+    .gr-terms-modal-title { font-size: 1.08rem; line-height: 1.2; font-weight: 800; color: #fff; }
+    .gr-terms-heading p { margin: 0.2rem 0 0; color: rgba(255,255,255,0.62); font-size: 0.8rem; line-height: 1.35; }
     .gr-terms-modal-body {
-      flex: 1; overflow-y: auto; padding: 1.25rem 1.5rem;
-      display: flex; flex-direction: column; gap: 0.9rem;
+      flex: 1; overflow-y: auto; padding: 0.9rem;
+      display: flex; flex-direction: column; gap: 0.75rem;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(163,230,53,0.35) transparent;
     }
     .gr-terms-intro {
       font-size: 0.82rem; color: rgba(255,255,255,0.55); line-height: 1.55; margin: 0;
+    }
+    .gr-terms-callout {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 0.65rem;
+      align-items: center;
+      padding: 0.68rem 0.8rem;
+      border-radius: 8px;
+      border: 1px solid rgba(163,230,53,0.18);
+      background: rgba(163,230,53,0.08);
+      color: rgba(255,255,255,0.78);
+      font-size: 0.8rem;
+      line-height: 1.42;
+    }
+    .gr-terms-callout i {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(163,230,53,0.15);
+      color: #a3e635;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .gr-terms-item { display: flex; flex-direction: column; gap: 0.3rem; }
     .gr-terms-item-title { font-size: 0.85rem; font-weight: 700; color: #fff; }
@@ -1346,10 +1432,155 @@ function localDateStr(): string {
       font-size: 0.78rem; color: rgba(255,255,255,0.35); line-height: 1.5;
       border-top: 1px solid rgba(255,255,255,0.06); padding-top: 0.75rem; margin: 0;
     }
+    .gr-terms-doc {
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.04);
+      padding: 0.85rem;
+    }
+    .gr-terms-doc h1,
+    .gr-terms-doc h2,
+    .gr-terms-doc h3,
+    .gr-terms-modal-body h1,
+    .gr-terms-modal-body h2,
+    .gr-terms-modal-body h3 {
+      color: #a3e635;
+      line-height: 1.25;
+      margin: 1rem 0 0.35rem;
+    }
+    .gr-terms-doc h1:first-child,
+    .gr-terms-doc h2:first-child,
+    .gr-terms-doc h3:first-child {
+      margin-top: 0;
+    }
+    .gr-terms-doc h1,
+    .gr-terms-modal-body h1 {
+      font-size: 1.05rem;
+    }
+    .gr-terms-doc h2,
+    .gr-terms-modal-body h2 {
+      font-size: 0.86rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .gr-terms-doc h3,
+    .gr-terms-modal-body h3 {
+      font-size: 0.84rem;
+      font-weight: 800;
+    }
+    .gr-terms-doc p,
+    .gr-terms-modal-body p {
+      font-size: 0.83rem; color: rgba(255,255,255,0.66); margin: 0 0 0.55rem; line-height: 1.58;
+    }
+    .gr-terms-doc ul,
+    .gr-terms-doc ol,
+    .gr-terms-modal-body ul,
+    .gr-terms-modal-body ol {
+      margin: 0 0 0.55rem; padding: 0 0 0 1rem;
+    }
+    .gr-terms-doc li,
+    .gr-terms-modal-body li {
+      font-size: 0.82rem; color: rgba(255,255,255,0.64); line-height: 1.55; margin-bottom: 0.22rem;
+    }
+    .gr-terms-state {
+      min-height: 180px;
+      border: 1px dashed rgba(255,255,255,0.14);
+      border-radius: 8px;
+      color: rgba(255,255,255,0.58);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      text-align: center;
+      padding: 1rem;
+    }
+    .gr-terms-state i { color: #fca5a5; font-size: 1.5rem; }
+    .gr-terms-state strong { color: #fff; }
+    .gr-terms-state span { font-size: 0.82rem; line-height: 1.4; }
+    .gr-terms-modal-body a {
+      color: #a3e635;
+      text-decoration: none;
+    }
+    :host ::ng-deep .gr-terms-doc h1,
+    :host ::ng-deep .gr-terms-doc h2,
+    :host ::ng-deep .gr-terms-doc h3 {
+      color: #e8f5e9;
+      line-height: 1.22;
+      margin: 0.95rem 0 0.35rem;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+    :host ::ng-deep .gr-terms-doc h1:first-child,
+    :host ::ng-deep .gr-terms-doc h2:first-child,
+    :host ::ng-deep .gr-terms-doc h3:first-child {
+      margin-top: 0;
+    }
+    :host ::ng-deep .gr-terms-doc h1 {
+      font-size: 1rem;
+      color: #a3e635;
+    }
+    :host ::ng-deep .gr-terms-doc h2 {
+      font-size: 0.96rem;
+      color: #fff;
+    }
+    :host ::ng-deep .gr-terms-doc h3 {
+      font-size: 0.9rem;
+    }
+    :host ::ng-deep .gr-terms-doc p {
+      margin: 0 0 0.58rem;
+      color: rgba(255,255,255,0.66);
+      font-size: 0.84rem;
+      line-height: 1.55;
+      font-weight: 400;
+    }
+    :host ::ng-deep .gr-terms-doc ul,
+    :host ::ng-deep .gr-terms-doc ol {
+      margin: 0 0 0.65rem;
+      padding-left: 1.1rem;
+    }
+    :host ::ng-deep .gr-terms-doc li {
+      color: rgba(255,255,255,0.66);
+      font-size: 0.84rem;
+      line-height: 1.5;
+      margin-bottom: 0.22rem;
+    }
+    :host ::ng-deep .gr-terms-doc strong {
+      color: #fff;
+      font-weight: 800;
+    }
+    :host ::ng-deep .gr-terms-doc em {
+      color: rgba(255,255,255,0.72);
+      font-style: normal;
+    }
+    :host ::ng-deep .gr-terms-doc hr {
+      border: 0;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      margin: 0.9rem 0;
+    }
     .gr-terms-modal-footer {
-      padding: 1rem 1.5rem;
-      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 0.9rem 1rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
       flex-shrink: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 1rem;
+      align-items: center;
+      background: rgba(0,0,0,0.18);
+    }
+    .gr-terms-modal-footer p {
+      margin: 0;
+      color: rgba(255,255,255,0.48);
+      font-size: 0.78rem;
+      line-height: 1.35;
+    }
+    .gr-terms-modal-footer .gr-submit-btn {
+      min-width: 150px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
     }
 
     .gr-select {
@@ -1465,6 +1696,27 @@ function localDateStr(): string {
     @media (max-width: 600px) {
       .gr-body { padding: 1rem; }
       .gr-sidebar { grid-template-columns: 1fr; }
+      .gr-modal-overlay { padding: 0; align-items: flex-end; }
+      .gr-terms-modal {
+        max-height: 92vh;
+        border-radius: 14px 14px 0 0;
+        border-left: 0;
+        border-right: 0;
+        border-bottom: 0;
+      }
+      .gr-terms-modal-header { padding: 0.9rem; }
+      .gr-terms-heading { gap: 0.65rem; }
+      .gr-terms-heading-icon { width: 40px; height: 40px; }
+      .gr-terms-heading p { font-size: 0.76rem; }
+      .gr-terms-modal-body { padding: 0.85rem; }
+      .gr-terms-callout { grid-template-columns: 1fr; gap: 0.55rem; }
+      .gr-terms-callout i { width: 30px; height: 30px; }
+      .gr-terms-doc { padding: 0.82rem; }
+      .gr-terms-modal-footer {
+        grid-template-columns: 1fr;
+        gap: 0.65rem;
+      }
+      .gr-terms-modal-footer .gr-submit-btn { width: 100%; }
     }
   `],
 })
@@ -1573,6 +1825,10 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   requirePaymentScreenshot = false;
   agreedToTerms = false;
   showTerms = false;
+  // Content is superadmin-managed — bypass sanitization for rendered markdown
+  guestTermsHtml: SafeHtml = '';
+  guestTermsNotification = '';
+  termsLoadError = false;
 
   courtNumbers = computed(() => Array.from({ length: this.courtCount() }, (_, i) => i + 1));
 
@@ -1740,7 +1996,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     if (!this.confirmationData) return '';
     const slot = this.confirmationData.reservation.timeSlot;
     const d = this.confirmationData.reservation.durationHours ?? 1;
-    return d <= 1 ? slot : `${slot} – ${hourToSlot(slotToHour(slot) + d)}`;
+    return `${slot} – ${hourToSlot(slotToHour(slot) + d)}`;
   }
 
   constructor(
@@ -1750,6 +2006,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
     private cloudinaryService: CloudinaryService,
+    private sanitizer: DomSanitizer,
   ) {}
 
   ngOnInit() {
@@ -1785,6 +2042,11 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
           );
           this.requirePaymentScreenshot = club.requirePaymentScreenshot ?? false;
           this.clubPhotos.set(club.photos ?? []);
+          if (club.guestTermsText) {
+            const html = marked.parse(club.guestTermsText) as string;
+            this.guestTermsHtml = this.sanitizer.bypassSecurityTrustHtml(html);
+          }
+          this.guestTermsNotification = club.guestTermsNotification ?? '';
           this.loadAvailability();
         }
         this.cdr.detectChanges();

@@ -36,6 +36,8 @@ const clubSchema = new mongoose.Schema(
     requirePaymentScreenshot: { type: Boolean, default: false },
     balanceAlertEnabled: { type: Boolean, default: false },
     description: { type: String, trim: true },
+    guestTermsText: { type: String, default: null },
+    guestTermsNotification: { type: String, default: null },
     bookingQrCode: { type: String, default: null },
     photos: { type: [String], default: [] },
     socialLinks: {
