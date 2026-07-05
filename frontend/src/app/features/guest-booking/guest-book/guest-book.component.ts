@@ -26,8 +26,11 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
       } @else {
 
         <!-- Hero Banner -->
-        <div class="lp-hero-banner"
-             [style.backgroundImage]="clubPhotos[0] ? 'url(' + clubPhotos[0] + ')' : null"></div>
+        <div class="lp-hero-banner">
+          @if (clubPhotos[0]) {
+            <img class="lp-hero-img" [src]="clubPhotos[0]" alt="Club cover photo" />
+          }
+        </div>
 
         <!-- Club Info Row -->
         <div class="lp-club-row">
@@ -535,12 +538,15 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
     /* ── Hero Banner ── */
     .lp-hero-banner {
       width: 100%;
-      height: 220px;
-      background: linear-gradient(180deg, #081910 0%, #133a1e 45%, #0c1a11 100%);
-      background-size: cover;
-      background-position: center;
+      background: #0c1a11;
       position: relative;
       overflow: hidden;
+    }
+
+    .lp-hero-img {
+      width: 100%;
+      height: auto;
+      display: block;
     }
     .lp-hero-banner::before {
       content: '';
@@ -1212,7 +1218,7 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
       .lp-pricing-grid  { grid-template-columns: repeat(2, 1fr); }
       .lp-info-grid     { grid-template-columns: 1fr; }
       .lp-inq-row       { grid-template-columns: 1fr; }
-      .lp-hero-banner   { height: 160px; }
+      .lp-hero-img      { max-height: 280px; object-fit: cover; object-position: center; }
     }
   `],
 })
