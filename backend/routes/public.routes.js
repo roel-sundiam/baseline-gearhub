@@ -605,8 +605,12 @@ router.post("/:clubId/reserve", async (req, res) => {
     const feeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.05;
     const feeMode = club.convenienceFeeMode ?? 'per_hour';
     let convenienceFee = 0;
-    if (feeMode !== 'monthly_flat') {
+    if (feeMode !== 'monthly_flat' && feeMode !== 'club_absorbs') {
       const convenienceFeeBase = feeMode === 'per_transaction' ? hourlyRate : courtFee;
+      convenienceFee = parseFloat((convenienceFeeBase * feeRate).toFixed(2));
+    } else if (feeMode === 'club_absorbs') {
+      // Fee is calculated for record-keeping but not charged to the player
+      const convenienceFeeBase = courtFee;
       convenienceFee = parseFloat((convenienceFeeBase * feeRate).toFixed(2));
     }
 
@@ -635,7 +639,10 @@ router.post("/:clubId/reserve", async (req, res) => {
       ? parseFloat((coachingTierRate * sanitizedCoachingPax * durationHours).toFixed(2))
       : 0;
 
-    const totalAmount = courtFee + convenienceFee + extraFeeTotal + coachingFee;
+    // club_absorbs: player pays court fee only; convenience fee is recorded but not added to totalAmount
+    const totalAmount = feeMode === 'club_absorbs'
+      ? courtFee + extraFeeTotal + coachingFee
+      : courtFee + convenienceFee + extraFeeTotal + coachingFee;
 
     const reservation = await Reservation.create({
       clubId: resolvedClubId,
@@ -761,6 +768,17 @@ router.get("/:clubId/hosted-play", async (req, res) => {
       date: { $gte: today },
     }).sort({ date: 1, startTime: 1 }).lean();
 
+    const courts = Array.isArray(club.courts) ? club.courts : [];
+    const findLogo = (venue, court) => {
+      const v = (venue || '').trim().toLowerCase();
+      const c = (court || '').trim().toLowerCase();
+      const match = courts.find(ct => {
+        const n = (ct.name || '').trim().toLowerCase();
+        return n === v || (c && n === c);
+      });
+      return match?.logo || null;
+    };
+
     res.json(sessions.map(s => ({
       _id: s._id,
       title: s.title,
@@ -774,6 +792,7 @@ router.get("/:clubId/hosted-play", async (req, res) => {
       maxPlayers: s.maxPlayers,
       currentPlayers: s.currentPlayers,
       status: s.status,
+      venueLogo: findLogo(s.venue, s.court),
     })));
   } catch (err) {
     console.error(err);

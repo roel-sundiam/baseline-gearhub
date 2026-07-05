@@ -35,6 +35,7 @@ const chargeSchema = new mongoose.Schema(
       guestFee: { type: Number, default: 0 },
       rentalFee: { type: Number, default: 0 },
       convenienceFee: { type: Number, default: 0 },
+      convenienceFeeMode: { type: String, default: null },
       extraFees: [{ name: { type: String }, amount: { type: Number, default: 0 } }],
       extraFeeTotal: { type: Number, default: 0 },
       coachingFee: { type: Number, default: 0 },

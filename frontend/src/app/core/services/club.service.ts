@@ -35,7 +35,7 @@ export interface Club {
   paymentAccounts?: Record<string, string>;
   paymentQrCodes?: Record<string, string>;
   convenienceFeeRate?: number;
-  convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat';
+  convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs';
   convenienceFeeMonthlyAmount?: number;
   additionalFees?: AdditionalFee[];
   description?: string;
@@ -91,7 +91,7 @@ export class ClubService {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/status`, { status });
   }
 
-  patchConvenienceFee(id: string, convenienceFeeRate: number, convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat', convenienceFeeMonthlyAmount?: number) {
+  patchConvenienceFee(id: string, convenienceFeeRate: number, convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs', convenienceFeeMonthlyAmount?: number) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/convenience-fee`, { convenienceFeeRate, convenienceFeeMode, ...(convenienceFeeMonthlyAmount !== undefined ? { convenienceFeeMonthlyAmount } : {}) });
   }
 

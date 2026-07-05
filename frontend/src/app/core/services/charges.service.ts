@@ -13,7 +13,7 @@ export interface Charge {
   gameJoinId?: string;
   hostedPlayId?: { _id: string; title: string; date: string; startTime: string; endTime: string; sport: string; venue?: string } | string;
   amount: number;
-  breakdown: { withoutLightFee: number; lightFee: number; ballBoyFee: number; guestFee?: number; rentalFee?: number; convenienceFee?: number; extraFees?: { name: string; amount: number }[]; extraFeeTotal?: number; coachingFee?: number; gameFee?: number; hostedPlayFee?: number };
+  breakdown: { withoutLightFee: number; lightFee: number; ballBoyFee: number; guestFee?: number; rentalFee?: number; convenienceFee?: number; convenienceFeeMode?: string; extraFees?: { name: string; amount: number }[]; extraFeeTotal?: number; coachingFee?: number; gameFee?: number; hostedPlayFee?: number };
   chargeType: 'reservation' | 'session' | 'open_play_session' | 'per_game' | 'hosted_play';
   status: 'unpaid' | 'paid';
   approvalStatus?: 'none' | 'pending' | 'approved' | 'rejected';

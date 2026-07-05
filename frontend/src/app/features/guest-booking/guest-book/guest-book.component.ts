@@ -203,7 +203,11 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
                       @for (s of hostedPlaySessions; track s._id) {
                         <div class="lp-op-row">
                           <div class="lp-op-sport">
-                            <i [class]="s.sport === 'pickleball' ? 'fas fa-table-tennis' : 'fas fa-circle-dot'"></i>
+                            @if (s.venueLogo) {
+                              <img [src]="s.venueLogo" [alt]="s.venue" class="lp-op-venue-logo" />
+                            } @else {
+                              <i [class]="s.sport === 'pickleball' ? 'fas fa-table-tennis' : 'fas fa-circle-dot'"></i>
+                            }
                           </div>
                           <div class="lp-op-info">
                             <div class="lp-op-title">{{ s.title }}</div>
@@ -789,7 +793,9 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
       width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
       background: rgba(163,230,53,0.1); color: #a3e635;
       display: flex; align-items: center; justify-content: center; font-size: 1rem;
+      overflow: hidden;
     }
+    .lp-op-venue-logo { width: 36px; height: 36px; object-fit: cover; display: block; }
     .lp-op-info { flex: 1; min-width: 0; }
     .lp-op-title { font-size: 0.88rem; font-weight: 700; color: #fff; margin-bottom: 0.25rem; }
     .lp-op-meta { display: flex; flex-wrap: wrap; gap: 0.6rem; font-size: 0.74rem; color: rgba(255,255,255,0.45); }
@@ -1224,6 +1230,7 @@ export class GuestBookComponent implements OnInit, OnDestroy {
     date: string; startTime: string; endTime: string;
     venue: string; court?: string; feePerPlayer: number;
     maxPlayers: number; currentPlayers: number; status: 'open' | 'full';
+    venueLogo?: string | null;
   }[] = [];
   clubMobile = '';
   clubEmail = '';

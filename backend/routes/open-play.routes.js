@@ -361,7 +361,7 @@ router.post("/sessions", auth, admin, async (req, res) => {
     const sessionHours = parseInt(endTime.split(":")[0], 10) - parseInt(startTime.split(":")[0], 10);
     const feeMode = club?.convenienceFeeMode ?? 'per_hour';
     const feeRate = typeof club?.convenienceFeeRate === "number" ? club.convenienceFeeRate : 0.10;
-    const fee = feeMode === 'monthly_flat'
+    const fee = (feeMode === 'monthly_flat' || feeMode === 'club_absorbs')
       ? 0
       : parseFloat((hourlyRate * Math.max(sessionHours, 0) * feeRate).toFixed(2));
 

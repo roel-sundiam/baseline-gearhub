@@ -175,10 +175,13 @@ router.post("/:id/record", auth, admin, async (req, res) => {
     // Convenience fee: charged once per transaction (not per game), same as reservations.
     const feeRate = typeof club?.convenienceFeeRate === "number" ? club.convenienceFeeRate : 0.10;
     const feeMode = club?.convenienceFeeMode ?? "per_hour";
-    const convenienceFee =
-      feeMode === "monthly_flat" ? 0 : parseFloat((subtotal * feeRate).toFixed(2));
+    const convenienceFee = (feeMode === "monthly_flat" || feeMode === "club_absorbs")
+      ? 0
+      : parseFloat((subtotal * feeRate).toFixed(2));
 
-    const amount = parseFloat((subtotal + convenienceFee).toFixed(2));
+    const amount = feeMode === "club_absorbs"
+      ? parseFloat(subtotal.toFixed(2))
+      : parseFloat((subtotal + convenienceFee).toFixed(2));
 
     const charge = await Charge.create({
       clubId: entry.clubId,
@@ -245,8 +248,12 @@ router.put("/:id/record", auth, admin, async (req, res) => {
     const subtotal = gameFee + guestFee;
     const feeRate = typeof club?.convenienceFeeRate === "number" ? club.convenienceFeeRate : 0.10;
     const feeMode = club?.convenienceFeeMode ?? "per_hour";
-    const convenienceFee = feeMode === "monthly_flat" ? 0 : parseFloat((subtotal * feeRate).toFixed(2));
-    const amount = parseFloat((subtotal + convenienceFee).toFixed(2));
+    const convenienceFee = (feeMode === "monthly_flat" || feeMode === "club_absorbs")
+      ? 0
+      : parseFloat((subtotal * feeRate).toFixed(2));
+    const amount = feeMode === "club_absorbs"
+      ? parseFloat(subtotal.toFixed(2))
+      : parseFloat((subtotal + convenienceFee).toFixed(2));
 
     const charge = await Charge.findByIdAndUpdate(
       entry.chargeId,

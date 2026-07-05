@@ -6,6 +6,11 @@ import { environment } from '../../../environments/environment';
 
 export type HostedPlayStatus = 'open' | 'full' | 'closed' | 'cancelled';
 
+export interface HostedPlayJoinPayload {
+  paymentMethod?: string;
+  paymentScreenshot?: string;
+}
+
 export interface HostedPlaySession {
   _id: string;
   clubId: string;
@@ -33,6 +38,7 @@ export interface HostedPlaySession {
   joined?: boolean;
   participants?: HostedPlayParticipant[];
   convenienceFeePerPlayer?: number;
+  convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs';
   queueManagementFeePerPlayer?: number;
   totalPerPlayer?: number;
 }
@@ -128,9 +134,9 @@ export class HostedPlayService {
     return this.http.get<HostedPlaySession>(`${this.base}/player/sessions/${id}`);
   }
 
-  join(id: string) {
-    return this.http.post<{ success: boolean; currentPlayers: number; status: HostedPlayStatus }>(
-      `${this.base}/player/sessions/${id}/join`, {});
+  join(id: string, payment?: HostedPlayJoinPayload) {
+    return this.http.post<{ success: boolean; currentPlayers: number; status: HostedPlayStatus; chargeId?: string }>(
+      `${this.base}/player/sessions/${id}/join`, payment ?? {});
   }
 
   cancelJoin(id: string) {

@@ -1083,7 +1083,7 @@ export class FinanceComponent implements OnInit {
   bookingEndDate = '';
   bookingStatusFilter: 'all' | 'confirmed' | 'pending_payment' | 'cancelled' = 'all';
 
-  convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' = 'per_hour';
+  convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs' = 'per_hour';
   convenienceFeeMonthlyAmount = 0;
 
   get isMonthlyFlat() { return this.convenienceFeeMode === 'monthly_flat'; }

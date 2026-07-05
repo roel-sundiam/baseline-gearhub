@@ -97,8 +97,8 @@ router.patch("/:id/convenience-fee", auth, superadmin, async (req, res) => {
       update.convenienceFeeRate = rate;
     }
     if (req.body.convenienceFeeMode !== undefined) {
-      if (!["per_transaction", "per_hour", "monthly_flat"].includes(req.body.convenienceFeeMode)) {
-        return res.status(400).json({ error: "convenienceFeeMode must be 'per_transaction', 'per_hour', or 'monthly_flat'" });
+      if (!["per_transaction", "per_hour", "monthly_flat", "club_absorbs"].includes(req.body.convenienceFeeMode)) {
+        return res.status(400).json({ error: "convenienceFeeMode must be 'per_transaction', 'per_hour', 'monthly_flat', or 'club_absorbs'" });
       }
       update.convenienceFeeMode = req.body.convenienceFeeMode;
     }

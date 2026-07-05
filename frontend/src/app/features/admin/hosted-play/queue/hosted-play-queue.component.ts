@@ -148,9 +148,18 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                                   <i class="fas fa-user-plus"></i> Add Player
                                 </button>
                               }
-                              <button class="finish-btn" [disabled]="busy" (click)="finish(c.courtNumber)">
-                                <i class="fas fa-check"></i> Finish
-                              </button>
+                              @if (confirmingFinishCourt === c.courtNumber) {
+                                <button class="finish-btn finish-btn--confirm" [disabled]="busy" (click)="confirmFinish(c.courtNumber)">
+                                  <i class="fas fa-exclamation"></i> Confirm?
+                                </button>
+                                <button class="finish-btn finish-btn--cancel" [disabled]="busy" (click)="cancelFinish()">
+                                  Cancel
+                                </button>
+                              } @else {
+                                <button class="finish-btn" [disabled]="busy" (click)="requestFinish(c.courtNumber)">
+                                  <i class="fas fa-check"></i> Finish
+                                </button>
+                              }
                             </div>
                           }
                         </div>
@@ -697,6 +706,9 @@ import { ClubService, Court } from '../../../../core/services/club.service';
     .primary-action { min-height: 48px; padding: .85rem 1.15rem; background: var(--accent); color: #07130d; box-shadow: 0 12px 24px rgba(163,230,53,.18); }
     .danger-action { min-height: 48px; padding: .85rem 1.15rem; background: rgba(239,68,68,.13); color: #fca5a5; border: 1px solid rgba(239,68,68,.28); }
     .primary-small, .finish-btn { min-height: 36px; padding: .48rem .78rem; background: var(--accent); color: #07130d; font-size: .78rem; }
+    .finish-btn--confirm { background: #f97316; color: #fff; animation: pulse .6s ease-in-out infinite alternate; }
+    .finish-btn--cancel { background: rgba(255,255,255,.08); color: var(--text); border: 1px solid var(--border); }
+    @keyframes pulse { from { opacity: 1; } to { opacity: .75; } }
     .secondary-btn { min-height: 36px; padding: .48rem .78rem; background: rgba(255,255,255,.07); color: var(--text); border: 1px solid var(--border); font-size: .78rem; }
     .text-action { padding: .35rem .65rem; color: var(--accent); background: rgba(163,230,53,.09); border: 1px solid rgba(163,230,53,.18); font-size: .76rem; }
     button:disabled { opacity: .48; cursor: not-allowed; }
@@ -947,6 +959,8 @@ export class AdminHostedPlayQueueComponent implements OnInit {
   error = '';
   busy = false;
   walkInName = '';
+  confirmingFinishCourt: number | null = null;
+  private finishConfirmTimer: ReturnType<typeof setTimeout> | null = null;
   lastUpdated = '';
   clubCourts: Court[] = [];
 
@@ -1073,7 +1087,28 @@ export class AdminHostedPlayQueueComponent implements OnInit {
     this.act(this.hp.addWalkIn(this.id, name));
   }
 
-  finish(court: number) { this.act(this.hp.finishCourt(this.id, court)); }
+  requestFinish(court: number) {
+    this.confirmingFinishCourt = court;
+    this.cdr.detectChanges();
+    if (this.finishConfirmTimer) clearTimeout(this.finishConfirmTimer);
+    this.finishConfirmTimer = setTimeout(() => {
+      this.confirmingFinishCourt = null;
+      this.finishConfirmTimer = null;
+      this.cdr.detectChanges();
+    }, 4000);
+  }
+
+  confirmFinish(court: number) {
+    if (this.finishConfirmTimer) { clearTimeout(this.finishConfirmTimer); this.finishConfirmTimer = null; }
+    this.confirmingFinishCourt = null;
+    this.act(this.hp.finishCourt(this.id, court));
+  }
+
+  cancelFinish() {
+    if (this.finishConfirmTimer) { clearTimeout(this.finishConfirmTimer); this.finishConfirmTimer = null; }
+    this.confirmingFinishCourt = null;
+    this.cdr.detectChanges();
+  }
 
   pause(p: QueuePlayer) { this.act(this.hp.pausePlayer(this.id, p._id)); }
   resume(p: QueuePlayer) { this.act(this.hp.resumePlayer(this.id, p._id)); }

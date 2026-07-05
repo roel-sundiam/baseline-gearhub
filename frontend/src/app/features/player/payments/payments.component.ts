@@ -130,9 +130,10 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                     } @else if (charge.chargeType === 'hosted_play') {
                       <div class="dm-detail-row">
                         <span class="dm-detail-icon"><i class="fas fa-calendar-check"></i></span>
-                        <span>Session fee {{ charge.breakdown.hostedPlayFee | currency: 'PHP' : 'symbol' }}</span>
-                        @if (charge.breakdown.convenienceFee) {
-                          <span class="dm-detail-sep">·</span><span>Fee {{ charge.breakdown.convenienceFee | currency: 'PHP' : 'symbol' }}</span>
+                        <span>Session fee {{ hostedPlaySessionFee(charge) | currency: 'PHP' : 'symbol' }}</span>
+                        @if ((charge.breakdown.convenienceFee ?? 0) > 0) {
+                          <span class="dm-detail-sep">·</span>
+                          <span>Fee {{ charge.breakdown.convenienceFee | currency: 'PHP' : 'symbol' }}{{ hostedPlayClubAbsorbs(charge) ? ' (Club absorbs)' : '' }}</span>
                         }
                       </div>
                     }
@@ -181,7 +182,13 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                       @if ((charge.breakdown.hostedPlayFee ?? 0) > 0) {
                         <div class="dm-bk-row">
                           <span>Session fee</span>
-                          <span>{{ charge.breakdown.hostedPlayFee | currency:'PHP':'symbol' }}</span>
+                          <span>{{ hostedPlaySessionFee(charge) | currency:'PHP':'symbol' }}</span>
+                        </div>
+                      }
+                      @if (hostedPlayClubAbsorbs(charge) && (charge.breakdown.convenienceFee ?? 0) > 0) {
+                        <div class="dm-bk-row">
+                          <span>Convenience fee <span style="font-size:.75rem;opacity:.55;font-style:italic">(Club absorbs)</span></span>
+                          <span>{{ charge.breakdown.convenienceFee | currency:'PHP':'symbol' }}</span>
                         </div>
                       }
                       @if ((charge.breakdown.guestFee ?? 0) > 0) {
@@ -196,7 +203,7 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                           <span>{{ charge.breakdown.rentalFee | currency:'PHP':'symbol' }}</span>
                         </div>
                       }
-                      @if ((charge.breakdown.convenienceFee ?? 0) > 0) {
+                      @if ((charge.breakdown.convenienceFee ?? 0) > 0 && !hostedPlayClubAbsorbs(charge)) {
                         <div class="dm-bk-row">
                           <span>Convenience fee</span>
                           <span>{{ charge.breakdown.convenienceFee | currency:'PHP':'symbol' }}</span>
@@ -285,8 +292,11 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                 <div class="dm-amount-box">
                   <span class="dm-amount-label">Amount Due</span>
                   <span class="dm-amount-display">{{ selectedCharge.amount | currency: 'PHP' : 'symbol' }}</span>
-                  @if ((selectedCharge.breakdown?.convenienceFee ?? 0) > 0) {
+                  @if ((selectedCharge.breakdown?.convenienceFee ?? 0) > 0 && !hostedPlayClubAbsorbs(selectedCharge)) {
                     <span class="dm-amount-fee-note">includes {{ selectedCharge.breakdown?.convenienceFee | currency: 'PHP' : 'symbol' }} convenience fee</span>
+                  }
+                  @if ((selectedCharge.breakdown?.convenienceFee ?? 0) > 0 && hostedPlayClubAbsorbs(selectedCharge)) {
+                    <span class="dm-amount-fee-note">{{ selectedCharge.breakdown?.convenienceFee | currency: 'PHP' : 'symbol' }} convenience fee absorbed by club</span>
                   }
                 </div>
 
@@ -1144,6 +1154,21 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
     this.renderer.addClass(document.body, 'dark-player-page');
     this.loadCharges();
     this.loadClubPaymentMethods();
+  }
+
+  hostedPlayClubAbsorbs(charge: Charge): boolean {
+    if (charge.chargeType !== 'hosted_play') return false;
+    if (charge.breakdown?.convenienceFeeMode === 'club_absorbs') return true;
+    // Detect old charges: if hostedPlayFee + convenienceFee exceeds the charged amount, club absorbed the fee
+    const hpFee = charge.breakdown?.hostedPlayFee ?? 0;
+    const cFee = charge.breakdown?.convenienceFee ?? 0;
+    return cFee > 0 && (hpFee + cFee) > charge.amount;
+  }
+
+  hostedPlaySessionFee(charge: Charge): number {
+    const hpFee = charge.breakdown?.hostedPlayFee ?? 0;
+    const cFee = charge.breakdown?.convenienceFee ?? 0;
+    return this.hostedPlayClubAbsorbs(charge) ? charge.amount - cFee : hpFee;
   }
 
   private loadClubPaymentMethods() {

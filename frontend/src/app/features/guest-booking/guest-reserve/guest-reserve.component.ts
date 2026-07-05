@@ -495,7 +495,7 @@ function localDateStr(): string {
                           <strong>{{ lightsRate * lightHours | currency: 'PHP' : 'symbol' }}</strong>
                         </div>
                       }
-                      @if (convenienceFeeMode !== 'monthly_flat') {
+                      @if (convenienceFeeMode !== 'monthly_flat' && convenienceFeeMode !== 'club_absorbs') {
                         <div class="gr-sum-row">
                           <span>&#128179; Convenience fee <span class="gr-sum-pct">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
                           <strong>{{ convenienceFee | currency: 'PHP' : 'symbol' }}</strong>
@@ -1763,7 +1763,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   confirmationData: GuestBookingResult | null = null;
 
   convenienceFeeRate = 0.05;
-  convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' = 'per_hour';
+  convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs' = 'per_hour';
   availableExtraFees: AdditionalFee[] = [];
   selectedExtraFeeNames = new Set<string>();
   weekdayRate = 0;
@@ -1916,7 +1916,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   }
 
   get convenienceFee(): number {
-    if (this.convenienceFeeMode === 'monthly_flat') return 0;
+    if (this.convenienceFeeMode === 'monthly_flat' || this.convenienceFeeMode === 'club_absorbs') return 0;
     const base = this.convenienceFeeMode === 'per_transaction' ? this.effectiveHourlyRate : this.subtotal;
     return parseFloat((base * this.convenienceFeeRate).toFixed(2));
   }

@@ -1,9 +1,10 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { Router } from '@angular/router';
-import { HostedPlayService, HostedPlaySession, HostedPlayParticipant } from '../../../core/services/hosted-play.service';
+import { HostedPlayService, HostedPlaySession, HostedPlayParticipant, HostedPlayJoinPayload } from '../../../core/services/hosted-play.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ClubService, Court } from '../../../core/services/club.service';
+import { CloudinaryService } from '../../../core/services/cloudinary.service';
 
 @Component({
   selector: 'app-player-hosted-play',
@@ -161,6 +162,102 @@ import { ClubService, Court } from '../../../core/services/club.service';
             </article>
           }
         </main>
+      }
+
+      @if (showPaymentModal && pendingSession) {
+        <div class="pm-backdrop" (click)="closePaymentModal()">
+          <div class="pm-modal" (click)="$event.stopPropagation()">
+
+            <div class="pm-header">
+              <span class="pm-title"><i class="fas fa-credit-card"></i> Complete Payment</span>
+              <button class="pm-close" (click)="closePaymentModal()" [disabled]="submittingPayment">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div class="pm-body">
+              <div class="pm-session-box">
+                <div class="pm-session-name">{{ pendingSession.title }}</div>
+                <div class="pm-fee-row">
+                  <span>Session fee</span>
+                  <span>{{ (pendingSession.convenienceFeeMode === 'club_absorbs'
+                    ? (pendingSession.feePerPlayer - (pendingSession.convenienceFeePerPlayer ?? 0))
+                    : pendingSession.feePerPlayer) | currency:'PHP':'symbol-narrow' }}</span>
+                </div>
+                <div class="pm-fee-row pm-fee-sub">
+                  <span>Convenience fee @if (pendingSession.convenienceFeeMode === 'club_absorbs') { <span class="pm-fee-absorbed">(Club absorbs)</span> }</span>
+                  <span>{{ (pendingSession.convenienceFeePerPlayer ?? 0) | currency:'PHP':'symbol-narrow' }}</span>
+                </div>
+                <div class="pm-fee-row pm-fee-total">
+                  <span>Total due</span>
+                  <span>{{ (pendingSession.totalPerPlayer ?? pendingSession.feePerPlayer) | currency:'PHP':'symbol-narrow' }}</span>
+                </div>
+              </div>
+
+              <div class="pm-section-label">Select Payment Method</div>
+              <div class="pm-methods">
+                @for (method of clubPaymentMethods; track method) {
+                  <button class="pm-method-btn" [class.active]="paymentMethod === method"
+                    (click)="setPaymentMethod(method)">{{ method }}</button>
+                }
+              </div>
+
+              @if (clubPaymentQrCodes[paymentMethod] || clubPaymentAccounts[paymentMethod]) {
+                <div class="pm-pay-details">
+                  @if (clubPaymentQrCodes[paymentMethod]) {
+                    <img [src]="clubPaymentQrCodes[paymentMethod]" alt="QR Code" class="pm-qr" />
+                  }
+                  @if (clubPaymentAccounts[paymentMethod]) {
+                    <div class="pm-account">
+                      <span class="pm-account-label">{{ paymentMethod }}</span>
+                      <span class="pm-account-value">{{ clubPaymentAccounts[paymentMethod] }}</span>
+                    </div>
+                  }
+                </div>
+              }
+
+              <div class="pm-section-label">Proof of Payment <span class="pm-required">Required</span></div>
+              @if (screenshotPreviewUrl) {
+                <div class="pm-preview">
+                  <img [src]="screenshotPreviewUrl" alt="Payment screenshot" class="pm-preview-img" />
+                  @if (uploadingScreenshot) {
+                    <div class="pm-uploading-overlay"><i class="fas fa-circle-notch fa-spin"></i></div>
+                  } @else {
+                    <button class="pm-preview-remove" type="button"
+                      (click)="clearScreenshot()">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  }
+                </div>
+              } @else {
+                <label class="pm-upload-btn" [class.uploading]="uploadingScreenshot">
+                  <i class="fas fa-camera"></i>
+                  <span>{{ uploadingScreenshot ? 'Uploading…' : 'Tap to attach screenshot' }}</span>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none"
+                    [disabled]="uploadingScreenshot" (change)="onScreenshotSelected($event)" />
+                </label>
+              }
+
+              @if (paymentError) {
+                <div class="pm-error"><i class="fas fa-exclamation-triangle"></i> {{ paymentError }}</div>
+              }
+
+              <div class="pm-footer">
+                <button class="pm-cancel" (click)="closePaymentModal()" [disabled]="submittingPayment">Cancel</button>
+                <button class="pm-submit"
+                  [disabled]="!paymentScreenshotUrl || uploadingScreenshot || submittingPayment"
+                  (click)="submitJoinWithPayment()">
+                  @if (submittingPayment) {
+                    <i class="fas fa-circle-notch fa-spin"></i> Joining…
+                  } @else {
+                    Join & Submit Payment
+                  }
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
       }
     </div>
   `,
@@ -586,6 +683,47 @@ import { ClubService, Court } from '../../../core/services/club.service';
       .detail-grid { grid-template-columns: 1fr; gap: .55rem; }
       .capacity-line { align-items: flex-start; flex-direction: column; gap: .25rem; }
     }
+
+    .pm-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:1000; display:flex; align-items:flex-end; justify-content:center; }
+    @media (min-width:600px) { .pm-backdrop { align-items:center; } }
+    .pm-modal { background:#1b3028; border-radius:20px 20px 0 0; width:100%; max-width:480px; max-height:85vh; overflow-y:auto; animation:pmSlideUp .22s ease-out; }
+    @media (min-width:600px) { .pm-modal { border-radius:16px; } }
+    @keyframes pmSlideUp { from { transform:translateY(24px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+    .pm-header { display:flex; align-items:center; justify-content:space-between; padding:1.1rem 1.25rem .9rem; border-bottom:1px solid rgba(255,255,255,.07); }
+    .pm-title { font-size:.95rem; font-weight:700; color:#fff; display:flex; align-items:center; gap:.5rem; }
+    .pm-close { background:rgba(255,255,255,.08); border:none; color:rgba(255,255,255,.5); width:30px; height:30px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .pm-close:disabled { opacity:.4; cursor:not-allowed; }
+    .pm-body { padding:1.25rem; display:flex; flex-direction:column; gap:1rem; }
+    .pm-session-box { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:.85rem 1rem; }
+    .pm-session-name { font-weight:700; color:#fff; font-size:.9rem; margin-bottom:.55rem; }
+    .pm-fee-row { display:flex; justify-content:space-between; color:rgba(255,255,255,.62); font-size:.83rem; padding:.2rem 0; }
+    .pm-fee-sub { font-size:.78rem; }
+    .pm-fee-absorbed { font-size:.72rem; color:rgba(255,255,255,.45); font-style:italic; margin-left:.25rem; }
+    .pm-fee-total { color:#fff; font-weight:700; font-size:.9rem; border-top:1px solid rgba(255,255,255,.08); margin-top:.35rem; padding-top:.45rem; }
+    .pm-section-label { font-size:.78rem; font-weight:800; color:rgba(255,255,255,.55); text-transform:uppercase; letter-spacing:.06em; }
+    .pm-required { color:#f87171; font-size:.72rem; font-weight:700; margin-left:.35rem; }
+    .pm-methods { display:flex; gap:.5rem; flex-wrap:wrap; }
+    .pm-method-btn { flex:1 1 0; min-width:80px; padding:.65rem .5rem; border:1px solid rgba(255,255,255,.12); border-radius:8px; background:rgba(255,255,255,.05); color:rgba(255,255,255,.7); font-size:.82rem; font-weight:700; font-family:inherit; cursor:pointer; transition:border-color .15s,background .15s; }
+    .pm-method-btn.active { border-color:var(--accent); background:rgba(163,230,53,.1); color:var(--accent); }
+    .pm-upload-btn { display:flex; flex-direction:column; align-items:center; gap:.55rem; padding:1.25rem; border:2px dashed rgba(255,255,255,.15); border-radius:10px; background:rgba(255,255,255,.03); color:rgba(255,255,255,.55); font-size:.86rem; font-weight:700; cursor:pointer; transition:border-color .15s,background .15s; }
+    .pm-upload-btn i { font-size:1.35rem; color:var(--accent); }
+    .pm-upload-btn.uploading { opacity:.6; cursor:not-allowed; }
+    .pm-upload-btn:hover:not(.uploading) { border-color:rgba(163,230,53,.35); background:rgba(163,230,53,.04); }
+    .pm-preview { position:relative; border-radius:10px; overflow:hidden; max-height:180px; }
+    .pm-preview-img { width:100%; max-height:180px; object-fit:cover; display:block; }
+    .pm-preview-remove { position:absolute; top:.5rem; right:.5rem; background:rgba(0,0,0,.65); color:#fff; border:none; border-radius:50%; width:26px; height:26px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .pm-uploading-overlay { position:absolute; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.5rem; }
+    .pm-error { padding:.6rem .85rem; border-radius:8px; background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.25); color:#fca5a5; font-size:.82rem; display:flex; align-items:center; gap:.4rem; }
+    .pm-footer { display:flex; gap:.65rem; }
+    .pm-cancel { flex:0 0 auto; padding:.8rem 1.1rem; border:1px solid rgba(255,255,255,.12); border-radius:8px; background:rgba(255,255,255,.06); color:rgba(255,255,255,.7); font-weight:700; font-family:inherit; cursor:pointer; }
+    .pm-cancel:disabled { opacity:.4; cursor:not-allowed; }
+    .pm-submit { flex:1; min-height:46px; border:none; border-radius:8px; background:var(--accent); color:#07130d; font-weight:900; font-size:.94rem; font-family:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:.45rem; transition:opacity .15s; }
+    .pm-submit:disabled { opacity:.4; cursor:not-allowed; }
+    .pm-pay-details { display:flex; flex-direction:column; align-items:center; gap:.75rem; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:1rem; }
+    .pm-qr { width:160px; height:160px; object-fit:contain; border-radius:8px; background:#fff; padding:6px; }
+    .pm-account { display:flex; flex-direction:column; align-items:center; gap:.2rem; }
+    .pm-account-label { font-size:.72rem; font-weight:800; color:rgba(255,255,255,.45); text-transform:uppercase; letter-spacing:.06em; }
+    .pm-account-value { font-size:1rem; font-weight:700; color:#fff; letter-spacing:.03em; }
   `],
 })
 export class PlayerHostedPlayComponent implements OnInit {
@@ -598,6 +736,18 @@ export class PlayerHostedPlayComponent implements OnInit {
   expandedId: string | null = null;
   playersLoading = false;
   players: HostedPlayParticipant[] = [];
+  clubPaymentMethods: string[] = [];
+  clubPaymentAccounts: Record<string, string> = {};
+  clubPaymentQrCodes: Record<string, string> = {};
+
+  showPaymentModal = false;
+  pendingSession: HostedPlaySession | null = null;
+  paymentMethod: string = 'GCash';
+  paymentScreenshotUrl: string | null = null;
+  screenshotPreviewUrl: string | null = null;
+  uploadingScreenshot = false;
+  submittingPayment = false;
+  paymentError: string | null = null;
 
   constructor(
     private hp: HostedPlayService,
@@ -605,6 +755,7 @@ export class PlayerHostedPlayComponent implements OnInit {
     private cdr: ChangeDetectorRef,
     private auth: AuthService,
     private clubService: ClubService,
+    private cloudinary: CloudinaryService,
   ) {}
 
   ngOnInit() {
@@ -619,6 +770,9 @@ export class PlayerHostedPlayComponent implements OnInit {
     this.clubService.getClub(clubId).subscribe({
       next: (club) => {
         this.clubCourts = club.courts ?? [];
+        this.clubPaymentMethods = (club.paymentMethods ?? []).filter(m => m !== 'Cash');
+        this.clubPaymentAccounts = club.paymentAccounts ?? {};
+        this.clubPaymentQrCodes = club.paymentQrCodes ?? {};
         this.cdr.detectChanges();
       },
       error: () => {},
@@ -701,6 +855,18 @@ export class PlayerHostedPlayComponent implements OnInit {
   }
 
   join(s: HostedPlaySession) {
+    if ((s.feePerPlayer ?? 0) > 0) {
+      this.pendingSession = s;
+      this.paymentMethod = this.clubPaymentMethods[0] ?? 'GCash';
+      this.paymentScreenshotUrl = null;
+      this.screenshotPreviewUrl = null;
+      this.uploadingScreenshot = false;
+      this.submittingPayment = false;
+      this.paymentError = null;
+      this.showPaymentModal = true;
+      this.cdr.detectChanges();
+      return;
+    }
     this.busyId = s._id;
     this.errorMap[s._id] = '';
     this.hp.join(s._id).subscribe({
@@ -718,6 +884,85 @@ export class PlayerHostedPlayComponent implements OnInit {
         this.cdr.detectChanges();
       },
     });
+  }
+
+  async onScreenshotSelected(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const err = this.cloudinary.validateImage(file);
+    if (err) { this.paymentError = err; this.cdr.detectChanges(); return; }
+
+    this.uploadingScreenshot = true;
+    this.paymentError = null;
+    this.screenshotPreviewUrl = URL.createObjectURL(file);
+    this.cdr.detectChanges();
+    try {
+      this.paymentScreenshotUrl = await this.cloudinary.uploadImage(file, 'payment-screenshots');
+    } catch {
+      this.paymentError = 'Failed to upload screenshot. Please try again.';
+      this.paymentScreenshotUrl = null;
+      this.screenshotPreviewUrl = null;
+    } finally {
+      this.uploadingScreenshot = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  submitJoinWithPayment() {
+    const s = this.pendingSession;
+    if (!s || !this.paymentScreenshotUrl || this.submittingPayment) return;
+    this.submittingPayment = true;
+    this.paymentError = null;
+    this.busyId = s._id;
+    this.cdr.detectChanges();
+
+    const payload: HostedPlayJoinPayload = {
+      paymentMethod: this.paymentMethod,
+      paymentScreenshot: this.paymentScreenshotUrl,
+    };
+
+    this.hp.join(s._id, payload).subscribe({
+      next: (r) => {
+        s.joined = true;
+        s.currentPlayers = r.currentPlayers;
+        s.status = r.status;
+        this.busyId = null;
+        this.submittingPayment = false;
+        if (this.expandedId === s._id) this.loadPlayers(s._id);
+        this.closePaymentModal();
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.busyId = null;
+        this.submittingPayment = false;
+        this.paymentError = err?.error?.error || 'Failed to join. Please try again.';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  setPaymentMethod(method: string) {
+    this.paymentMethod = method;
+    this.cdr.detectChanges();
+  }
+
+  clearScreenshot() {
+    this.paymentScreenshotUrl = null;
+    this.screenshotPreviewUrl = null;
+    this.cdr.detectChanges();
+  }
+
+  closePaymentModal() {
+    if (this.submittingPayment) return;
+    this.showPaymentModal = false;
+    this.pendingSession = null;
+    this.paymentMethod = 'GCash';
+    this.paymentScreenshotUrl = null;
+    this.screenshotPreviewUrl = null;
+    this.uploadingScreenshot = false;
+    this.submittingPayment = false;
+    this.paymentError = null;
+    this.cdr.detectChanges();
   }
 
   cancel(s: HostedPlaySession) {

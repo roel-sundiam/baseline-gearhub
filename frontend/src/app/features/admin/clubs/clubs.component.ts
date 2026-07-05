@@ -382,6 +382,9 @@ interface AdminUser {
                   @if (club.convenienceFeeMode === 'monthly_flat') {
                     <i class="fas fa-money-bill-wave"></i>
                     ₱{{ (club.convenienceFeeMonthlyAmount ?? 0) | number:'1.0-2' }} flat/mo
+                  } @else if (club.convenienceFeeMode === 'club_absorbs') {
+                    <i class="fas fa-building"></i>
+                    {{ ((club.convenienceFeeRate ?? 0.10) * 100) | number:'1.0-1' }}% club absorbs
                   } @else {
                     <i class="fas fa-percentage"></i>
                     {{ ((club.convenienceFeeRate ?? 0.10) * 100) | number:'1.0-1' }}%
@@ -625,6 +628,8 @@ interface AdminUser {
                     <span class="cfs-current-badge">
                       @if (selectedClub?.convenienceFeeMode === 'monthly_flat') {
                         Monthly Flat — ₱{{ (selectedClub?.convenienceFeeMonthlyAmount ?? 0) | number:'1.0-2' }}/mo
+                      } @else if (selectedClub?.convenienceFeeMode === 'club_absorbs') {
+                        Club Absorbs {{ ((selectedClub?.convenienceFeeRate ?? 0.10) * 100) | number:'1.0-1' }}%
                       } @else {
                         Currently {{ ((selectedClub?.convenienceFeeRate ?? 0.10) * 100) | number:'1.0-1' }}%
                       }
@@ -650,6 +655,11 @@ interface AdminUser {
                           <span class="cfs-mode-name">Monthly Flat</span>
                           <span class="cfs-mode-desc">Fixed monthly amount</span>
                         </button>
+                        <button type="button" class="cfs-mode-opt" [class.cfs-mode-opt-active]="editConvenienceFeeMode === 'club_absorbs'" (click)="editConvenienceFeeMode = 'club_absorbs'">
+                          <i class="fas fa-building"></i>
+                          <span class="cfs-mode-name">Club Absorbs</span>
+                          <span class="cfs-mode-desc">Club pays fee, player pays base only</span>
+                        </button>
                       </div>
                     </div>
 
@@ -667,7 +677,7 @@ interface AdminUser {
                         <div class="cfs-rate-row">
                           <input type="number" class="cfs-rate-input" [(ngModel)]="editConvenienceFeeRate" min="0" max="100" step="0.1" />
                           <span class="cfs-pct">%</span>
-                          <span class="cfs-rate-hint">of total court fee per booking</span>
+                          <span class="cfs-rate-hint">{{ editConvenienceFeeMode === 'club_absorbs' ? 'club absorbs this % from court fee' : 'of total court fee per booking' }}</span>
                         </div>
                       </div>
                     }
@@ -3964,7 +3974,7 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   aspScreenshot: File | null = null;
   aspScreenshotPreviewUrl: string | null = null;
 
-  editConvenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' = 'per_hour';
+  editConvenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs' = 'per_hour';
   editConvenienceFeeRate = 10;
   editConvenienceFeeMonthlyAmount = 0;
   savingFeeMode = false;

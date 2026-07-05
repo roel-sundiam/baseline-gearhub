@@ -409,7 +409,7 @@ interface ActivePlayer { _id: string; name: string; email: string; }
               </div>
             }
 
-            @if (convenienceFeeMode !== 'monthly_flat') {
+            @if (convenienceFeeMode !== 'monthly_flat' && convenienceFeeMode !== 'club_absorbs') {
               <div class="dm-summary-row">
                 <span>Convenience Fee <span class="dm-summary-sub">({{ (convenienceFeeRate * 100) | number: '1.0-2' }}%)</span></span>
                 <strong>@if (loadingRates) { — } @else { {{ convenienceFee | currency: 'PHP' : 'symbol' }} }</strong>
@@ -1101,7 +1101,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   showDropdown = false;
 
   convenienceFeeRate = 0.10;
-  convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' = 'per_hour';
+  convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs' = 'per_hour';
   availableExtraFees: AdditionalFee[] = [];
   selectedExtraFeeNames = new Set<string>();
   weekdayRate = 0;
@@ -1196,7 +1196,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   }
 
   get convenienceFee(): number {
-    if (this.convenienceFeeMode === 'monthly_flat') return 0;
+    if (this.convenienceFeeMode === 'monthly_flat' || this.convenienceFeeMode === 'club_absorbs') return 0;
     const base = this.convenienceFeeMode === 'per_transaction' ? this.baseHourlyRate : this.subtotal;
     return parseFloat((base * this.convenienceFeeRate).toFixed(2));
   }

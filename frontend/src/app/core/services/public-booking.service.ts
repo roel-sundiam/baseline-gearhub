@@ -85,7 +85,7 @@ export class PublicBookingService {
       _id: string; name: string; slug?: string; location?: string; logo?: string; status: string;
       courtCount?: number; openingHour?: number; closingHour?: number;
       paymentMethods?: string[]; paymentAccounts?: Record<string, string>; paymentQrCodes?: Record<string, string>;
-      convenienceFeeRate?: number; convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat';
+      convenienceFeeRate?: number; convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs';
       additionalFees?: { name: string; amount: number; type: 'fixed' | 'per_person'; isEnabled: boolean; isOptional: boolean }[];
       requirePaymentScreenshot?: boolean;
       mobile?: string; email?: string;
@@ -104,6 +104,7 @@ export class PublicBookingService {
       date: string; startTime: string; endTime: string;
       venue: string; court?: string; feePerPlayer: number;
       maxPlayers: number; currentPlayers: number; status: 'open' | 'full';
+      venueLogo?: string | null;
     }[]>(`${this.base}/${clubId}/hosted-play`);
   }
 

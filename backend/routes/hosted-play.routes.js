@@ -17,9 +17,13 @@ function computePlayerFees(club, feePerPlayer) {
   const baseFee = Math.max(0, Number(feePerPlayer) || 0);
   const feeRate = typeof club?.convenienceFeeRate === "number" ? club.convenienceFeeRate : 0.10;
   const feeMode = club?.convenienceFeeMode ?? "per_hour";
+  // Always calculate the fee for display/record-keeping; monthly_flat = 0
   const convenienceFee = feeMode === "monthly_flat" ? 0 : parseFloat((baseFee * feeRate).toFixed(2));
-  const total = parseFloat((baseFee + convenienceFee).toFixed(2));
-  return { baseFee, convenienceFee, total };
+  // club_absorbs: player total excludes the fee (club pays it)
+  const total = feeMode === "club_absorbs"
+    ? parseFloat(baseFee.toFixed(2))
+    : parseFloat((baseFee + convenienceFee).toFixed(2));
+  return { baseFee, convenienceFee, total, feeMode };
 }
 
 // ── Member endpoints (auth required, any role) ───────────────────────────────
@@ -51,6 +55,7 @@ router.get("/player/sessions", auth, async (req, res) => {
         ...s,
         joined: joinedSet.has(String(s._id)),
         convenienceFeePerPlayer: fees.convenienceFee,
+        convenienceFeeMode: fees.feeMode,
         totalPerPlayer: fees.total,
       };
     }));
@@ -74,6 +79,7 @@ router.get("/player/sessions/:id", auth, async (req, res) => {
     res.json({
       ...session,
       convenienceFeePerPlayer: fees.convenienceFee,
+      convenienceFeeMode: fees.feeMode,
       totalPerPlayer: fees.total,
       participants: participants.map((p) => ({
         _id: p._id,
@@ -107,22 +113,35 @@ router.post("/player/sessions/:id/join", auth, async (req, res) => {
     }).lean();
     if (already) return res.status(400).json({ error: "You have already joined this session" });
 
+    const { paymentMethod, paymentScreenshot } = req.body;
+    const validMemberMethods = ["GCash", "Bank Transfer", "GoTyme"];
+    if (paymentScreenshot && !String(paymentScreenshot).startsWith("https://")) {
+      return res.status(400).json({ error: "paymentScreenshot must be a secure HTTPS URL" });
+    }
+    if (paymentMethod && !validMemberMethods.includes(paymentMethod)) {
+      return res.status(400).json({ error: "Invalid paymentMethod" });
+    }
+    const hasPaymentProof = !!(paymentScreenshot && paymentMethod);
+
     const [user, club] = await Promise.all([
       User.findById(memberId).select("name").lean(),
       Club.findById(session.clubId).select("convenienceFeeRate convenienceFeeMode").lean(),
     ]);
 
-    const { baseFee, convenienceFee, total: amount } = computePlayerFees(club, session.feePerPlayer);
+    const { baseFee, convenienceFee, total: amount, feeMode } = computePlayerFees(club, session.feePerPlayer);
+    const netSessionFee = feeMode === 'club_absorbs' ? baseFee - convenienceFee : baseFee;
 
     const charge = await Charge.create({
       clubId: session.clubId,
       playerId: memberId,
       hostedPlayId: session._id,
       amount,
-      breakdown: { hostedPlayFee: baseFee, convenienceFee },
+      breakdown: { hostedPlayFee: netSessionFee, convenienceFee, convenienceFeeMode: feeMode },
       chargeType: "hosted_play",
       status: "unpaid",
-      approvalStatus: "none",
+      approvalStatus: hasPaymentProof ? "pending" : "none",
+      ...(paymentMethod ? { paymentMethod } : {}),
+      ...(paymentScreenshot ? { paymentScreenshot } : {}),
     });
 
     await HostedPlayParticipant.create({
@@ -142,7 +161,7 @@ router.post("/player/sessions/:id/join", auth, async (req, res) => {
       body: `${user?.name ?? "A member"} joined "${session.title}".`,
     });
 
-    res.status(201).json({ success: true, currentPlayers: session.currentPlayers, status: session.status });
+    res.status(201).json({ success: true, currentPlayers: session.currentPlayers, status: session.status, chargeId: charge._id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -422,6 +441,7 @@ async function applyAndRespond(res, session, participants, result, club = null) 
     const fees = computePlayerFees(club, session.feePerPlayer);
     board.session.feePerPlayer = fees.baseFee;
     board.session.convenienceFeePerPlayer = fees.convenienceFee;
+    board.session.convenienceFeeMode = fees.feeMode;
     board.session.totalPerPlayer = fees.total;
   }
   return res.json(board);
@@ -436,6 +456,7 @@ router.get("/sessions/:id/queue", auth, admin, async (req, res) => {
     const fees = computePlayerFees(ctx.club, ctx.session.feePerPlayer);
     board.session.feePerPlayer = fees.baseFee;
     board.session.convenienceFeePerPlayer = fees.convenienceFee;
+    board.session.convenienceFeeMode = fees.feeMode;
     board.session.totalPerPlayer = fees.total;
     res.json(board);
   } catch (err) {

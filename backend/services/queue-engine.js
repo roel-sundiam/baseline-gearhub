@@ -43,6 +43,8 @@ function strategyFor(session) {
 
 // ── Selectors (read-only) ────────────────────────────────────────────────────
 function byOrder(a, b) {
+  const gamesDiff = (a.gamesPlayed || 0) - (b.gamesPlayed || 0);
+  if (gamesDiff !== 0) return gamesDiff;
   return (a.queueOrder ?? Infinity) - (b.queueOrder ?? Infinity);
 }
 

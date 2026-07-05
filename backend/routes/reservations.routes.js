@@ -368,9 +368,12 @@ router.post("/", auth, async (req, res) => {
     const feeRate = typeof clubDoc?.convenienceFeeRate === 'number' ? clubDoc.convenienceFeeRate : 0.10;
     const feeMode = clubDoc?.convenienceFeeMode ?? 'per_hour';
     let convenienceFee = 0;
-    if (feeMode !== 'monthly_flat') {
+    if (feeMode !== 'monthly_flat' && feeMode !== 'club_absorbs') {
       const convenienceFeeBase = feeMode === 'per_transaction' ? hourlyRate : courtFee;
       convenienceFee = parseFloat((convenienceFeeBase * feeRate).toFixed(2));
+    } else if (feeMode === 'club_absorbs') {
+      // Fee is calculated for record-keeping but not charged to the player
+      convenienceFee = parseFloat((courtFee * feeRate).toFixed(2));
     }
 
     const selectedNames = Array.isArray(selectedExtraFeeNames) ? selectedExtraFeeNames : [];
@@ -398,7 +401,10 @@ router.post("/", auth, async (req, res) => {
       ? parseFloat((coachingTierRate * sanitizedCoachingPax * durationHours).toFixed(2))
       : 0;
 
-    const totalAmount = courtFee + convenienceFee + extraFeeTotal + coachingFee;
+    // club_absorbs: player pays court fee only; convenience fee is recorded but not added to totalAmount
+    const totalAmount = feeMode === 'club_absorbs'
+      ? courtFee + extraFeeTotal + coachingFee
+      : courtFee + convenienceFee + extraFeeTotal + coachingFee;
 
     const reservation = await Reservation.create({
       clubId,
@@ -566,11 +572,15 @@ router.patch("/:id", auth, async (req, res) => {
     const editFeeRate = typeof editClub?.convenienceFeeRate === 'number' ? editClub.convenienceFeeRate : 0.10;
     const editFeeMode = editClub?.convenienceFeeMode ?? 'per_hour';
     let editConvenienceFee = 0;
-    if (editFeeMode !== 'monthly_flat') {
+    if (editFeeMode !== 'monthly_flat' && editFeeMode !== 'club_absorbs') {
       const editConvFeeBase = editFeeMode === 'per_transaction' ? hourlyRate : courtFee;
       editConvenienceFee = parseFloat((editConvFeeBase * editFeeRate).toFixed(2));
+    } else if (editFeeMode === 'club_absorbs') {
+      editConvenienceFee = parseFloat((courtFee * editFeeRate).toFixed(2));
     }
-    const editTotalAmount = courtFee + editConvenienceFee;
+    const editTotalAmount = editFeeMode === 'club_absorbs'
+      ? courtFee
+      : courtFee + editConvenienceFee;
 
     const additionalPlayers = [...new Set(
       (Array.isArray(players) ? players : []).map(String)
