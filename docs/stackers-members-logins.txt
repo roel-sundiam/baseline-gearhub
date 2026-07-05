@@ -1,0 +1,179 @@
+STACKERS PICKLEBALL — Member Logins
+Generated: 2026-07-04
+Password: BaselineGearhub
+Total: 172 members (169 created, 3 already existed)
+
+NAME                                USERNAME
+----                                --------
+Denz Milianxi Bonilla               denz-bonilla
+Richard Matthew Baron               richard-baron
+Jana Bagatsolon                     jana-bagatsolon
+Pearl-Jan Gomez                     pearl-jan-gomez
+Ariel Malig                         ariel-malig
+Marcon Marquez                      marcon-marquez
+Efren Go                            efren-go
+Adrian Joseph Jr Gajasan            adrian-gajasan
+Julius Villaflores                  julius-villaflores
+Raymond Adviento                    raymond-adviento
+Libner Kiezel Vidal                 libner-vidal
+Christine Maria Ann Keller          christine-keller
+Dominic Boiser                      dominic-boiser
+Hannah Czarina Tria                 hannah-tria
+John Bosco Quilit                   john-quilit
+Rizza Mae Molo                      rizza-molo
+Jhal Mark Le Villareal              jhal-villareal
+Alvin Dennis Uriarte                alvin-uriarte
+Jonathan Borromeo                   jonathan-borromeo
+Anna Nikole Dinglasan               anna-dinglasan
+George Harrison Kline               george-kline
+Neil Dela Cruz                      neil-cruz
+Lady Mariane Samson                 lady-samson
+Jonathan Parlocha                   jonathan-parlocha
+Veronica Tuason Tuason              veronica-tuason
+Lynn-Ai Kate Francisco              lynn-ai-francisco
+John Niel Lao-ang                   john-lao-ang
+Maria Teresa Evangelista            maria-evangelista
+Mary Ann Parlocha                   mary-parlocha
+John Paul Sunga                     john-sunga
+Marvin Quiambao                     marvin-quiambao
+Ed Lorenzo                          ed-lorenzo
+Christian Soliman                   christian-soliman
+Lorenz Keith Castro                 lorenz-castro
+Marlo Magtoto                       marlo-magtoto
+Marvin Magriaga                     marvin-magriaga
+Angelo Gonzales                     angelo-gonzales
+Analyn Keller                       analyn-keller
+Mae Anne Ortega                     mae-ortega
+Marivic Co                          marivic-co
+Ruby Rose Lopez                     ruby-lopez
+Jerico Mendoza                      jerico-mendoza
+Justine Culla                       justine-culla
+Cyrille Dennise Reyes               cyrille-reyes
+Caroline Bravo                      caroline-bravo
+Carlo Gonzales                      carlo-gonzales          [already existed]
+Persam Cawasa                       persam-cawasa           [already existed]
+Marizol Dela Cruz                   marizol-cruz
+Jonel Paulino                       jonel-paulino
+Paul Buban                          paul-buban
+Marissa Flores                      marissa-flores
+John Joseph Paderes                 john-paderes
+Cerjie Adrian Baldonado             cerjie-baldonado
+Paul Pagsuguiron                    paul-pagsuguiron
+Eli Poso                            eli-poso
+Nikka Alleana Mendoza               nikka-mendoza
+Jeremy Mallar                       jeremy-mallar
+Jan Kelly Siapco                    jan-siapco
+Rolyn Ocampo                        rolyn-ocampo
+Von Gerick Ocampo                   von-ocampo
+Mario Sr. Datoy                     mario-datoy
+Karen Dalisay                       karen-dalisay
+Lyndon Javier                       lyndon-javier
+Wella Siapco                        wella-siapco
+Ianna Castro                        ianna-castro
+Adamson Jr Chan                     adamson-chan
+Sarah Alarcon                       sarah-alarcon
+Ian Jonathan Sevilla                ian-sevilla
+Niño Aloysius Colegado              nino-colegado
+Carrelle Colegado                   carrelle-colegado
+Jennifer Fernandez                  jennifer-fernandez
+Christine Joy Mateo                 christine-mateo
+Jun Bautista                        jun-bautista
+Aldwin Mercene                      aldwin-mercene
+Marlon Magtoto                      marlon-magtoto
+Magine Mendoza                      magine-mendoza
+Kate Co                             kate-co
+Ck Bagatsolon                       ck-bagatsolon
+Ryan Raymon Camacho                 ryan-camacho
+Leonides Rommel Chan                leonides-chan
+May France Dizon                    may-dizon
+Mia Bagatsolon                      mia-bagatsolon
+Carlos Bagatsolon                   carlos-bagatsolon
+Lito Lagura                         lito-lagura
+Sandy Marie Flores                  sandy-flores
+Cedric Lacanienta                   cedric-lacanienta
+Mary France Dizon                   mary-dizon
+Carmela Jamille Tañedo              carmela-tanedo
+Kiroe Budoso                        kiroe-budoso
+Jeffrey Mercado                     jeffrey-mercado
+Reynante III Talactac               reynante-talactac
+Kerby Viaña                         kerby-viana
+Jay Casidsid                        jay-casidsid
+Leandro Credo                       leandro-credo
+John Ricric Balderas                john-balderas
+Rogelio Jr. Sarmiento               rogelio-sarmiento
+Renz Robert Gonzalbo                renz-gonzalbo
+Ma. Theresa Sarmiento               ma-sarmiento
+Harold Pamilar                      harold-pamilar
+Teejay Gajasan                      teejay-gajasan
+Edson Evangelista                   edson-evangelista
+Normandy Flores                     normandy-flores
+Roy Jr. Balleza                     roy-balleza
+Thomas Edison Tordesillas           thomas-tordesillas
+Allan Jay Fernandez                 allan-fernandez
+CT Tordesillas                      ct-tordesillas
+Sharon Pamilar                      sharon-pamilar
+Arnold Pamilar                      arnold-pamilar
+Charles Nathan Dinglasan            charles-dinglasan
+Allan Samson                        allan-samson
+Khristian Pangilinan                khristian-pangilinan
+Cassandra Perez                     cassandra-perez
+Jonathan Pineda                     jonathan-pineda
+Rafael Rivera                       rafael-rivera
+Gizelle Anne Bagatsolon             gizelle-bagatsolon
+Chona Magpantay                     chona-magpantay
+Carlo Bagatsolon                    carlo-bagatsolon
+Irma Castro                         irma-castro
+Fr. Cholo Panes                     cholo-panes
+Ana Mae Tividad                     ana-tividad
+Eden Yaptengco                      eden-yaptengco
+GN Bacani                           gn-bacani
+Jann Carl Valeroso                  jann-valeroso
+Hannah Ludched Kline                hannah-kline
+Aldrin Angelo Bagatsolon            aldrin-bagatsolon
+Joanna Mariz Javier                 joanna-javier
+Queen Divine Tovera                 queen-tovera
+Maria Elisa Borromeo                maria-borromeo
+Salvador Borromeo                   salvador-borromeo
+Kim Philip Ecleo                    kim-ecleo
+Sharmaine Apple Fernandez           sharmaine-fernandez
+Aldrin Fernandez                    aldrin-fernandez
+Gian Paolo Osano                    gian-osano
+Jan Eric Mendoza                    jan-mendoza
+Xabier Alee Mendoza                 xabier-mendoza
+John Michael Arciag                 john-arciag
+Louis Montaño                       louis-montano
+Lyka Nicart                         lyka-nicart
+Maria Angelica Sunga                maria-sunga
+Ronald Francis Sanqui               ronald-sanqui
+Dann Marie Ramones                  dann-ramones
+John Albert Balderas                john-balderas-2         [collision suffix]
+Genesis Ysibido                     genesis-ysibido
+Romulo Festin Jr                    romulo-festin
+Mark Stephen Felipe                 mark-felipe
+Rondrei Khien Rosales               rondrei-rosales
+Marilyn Bagatsolon                  marilyn-bagatsolon
+Leo Kristoffer Buela                leo-buela
+Erika Mendoza                       erika-mendoza
+Darwin King Aguila                  darwin-aguila
+Ma. Lorraine Abbyg Penetrado        ma-penetrado
+Brian Jayson Agustin                brian-agustin
+MB Thomas Edison Tordesillas        mb-tordesillas
+Roy Hector Casem                    roy-casem
+Ryan Valera                         ryan-valera
+Richard Lenex Acuzar                richard-acuzar
+Eldric Brent Mendoza                eldric-mendoza
+Pauline Joy Olarte                  pauline-olarte
+Janine Casem                        janine-casem
+April Kim Paulino                   april-paulino
+Marc Joey Ladao                     marc-ladao
+Jeureka May Garcia                  jeureka-garcia
+Samantha Vistan                     samantha-vistan
+Joy Otte                            joy-otte
+Jervin Alcaide                      jervin-alcaide
+Kaizzer Bernardo                    kaizzer-bernardo
+Charles Dinglasan                   charles-dinglasan-2     [collision suffix]
+Chester Tamesis                     chester-tamesis
+Jeanne Dominique Casao              jeanne-casao
+Paolo Elizalde                      paolo-elizalde          [already existed]
+Mikko Gapas                         mikko-gapas
+Ruxel Doreen Arciaga                ruxel-arciaga
