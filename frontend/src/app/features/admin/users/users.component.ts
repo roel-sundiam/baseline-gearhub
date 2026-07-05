@@ -115,6 +115,7 @@ import { UsersService, User } from '../../../core/services/users.service';
                       <th>Role</th>
                       <th>Status</th>
                       <th>Registered</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -139,6 +140,29 @@ import { UsersService, User } from '../../../core/services/users.service';
                         <td><span class="role-badge role-{{ user.role }}">{{ user.role }}</span></td>
                         <td><span class="status-badge status-{{ user.status }}">{{ user.status }}</span></td>
                         <td class="col-date">{{ user.createdAt | date:'MMM d, yyyy' }}</td>
+                        <td class="col-actions">
+                          @if (user.role === 'player' && user.status === 'active') {
+                            <button class="action-btn btn-deactivate" (click)="deactivate(user)" [disabled]="processing === user._id">
+                              @if (processing === user._id) {
+                                <i class="fas fa-circle-notch fa-spin"></i>
+                              } @else {
+                                <i class="fas fa-ban"></i>
+                              }
+                              <span>Deactivate</span>
+                            </button>
+                          } @else if (user.role === 'player' && user.status === 'deactivated') {
+                            <button class="action-btn btn-reactivate" (click)="reactivate(user)" [disabled]="processing === user._id">
+                              @if (processing === user._id) {
+                                <i class="fas fa-circle-notch fa-spin"></i>
+                              } @else {
+                                <i class="fas fa-check-circle"></i>
+                              }
+                              <span>Reactivate</span>
+                            </button>
+                          } @else {
+                            <span class="col-no-action">—</span>
+                          }
+                        </td>
                       </tr>
                     }
                   </tbody>
@@ -300,6 +324,14 @@ import { UsersService, User } from '../../../core/services/users.service';
     .status-active { background: rgba(34,197,94,0.12); color: #86efac; }
     .status-pending { background: rgba(245,158,11,0.16); color: #fcd34d; }
     .status-rejected { background: rgba(239,68,68,0.14); color: #fca5a5; }
+    .status-deactivated { background: rgba(100,116,139,0.18); color: #94a3b8; }
+
+    .col-actions { white-space: nowrap; }
+    .col-no-action { color: rgba(255,255,255,0.3); font-size: 0.85rem; }
+    .btn-deactivate { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.28); color: #fca5a5; font-size: 0.78rem; padding: 6px 12px; }
+    .btn-deactivate:hover:not(:disabled) { background: rgba(239,68,68,0.18); }
+    .btn-reactivate { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.28); color: #86efac; font-size: 0.78rem; padding: 6px 12px; }
+    .btn-reactivate:hover:not(:disabled) { background: rgba(34,197,94,0.18); }
 
     .table-footer {
       text-align: right; font-size: 0.78rem; color: rgba(255,255,255,0.55);
@@ -380,6 +412,22 @@ export class AdminUsersComponent implements OnInit {
   reject(user: User) {
     this.processing = user._id;
     this.usersService.rejectUser(user._id).subscribe({
+      next: () => { this.processing = null; this.loadData(); },
+      error: () => { this.processing = null; this.cdr.detectChanges(); },
+    });
+  }
+
+  deactivate(user: User) {
+    this.processing = user._id;
+    this.usersService.deactivateUser(user._id).subscribe({
+      next: () => { this.processing = null; this.loadData(); },
+      error: () => { this.processing = null; this.cdr.detectChanges(); },
+    });
+  }
+
+  reactivate(user: User) {
+    this.processing = user._id;
+    this.usersService.reactivateUser(user._id).subscribe({
       next: () => { this.processing = null; this.loadData(); },
       error: () => { this.processing = null; this.cdr.detectChanges(); },
     });

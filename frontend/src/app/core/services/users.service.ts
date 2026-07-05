@@ -43,6 +43,14 @@ export class UsersService {
     return this.http.put<User>(`${environment.apiUrl}/users/${id}/reject`, {});
   }
 
+  deactivateUser(id: string) {
+    return this.http.put<User>(`${environment.apiUrl}/users/${id}/deactivate`, {});
+  }
+
+  reactivateUser(id: string) {
+    return this.http.put<User>(`${environment.apiUrl}/users/${id}/reactivate`, {});
+  }
+
   getUserProfile(id: string) {
     return this.http.get<any>(`${environment.apiUrl}/users/${id}/profile`);
   }

@@ -125,6 +125,76 @@ interface AppReview {
         </div>
       </section>
 
+      <!-- Booking Types -->
+      <section class="booking-types" id="booking-types">
+        <div class="bt-head">
+          <div class="bt-tag">
+            <span class="badge-dot"></span>
+            Booking Options
+          </div>
+          <h2 class="bt-title">Three Ways to Book</h2>
+          <p class="bt-sub">Every club is different. CourtGo supports multiple booking models so you always play your way.</p>
+        </div>
+
+        <div class="bt-grid">
+
+          <!-- Reservation -->
+          <div class="bt-card bt-reservation">
+            <div class="bt-icon bt-icon-lime">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
+            </div>
+            <h3 class="bt-card-title">Reservation</h3>
+            <p class="bt-desc">Reserve a specific court for a set time slot. Pick your court, pick your time — confirmed in seconds.</p>
+            <ul class="bt-bullets">
+              <li>Real-time availability</li>
+              <li>Instant confirmation</li>
+              <li>Flexible cancellations</li>
+            </ul>
+            <a routerLink="/book" class="bt-book-link bt-book-lime">
+              Book Now
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+            </a>
+          </div>
+
+          <!-- Per Game -->
+          <div class="bt-card bt-per-game">
+            <div class="bt-icon bt-icon-sky">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <h3 class="bt-card-title">Per Game</h3>
+            <p class="bt-desc">Show up and play. Join a session and pay only for the games you play — no hourly commitment needed.</p>
+            <ul class="bt-bullets">
+              <li>Drop-in friendly</li>
+              <li>Pay per game played</li>
+              <li>Join existing sessions</li>
+            </ul>
+            <a routerLink="/book" class="bt-book-link bt-book-sky">
+              Book Now
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+            </a>
+          </div>
+
+          <!-- Hosted Play -->
+          <div class="bt-card bt-hosted">
+            <div class="bt-icon bt-icon-amber">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h3 class="bt-card-title">Hosted Play</h3>
+            <p class="bt-desc">Club-run group sessions with managed court rotation. Great for social play and meeting other members.</p>
+            <ul class="bt-bullets">
+              <li>Club-managed queue</li>
+              <li>Automatic court rotation</li>
+              <li>Open to all skill levels</li>
+            </ul>
+            <a routerLink="/book" class="bt-book-link bt-book-amber">
+              Book Now
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+            </a>
+          </div>
+
+        </div>
+      </section>
+
       <!-- Features -->
       <section class="features" id="features">
         <div class="features-grid">
@@ -641,6 +711,107 @@ interface AppReview {
       .features-grid { grid-template-columns: 1fr; }
       .features { padding: 1rem 1rem 3.5rem; }
       .cta-strip { padding: 3.5rem 1.25rem; }
+    }
+
+    /* ── Booking Types ──────────────────────────── */
+    .booking-types {
+      position: relative; z-index: 1;
+      padding: 5rem 3.5rem;
+      max-width: 1280px; margin: 0 auto;
+    }
+
+    .bt-head {
+      text-align: center; margin-bottom: 3.5rem;
+    }
+    .bt-tag {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.11em;
+      text-transform: uppercase; color: rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.11);
+      padding: 0.32rem 0.85rem; border-radius: 100px;
+      margin-bottom: 1.25rem;
+    }
+    .bt-title {
+      font-size: clamp(1.8rem, 2.5vw, 2.6rem);
+      font-weight: 800; letter-spacing: -0.025em;
+      color: #fff; margin: 0 0 1rem;
+    }
+    .bt-sub {
+      font-size: 1rem; color: rgba(255,255,255,0.48);
+      line-height: 1.7; max-width: 520px; margin: 0 auto;
+    }
+
+    .bt-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+
+    .bt-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 20px;
+      padding: 2rem 1.75rem;
+      display: flex; flex-direction: column; gap: 1rem;
+      transition: border-color 0.2s, background 0.2s, transform 0.2s;
+    }
+    .bt-card:hover { transform: translateY(-4px); }
+
+    .bt-reservation { border-top: 3px solid #7cff4e; }
+    .bt-reservation:hover { border-color: rgba(124,255,78,0.3); background: rgba(124,255,78,0.03); }
+    .bt-per-game    { border-top: 3px solid #38bdf8; }
+    .bt-per-game:hover { border-color: rgba(56,189,248,0.3); background: rgba(56,189,248,0.03); }
+    .bt-hosted      { border-top: 3px solid #f59e0b; }
+    .bt-hosted:hover { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.03); }
+
+    .bt-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .bt-icon-lime  { background: rgba(124,255,78,0.12); color: #7cff4e; }
+    .bt-icon-sky   { background: rgba(56,189,248,0.12); color: #38bdf8; }
+    .bt-icon-amber { background: rgba(245,158,11,0.12); color: #f59e0b; }
+
+    .bt-card-title { font-size: 1.15rem; font-weight: 700; color: #fff; margin: 0; }
+    .bt-desc {
+      font-size: 0.9rem; color: rgba(255,255,255,0.52);
+      line-height: 1.65; margin: 0;
+    }
+
+    .bt-bullets {
+      list-style: none; padding: 0; margin: 0;
+      display: flex; flex-direction: column; gap: 0.45rem;
+    }
+    .bt-bullets li {
+      font-size: 0.82rem; color: rgba(255,255,255,0.42);
+      padding-left: 1.1rem; position: relative;
+    }
+    .bt-bullets li::before { content: '·'; position: absolute; left: 0; font-size: 1rem; }
+
+    .bt-book-link {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      font-size: 0.82rem; font-weight: 700;
+      text-decoration: none; margin-top: auto;
+      padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid;
+      transition: background 0.15s, box-shadow 0.15s;
+      align-self: flex-start;
+    }
+    .bt-book-lime  { color: #7cff4e; border-color: rgba(124,255,78,0.3); }
+    .bt-book-lime:hover  { background: rgba(124,255,78,0.1); }
+    .bt-book-sky   { color: #38bdf8; border-color: rgba(56,189,248,0.3); }
+    .bt-book-sky:hover   { background: rgba(56,189,248,0.1); }
+    .bt-book-amber { color: #f59e0b; border-color: rgba(245,158,11,0.3); }
+    .bt-book-amber:hover { background: rgba(245,158,11,0.1); }
+
+    @media (max-width: 900px) {
+      .bt-grid { grid-template-columns: 1fr 1fr; }
+      .booking-types { padding: 3.5rem 2rem; }
+    }
+    @media (max-width: 600px) {
+      .bt-grid { grid-template-columns: 1fr; }
+      .booking-types { padding: 2.5rem 1.25rem; }
     }
 
     /* ── Reviews ──────────────────────────────── */

@@ -741,6 +741,10 @@ interface AdminUser {
                       <span class="asp-lbl">Open Play Sessions</span>
                       <span class="asp-val">{{ openPlayCharges.length }}</span>
                     </div>
+                    <div class="asp-stat">
+                      <span class="asp-lbl">Hosted Play Sessions</span>
+                      <span class="asp-val">{{ hostedPlayCharges.length }}</span>
+                    </div>
                     <div class="asp-stat asp-stat-due">
                       <span class="asp-lbl">Conv. Fees Due</span>
                       <span class="asp-val">₱{{ appServiceDue | number:'1.2-2' }}</span>
@@ -798,6 +802,28 @@ interface AdminUser {
                             <span class="asp-player">{{ c.openPlaySessionId?.title ?? '—' }}</span>
                             <span class="asp-date">{{ c.openPlaySessionId?.sport ?? '' }} · {{ c.openPlaySessionId?.sessionDate | date:'MMM d, yyyy':'UTC' }}</span>
                             <span class="asp-date">{{ c.openPlaySessionId?.startTime }} – {{ c.openPlaySessionId?.endTime }}</span>
+                            <span class="asp-fee-chip">Conv. Fee = ₱{{ (c.breakdown?.convenienceFee ?? 0) | number:'1.2-2' }}</span>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+
+                  <!-- Hosted play charges breakdown -->
+                  <div class="asp-section">
+                    <div class="asp-section-title">
+                      <i class="fas fa-dumbbell"></i> Hosted Play Charges
+                      @if (hostedPlayCharges.length > 0) { <span class="asp-count">{{ hostedPlayCharges.length }}</span> }
+                    </div>
+                    @if (hostedPlayCharges.length === 0) {
+                      <p class="state-msg">No hosted play charges yet.</p>
+                    } @else {
+                      <div class="asp-charge-list">
+                        @for (c of hostedPlayCharges; track c._id) {
+                          <div class="asp-charge-row">
+                            <span class="asp-player">{{ getPlayerName(c) }}</span>
+                            <span class="asp-date">{{ formatDate(c.createdAt) }}</span>
+                            <span class="asp-amount-val">₱{{ c.amount | number:'1.2-2' }}</span>
                             <span class="asp-fee-chip">Conv. Fee = ₱{{ (c.breakdown?.convenienceFee ?? 0) | number:'1.2-2' }}</span>
                           </div>
                         }
@@ -4016,12 +4042,16 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   get openPlayCharges(): Charge[] {
     return this.approvedCharges.filter(c => c.chargeType === 'open_play_session');
   }
+  get hostedPlayCharges(): Charge[] {
+    return this.approvedCharges.filter(c => c.chargeType === 'hosted_play');
+  }
   get reservationTotal(): number {
     return this.reservationCharges.reduce((sum, c) => sum + c.amount, 0);
   }
   get appServiceDue(): number {
     const chargeFees = this.reservationCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0)
-      + this.openPlayCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0);
+      + this.openPlayCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0)
+      + this.hostedPlayCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0);
     const billingFees = this.aspPayments.filter(p => p.type === 'billing').reduce((sum, p) => sum + p.amount, 0);
     return chargeFees + billingFees;
   }

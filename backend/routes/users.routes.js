@@ -168,6 +168,38 @@ router.put("/:id/reject", auth, admin, async (req, res) => {
   }
 });
 
+// PUT /api/users/:id/deactivate (admin) — deactivate a player
+router.put("/:id/deactivate", auth, admin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (user.role !== "player") return res.status(403).json({ error: "Only players can be deactivated" });
+
+    user.status = "deactivated";
+    await user.save();
+    res.json(user.toObject({ versionKey: false }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PUT /api/users/:id/reactivate (admin) — reactivate a deactivated player
+router.put("/:id/reactivate", auth, admin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (user.role !== "player") return res.status(403).json({ error: "Only players can be reactivated" });
+
+    user.status = "active";
+    await user.save();
+    res.json(user.toObject({ versionKey: false }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // GET /api/users/:id/profile — get user's profile (authenticated)
 router.get("/:id/profile", auth, async (req, res) => {
   try {
