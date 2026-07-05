@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, computed, signal } from '@angular/core';
+import { Component, OnInit, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   AnalyticsService,
@@ -901,7 +901,7 @@ interface TrendCard {
     `,
   ],
 })
-export class AnalyticsComponent implements OnInit, OnDestroy {
+export class AnalyticsComponent implements OnInit {
   loading = signal(true);
   refreshing = signal(false);
   errorMsg = signal('');
@@ -960,7 +960,6 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.load();
     this.loadTrends();
-    this.refreshLiveVisitors();
   }
 
   refreshLiveVisitors(): void {

@@ -320,15 +320,13 @@ router.get("/live-visitors", auth, superadminMiddleware, async (req, res) => {
     
     // Add live visitors first (more current)
     liveVisitorsData.forEach((v) => {
-      const key = `${v.username}:${v.currentPage}`;
-      mergedMap.set(key, v);
+      mergedMap.set(v.username, v);
     });
-    
-    // Add page visits, but don't override existing entries for same user+page
+
+    // Add page visits, but don't override if we already have a live session for this user
     pageVisitorsData.forEach((v) => {
-      const key = `${v.username}:${v.currentPage}`;
-      if (!mergedMap.has(key)) {
-        mergedMap.set(key, v);
+      if (!mergedMap.has(v.username)) {
+        mergedMap.set(v.username, v);
       }
     });
 

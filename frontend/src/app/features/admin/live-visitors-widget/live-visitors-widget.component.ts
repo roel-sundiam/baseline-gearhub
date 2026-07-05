@@ -289,9 +289,6 @@ export class LiveVisitorsWidgetComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.isSuperAdmin = this.authService.isSuperAdmin();
-    if (this.isSuperAdmin) {
-      this.refreshVisitors();
-    }
   }
 
   refreshVisitors(): void {
