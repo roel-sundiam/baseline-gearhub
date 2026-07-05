@@ -12,7 +12,7 @@ import {
   LiveVisitorsService,
   LiveVisitor,
 } from '../../../core/services/live-visitors.service';
-import { forkJoin, Subscription, timeout } from 'rxjs';
+import { forkJoin, timeout } from 'rxjs';
 
 interface TrendCard {
   label: string;
@@ -108,7 +108,9 @@ interface TrendCard {
             <span class="live-dot"></span> Live Visitors
             <span class="live-count">{{ liveVisitors().length }}</span>
           </h3>
-          <span class="live-hint">Auto-refreshes every 10s</span>
+          <button class="refresh-live-btn" (click)="refreshLiveVisitors()" [disabled]="isRefreshingLive">
+            {{ isRefreshingLive ? 'Refreshing...' : '🔄 Refresh' }}
+          </button>
         </div>
         @if (liveVisitors().length === 0) {
           <div class="empty-state">No active visitors right now</div>
@@ -470,10 +472,18 @@ interface TrendCard {
         font-size: 0.9rem;
         font-weight: 700;
       }
-      .live-hint {
-        color: rgba(255,255,255,0.4);
+      .refresh-live-btn {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.15);
+        color: rgba(255,255,255,0.7);
         font-size: 0.78rem;
+        padding: 4px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.15s;
       }
+      .refresh-live-btn:hover:not(:disabled) { background: rgba(255,255,255,0.15); }
+      .refresh-live-btn:disabled { opacity: 0.5; cursor: default; }
       .live-table {
         border: 1px solid rgba(255,255,255,0.08);
         border-radius: 8px;
@@ -916,7 +926,7 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   range = signal<number>(30);
   ranges = [7, 30, 90];
 
-  private liveSub?: Subscription;
+  isRefreshingLive = false;
 
   trendCards = computed<TrendCard[]>(() => {
     const t = this.trends();
@@ -950,13 +960,15 @@ export class AnalyticsComponent implements OnInit, OnDestroy {
   ngOnInit() {
     this.load();
     this.loadTrends();
-    this.liveSub = this.liveVisitorsService
-      .getLiveVisitorsPolled(10000)
-      .subscribe((res) => this.liveVisitors.set(res.visitors));
+    this.refreshLiveVisitors();
   }
 
-  ngOnDestroy() {
-    this.liveSub?.unsubscribe();
+  refreshLiveVisitors(): void {
+    this.isRefreshingLive = true;
+    this.liveVisitorsService.getLiveVisitors().subscribe((res) => {
+      this.liveVisitors.set(res.visitors);
+      this.isRefreshingLive = false;
+    });
   }
 
   private load() {

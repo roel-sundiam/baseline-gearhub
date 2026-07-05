@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { LiveVisitorsService, LiveVisitor } from '../../../core/services/live-visitors.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
 
 @Component({
   selector: 'app-live-visitors-widget',
@@ -22,6 +21,7 @@ import { takeUntil } from 'rxjs/operators';
         <div class="widget-header">
           <h3>🔴 Live Visitors</h3>
           <div class="header-actions">
+            <button class="refresh-btn" (click)="refreshVisitors()" [disabled]="isRefreshing" title="Refresh">{{ isRefreshing ? '⏳' : '🔄' }}</button>
             <button class="clear-btn" (click)="clearVisitors()" title="Clear data">🗑️</button>
             <button class="close-btn" (click)="toggleWidget()">−</button>
           </div>
@@ -40,7 +40,7 @@ import { takeUntil } from 'rxjs/operators';
         </div>
 
         <div class="widget-footer">
-          <small>Updated: {{ lastUpdateTime | date: 'HH:mm:ss' }}</small>
+          <small>Updated: {{ lastUpdateTime | date: 'HH:mm:ss' }} · Click 🔄 to refresh</small>
         </div>
       </div>
     </div>
@@ -144,6 +144,7 @@ import { takeUntil } from 'rxjs/operators';
 
       .header-actions { display: flex; gap: 5px; }
 
+      .refresh-btn,
       .clear-btn,
       .close-btn {
         background: rgba(6, 95, 70, 0.1);
@@ -157,8 +158,10 @@ import { takeUntil } from 'rxjs/operators';
         line-height: 1;
       }
 
+      .refresh-btn:hover:not(:disabled),
       .clear-btn:hover,
       .close-btn:hover { background: rgba(6, 95, 70, 0.18); }
+      .refresh-btn:disabled { opacity: 0.5; cursor: default; }
 
       .close-btn { font-size: 18px; padding: 2px 7px; }
 
@@ -270,7 +273,8 @@ import { takeUntil } from 'rxjs/operators';
 export class LiveVisitorsWidgetComponent implements OnInit, OnDestroy {
   isSuperAdmin = false;
   isExpanded = false;
-  allVisitorsHistory: LiveVisitor[] = []; // All accumulated visits from backend
+  isRefreshing = false;
+  allVisitorsHistory: LiveVisitor[] = [];
   visitorCount = 0;
   lastUpdateTime = new Date();
   private destroy$ = new Subject<void>();
@@ -284,35 +288,30 @@ export class LiveVisitorsWidgetComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // Check if user is superadmin
     this.isSuperAdmin = this.authService.isSuperAdmin();
-
     if (this.isSuperAdmin) {
-      // Start polling for live visitors (backend returns accumulated page visits)
-      this.liveVisitorsService
-        .getLiveVisitorsPolled(5000)
-        .pipe(takeUntil(this.destroy$))
-        .subscribe((data: { visitors: LiveVisitor[]; count: number; timestamp: Date }) => {
-          this.allVisitorsHistory = data.visitors.filter(v => v.role !== 'superadmin');
-          this.visitorCount = this.allVisitorsHistory.length;
-
-          if ('setAppBadge' in navigator) {
-            if (this.visitorCount > 0) {
-              (navigator as any).setAppBadge(this.visitorCount);
-            } else {
-              (navigator as any).clearAppBadge();
-            }
-          }
-
-          // Only sound when non-superadmin count increases
-          if (this.visitorCount > this.previousCount) {
-            this.playNotificationSound();
-          }
-          this.previousCount = this.visitorCount;
-          this.lastUpdateTime = new Date(data.timestamp);
-          this.cdr.markForCheck();
-        });
+      this.refreshVisitors();
     }
+  }
+
+  refreshVisitors(): void {
+    this.isRefreshing = true;
+    this.liveVisitorsService
+      .getLiveVisitors()
+      .subscribe((data: { visitors: LiveVisitor[]; count: number; timestamp: Date }) => {
+        this.allVisitorsHistory = data.visitors.filter(v => v.role !== 'superadmin');
+        this.visitorCount = this.allVisitorsHistory.length;
+        if ('setAppBadge' in navigator) {
+          this.visitorCount > 0
+            ? (navigator as any).setAppBadge(this.visitorCount)
+            : (navigator as any).clearAppBadge();
+        }
+        if (this.visitorCount > this.previousCount) this.playNotificationSound();
+        this.previousCount = this.visitorCount;
+        this.lastUpdateTime = new Date(data.timestamp);
+        this.isRefreshing = false;
+        this.cdr.markForCheck();
+      });
   }
 
   ngOnDestroy(): void {
