@@ -36,6 +36,7 @@ export interface HostedPlaySession {
   queueStatus?: QueueStatus;
   // Member-facing extras
   joined?: boolean;
+  pendingApproval?: boolean;
   participants?: HostedPlayParticipant[];
   convenienceFeePerPlayer?: number;
   convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs';
@@ -135,7 +136,7 @@ export class HostedPlayService {
   }
 
   join(id: string, payment?: HostedPlayJoinPayload) {
-    return this.http.post<{ success: boolean; currentPlayers: number; status: HostedPlayStatus; chargeId?: string }>(
+    return this.http.post<{ success: boolean; currentPlayers?: number; status: HostedPlayStatus | 'pending_approval'; chargeId?: string }>(
       `${this.base}/player/sessions/${id}/join`, payment ?? {});
   }
 

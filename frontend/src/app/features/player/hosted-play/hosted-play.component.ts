@@ -74,8 +74,8 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                   <span class="sport-label">{{ s.sport | titlecase }}</span>
                   <h2>{{ s.title }}</h2>
                 </div>
-                <span class="status-pill" [class.full]="s.status === 'full'" [class.joined]="s.joined">
-                  {{ s.joined ? 'Joined' : statusLabel(s) }}
+                <span class="status-pill" [class.full]="s.status === 'full'" [class.joined]="s.joined" [class.pending]="s.pendingApproval">
+                  {{ s.joined ? 'Joined' : s.pendingApproval ? 'Pending' : statusLabel(s) }}
                 </span>
               </div>
 
@@ -147,6 +147,8 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                   <button class="btn-cancel" [disabled]="busyId === s._id" (click)="cancel(s)">
                     {{ busyId === s._id ? 'Cancelling...' : 'Cancel my spot' }}
                   </button>
+                } @else if (s.pendingApproval) {
+                  <div class="pending-note"><i class="fas fa-clock"></i> Payment submitted — awaiting admin approval.</div>
                 } @else {
                   <button class="btn-join" [disabled]="busyId === s._id || s.status === 'full'" (click)="join(s)">
                     {{ s.status === 'full' ? 'Session full' : (busyId === s._id ? 'Joining...' : 'Join session') }}
@@ -154,7 +156,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                 }
               </div>
 
-              @if (s.feePerPlayer > 0 && !s.joined) {
+              @if (s.feePerPlayer > 0 && !s.joined && !s.pendingApproval) {
                 <p class="fee-note"><i class="fas fa-circle-info"></i>
                   {{ s.feePerPlayer | currency: 'PHP' : 'symbol-narrow' }} player fee@if ((s.convenienceFeePerPlayer ?? 0) > 0) { + {{ s.convenienceFeePerPlayer | currency: 'PHP' : 'symbol-narrow' }} service fee} = {{ (s.totalPerPlayer ?? s.feePerPlayer) | currency: 'PHP' : 'symbol-narrow' }} total, billed to Payments after you join.
                 </p>
@@ -241,6 +243,11 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
               @if (paymentError) {
                 <div class="pm-error"><i class="fas fa-exclamation-triangle"></i> {{ paymentError }}</div>
               }
+
+              <div class="pm-disclaimer">
+                <i class="fas fa-circle-info"></i>
+                Your registration is not yet confirmed. You will only be officially joined after the club admin approves your payment.
+              </div>
 
               <div class="pm-footer">
                 <button class="pm-cancel" (click)="closePaymentModal()" [disabled]="submittingPayment">Cancel</button>
@@ -506,6 +513,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
 
     .status-pill.full { color: #fca5a5; background: rgba(239,68,68,.13); border-color: rgba(239,68,68,.2); }
     .status-pill.joined { color: #07130d; background: var(--accent); border-color: var(--accent); }
+    .status-pill.pending { color: #fbbf24; background: rgba(251,191,36,.13); border-color: rgba(251,191,36,.3); }
 
     .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; margin-bottom: 1rem; }
 
@@ -619,6 +627,19 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
       font-weight: 800;
     }
 
+    .pending-note {
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      padding: .65rem .75rem;
+      border-radius: 8px;
+      background: rgba(251,191,36,.08);
+      border: 1px solid rgba(251,191,36,.25);
+      color: #fbbf24;
+      font-size: .83rem;
+      font-weight: 600;
+    }
+
     .btn-join,
     .btn-cancel,
     .btn-live {
@@ -714,6 +735,8 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .pm-preview-remove { position:absolute; top:.5rem; right:.5rem; background:rgba(0,0,0,.65); color:#fff; border:none; border-radius:50%; width:26px; height:26px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
     .pm-uploading-overlay { position:absolute; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.5rem; }
     .pm-error { padding:.6rem .85rem; border-radius:8px; background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.25); color:#fca5a5; font-size:.82rem; display:flex; align-items:center; gap:.4rem; }
+    .pm-disclaimer { padding:.6rem .85rem; border-radius:8px; background:rgba(251,191,36,.07); border:1px solid rgba(251,191,36,.2); color:#fbbf24; font-size:.78rem; display:flex; align-items:flex-start; gap:.4rem; line-height:1.45; }
+    .pm-disclaimer i { margin-top:.12rem; flex-shrink:0; }
     .pm-footer { display:flex; gap:.65rem; }
     .pm-cancel { flex:0 0 auto; padding:.8rem 1.1rem; border:1px solid rgba(255,255,255,.12); border-radius:8px; background:rgba(255,255,255,.06); color:rgba(255,255,255,.7); font-weight:700; font-family:inherit; cursor:pointer; }
     .pm-cancel:disabled { opacity:.4; cursor:not-allowed; }
@@ -872,8 +895,8 @@ export class PlayerHostedPlayComponent implements OnInit {
     this.hp.join(s._id).subscribe({
       next: (r) => {
         s.joined = true;
-        s.currentPlayers = r.currentPlayers;
-        s.status = r.status;
+        s.currentPlayers = r.currentPlayers ?? s.currentPlayers;
+        s.status = r.status as any;
         this.busyId = null;
         if (this.expandedId === s._id) this.loadPlayers(s._id);
         this.cdr.detectChanges();
@@ -923,12 +946,15 @@ export class PlayerHostedPlayComponent implements OnInit {
 
     this.hp.join(s._id, payload).subscribe({
       next: (r) => {
-        s.joined = true;
-        s.currentPlayers = r.currentPlayers;
-        s.status = r.status;
+        if (r.status === 'pending_approval') {
+          s.pendingApproval = true;
+        } else {
+          s.joined = true;
+          s.currentPlayers = r.currentPlayers ?? s.currentPlayers;
+          s.status = r.status as any;
+        }
         this.busyId = null;
         this.submittingPayment = false;
-        if (this.expandedId === s._id) this.loadPlayers(s._id);
         this.closePaymentModal();
         this.cdr.detectChanges();
       },

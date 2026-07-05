@@ -4,6 +4,9 @@ const admin = require("../middleware/admin");
 const Charge = require("../models/Charge");
 const Reservation = require("../models/Reservation");
 const Session = require("../models/Session");
+const HostedPlay = require("../models/HostedPlay");
+const HostedPlayParticipant = require("../models/HostedPlayParticipant");
+const User = require("../models/User");
 const { sendPushToUser, sendPushToClubAdmins } = require("../utils/push");
 
 const router = express.Router();
@@ -97,6 +100,26 @@ router.patch("/:id/approve", auth, admin, async (req, res) => {
           },
         },
       );
+    }
+
+    // Create hosted play participant now that payment is approved
+    if (charge.chargeType === "hosted_play" && charge.hostedPlayId) {
+      const [hpSession, hpUser] = await Promise.all([
+        HostedPlay.findById(charge.hostedPlayId),
+        User.findById(charge.playerId).select("name").lean(),
+      ]);
+      if (hpSession) {
+        await HostedPlayParticipant.create({
+          hostedPlayId: hpSession._id,
+          clubId: hpSession.clubId,
+          memberId: charge.playerId,
+          memberName: hpUser?.name ?? "Member",
+          chargeId: charge._id,
+        });
+        hpSession.currentPlayers += 1;
+        if (hpSession.currentPlayers >= hpSession.maxPlayers) hpSession.status = "full";
+        await hpSession.save();
+      }
     }
 
     sendPushToUser(charge.playerId, {

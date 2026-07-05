@@ -43,17 +43,27 @@ router.get("/player/sessions", auth, async (req, res) => {
     ]);
 
     const sessionIds = sessions.map((s) => s._id);
-    const myEntries = await HostedPlayParticipant.find({
-      hostedPlayId: { $in: sessionIds },
-      memberId: req.user.userId,
-    }).select("hostedPlayId").lean();
+    const [myEntries, myPendingCharges] = await Promise.all([
+      HostedPlayParticipant.find({
+        hostedPlayId: { $in: sessionIds },
+        memberId: req.user.userId,
+      }).select("hostedPlayId").lean(),
+      Charge.find({
+        hostedPlayId: { $in: sessionIds },
+        playerId: req.user.userId,
+        approvalStatus: "pending",
+      }).select("hostedPlayId").lean(),
+    ]);
     const joinedSet = new Set(myEntries.map((e) => String(e.hostedPlayId)));
+    const pendingSet = new Set(myPendingCharges.map((c) => String(c.hostedPlayId)));
 
     res.json(sessions.map((s) => {
       const fees = computePlayerFees(club, s.feePerPlayer);
+      const joined = joinedSet.has(String(s._id));
       return {
         ...s,
-        joined: joinedSet.has(String(s._id)),
+        joined,
+        pendingApproval: !joined && pendingSet.has(String(s._id)),
         convenienceFeePerPlayer: fees.convenienceFee,
         convenienceFeeMode: fees.feeMode,
         totalPerPlayer: fees.total,
@@ -123,6 +133,15 @@ router.post("/player/sessions/:id/join", auth, async (req, res) => {
     }
     const hasPaymentProof = !!(paymentScreenshot && paymentMethod);
 
+    if (hasPaymentProof) {
+      const pendingCharge = await Charge.findOne({
+        hostedPlayId: session._id,
+        playerId: memberId,
+        approvalStatus: "pending",
+      }).lean();
+      if (pendingCharge) return res.status(400).json({ error: "You already have a pending payment for this session awaiting approval" });
+    }
+
     const [user, club] = await Promise.all([
       User.findById(memberId).select("name").lean(),
       Club.findById(session.clubId).select("convenienceFeeRate convenienceFeeMode").lean(),
@@ -144,24 +163,32 @@ router.post("/player/sessions/:id/join", auth, async (req, res) => {
       ...(paymentScreenshot ? { paymentScreenshot } : {}),
     });
 
-    await HostedPlayParticipant.create({
-      hostedPlayId: session._id,
-      clubId: session.clubId,
-      memberId,
-      memberName: user?.name ?? "Member",
-      chargeId: charge._id,
-    });
+    if (!hasPaymentProof) {
+      // Free session — join the player immediately
+      await HostedPlayParticipant.create({
+        hostedPlayId: session._id,
+        clubId: session.clubId,
+        memberId,
+        memberName: user?.name ?? "Member",
+        chargeId: charge._id,
+      });
+      session.currentPlayers += 1;
+      if (session.currentPlayers >= session.maxPlayers) session.status = "full";
+      await session.save();
+      sendPushToClubAdmins(session.clubId, {
+        title: "Hosted Play join",
+        body: `${user?.name ?? "A member"} joined "${session.title}".`,
+      });
+      return res.status(201).json({ success: true, currentPlayers: session.currentPlayers, status: session.status, chargeId: charge._id });
+    }
 
-    session.currentPlayers += 1;
-    if (session.currentPlayers >= session.maxPlayers) session.status = "full";
-    await session.save();
-
+    // Paid session — player is not joined until admin approves the payment
     sendPushToClubAdmins(session.clubId, {
-      title: "Hosted Play join",
-      body: `${user?.name ?? "A member"} joined "${session.title}".`,
+      title: "Hosted Play payment pending",
+      body: `${user?.name ?? "A member"} submitted payment for "${session.title}". Please review and approve.`,
     });
 
-    res.status(201).json({ success: true, currentPlayers: session.currentPlayers, status: session.status, chargeId: charge._id });
+    res.status(201).json({ success: true, status: "pending_approval", chargeId: charge._id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
