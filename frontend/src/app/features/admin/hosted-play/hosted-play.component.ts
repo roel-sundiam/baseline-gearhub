@@ -125,7 +125,7 @@ type FormModel = HostedPlayInput;
                     <button class="action" (click)="openEdit(s)"><i class="fas fa-pen"></i> Edit</button>
                     @if (s.status === 'open' || s.status === 'full') {
                       <button class="action" (click)="setStatus(s, 'closed')"><i class="fas fa-lock"></i> Close</button>
-                    } @else if (s.status === 'closed') {
+                    } @else if (s.status === 'closed' || s.status === 'completed') {
                       <button class="action" (click)="setStatus(s, 'open')"><i class="fas fa-lock-open"></i> Reopen</button>
                     }
                     <button class="action danger" (click)="confirmDelete(s)"><i class="fas fa-trash"></i> Delete</button>

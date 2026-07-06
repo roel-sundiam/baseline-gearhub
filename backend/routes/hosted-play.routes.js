@@ -351,6 +351,14 @@ router.patch("/sessions/:id/status", auth, admin, async (req, res) => {
     const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId });
     if (!session) return res.status(404).json({ error: "Session not found" });
 
+    // When reopening a completed session, reset queue state
+    if (status === "open" && session.status === "completed") {
+      session.queueStatus = "not_started";
+      session.queueEndedAt = null;
+      session.queueStartedAt = null;
+      session.summary = null;
+    }
+
     // When reopening, respect the cap
     if (status === "open" && session.currentPlayers >= session.maxPlayers) {
       session.status = "full";
