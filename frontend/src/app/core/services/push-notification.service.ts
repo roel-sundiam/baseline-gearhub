@@ -54,16 +54,23 @@ export class PushNotificationService {
       );
       console.log('[Push] Backend subscribed:', backendSubscribed);
 
-      if (backendSubscribed && sub) {
+      const storedVapidKey = localStorage.getItem('push_vapid_key');
+      const vapidKeyChanged = storedVapidKey !== null && storedVapidKey !== key;
+
+      if (backendSubscribed && sub && !vapidKeyChanged) {
         this.isSubscribed.set(true);
         this.statusMsg.set('Active');
         return;
       }
 
-      if (sub && !backendSubscribed) {
-        console.log('[Push] Stale browser subscription — unsubscribing and re-subscribing fresh');
+      if (sub && (!backendSubscribed || vapidKeyChanged)) {
+        if (vapidKeyChanged) console.log('[Push] VAPID key changed — forcing re-subscription');
+        else console.log('[Push] Stale browser subscription — unsubscribing and re-subscribing fresh');
         await sub.unsubscribe();
         sub = null;
+        if (vapidKeyChanged) {
+          await firstValueFrom(this.http.delete(`${this.base}/unsubscribe-all`)).catch(() => {});
+        }
       }
 
       if (!sub) {
@@ -76,6 +83,7 @@ export class PushNotificationService {
       }
 
       await firstValueFrom(this.http.post(`${this.base}/subscribe`, { subscription: sub.toJSON() }));
+      localStorage.setItem('push_vapid_key', key);
       console.log('[Push] Subscription saved to backend');
       this.isSubscribed.set(true);
       this.statusMsg.set('Active');

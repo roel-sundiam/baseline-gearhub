@@ -44,4 +44,13 @@ router.delete('/unsubscribe', auth, async (req, res) => {
   }
 });
 
+router.delete('/unsubscribe-all', auth, async (req, res) => {
+  try {
+    await PushSubscription.deleteMany({ userId: req.user.userId });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
