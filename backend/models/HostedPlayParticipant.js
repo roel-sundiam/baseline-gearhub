@@ -9,6 +9,10 @@ const hostedPlayParticipantSchema = new mongoose.Schema(
     memberName: { type: String, trim: true },
     chargeId: { type: mongoose.Schema.Types.ObjectId, ref: "Charge" },
 
+    // ── Guest (public walk-in) contact info ──
+    guestEmail: { type: String, trim: true, lowercase: true },
+    guestPhone: { type: String, trim: true },
+
     // ── Queue Management state ──
     isWalkIn: { type: Boolean, default: false },
     checkedIn: { type: Boolean, default: false },

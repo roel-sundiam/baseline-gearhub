@@ -88,6 +88,21 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
                       </span>
                     </div>
 
+                    @if (charge.guestEmail || charge.guestPhone) {
+                      <div class="pa-guest-contact">
+                        @if (charge.guestEmail) {
+                          <a [href]="'mailto:' + charge.guestEmail" class="pa-guest-contact-item">
+                            <i class="fas fa-envelope"></i> {{ charge.guestEmail }}
+                          </a>
+                        }
+                        @if (charge.guestPhone) {
+                          <a [href]="'tel:' + charge.guestPhone" class="pa-guest-contact-item">
+                            <i class="fas fa-phone"></i> {{ charge.guestPhone }}
+                          </a>
+                        }
+                      </div>
+                    }
+
                     <div class="pa-meta">
                       <span class="pa-meta-item">
                         <i class="fas" [class.fa-calendar-check]="charge.chargeType === 'reservation'" [class.fa-play-circle]="charge.chargeType === 'per_game'" [class.fa-users]="charge.chargeType !== 'reservation' && charge.chargeType !== 'per_game'"></i>
@@ -467,6 +482,29 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
     .pa-badge-pending  { background: rgba(245,158,11,0.15); color: #fcd34d; }
     .pa-badge-approved { background: rgba(163,230,53,0.15); color: var(--accent); }
     .pa-badge-rejected { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+    /* Guest contact */
+    .pa-guest-contact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.55rem;
+    }
+    .pa-guest-contact-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.78rem;
+      color: #c4b5fd;
+      text-decoration: none;
+      background: rgba(139,92,246,0.1);
+      border: 1px solid rgba(139,92,246,0.2);
+      padding: 3px 8px;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+    .pa-guest-contact-item i { font-size: 0.7rem; opacity: 0.8; }
+    .pa-guest-contact-item:hover { background: rgba(139,92,246,0.2); }
 
     /* Meta */
     .pa-meta {

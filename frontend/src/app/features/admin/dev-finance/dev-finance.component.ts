@@ -79,6 +79,7 @@ import {
                     <th>Club</th>
                     <th class="col-center">Fee Rate</th>
                     <th class="col-right">Court Fees Collected</th>
+                    <th class="col-right">Hosted Play Fees</th>
                     <th class="col-right">Conv. Fee Owed</th>
                     <th class="col-right">Paid to Dev</th>
                     <th class="col-right">Waived</th>
@@ -116,6 +117,7 @@ import {
                         </div>
                       </td>
                       <td class="col-right col-muted">{{ club.totalCourtFees | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                      <td class="col-right col-orange">{{ club.totalHostedPlaySessionFees | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       <td class="col-right col-blue">{{ club.feesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       <td class="col-right col-green">{{ club.totalPaid | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       <td class="col-right col-purple">{{ club.totalWaived | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
@@ -146,6 +148,7 @@ import {
                     <td class="foot-label">Total ({{ clubs.length }} clubs)</td>
                     <td></td>
                     <td class="col-right foot-muted">—</td>
+                    <td class="col-right foot-orange">{{ totalHostedPlaySessionFees | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     <td class="col-right foot-blue">{{ totals.feesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     <td class="col-right foot-green">{{ totals.totalPaid | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     <td class="col-right foot-purple">{{ totals.totalWaived | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
@@ -374,6 +377,7 @@ import {
     .col-muted { color: rgba(255,255,255,0.6); }
     .col-blue { color: #93c5fd; font-weight: 600; }
     .col-green { color: var(--dm-accent); font-weight: 600; }
+    .col-orange { color: #fdba74; font-weight: 600; }
     .col-purple { color: #c4b5fd; font-weight: 600; }
     .col-red { color: #fca5a5; font-weight: 700; }
 
@@ -382,6 +386,7 @@ import {
     .foot-muted { color: rgba(255,255,255,0.4); text-align: right; }
     .foot-blue { color: #93c5fd; font-weight: 700; text-align: right; }
     .foot-green { color: var(--dm-accent); font-weight: 700; text-align: right; }
+    .foot-orange { color: #fdba74; font-weight: 700; text-align: right; }
     .foot-purple { color: #c4b5fd; font-weight: 700; text-align: right; }
     .foot-red { color: #fca5a5; font-weight: 700; text-align: right; }
 
@@ -573,6 +578,7 @@ export class DevFinanceComponent implements OnInit {
 
   get outstandingClubCount() { return this.clubs.filter(c => c.balance > 0).length; }
   get totalPaymentsSum() { return this.payments.reduce((s, p) => s + p.amount, 0); }
+  get totalHostedPlaySessionFees() { return this.clubs.reduce((s, c) => s + (c.totalHostedPlaySessionFees ?? 0), 0); }
 
   constructor(
     private auth: AuthService,

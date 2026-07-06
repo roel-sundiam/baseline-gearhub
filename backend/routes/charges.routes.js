@@ -104,30 +104,45 @@ router.patch("/:id/approve", auth, admin, async (req, res) => {
 
     // Create hosted play participant now that payment is approved
     if (charge.chargeType === "hosted_play" && charge.hostedPlayId) {
-      const [hpSession, hpUser] = await Promise.all([
-        HostedPlay.findById(charge.hostedPlayId),
-        User.findById(charge.playerId).select("name").lean(),
-      ]);
+      const hpSession = await HostedPlay.findById(charge.hostedPlayId);
       if (hpSession) {
-        await HostedPlayParticipant.create({
-          hostedPlayId: hpSession._id,
-          clubId: hpSession.clubId,
-          memberId: charge.playerId,
-          memberName: hpUser?.name ?? "Member",
-          chargeId: charge._id,
-        });
+        if (charge.playerId) {
+          // Member path
+          const hpUser = await User.findById(charge.playerId).select("name").lean();
+          await HostedPlayParticipant.create({
+            hostedPlayId: hpSession._id,
+            clubId: hpSession.clubId,
+            memberId: charge.playerId,
+            memberName: hpUser?.name ?? "Member",
+            chargeId: charge._id,
+          });
+        } else {
+          // Guest path — use contact info stored on the charge
+          await HostedPlayParticipant.create({
+            hostedPlayId: hpSession._id,
+            clubId: hpSession.clubId,
+            isWalkIn: true,
+            memberName: charge.guestName ?? "Guest",
+            guestEmail: charge.guestEmail,
+            guestPhone: charge.guestPhone,
+            chargeId: charge._id,
+          });
+        }
         hpSession.currentPlayers += 1;
         if (hpSession.currentPlayers >= hpSession.maxPlayers) hpSession.status = "full";
         await hpSession.save();
       }
     }
 
-    sendPushToUser(charge.playerId, {
-      title: 'Payment Approved ✓',
-      body: `Your payment of ₱${charge.amount.toLocaleString()} has been approved!`,
-      url: '/player/payments',
-      tag: 'payment-approved',
-    }).catch(() => {});
+    // Only notify member users — guests have no account to receive push notifications
+    if (charge.playerId) {
+      sendPushToUser(charge.playerId, {
+        title: 'Payment Approved ✓',
+        body: `Your payment of ₱${charge.amount.toLocaleString()} has been approved!`,
+        url: '/player/payments',
+        tag: 'payment-approved',
+      }).catch(() => {});
+    }
 
     res.json({ message: "Payment approved", charge });
   } catch (err) {

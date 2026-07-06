@@ -158,6 +158,16 @@ export class PublicBookingService {
     return this.http.post<GuestBookingResult>(`${this.base}/${clubId}/reserve`, payload);
   }
 
+  joinHostedPlayAsGuest(clubId: string, sessionId: string, payload: {
+    name: string; email: string; phone?: string;
+    paymentMethod?: string; paymentScreenshot?: string;
+  }) {
+    return this.http.post<{
+      success: boolean; currentPlayers?: number;
+      status: 'open' | 'full' | 'pending_approval'; chargeId?: string;
+    }>(`${this.base}/${clubId}/hosted-play/${sessionId}/guest-join`, payload);
+  }
+
   submitInquiry(clubId: string, payload: { senderName: string; senderEmail: string; message: string }) {
     return this.http.post<any>(`${this.base}/${clubId}/inquiries`, payload);
   }

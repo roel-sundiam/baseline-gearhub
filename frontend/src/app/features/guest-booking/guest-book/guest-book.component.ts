@@ -1,8 +1,9 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2 } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2, signal, computed } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { PublicBookingService } from '../../../core/services/public-booking.service';
+import { CloudinaryService } from '../../../core/services/cloudinary.service';
 
 @Component({
   selector: 'app-guest-book',
@@ -225,9 +226,112 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
                           </div>
                           <div class="lp-op-right">
                             <div class="lp-op-spots">{{ s.currentPlayers }}/{{ s.maxPlayers }}</div>
-                            <div class="lp-op-type">{{ s.status === 'full' ? 'Full' : 'Open' }}</div>
+                            @if (guestJoinConfirmed().get(s._id) === 'joined') {
+                              <div class="lp-op-joined-badge"><i class="fas fa-check-circle"></i> Joined</div>
+                            } @else if (guestJoinConfirmed().get(s._id) === 'pending') {
+                              <div class="lp-op-pending-badge"><i class="fas fa-clock"></i> Pending</div>
+                            } @else if (s.status === 'full') {
+                              <div class="lp-op-type">Full</div>
+                            } @else {
+                              <button class="lp-op-join-btn"
+                                (click)="openGuestJoinForm(s._id)"
+                                [disabled]="guestJoinSubmitting()">
+                                Join as Guest
+                              </button>
+                            }
                           </div>
                         </div>
+
+                        <!-- Inline guest join form -->
+                        @if (activeJoinSessionId() === s._id) {
+                          <div class="lp-guest-join-form">
+                            <div class="lp-gjf-header">
+                              <span><i class="fas fa-user-plus"></i> Join as Guest — {{ s.title }}</span>
+                              <button class="lp-gjf-close" (click)="closeGuestJoinForm()" [disabled]="guestJoinSubmitting()">
+                                <i class="fas fa-times"></i>
+                              </button>
+                            </div>
+                            <div class="lp-gjf-body">
+                              <input class="lp-inq-input" type="text" placeholder="Your name *"
+                                autocomplete="name"
+                                [value]="guestJoinName()"
+                                (input)="guestJoinName.set($any($event.target).value)" />
+                              <input class="lp-inq-input" type="email" placeholder="Email address *"
+                                autocomplete="email"
+                                [value]="guestJoinEmail()"
+                                (input)="guestJoinEmail.set($any($event.target).value)" />
+                              <input class="lp-inq-input" type="tel" placeholder="Phone number (optional)"
+                                autocomplete="tel"
+                                [value]="guestJoinPhone()"
+                                (input)="guestJoinPhone.set($any($event.target).value)" />
+
+                              @if (activeSessionIsPaid()) {
+                                <div class="lp-gjf-fee-note">
+                                  <i class="fas fa-coins"></i>
+                                  Session fee: <strong>₱{{ s.feePerPlayer | number }}</strong>
+                                </div>
+
+                                @if (paymentMethods.length > 0) {
+                                  <div class="lp-gjf-methods">
+                                    @for (method of paymentMethods; track method) {
+                                      <button class="lp-gjf-method-btn"
+                                        [class.active]="guestJoinPaymentMethod() === method"
+                                        (click)="guestJoinPaymentMethod.set(method)">
+                                        {{ method }}
+                                      </button>
+                                    }
+                                  </div>
+                                }
+
+                                @if (paymentQrCodes[guestJoinPaymentMethod()]) {
+                                  <img [src]="paymentQrCodes[guestJoinPaymentMethod()]" alt="Payment QR" class="lp-gjf-qr" />
+                                }
+                                @if (paymentAccounts[guestJoinPaymentMethod()]) {
+                                  <div class="lp-gjf-account">{{ paymentAccounts[guestJoinPaymentMethod()] }}</div>
+                                }
+
+                                @if (guestJoinScreenshotPreview()) {
+                                  <div class="lp-gjf-preview">
+                                    <img [src]="guestJoinScreenshotPreview()!" alt="Payment screenshot" class="lp-gjf-preview-img" />
+                                    @if (!guestJoinUploadingScreenshot()) {
+                                      <button class="lp-gjf-preview-remove" (click)="clearGuestJoinScreenshot()">
+                                        <i class="fas fa-times"></i>
+                                      </button>
+                                    }
+                                  </div>
+                                } @else {
+                                  <label class="lp-gjf-upload" [class.uploading]="guestJoinUploadingScreenshot()">
+                                    <i class="fas fa-camera"></i>
+                                    {{ guestJoinUploadingScreenshot() ? 'Uploading…' : 'Attach payment screenshot *' }}
+                                    <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none"
+                                      [disabled]="guestJoinUploadingScreenshot()"
+                                      (change)="onGuestJoinScreenshot($event)" />
+                                  </label>
+                                }
+
+                                <p class="lp-gjf-disclaimer">
+                                  <i class="fas fa-circle-info"></i>
+                                  You will be confirmed after the club admin reviews your payment.
+                                </p>
+                              }
+
+                              @if (guestJoinError()) {
+                                <p class="lp-gjf-error"><i class="fas fa-exclamation-triangle"></i> {{ guestJoinError() }}</p>
+                              }
+
+                              <button class="lp-gjf-submit"
+                                [disabled]="guestJoinSubmitting() || guestJoinUploadingScreenshot() || (activeSessionIsPaid() && !guestJoinScreenshotUrl())"
+                                (click)="submitGuestJoin(s)">
+                                @if (guestJoinSubmitting()) {
+                                  <i class="fas fa-circle-notch fa-spin"></i> Joining…
+                                } @else {
+                                  <i class="fas fa-user-plus"></i>
+                                  {{ activeSessionIsPaid() ? 'Submit &amp; Await Approval' : 'Join Now' }}
+                                }
+                              </button>
+                            </div>
+                          </div>
+                        }
                       }
                     </div>
                   } @else {
@@ -239,8 +343,11 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
                   }
 
                   <div class="lp-op-register">
-                    <p class="lp-op-register-note"><i class="fas fa-user-plus"></i> To join a session you need a player account</p>
-                    <a routerLink="/register" class="lp-op-join">Register as Player</a>
+                    <p class="lp-op-register-note">
+                      <i class="fas fa-user-circle"></i>
+                      Members: <a routerLink="/register" class="lp-op-register-link">Register</a> or
+                      <button class="lp-op-register-login" (click)="goToLogin()">Log in</button> for full access
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1198,6 +1305,102 @@ import { PublicBookingService } from '../../../core/services/public-booking.serv
       margin-top: auto;
     }
 
+    /* ── Guest Join ── */
+    .lp-op-join-btn {
+      padding: 0.42rem 0.85rem;
+      background: rgba(163,230,53,0.13);
+      border: 1px solid rgba(163,230,53,0.35);
+      border-radius: 8px;
+      color: #a3e635;
+      font-size: 0.78rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .lp-op-join-btn:hover:not(:disabled) { background: rgba(163,230,53,0.22); }
+    .lp-op-join-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .lp-op-joined-badge { font-size: 0.75rem; color: #a3e635; font-weight: 700; display: flex; align-items: center; gap: 0.3rem; }
+    .lp-op-pending-badge { font-size: 0.75rem; color: #fbbf24; font-weight: 700; display: flex; align-items: center; gap: 0.3rem; }
+    .lp-op-register-link { color: #a3e635; text-decoration: underline; }
+    .lp-op-register-link:hover { opacity: 0.8; }
+    .lp-op-register-login {
+      background: none; border: none; color: #a3e635;
+      font-size: inherit; cursor: pointer; text-decoration: underline; padding: 0; font-family: inherit;
+    }
+    .lp-op-register-login:hover { opacity: 0.8; }
+    .lp-guest-join-form {
+      background: rgba(163,230,53,0.04);
+      border: 1px solid rgba(163,230,53,0.18);
+      border-radius: 12px;
+      margin: 0.4rem 0 0.5rem;
+      overflow: hidden;
+    }
+    .lp-gjf-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.7rem 1rem;
+      background: rgba(163,230,53,0.07);
+      font-size: 0.83rem; font-weight: 700; color: #a3e635;
+    }
+    .lp-gjf-close {
+      background: none; border: none; color: rgba(255,255,255,0.4);
+      cursor: pointer; font-size: 0.85rem; padding: 0.2rem 0.4rem;
+    }
+    .lp-gjf-close:disabled { opacity: 0.4; cursor: not-allowed; }
+    .lp-gjf-body {
+      padding: 0.9rem 1rem;
+      display: flex; flex-direction: column; gap: 0.6rem;
+    }
+    .lp-gjf-fee-note {
+      font-size: 0.82rem; color: rgba(255,255,255,0.65);
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px; padding: 0.55rem 0.8rem; display: flex; align-items: center; gap: 0.4rem;
+    }
+    .lp-gjf-fee-note i { color: #fbbf24; }
+    .lp-gjf-methods { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+    .lp-gjf-method-btn {
+      flex: 1 1 0; min-width: 70px;
+      padding: 0.55rem 0.5rem;
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+      background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.7);
+      font-size: 0.8rem; font-weight: 700; font-family: inherit; cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .lp-gjf-method-btn.active { border-color: #a3e635; background: rgba(163,230,53,0.1); color: #a3e635; }
+    .lp-gjf-qr { width: 140px; height: 140px; object-fit: contain; border-radius: 8px; background: #fff; padding: 5px; align-self: center; }
+    .lp-gjf-account { font-size: 0.85rem; font-weight: 700; color: #fff; text-align: center; }
+    .lp-gjf-upload {
+      display: flex; flex-direction: column; align-items: center; gap: 0.45rem;
+      padding: 1rem; border: 2px dashed rgba(255,255,255,0.14); border-radius: 10px;
+      background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.5);
+      font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s;
+    }
+    .lp-gjf-upload i { font-size: 1.2rem; color: #a3e635; }
+    .lp-gjf-upload.uploading { opacity: 0.6; cursor: not-allowed; }
+    .lp-gjf-preview { position: relative; border-radius: 10px; overflow: hidden; max-height: 160px; }
+    .lp-gjf-preview-img { width: 100%; max-height: 160px; object-fit: cover; display: block; }
+    .lp-gjf-preview-remove {
+      position: absolute; top: 0.4rem; right: 0.4rem;
+      background: rgba(0,0,0,0.6); color: #fff; border: none;
+      border-radius: 50%; width: 24px; height: 24px;
+      display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.75rem;
+    }
+    .lp-gjf-disclaimer {
+      font-size: 0.76rem; color: #fbbf24; padding: 0.5rem 0.7rem;
+      background: rgba(251,191,36,0.07); border: 1px solid rgba(251,191,36,0.18);
+      border-radius: 8px; display: flex; align-items: flex-start; gap: 0.35rem; line-height: 1.45; margin: 0;
+    }
+    .lp-gjf-error { font-size: 0.8rem; color: #f87171; margin: 0; display: flex; align-items: center; gap: 0.35rem; }
+    .lp-gjf-submit {
+      width: 100%; padding: 0.78rem; border: none; border-radius: 10px;
+      background: #a3e635; color: #0c1a11;
+      font-size: 0.9rem; font-weight: 900; font-family: inherit;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+      transition: opacity 0.15s;
+    }
+    .lp-gjf-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
     /* ── Responsive ── */
     @media (min-width: 768px) {
       .lp-features-grid { grid-template-columns: repeat(4, 1fr); }
@@ -1267,6 +1470,29 @@ export class GuestBookComponent implements OnInit, OnDestroy {
   showOpenPlay = false;
   openPlaySessions: { _id: string; title: string; sport: string; sessionDate: string; startTime: string; endTime: string; matchType: string; maxPlayers: number; joinedPlayers: number }[] = [];
 
+  // Payment info (populated from getClub)
+  paymentMethods: string[] = [];
+  paymentAccounts: Record<string, string> = {};
+  paymentQrCodes: Record<string, string> = {};
+
+  // ── Guest Join state (signal-based) ──
+  activeJoinSessionId = signal<string | null>(null);
+  guestJoinName = signal('');
+  guestJoinEmail = signal('');
+  guestJoinPhone = signal('');
+  guestJoinPaymentMethod = signal('GCash');
+  guestJoinScreenshotUrl = signal<string | null>(null);
+  guestJoinScreenshotPreview = signal<string | null>(null);
+  guestJoinUploadingScreenshot = signal(false);
+  guestJoinSubmitting = signal(false);
+  guestJoinError = signal('');
+  guestJoinConfirmed = signal<Map<string, 'joined' | 'pending'>>(new Map());
+  activeSessionIsPaid = computed(() => {
+    const id = this.activeJoinSessionId();
+    const s = this.hostedPlaySessions.find(x => x._id === id);
+    return (s?.feePerPlayer ?? 0) > 0;
+  });
+
   // Chat state
   inquiry = { senderName: '', senderEmail: '', message: '' };
   inquirySubmitting = false;
@@ -1282,6 +1508,7 @@ export class GuestBookComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     private publicBookingService: PublicBookingService,
+    private cloudinary: CloudinaryService,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
   ) {}
@@ -1314,6 +1541,12 @@ export class GuestBookComponent implements OnInit, OnDestroy {
         if (club.status === 'suspended') this.clubSuspended = true;
         this.isPerGame = club.bookingProcess === 'per_game';
         this.isHostedPlay = club.bookingProcess === 'hosted_play';
+        this.paymentMethods = (club.paymentMethods ?? []).filter(m => m !== 'Cash');
+        this.paymentAccounts = club.paymentAccounts ?? {};
+        this.paymentQrCodes = club.paymentQrCodes ?? {};
+        if (this.paymentMethods.length > 0) {
+          this.guestJoinPaymentMethod.set(this.paymentMethods[0]);
+        }
         if (this.isHostedPlay) {
           this.publicBookingService.getHostedPlaySessions(this.clubId).subscribe({
             next: (sessions) => { this.hostedPlaySessions = sessions; this.cdr.detectChanges(); },
@@ -1446,5 +1679,99 @@ export class GuestBookComponent implements OnInit, OnDestroy {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
+  }
+
+  openGuestJoinForm(sessionId: string) {
+    this.activeJoinSessionId.set(sessionId);
+    this.guestJoinName.set('');
+    this.guestJoinEmail.set('');
+    this.guestJoinPhone.set('');
+    if (this.paymentMethods.length > 0) this.guestJoinPaymentMethod.set(this.paymentMethods[0]);
+    this.guestJoinScreenshotUrl.set(null);
+    this.guestJoinScreenshotPreview.set(null);
+    this.guestJoinUploadingScreenshot.set(false);
+    this.guestJoinSubmitting.set(false);
+    this.guestJoinError.set('');
+  }
+
+  closeGuestJoinForm() {
+    if (this.guestJoinSubmitting()) return;
+    this.activeJoinSessionId.set(null);
+    this.guestJoinError.set('');
+  }
+
+  clearGuestJoinScreenshot() {
+    this.guestJoinScreenshotUrl.set(null);
+    this.guestJoinScreenshotPreview.set(null);
+  }
+
+  async onGuestJoinScreenshot(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const err = this.cloudinary.validateImage(file);
+    if (err) { this.guestJoinError.set(err); return; }
+
+    this.guestJoinUploadingScreenshot.set(true);
+    this.guestJoinError.set('');
+    this.guestJoinScreenshotPreview.set(URL.createObjectURL(file));
+    try {
+      const url = await this.cloudinary.uploadImage(file, 'payment-screenshots');
+      this.guestJoinScreenshotUrl.set(url);
+    } catch {
+      this.guestJoinError.set('Failed to upload screenshot. Please try again.');
+      this.guestJoinScreenshotUrl.set(null);
+      this.guestJoinScreenshotPreview.set(null);
+    } finally {
+      this.guestJoinUploadingScreenshot.set(false);
+      this.cdr.detectChanges();
+    }
+  }
+
+  submitGuestJoin(session: { _id: string; feePerPlayer: number; title: string }) {
+    const name = this.guestJoinName().trim();
+    const email = this.guestJoinEmail().trim();
+    const phone = this.guestJoinPhone().trim();
+
+    if (!name) { this.guestJoinError.set('Name is required.'); return; }
+    if (!email || !email.includes('@')) { this.guestJoinError.set('A valid email address is required.'); return; }
+    if (session.feePerPlayer > 0 && !this.guestJoinScreenshotUrl()) {
+      this.guestJoinError.set('Please attach your payment screenshot.');
+      return;
+    }
+
+    this.guestJoinSubmitting.set(true);
+    this.guestJoinError.set('');
+
+    const payload: { name: string; email: string; phone?: string; paymentMethod?: string; paymentScreenshot?: string } = {
+      name, email,
+      ...(phone ? { phone } : {}),
+      ...(session.feePerPlayer > 0 ? {
+        paymentMethod: this.guestJoinPaymentMethod(),
+        paymentScreenshot: this.guestJoinScreenshotUrl()!,
+      } : {}),
+    };
+
+    this.publicBookingService.joinHostedPlayAsGuest(this.clubId, session._id, payload).subscribe({
+      next: (result) => {
+        const map = new Map(this.guestJoinConfirmed());
+        map.set(session._id, result.status === 'pending_approval' ? 'pending' : 'joined');
+        this.guestJoinConfirmed.set(map);
+        if (result.status !== 'pending_approval' && result.currentPlayers !== undefined) {
+          const s = this.hostedPlaySessions.find(x => x._id === session._id);
+          if (s) {
+            s.currentPlayers = result.currentPlayers;
+            s.status = result.status as 'open' | 'full';
+          }
+        }
+        this.activeJoinSessionId.set(null);
+        this.guestJoinSubmitting.set(false);
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.guestJoinError.set(err?.error?.error ?? 'Something went wrong. Please try again.');
+        this.guestJoinSubmitting.set(false);
+        this.cdr.detectChanges();
+      },
+    });
   }
 }

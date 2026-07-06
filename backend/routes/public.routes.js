@@ -9,8 +9,10 @@ const OpenPlaySession = require("../models/OpenPlaySession");
 const AppSettings = require("../models/AppSettings");
 const OpenPlaySessionPlayer = require("../models/OpenPlaySessionPlayer");
 const HostedPlay = require("../models/HostedPlay");
+const HostedPlayParticipant = require("../models/HostedPlayParticipant");
 const AppReview = require("../models/AppReview");
 const { sendPushToClubAdmins } = require("../utils/push");
+const { computePlayerFees } = require("../utils/fees");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
 
@@ -794,6 +796,97 @@ router.get("/:clubId/hosted-play", async (req, res) => {
       status: s.status,
       venueLogo: findLogo(s.venue, s.court),
     })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/public/:clubId/hosted-play/:sessionId/guest-join — guest joins without an account
+router.post("/:clubId/hosted-play/:sessionId/guest-join", async (req, res) => {
+  try {
+    const { name, email, phone, paymentMethod, paymentScreenshot } = req.body;
+
+    if (!name?.trim()) return res.status(400).json({ error: "Name is required" });
+    if (!email?.trim() || !email.includes("@")) return res.status(400).json({ error: "A valid email address is required" });
+
+    const club = await findClub(req.params.clubId);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    if (club.status === "suspended") return res.status(403).json({ error: "Club is suspended" });
+
+    const session = await HostedPlay.findById(req.params.sessionId);
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (session.clubId.toString() !== club._id.toString()) return res.status(404).json({ error: "Session not found" });
+    if (session.status !== "open") return res.status(400).json({ error: "Session is not open" });
+    if (session.currentPlayers >= session.maxPlayers) return res.status(400).json({ error: "Session is full" });
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Duplicate check: existing participant with same email
+    const existing = await HostedPlayParticipant.findOne({ hostedPlayId: session._id, guestEmail: normalizedEmail });
+    if (existing) return res.status(400).json({ error: "This email is already registered for this session" });
+
+    if (session.feePerPlayer > 0) {
+      // ── Paid session ──
+      const VALID_METHODS = ["GCash", "Bank Transfer", "GoTyme"];
+      if (!paymentMethod || !VALID_METHODS.includes(paymentMethod)) {
+        return res.status(400).json({ error: "A valid payment method is required (GCash, Bank Transfer, GoTyme)" });
+      }
+      if (!paymentScreenshot || !paymentScreenshot.startsWith("https://")) {
+        return res.status(400).json({ error: "Payment screenshot is required" });
+      }
+
+      // Duplicate pending charge check
+      const pendingCharge = await Charge.findOne({ hostedPlayId: session._id, guestEmail: normalizedEmail, approvalStatus: "pending" });
+      if (pendingCharge) return res.status(400).json({ error: "A pending payment for this email already exists" });
+
+      const clubFull = await Club.findById(club._id).select("convenienceFeeRate convenienceFeeMode").lean();
+      const { baseFee, convenienceFee, total: amount, feeMode } = computePlayerFees(clubFull, session.feePerPlayer);
+      const netSessionFee = feeMode === "club_absorbs" ? baseFee - convenienceFee : baseFee;
+
+      await Charge.create({
+        clubId: session.clubId,
+        guestName: name.trim(),
+        guestEmail: normalizedEmail,
+        guestPhone: phone?.trim() || undefined,
+        hostedPlayId: session._id,
+        amount,
+        breakdown: { hostedPlayFee: netSessionFee, convenienceFee, convenienceFeeMode: feeMode },
+        chargeType: "hosted_play",
+        status: "unpaid",
+        approvalStatus: "pending",
+        paymentMethod,
+        paymentScreenshot,
+      });
+
+      sendPushToClubAdmins(session.clubId.toString(), {
+        title: "Hosted Play guest payment pending",
+        body: `${name.trim()} submitted payment to join "${session.title}". Please review.`,
+      }).catch(() => {});
+
+      return res.status(201).json({ success: true, status: "pending_approval" });
+    } else {
+      // ── Free session ──
+      await HostedPlayParticipant.create({
+        hostedPlayId: session._id,
+        clubId: session.clubId,
+        isWalkIn: true,
+        memberName: name.trim(),
+        guestEmail: normalizedEmail,
+        guestPhone: phone?.trim() || undefined,
+      });
+
+      session.currentPlayers += 1;
+      if (session.currentPlayers >= session.maxPlayers) session.status = "full";
+      await session.save();
+
+      sendPushToClubAdmins(session.clubId.toString(), {
+        title: "Hosted Play guest joined",
+        body: `${name.trim()} joined "${session.title}" as a guest.`,
+      }).catch(() => {});
+
+      return res.status(201).json({ success: true, currentPlayers: session.currentPlayers, status: session.status });
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

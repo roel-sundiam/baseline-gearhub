@@ -74,6 +74,7 @@ export interface ClubServiceSummary {
   convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat';
   convenienceFeeMonthlyAmount: number;
   totalCourtFees: number;
+  totalHostedPlaySessionFees: number;
   feesOwed: number;
   totalPaid: number;
   totalWaived: number;

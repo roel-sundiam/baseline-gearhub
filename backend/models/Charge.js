@@ -7,6 +7,8 @@ const chargeSchema = new mongoose.Schema(
       ref: "User",
     },
     guestName: { type: String },
+    guestEmail: { type: String },
+    guestPhone: { type: String },
     reservationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Reservation",

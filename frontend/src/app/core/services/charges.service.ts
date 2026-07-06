@@ -7,6 +7,8 @@ export interface Charge {
   _id: string;
   playerId: string | { _id: string; name: string; email: string; username: string } | null;
   guestName?: string;
+  guestEmail?: string;
+  guestPhone?: string;
   reservationId?: { _id: string; date: string; court: number; timeSlot: string; durationHours?: number; status?: string };
   sessionId?: { _id: string; date: string; startTime: string; ballBoyUsed: boolean };
   openPlaySessionId?: { _id: string; title: string; sessionDate: string; startTime: string; endTime: string; sport: string };

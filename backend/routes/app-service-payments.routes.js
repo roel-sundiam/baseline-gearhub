@@ -175,7 +175,15 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       ]),
       Charge.aggregate([
         { $match: { chargeType: "hosted_play" } },
-        { $group: { _id: "$clubId", totalHostedPlayFees: { $sum: "$breakdown.convenienceFee" } } },
+        {
+          $group: {
+            _id: "$clubId",
+            totalHostedPlayFees: { $sum: "$breakdown.convenienceFee" },
+            totalHostedPlaySessionFees: {
+              $sum: { $cond: [{ $eq: ["$approvalStatus", "approved"] }, "$amount", 0] },
+            },
+          },
+        },
       ]),
       AppServicePayment.aggregate([
         { $match: { type: "payment" } },
@@ -194,7 +202,7 @@ router.get("/summary", auth, superadmin, async (req, res) => {
     const chargeMap = Object.fromEntries(chargeAgg.map((r) => [r._id.toString(), { totalCourtFees: r.totalCourtFees, totalConvenienceFees: r.totalConvenienceFees }]));
     const openPlayMap = Object.fromEntries(openPlayAgg.map((r) => [r._id.toString(), r.totalOpenPlayFees]));
     const perGameMap = Object.fromEntries(perGameAgg.map((r) => [r._id.toString(), r.totalPerGameFees]));
-    const hostedPlayMap = Object.fromEntries(hostedPlayAgg.map((r) => [r._id.toString(), r.totalHostedPlayFees]));
+    const hostedPlayMap = Object.fromEntries(hostedPlayAgg.map((r) => [r._id.toString(), { convFee: r.totalHostedPlayFees, sessionFees: r.totalHostedPlaySessionFees }]));
     const paymentMap = Object.fromEntries(paymentAgg.map((r) => [r._id.toString(), r.totalPaid]));
     const waiverMap = Object.fromEntries(waiverAgg.map((r) => [r._id.toString(), r.totalWaived]));
     const billingMap = Object.fromEntries(billingAgg.map((r) => [r._id.toString(), r.totalBilled]));
@@ -206,15 +214,17 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       const convenienceFeeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10;
       const convenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
       const convenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
+      const hostedPlayData = hostedPlayMap[id] ?? { convFee: 0, sessionFees: 0 };
       const feesOwed = convenienceFeeMode === 'monthly_flat'
         ? parseFloat((convenienceFeeMonthlyAmount).toFixed(2))
-        : parseFloat((chargeData.totalConvenienceFees + (openPlayMap[id] ?? 0) + (perGameMap[id] ?? 0) + (hostedPlayMap[id] ?? 0) + (billingMap[id] ?? 0)).toFixed(2));
+        : parseFloat((chargeData.totalConvenienceFees + (openPlayMap[id] ?? 0) + (perGameMap[id] ?? 0) + hostedPlayData.convFee + (billingMap[id] ?? 0)).toFixed(2));
       const totalPaid = paymentMap[id] || 0;
       const totalWaived = waiverMap[id] || 0;
+      const totalHostedPlaySessionFees = parseFloat((hostedPlayData.sessionFees ?? 0).toFixed(2));
       const balance = convenienceFeeMode === 'monthly_flat'
         ? parseFloat(Math.max(0, feesOwed - totalPaid).toFixed(2))
         : parseFloat((feesOwed - totalPaid - totalWaived).toFixed(2));
-      return { clubId: id, clubName: club.name, convenienceFeeRate, convenienceFeeMode, convenienceFeeMonthlyAmount, totalCourtFees, feesOwed, totalPaid, totalWaived, balance };
+      return { clubId: id, clubName: club.name, convenienceFeeRate, convenienceFeeMode, convenienceFeeMonthlyAmount, totalCourtFees, totalHostedPlaySessionFees, feesOwed, totalPaid, totalWaived, balance };
     });
 
     clubData.sort((a, b) => b.balance - a.balance);
