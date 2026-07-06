@@ -73,7 +73,7 @@ interface AdminUser {
             <i class="fas fa-file-contract"></i> T&amp;C Editor
           </a>
           <a routerLink="/admin/dev-finance" class="btn btn-dev">
-            <i class="fas fa-code"></i> Dev Finance
+            <i class="fas fa-chart-line"></i> Dev Finance
           </a>
           <a routerLink="/admin/clubs/new" class="btn btn-primary">
             <i class="fas fa-plus"></i> New Club
