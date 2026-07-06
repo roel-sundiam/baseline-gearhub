@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, interval, of } from 'rxjs';
 import { switchMap, catchError } from 'rxjs/operators';
+import { environment } from '../../../environments/environment';
 
 export interface LiveVisitor {
   _id?: string;
@@ -20,7 +21,7 @@ export interface LiveVisitor {
 })
 export class LiveVisitorsService {
   private sessionId: string = '';
-  private apiUrl = '/api/analytics';
+  private apiUrl = `${environment.apiUrl}/analytics`;
 
   constructor(private http: HttpClient) {
     // Generate a unique session ID on service instantiation
