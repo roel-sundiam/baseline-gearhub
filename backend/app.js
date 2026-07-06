@@ -70,7 +70,7 @@ app.use(
 app.use(express.json());
 
 // Health check should respond even when DB is unavailable.
-app.get('/api/health', (_req, res) => {
+app.get(['/health', '/api/health'], (_req, res) => {
   const uri = process.env.MONGODB_URI || '';
   const isLocal = uri.includes('localhost') || uri.includes('127.0.0.1');
   const runtime = process.env.RENDER ? 'render' : (process.env.CONTEXT || process.env.SITE_ID) ? 'netlify' : 'local';
