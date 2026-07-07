@@ -88,6 +88,22 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
           </article>
         </section>
 
+        @if (!authService.isSuperAdmin() && feeInfo() !== null) {
+          <article class="balance-due-card" [class.balance-due-card--owed]="feeInfo()!.balance > 0">
+            <div class="balance-due-left">
+              <span class="balance-due-icon"><i class="fas fa-file-invoice-dollar"></i></span>
+              <div>
+                <p class="balance-due-label">App Service Balance</p>
+                <p class="balance-due-amount">{{ feeInfo()!.balance | currency: 'PHP' : 'symbol' : '1.2-2' }}</p>
+              </div>
+            </div>
+            <div class="balance-due-right">
+              <span class="balance-due-due">Due by {{ monthEndDate | date: 'MMMM d, yyyy' }}</span>
+              <a routerLink="/admin/finance" class="balance-due-link">View details →</a>
+            </div>
+          </article>
+        }
+
         @if (authService.isSuperAdmin()) {
           <section class="quick-actions">
             <div class="section-header">
@@ -141,10 +157,14 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
 
                   <div class="approval-actions">
                     <span class="approval-amt">{{ charge.amount | currency: 'PHP' : 'symbol' }}</span>
-                    <button class="btn-approve-sm" [disabled]="processingId === charge._id" (click)="quickApprove(charge._id)">
-                      {{ processingId === charge._id ? 'Approving...' : 'Approve' }}
+                    <button class="btn-approve-sm" [disabled]="processingId === charge._id" (click)="quickApprove(charge._id)" aria-label="Approve payment">
+                      <i class="fas" [class.fa-circle-notch]="processingId === charge._id" [class.fa-spin]="processingId === charge._id" [class.fa-check]="processingId !== charge._id"></i>
+                      <span>{{ processingId === charge._id ? 'Approving...' : 'Approve' }}</span>
                     </button>
-                    <a [routerLink]="['/admin/payment-approvals']" class="btn-review-sm">Review</a>
+                    <a [routerLink]="['/admin/payment-approvals']" class="btn-review-sm" aria-label="Review payment">
+                      <i class="fas fa-eye"></i>
+                      <span>Review</span>
+                    </a>
                   </div>
                 </article>
               }
@@ -904,6 +924,90 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         50% { opacity: .3; }
       }
 
+      .balance-due-card {
+        background: var(--card-bg);
+        border: 1px solid rgba(163,230,53,0.18);
+        border-radius: 14px;
+        padding: 0.8rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.24);
+      }
+
+      .balance-due-card--owed {
+        border-color: rgba(251,146,60,0.35);
+        background: rgba(251,146,60,0.06);
+      }
+
+      .balance-due-left {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+      }
+
+      .balance-due-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        background: rgba(163,230,53,0.12);
+        color: var(--gold);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+        flex-shrink: 0;
+      }
+
+      .balance-due-card--owed .balance-due-icon {
+        background: rgba(251,146,60,0.14);
+        color: #fb923c;
+      }
+
+      .balance-due-label {
+        margin: 0;
+        font-size: 0.78rem;
+        color: rgba(255,255,255,0.65);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .balance-due-amount {
+        margin: 0.15rem 0 0;
+        font-size: 1.22rem;
+        font-weight: 800;
+        color: #ffffff;
+      }
+
+      .balance-due-card--owed .balance-due-amount {
+        color: #fb923c;
+      }
+
+      .balance-due-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.3rem;
+      }
+
+      .balance-due-due {
+        font-size: 0.8rem;
+        color: rgba(255,255,255,0.6);
+        font-weight: 600;
+      }
+
+      .balance-due-link {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--gold);
+        text-decoration: none;
+      }
+
+      .balance-due-link:hover { text-decoration: underline; }
+
       @keyframes shimmer {
         0% { background-position: 200% 0; }
         100% { background-position: -200% 0; }
@@ -1081,6 +1185,260 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         overflow-x: auto;
         padding-bottom: 8px;
       }
+
+      @media (max-width: 640px) {
+        .dashboard-shell {
+          padding: 0;
+          margin: 0 -1.5rem;
+          overflow-x: hidden;
+          gap: 0.75rem;
+          background:
+            radial-gradient(circle at 16% 0%, rgba(163,230,53,0.12), transparent 28%),
+            var(--dm-bg);
+        }
+
+        .hero-panel {
+          margin: 0;
+          border-left: 0;
+          border-right: 0;
+          border-radius: 0;
+          padding: 1rem;
+          background:
+            linear-gradient(90deg, rgba(6,18,11,0.96), rgba(18,50,32,0.78)),
+            url('/tennis-court-surface.png') center/cover;
+        }
+
+        .hero-kicker {
+          font-size: 0.66rem;
+        }
+
+        .hero-panel h2 {
+          font-size: 1.45rem;
+          line-height: 1.05;
+        }
+
+        .hero-subtitle {
+          max-width: 24rem;
+          font-size: 0.82rem;
+          line-height: 1.35;
+        }
+
+        .btn-primary,
+        .btn-secondary {
+          min-height: 42px;
+          border-radius: 8px;
+        }
+
+        .state-shell,
+        .approvals-section,
+        .quick-actions,
+        .poster-section {
+          margin: 0 0.75rem;
+          border-radius: 10px;
+          padding: 0.85rem;
+        }
+
+        .stats-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.55rem;
+          padding: 0 0.75rem;
+        }
+
+        .stat-card {
+          min-height: auto;
+          padding: 0.72rem 0.55rem;
+          align-items: center;
+          justify-items: center;
+          text-align: center;
+          gap: 0.28rem;
+          border-radius: 10px;
+          border-color: rgba(163,230,53,0.18);
+          background: rgba(255,255,255,0.04);
+        }
+
+        .stat-head {
+          display: contents;
+        }
+
+        .stat-icon {
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          font-size: 0.78rem;
+        }
+
+        .stat-value {
+          font-size: clamp(0.98rem, 4.6vw, 1.2rem);
+          line-height: 1.05;
+          overflow-wrap: anywhere;
+        }
+
+        .stat-label {
+          font-size: 0.58rem;
+          line-height: 1.12;
+          letter-spacing: 0.035em;
+          text-transform: uppercase;
+        }
+
+        .stat-link {
+          display: none;
+        }
+
+        .section-header {
+          align-items: flex-start;
+          margin-bottom: 0.65rem;
+        }
+
+        .section-kicker {
+          font-size: 0.64rem;
+        }
+
+        .section-header h3 {
+          font-size: 0.95rem;
+        }
+
+        .section-link {
+          min-height: 32px;
+          display: inline-flex;
+          align-items: center;
+          border-radius: 999px;
+          padding: 0 0.65rem;
+          background: rgba(163,230,53,0.1);
+          border: 1px solid rgba(163,230,53,0.18);
+          text-decoration: none;
+        }
+
+        .approval-row {
+          align-items: stretch;
+          padding: 0.7rem;
+          border-radius: 10px;
+        }
+
+        .approval-player {
+          font-size: 0.88rem;
+        }
+
+        .approval-detail {
+          font-size: 0.72rem;
+          line-height: 1.3;
+        }
+
+        .approval-actions {
+          display: grid;
+          grid-template-columns: 42px 42px;
+          gap: 0.45rem;
+          align-items: center;
+          justify-content: flex-start;
+        }
+
+        .approval-amt {
+          grid-column: 1 / -1;
+          font-size: 1rem;
+        }
+
+        .btn-approve-sm,
+        .btn-review-sm {
+          width: 42px;
+          height: 42px;
+          min-height: 42px;
+          padding: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 8px;
+          gap: 0.35rem;
+          min-width: 0;
+        }
+
+        .btn-approve-sm span,
+        .btn-review-sm span {
+          display: none;
+        }
+
+        .btn-approve-sm i,
+        .btn-review-sm i {
+          font-size: 0.9rem;
+        }
+
+        .action-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.55rem;
+        }
+
+        .action-card {
+          min-height: 116px;
+          padding: 0.68rem;
+          border-radius: 10px;
+          align-content: start;
+          gap: 0.28rem;
+        }
+
+        .action-icon {
+          width: 30px;
+          height: 30px;
+          border-radius: 8px;
+          font-size: 0.82rem;
+        }
+
+        .action-title {
+          font-size: 0.78rem;
+          line-height: 1.16;
+        }
+
+        .action-sub {
+          font-size: 0.66rem;
+          line-height: 1.25;
+        }
+
+        .queue-live-badge {
+          font-size: 0.52rem;
+          padding: 0.08rem 0.32rem;
+        }
+
+        .balance-due-card {
+          margin: 0 0.75rem;
+          border-radius: 10px;
+          padding: 0.75rem;
+        }
+
+        .balance-due-right {
+          align-items: flex-start;
+        }
+
+        .poster-ctrl-row,
+        .poster-ctrl-actions {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.55rem;
+          align-items: stretch;
+        }
+
+        .poster-ctrl-actions {
+          grid-column: 1 / -1;
+        }
+
+        .poster-ctrl-label,
+        .poster-upload-btn,
+        .poster-remove-btn,
+        .poster-action-btn {
+          width: 100%;
+        }
+
+        .poster-upload-btn,
+        .poster-remove-btn,
+        .poster-action-btn {
+          min-height: 40px;
+          justify-content: center;
+          padding: 0.55rem 0.5rem;
+          border-radius: 8px;
+          font-size: 0.74rem;
+        }
+
+        .poster-input {
+          min-height: 40px;
+          width: 100%;
+        }
+      }
     `,
   ],
 })
@@ -1115,6 +1473,10 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   // ── Balance alert modal ──
   showBalanceAlert = signal(false);
   balanceAlertAmount = signal(0);
+
+  // ── App service balance due card ──
+  feeInfo = signal<{ balance: number; convenienceFeeMode: string; convenienceFeeMonthlyAmount: number; balanceAlertEnabled: boolean } | null>(null);
+  readonly monthEndDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
 
   constructor(
     private usersService: UsersService,
@@ -1199,6 +1561,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     if (user?.role === 'admin') {
       this.appServicePayments.getFeeInfo().subscribe({
         next: (info) => {
+          this.feeInfo.set(info);
           if (info.balanceAlertEnabled && info.balance > 0) {
             this.balanceAlertAmount.set(info.balance);
             this.showBalanceAlert.set(true);
