@@ -761,14 +761,26 @@ router.get("/:clubId/hosted-play", async (req, res) => {
     const club = await findClub(req.params.clubId);
     if (!club) return res.status(404).json({ error: "Club not found" });
 
+    const now = new Date();
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().slice(0, 10);
+    const currentTimeStr = now.toISOString().slice(11, 16); // "HH:mm" UTC
 
-    const sessions = await HostedPlay.find({
+    const rawSessions = await HostedPlay.find({
       clubId: club._id,
       status: { $in: ["open", "full"] },
       date: { $gte: today },
     }).sort({ date: 1, startTime: 1 }).lean();
+
+    // Exclude sessions from today that have already ended
+    const sessions = rawSessions.filter(s => {
+      const sessionDate = new Date(s.date).toISOString().slice(0, 10);
+      if (sessionDate === todayStr) {
+        return (s.endTime || '23:59') > currentTimeStr;
+      }
+      return true;
+    });
 
     const courts = Array.isArray(club.courts) ? club.courts : [];
     const findLogo = (venue, court) => {

@@ -36,37 +36,123 @@ import { AuthService } from '../../../core/services/auth.service';
               }
             </div>
             <div class="hero-copy">
-              <span class="eyebrow"><i class="fas fa-shield-halved"></i> Current club rates</span>
+              <div class="eyebrow-row">
+                <span class="eyebrow"><i class="fas fa-shield-halved"></i> Current club rates</span>
+                <span class="booking-badge">
+                  @if (isReservation) {
+                    <i class="fas fa-calendar-days"></i> Court Reservations
+                  } @else if (isPerGame) {
+                    <i class="fas fa-gamepad"></i> Per Game Play
+                  } @else {
+                    <i class="fas fa-users"></i> Hosted Play
+                  }
+                </span>
+              </div>
               <h2>{{ clubName }}</h2>
-              <p>Review session, reservation, guest, rental, and platform fees before booking.</p>
+              @if (isReservation) {
+                <p>Review court reservation rates, guest fees, and platform charges before booking.</p>
+              } @else if (isPerGame) {
+                <p>Review per-game session rates, guest fees, and platform charges before joining.</p>
+              } @else {
+                <p>Review session rates, queue management fees, and platform charges before joining.</p>
+              }
             </div>
           </section>
 
+          @if (!isHostedPlay) {
           <section class="quick-grid" aria-label="Pricing highlights">
-            <div class="quick-card">
-              <span class="quick-label">With lights</span>
-              <strong>{{ rates()!.lightRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-              <span class="quick-note">per player / game</span>
-            </div>
-            <div class="quick-card">
-              <span class="quick-label">Weekday court</span>
-              <strong>{{ rates()!.reservationWeekdayRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-              <span class="quick-note">per hour</span>
-            </div>
-            <div class="quick-card">
-              <span class="quick-label">Guest fee</span>
-              <strong>{{ rates()!.reservationGuestFee | currency:'PHP':'symbol':'1.0-0' }}</strong>
-              <span class="quick-note">per guest</span>
-            </div>
+            @if (isReservation) {
+              <div class="quick-card">
+                <span class="quick-label">Weekday court</span>
+                <strong>{{ rates()!.reservationWeekdayRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <span class="quick-note">per hour</span>
+              </div>
+              <div class="quick-card">
+                <span class="quick-label">Weekend court</span>
+                <strong>{{ rates()!.reservationWeekendRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <span class="quick-note">per hour</span>
+              </div>
+              <div class="quick-card">
+                <span class="quick-label">Guest fee</span>
+                <strong>{{ rates()!.reservationGuestFee | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <span class="quick-note">per guest</span>
+              </div>
+            } @else if (isPerGame) {
+              <div class="quick-card">
+                <span class="quick-label">Per game fee</span>
+                <strong>{{ rates()!.perGameFee | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <span class="quick-note">per player</span>
+              </div>
+              <div class="quick-card">
+                <span class="quick-label">With lights</span>
+                <strong>{{ rates()!.lightRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <span class="quick-note">session add-on</span>
+              </div>
+              <div class="quick-card">
+                <span class="quick-label">Guest fee</span>
+                <strong>{{ rates()!.perGameGuestFee | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <span class="quick-note">per guest</span>
+              </div>
+            } @else {
+              <div class="quick-card">
+                <span class="quick-label">With lights</span>
+                <strong>{{ rates()!.lightRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <span class="quick-note">per player / game</span>
+              </div>
+              <div class="quick-card">
+                <span class="quick-label">Without lights</span>
+                <strong>{{ rates()!.withoutLightRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <span class="quick-note">per player / game</span>
+              </div>
+              <div class="quick-card">
+                @if (club()!.hostedPlayQueueEnabled && club()!.queueManagementFeePerPlayer! > 0) {
+                  <span class="quick-label">Queue fee</span>
+                  <strong>{{ club()!.queueManagementFeePerPlayer | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  <span class="quick-note">per session</span>
+                } @else {
+                  <span class="quick-label">App fee</span>
+                  <strong>{{ convenienceFeeSummary }}</strong>
+                  <span class="quick-note">platform charge</span>
+                }
+              </div>
+            }
           </section>
+          } <!-- end @if (!isHostedPlay) quick-grid -->
 
           <section class="section-grid">
+            @if (isPerGame) {
+              <article class="rate-card">
+                <div class="card-head">
+                  <span class="card-icon lime"><i class="fas fa-gamepad"></i></span>
+                  <div>
+                    <h3>Per Game Rates</h3>
+                    <p>Per player</p>
+                  </div>
+                </div>
+                <div class="rate-list">
+                  <div class="rate-row">
+                    <span><i class="fas fa-play-circle"></i> Game fee</span>
+                    <strong>{{ rates()!.perGameFee | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
+                  <div class="rate-row">
+                    <span><i class="fas fa-user"></i> Guest entry fee</span>
+                    <strong>{{ rates()!.perGameGuestFee | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
+                </div>
+              </article>
+            }
+
+            @if (!isHostedPlay) {
             <article class="rate-card">
               <div class="card-head">
                 <span class="card-icon lime"><i class="fas fa-table-tennis-paddle-ball"></i></span>
                 <div>
                   <h3>Session Rates</h3>
-                  <p>Per player / per game</p>
+                  @if (isReservation) {
+                    <p>Open play / training add-ons</p>
+                  } @else {
+                    <p>Per player / per game</p>
+                  }
                 </div>
               </div>
               <div class="rate-list">
@@ -78,88 +164,95 @@ import { AuthService } from '../../../core/services/auth.service';
                   <span><i class="fas fa-lightbulb"></i> With Lights</span>
                   <strong>{{ rates()!.lightRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
                 </div>
-                <div class="rate-row">
-                  <span><i class="fas fa-dumbbell"></i> Training without lights</span>
-                  <strong>{{ rates()!.training2WithoutLightRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-                </div>
-                <div class="rate-row">
-                  <span><i class="fas fa-dumbbell"></i> Training with lights</span>
-                  <strong>{{ rates()!.training2LightRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-                </div>
-                <div class="rate-row">
-                  <span><i class="fas fa-hand-sparkles"></i> Ball Boy</span>
-                  <strong>{{ rates()!.ballBoyRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-                </div>
+                @if (!isHostedPlay) {
+                  <div class="rate-row">
+                    <span><i class="fas fa-dumbbell"></i> Training without lights</span>
+                    <strong>{{ rates()!.training2WithoutLightRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
+                  <div class="rate-row">
+                    <span><i class="fas fa-dumbbell"></i> Training with lights</span>
+                    <strong>{{ rates()!.training2LightRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
+                  <div class="rate-row">
+                    <span><i class="fas fa-hand-sparkles"></i> Ball Boy</span>
+                    <strong>{{ rates()!.ballBoyRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
+                }
               </div>
             </article>
+            } <!-- end @if (!isHostedPlay) for Session Rates -->
 
-            <article class="rate-card">
-              <div class="card-head">
-                <span class="card-icon teal"><i class="fas fa-calendar-days"></i></span>
-                <div>
-                  <h3>Court Reservations</h3>
-                  <p>Per hour</p>
+            @if (isReservation) {
+              <article class="rate-card">
+                <div class="card-head">
+                  <span class="card-icon teal"><i class="fas fa-calendar-days"></i></span>
+                  <div>
+                    <h3>Court Reservations</h3>
+                    <p>Per hour</p>
+                  </div>
                 </div>
-              </div>
-              <div class="rate-list">
-                <div class="rate-row">
-                  <span><i class="fas fa-briefcase"></i> Weekday <small>Mon - Thu</small></span>
-                  <strong>{{ rates()!.reservationWeekdayRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <div class="rate-list">
+                  <div class="rate-row">
+                    <span><i class="fas fa-briefcase"></i> Weekday <small>Mon - Thu</small></span>
+                    <strong>{{ rates()!.reservationWeekdayRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
+                  <div class="rate-row">
+                    <span><i class="fas fa-umbrella-beach"></i> Weekend <small>Fri - Sun</small></span>
+                    <strong>{{ rates()!.reservationWeekendRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
+                  <div class="rate-row">
+                    <span><i class="fas fa-star"></i> Holiday</span>
+                    <strong>{{ rates()!.reservationHolidayRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
                 </div>
-                <div class="rate-row">
-                  <span><i class="fas fa-umbrella-beach"></i> Weekend <small>Fri - Sun</small></span>
-                  <strong>{{ rates()!.reservationWeekendRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-                </div>
-                <div class="rate-row">
-                  <span><i class="fas fa-star"></i> Holiday</span>
-                  <strong>{{ rates()!.reservationHolidayRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-                </div>
-              </div>
-            </article>
+              </article>
 
-            <article class="rate-card compact">
-              <div class="card-head">
-                <span class="card-icon blue"><i class="fas fa-user-plus"></i></span>
-                <div>
-                  <h3>Guests</h3>
-                  <p>Per guest</p>
+              <article class="rate-card compact">
+                <div class="card-head">
+                  <span class="card-icon blue"><i class="fas fa-user-plus"></i></span>
+                  <div>
+                    <h3>Guests</h3>
+                    <p>Per guest</p>
+                  </div>
                 </div>
-              </div>
-              <div class="rate-list">
-                <div class="rate-row">
-                  <span><i class="fas fa-user"></i> Guest entry fee</span>
-                  <strong>{{ rates()!.reservationGuestFee | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <div class="rate-list">
+                  <div class="rate-row">
+                    <span><i class="fas fa-user"></i> Guest entry fee</span>
+                    <strong>{{ rates()!.reservationGuestFee | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
                 </div>
-              </div>
-            </article>
+              </article>
+            }
 
-            <article class="rate-card">
-              <div class="card-head">
-                <span class="card-icon amber"><i class="fas fa-bag-shopping"></i></span>
-                <div>
-                  <h3>Rentals</h3>
-                  <p>Per hour</p>
+            @if (!isHostedPlay) {
+              <article class="rate-card">
+                <div class="card-head">
+                  <span class="card-icon amber"><i class="fas fa-bag-shopping"></i></span>
+                  <div>
+                    <h3>Rentals</h3>
+                    <p>Per hour</p>
+                  </div>
                 </div>
-              </div>
-              <div class="rate-list">
-                <div class="rate-row">
-                  <span><i class="fas fa-circle"></i> Balls - 50 pcs</span>
-                  <strong>{{ rates()!.rentalBalls50Rate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <div class="rate-list">
+                  <div class="rate-row">
+                    <span><i class="fas fa-circle"></i> Balls - 50 pcs</span>
+                    <strong>{{ rates()!.rentalBalls50Rate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
+                  <div class="rate-row">
+                    <span><i class="fas fa-circle"></i> Balls - 100 pcs</span>
+                    <strong>{{ rates()!.rentalBalls100Rate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
+                  <div class="rate-row">
+                    <span><i class="fas fa-robot"></i> Ball Machine</span>
+                    <strong>{{ rates()!.rentalBallMachineRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
+                  <div class="rate-row">
+                    <span><i class="fas fa-baseball-ball"></i> Racket</span>
+                    <strong>{{ rates()!.rentalRacketRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                  </div>
                 </div>
-                <div class="rate-row">
-                  <span><i class="fas fa-circle"></i> Balls - 100 pcs</span>
-                  <strong>{{ rates()!.rentalBalls100Rate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-                </div>
-                <div class="rate-row">
-                  <span><i class="fas fa-robot"></i> Ball Machine</span>
-                  <strong>{{ rates()!.rentalBallMachineRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-                </div>
-                <div class="rate-row">
-                  <span><i class="fas fa-baseball-ball"></i> Racket</span>
-                  <strong>{{ rates()!.rentalRacketRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-                </div>
-              </div>
-            </article>
+              </article>
+            }
 
             @if (club()) {
               <article class="rate-card service-card">
@@ -265,6 +358,27 @@ import { AuthService } from '../../../core/services/auth.service';
       letter-spacing: .08em;
     }
     .topbar h1 { margin: .12rem 0 0; font-size: 1.1rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .eyebrow-row {
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+      flex-wrap: wrap;
+    }
+    .booking-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .38rem;
+      background: rgba(163,230,53,.13);
+      border: 1px solid rgba(163,230,53,.28);
+      color: var(--accent);
+      font-size: .68rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      padding: .2rem .55rem;
+      border-radius: 99px;
+    }
 
     .rules-content {
       max-width: 1040px;
@@ -498,6 +612,11 @@ export class PlayerRulesComponent implements OnInit {
   get clubInitials(): string {
     return this.clubName.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'C';
   }
+
+  get bookingProcess() { return this.club()?.bookingProcess ?? 'reservation'; }
+  get isReservation() { return this.bookingProcess === 'reservation'; }
+  get isPerGame()     { return this.bookingProcess === 'per_game'; }
+  get isHostedPlay()  { return this.bookingProcess === 'hosted_play'; }
 
   get convenienceFeeSummary(): string {
     const c = this.club();

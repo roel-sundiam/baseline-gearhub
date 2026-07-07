@@ -17,20 +17,31 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     <div class="page-wrap">
       <div class="page-card">
         <div class="card-header">
-          <button class="back-btn" (click)="goBack()"><i class="fas fa-arrow-left"></i></button>
-          <h2>Finance</h2>
+          <button class="back-btn" (click)="goBack()" aria-label="Back to dashboard"><i class="fas fa-arrow-left"></i></button>
+          <div class="header-copy">
+            <span class="eyebrow">Admin Finance</span>
+            <h2>Finance Center</h2>
+            <p>Track approved payments, bookings, and developer service remittances.</p>
+          </div>
+          <div class="header-total">
+            <span>Total collected</span>
+            <strong>{{ total | currency: 'PHP' : 'symbol' : '1.0-0' }}</strong>
+          </div>
         </div>
 
         <!-- Tabs -->
         <div class="tab-bar">
           <button class="tab-btn" [class.active]="activeTab === 'payments'" (click)="activeTab = 'payments'">
-            Approved Payments
+            <i class="fas fa-receipt"></i>
+            <span>Approved Payments</span>
           </button>
           <button class="tab-btn" [class.active]="activeTab === 'bookings'" (click)="activeTab = 'bookings'; onBookingsTabOpen()">
-            Bookings
+            <i class="fas fa-calendar-check"></i>
+            <span>Bookings</span>
           </button>
           <button class="tab-btn" [class.active]="activeTab === 'app-service'" (click)="activeTab = 'app-service'">
-            App Service
+            <i class="fas fa-paper-plane"></i>
+            <span>App Service</span>
           </button>
         </div>
 
@@ -40,7 +51,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
           } @else if (activeTab === 'payments') {
 
             <!-- Summary -->
-            <div class="pm-top-row">
+            <div class="pm-metrics-grid">
               <div class="bk-stat-card">
                 <i class="fas fa-receipt bk-stat-icon"></i>
                 <div class="bk-stat-value">{{ charges.length }}</div>
@@ -51,8 +62,6 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                 <div class="bk-stat-value">{{ total | currency: 'PHP' : 'symbol' : '1.0-0' }}</div>
                 <div class="bk-stat-label">Total Collected</div>
               </div>
-            </div>
-            <div class="pm-method-row">
               <div class="pm-method-card">
                 <i class="fas fa-mobile-alt pm-method-icon gcash-icon"></i>
                 <div class="pm-method-value">{{ gcashTotal | currency: 'PHP' : 'symbol' : '1.0-0' }}</div>
@@ -116,13 +125,13 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                   <tbody>
                     @for (charge of filtered; track charge._id) {
                       <tr>
-                        <td class="col-player">{{ getPlayerName(charge) }}</td>
-                        <td>
+                        <td class="col-player" data-label="Player">{{ getPlayerName(charge) }}</td>
+                        <td data-label="Type">
                           <span class="type-badge" [class.type-reservation]="charge.chargeType === 'reservation'">
                             {{ charge.chargeType === 'reservation' ? 'Reservation' : 'Session' }}
                           </span>
                         </td>
-                        <td class="col-date">
+                        <td class="col-date" data-label="Date">
                           @if (charge.chargeType === 'reservation' && charge.reservationId) {
                             {{ charge.reservationId.date | date: 'MMM d, yyyy' : 'UTC' }}
                             <span class="court-label">· Court {{ charge.reservationId.court }}</span>
@@ -131,13 +140,13 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                             <span class="court-label">· {{ charge.sessionId.startTime }}</span>
                           }
                         </td>
-                        <td>
+                        <td data-label="Method">
                           <span class="method-badge" [ngClass]="methodClass(charge.paymentMethod)">
                             {{ charge.paymentMethod }}
                           </span>
                         </td>
-                        <td class="col-date">{{ charge.updatedAt | date: 'MMM d, yyyy' : 'UTC' }}</td>
-                        <td class="col-amount">{{ charge.amount | currency: 'PHP' : 'symbol' }}</td>
+                        <td class="col-date" data-label="Approved">{{ charge.updatedAt | date: 'MMM d, yyyy' : 'UTC' }}</td>
+                        <td class="col-amount" data-label="Amount">{{ charge.amount | currency: 'PHP' : 'symbol' }}</td>
                       </tr>
                     }
                   </tbody>
@@ -239,12 +248,12 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                   <tbody>
                     @for (r of filteredReservations; track r._id) {
                       <tr>
-                        <td class="col-player">{{ getBookingPlayerName(r) }}</td>
-                        <td><span class="court-chip">Court {{ r.court }}</span></td>
-                        <td class="col-date">{{ r.date | date: 'MMM d, yyyy' : 'UTC' }}</td>
-                        <td class="col-date">{{ formatTimeSlot(r.timeSlot, r.durationHours ?? 1) }}</td>
-                        <td class="col-date">{{ r.durationHours ?? 1 }}h</td>
-                        <td>
+                        <td class="col-player" data-label="Player / Guest">{{ getBookingPlayerName(r) }}</td>
+                        <td data-label="Court"><span class="court-chip">Court {{ r.court }}</span></td>
+                        <td class="col-date" data-label="Date">{{ r.date | date: 'MMM d, yyyy' : 'UTC' }}</td>
+                        <td class="col-date" data-label="Time">{{ formatTimeSlot(r.timeSlot, r.durationHours ?? 1) }}</td>
+                        <td class="col-date" data-label="Duration">{{ r.durationHours ?? 1 }}h</td>
+                        <td data-label="Status">
                           <span class="status-badge" [ngClass]="bookingStatusClass(r.status)">
                             {{ bookingStatusLabel(r.status) }}
                           </span>
@@ -365,27 +374,27 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                   <tbody>
                     @for (charge of reservationCharges; track charge._id) {
                       <tr>
-                        <td class="col-player">{{ getPlayerName(charge) }}</td>
-                        <td class="col-date">
+                        <td class="col-player" data-label="Player">{{ getPlayerName(charge) }}</td>
+                        <td class="col-date" data-label="Date">
                           @if (charge.reservationId) {
                             {{ charge.reservationId.date | date: 'MMM d, yyyy' : 'UTC' }}
                           }
                         </td>
-                        <td class="col-date">
+                        <td class="col-date" data-label="Time">
                           {{ formatTimeSlot(charge.reservationId?.timeSlot, charge.reservationId?.durationHours ?? 1) }}
                         </td>
-                        <td>
+                        <td data-label="Court">
                           @if (charge.reservationId) {
                             <span class="court-chip">Court {{ charge.reservationId.court }}</span>
                           }
                         </td>
-                        <td>
+                        <td data-label="Method">
                           <span class="method-badge" [ngClass]="methodClass(charge.paymentMethod)">
                             {{ charge.paymentMethod }}
                           </span>
                         </td>
-                        <td class="col-amount">{{ charge.amount | currency: 'PHP' : 'symbol' }}</td>
-                        <td class="col-amount col-service">{{ (charge.breakdown?.convenienceFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                        <td class="col-amount" data-label="Court Fee">{{ charge.amount | currency: 'PHP' : 'symbol' }}</td>
+                        <td class="col-amount col-service" data-label="Conv. Fee">{{ (charge.breakdown?.convenienceFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       </tr>
                     }
                   </tbody>
@@ -972,11 +981,14 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .status-cancelled { background: rgba(252,165,165,0.16); color: #fca5a5; }
 
     /* Approved Payments summary redesign */
-    .pm-top-row {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;
+    .pm-metrics-grid {
+      display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px;
     }
-    .pm-method-row {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;
+    .pm-metrics-grid > .bk-stat-card {
+      grid-column: span 3;
+    }
+    .pm-metrics-grid > .pm-method-card {
+      grid-column: span 2;
     }
     .pm-method-card {
       display: flex; flex-direction: column; align-items: center; text-align: center;
@@ -1037,15 +1049,973 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .btn-print:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
     .btn-print:disabled { opacity: 0.35; cursor: not-allowed; }
 
+    /* Modern finance dashboard layer */
+    :host {
+      color: #eef7ee;
+      --finance-bg: #07140d;
+      --finance-panel: rgba(13, 36, 24, 0.92);
+      --finance-panel-strong: rgba(18, 47, 32, 0.96);
+      --finance-line: rgba(202, 255, 191, 0.14);
+      --finance-line-strong: rgba(163, 230, 53, 0.28);
+      --finance-muted: rgba(235, 246, 235, 0.68);
+      --finance-soft: rgba(255, 255, 255, 0.055);
+      --finance-accent: #a3e635;
+      --finance-cyan: #67e8f9;
+      --finance-blue: #93c5fd;
+      --finance-yellow: #fde047;
+      --finance-red: #fda4af;
+    }
+
+    .page-wrap {
+      min-height: calc(100vh - 60px);
+      padding: 28px;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(54, 211, 153, 0.16), transparent 28%),
+        linear-gradient(135deg, #06110b 0%, #092015 48%, #07140d 100%);
+    }
+
+    .page-card {
+      max-width: 1240px;
+      border-radius: 0;
+      border: 1px solid var(--finance-line);
+      background: rgba(5, 20, 12, 0.74);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(18px);
+    }
+
+    .card-header {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 18px;
+      padding: 28px;
+      background:
+        linear-gradient(90deg, rgba(8, 22, 14, 0.98), rgba(19, 56, 36, 0.74)),
+        url('/tennis-court-surface.png') center/cover;
+      border-bottom: 1px solid var(--finance-line);
+      overflow: hidden;
+    }
+
+    .card-header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, rgba(3, 12, 7, 0.9), rgba(3, 12, 7, 0.46));
+      pointer-events: none;
+    }
+
+    .card-header > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .back-btn {
+      width: 52px;
+      height: 52px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: #ffffff;
+      font-size: 1rem;
+    }
+
+    .back-btn:hover {
+      background: rgba(163, 230, 53, 0.16);
+      border-color: var(--finance-line-strong);
+      color: var(--finance-accent);
+    }
+
+    .header-copy {
+      min-width: 0;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 7px;
+      color: var(--finance-accent);
+      font-size: 0.75rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--finance-accent);
+      box-shadow: 0 0 18px rgba(163, 230, 53, 0.68);
+    }
+
+    .card-header h2 {
+      margin: 0;
+      color: #ffffff;
+      font-size: clamp(1.7rem, 4vw, 3.15rem);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .card-header p {
+      max-width: 620px;
+      margin: 10px 0 0;
+      color: rgba(255, 255, 255, 0.76);
+      font-size: 0.98rem;
+      line-height: 1.5;
+    }
+
+    .header-total {
+      min-width: 190px;
+      padding: 16px 18px;
+      border: 1px solid rgba(163, 230, 53, 0.22);
+      border-radius: 8px;
+      background: rgba(10, 30, 19, 0.74);
+      text-align: right;
+    }
+
+    .header-total span {
+      display: block;
+      color: rgba(255, 255, 255, 0.62);
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .header-total strong {
+      display: block;
+      margin-top: 4px;
+      color: var(--finance-accent);
+      font-size: 1.45rem;
+      line-height: 1.1;
+    }
+
+    .tab-bar {
+      display: flex;
+      gap: 8px;
+      padding: 14px 18px;
+      overflow-x: auto;
+      background: rgba(3, 12, 7, 0.64);
+      border-bottom: 1px solid var(--finance-line);
+    }
+
+    .tab-btn {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 0 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.045);
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.84rem;
+      font-weight: 850;
+      white-space: nowrap;
+      margin: 0;
+    }
+
+    .tab-btn.active {
+      color: #13210b;
+      background: var(--finance-accent);
+      border-color: var(--finance-accent);
+      box-shadow: 0 12px 28px rgba(163, 230, 53, 0.18);
+    }
+
+    .tab-btn:hover:not(.active) {
+      color: #ffffff;
+      border-color: var(--finance-line-strong);
+      background: rgba(163, 230, 53, 0.1);
+    }
+
+    .card-body {
+      padding: 22px;
+    }
+
+    .loading {
+      min-height: 220px;
+      display: grid;
+      place-items: center;
+      color: var(--finance-muted);
+      font-weight: 800;
+    }
+
+    .pm-metrics-grid,
+    .bk-stats-grid {
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .bk-stat-card,
+    .pm-method-card,
+    .summary-item {
+      border-radius: 8px;
+      border: 1px solid var(--finance-line);
+      background: linear-gradient(180deg, rgba(22, 60, 39, 0.88), rgba(12, 35, 23, 0.86));
+      box-shadow: 0 14px 38px rgba(0, 0, 0, 0.16);
+    }
+
+    .bk-stat-card {
+      min-height: 132px;
+      align-items: flex-start;
+      text-align: left;
+      padding: 18px;
+    }
+
+    .bk-stat-card:hover {
+      transform: translateY(-1px);
+      background: linear-gradient(180deg, rgba(28, 70, 46, 0.92), rgba(12, 35, 23, 0.9));
+    }
+
+    .bk-stat-card.bk-stat-earnings {
+      background: linear-gradient(180deg, rgba(52, 88, 24, 0.78), rgba(18, 47, 28, 0.88));
+    }
+
+    .bk-stat-icon,
+    .pm-method-icon {
+      width: 38px;
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: rgba(163, 230, 53, 0.13);
+      color: var(--finance-accent);
+      font-size: 1rem;
+    }
+
+    .bk-stat-value {
+      margin-top: 14px;
+      font-size: clamp(1.55rem, 3vw, 2.25rem);
+      color: #ffffff;
+      line-height: 1;
+    }
+
+    .bk-stat-label,
+    .summary-label {
+      color: var(--finance-muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.07em;
+    }
+
+    .pm-method-card {
+      align-items: flex-start;
+      padding: 16px;
+      text-align: left;
+    }
+
+    .pm-method-value,
+    .summary-value {
+      color: #ffffff;
+      font-size: 1.18rem;
+      font-weight: 900;
+    }
+
+    .summary-bar {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      padding: 0;
+      background: transparent;
+      border: 0;
+    }
+
+    .summary-item {
+      min-width: 0;
+      padding: 16px;
+      text-align: left;
+    }
+
+    .summary-item.highlight-blue,
+    .summary-item.highlight-red,
+    .summary-item.highlight-green,
+    .summary-item.highlight-purple,
+    .summary-item.highlight-orange {
+      border-radius: 8px;
+    }
+
+    .bk-status-row {
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .bk-pill {
+      min-height: 42px;
+      border-radius: 8px;
+      justify-content: flex-start;
+      padding: 9px 14px;
+      background: var(--finance-panel);
+    }
+
+    .bk-filter-row {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      padding: 16px;
+      margin-bottom: 18px;
+      border-radius: 8px;
+      background: var(--finance-panel);
+      border: 1px solid var(--finance-line);
+    }
+
+    .filter-group {
+      min-width: 0;
+    }
+
+    .filter-group label,
+    .modal-field label {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.72rem;
+      font-weight: 850;
+      letter-spacing: 0.08em;
+    }
+
+    .filter-group select,
+    .filter-group input,
+    .modal-field input,
+    .modal-field select {
+      min-height: 44px;
+      width: 100%;
+      min-width: 0;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.065);
+      color: #ffffff;
+      font-size: 0.92rem;
+    }
+
+    .filter-group select option,
+    .modal-field select option {
+      background: #102419;
+      color: #ffffff;
+    }
+
+    .filter-group input::placeholder,
+    .modal-field input::placeholder {
+      color: rgba(255, 255, 255, 0.42);
+    }
+
+    .filter-group select:focus,
+    .filter-group input:focus,
+    .modal-field input:focus,
+    .modal-field select:focus {
+      border-color: rgba(163, 230, 53, 0.5);
+      box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.12);
+    }
+
+    .btn-pay,
+    .btn-confirm-pay {
+      min-height: 44px;
+      border-radius: 8px;
+      background: var(--finance-accent);
+      color: #10200b;
+      border-color: var(--finance-accent);
+      font-weight: 900;
+    }
+
+    .btn-pay:hover:not(:disabled),
+    .btn-confirm-pay:hover:not(:disabled) {
+      background: #b7f34a;
+      color: #10200b;
+      box-shadow: 0 14px 32px rgba(163, 230, 53, 0.2);
+    }
+
+    .btn-print,
+    .btn-cancel-pay {
+      min-height: 44px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.075);
+      border-color: rgba(255, 255, 255, 0.14);
+      color: rgba(255, 255, 255, 0.82);
+      font-weight: 800;
+    }
+
+    .rate-note,
+    .monthly-flat-banner {
+      border-radius: 8px;
+      border: 1px solid var(--finance-line);
+      background: rgba(11, 31, 20, 0.82);
+      color: var(--finance-muted);
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 22px 0 12px;
+      color: #ffffff;
+      font-size: 0.9rem;
+      letter-spacing: 0.07em;
+    }
+
+    .section-heading::before {
+      content: '';
+      width: 8px;
+      height: 22px;
+      border-radius: 999px;
+      background: var(--finance-accent);
+    }
+
+    .table-wrap {
+      border: 1px solid var(--finance-line);
+      border-radius: 8px;
+      background: rgba(7, 24, 15, 0.78);
+      overflow: auto;
+    }
+
+    .finance-table {
+      min-width: 760px;
+      font-size: 0.88rem;
+    }
+
+    .finance-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 13px 14px;
+      background: rgba(16, 42, 28, 0.98);
+      color: rgba(255, 255, 255, 0.62);
+      border-bottom: 1px solid var(--finance-line);
+    }
+
+    .finance-table td {
+      padding: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+      vertical-align: middle;
+    }
+
+    .finance-table tbody tr:hover {
+      background: rgba(163, 230, 53, 0.045);
+    }
+
+    tfoot td {
+      background: rgba(163, 230, 53, 0.075);
+      border-top: 1px solid var(--finance-line-strong);
+    }
+
+    .col-amount,
+    .foot-total {
+      color: var(--finance-accent);
+    }
+
+    .col-service {
+      color: var(--finance-blue) !important;
+    }
+
+    .col-date,
+    .court-label {
+      color: var(--finance-muted);
+    }
+
+    .type-badge,
+    .method-badge,
+    .court-chip,
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      white-space: nowrap;
+    }
+
+    .empty-state {
+      display: grid;
+      place-items: center;
+      gap: 10px;
+      min-height: 180px;
+      padding: 36px 20px;
+      border: 1px dashed rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--finance-muted);
+    }
+
+    .empty-state span {
+      display: none;
+    }
+
+    .empty-state::before {
+      content: '\\f07b';
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: rgba(163, 230, 53, 0.12);
+      color: var(--finance-accent);
+      font-family: 'Font Awesome 5 Free';
+      font-weight: 900;
+      font-size: 1.1rem;
+    }
+
+    .empty-state p {
+      margin: 0;
+      font-weight: 750;
+    }
+
+    .paid-fees-section {
+      border-radius: 8px;
+      background: var(--finance-panel);
+      border-color: var(--finance-line);
+    }
+
+    .paid-fees-header {
+      padding: 16px 18px;
+      background: rgba(163, 230, 53, 0.08);
+      border-bottom-color: var(--finance-line);
+    }
+
+    .paid-fee-card {
+      padding: 16px 18px;
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .paid-fee-icon-wrap {
+      border-radius: 8px;
+    }
+
+    .paid-fee-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-style: normal;
+    }
+
+    .modal-backdrop {
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(8px);
+    }
+
+    .modal {
+      max-width: 520px;
+      border-radius: 8px;
+      background: #0d2116;
+      border-color: var(--finance-line);
+    }
+
+    .modal-header {
+      background: rgba(17, 47, 31, 0.98);
+    }
+
+    .pay-screenshot-upload,
+    .pay-screenshot-preview {
+      border-radius: 8px;
+    }
+
+    @media (max-width: 960px) {
+      .page-wrap {
+        padding: 18px;
+      }
+
+      .card-header {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .header-total {
+        grid-column: 1 / -1;
+        width: 100%;
+        text-align: left;
+      }
+
+      .summary-bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .bk-filter-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .bk-filter-actions {
+        grid-column: 1 / -1;
+      }
+    }
+
     @media (max-width: 640px) {
-      .summary-bar { gap: 8px; }
-      .summary-item { min-width: 80px; }
-      .filter-bar { flex-direction: column; }
-      .pay-action-row { flex-direction: column; align-items: flex-start; }
-      .bk-stats-grid { grid-template-columns: repeat(2, 1fr); }
-      .bk-stat-card.bk-stat-earnings { grid-column: 1 / -1; }
-      .bk-filter-row { grid-template-columns: 1fr 1fr; }
-      .pm-top-row { grid-template-columns: 1fr 1fr; }
+      .page-wrap {
+        padding: 0;
+      }
+
+      .page-card {
+        min-height: calc(100vh - 60px);
+        border-left: 0;
+        border-right: 0;
+      }
+
+      .card-header {
+        grid-template-columns: 44px minmax(0, 1fr);
+        gap: 12px;
+        padding: 18px 16px;
+      }
+
+      .back-btn {
+        width: 44px;
+        height: 44px;
+      }
+
+      .card-header h2 {
+        font-size: 1.85rem;
+      }
+
+      .card-header p {
+        font-size: 0.88rem;
+      }
+
+      .card-body {
+        padding: 14px;
+      }
+
+      .tab-bar {
+        padding: 12px 14px;
+      }
+
+      .tab-btn {
+        flex: 0 0 auto;
+        min-width: 148px;
+      }
+
+      .pm-metrics-grid,
+      .bk-filter-row {
+        grid-template-columns: 1fr;
+      }
+
+      .header-total {
+        padding: 13px 14px;
+      }
+
+      .header-total strong {
+        font-size: 1.22rem;
+      }
+
+      .pm-metrics-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .pm-metrics-grid > .bk-stat-card,
+      .pm-metrics-grid > .pm-method-card {
+        grid-column: span 1;
+      }
+
+      .summary-bar,
+      .bk-status-row {
+        gap: 9px;
+      }
+
+      .bk-stats-grid,
+      .bk-status-row,
+      .summary-bar {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 9px;
+      }
+
+      .bk-filter-row {
+        padding: 12px;
+      }
+
+      .bk-stat-card,
+      .pm-method-card,
+      .summary-item {
+        min-height: auto;
+        padding: 15px;
+      }
+
+      .pm-metrics-grid .bk-stat-card,
+      .pm-metrics-grid .pm-method-card {
+        padding: 10px 6px;
+        align-items: center;
+        text-align: center;
+        gap: 4px;
+      }
+
+      .pm-metrics-grid .bk-stat-icon,
+      .pm-metrics-grid .pm-method-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        font-size: 0.78rem;
+      }
+
+      .pm-metrics-grid .bk-stat-value,
+      .pm-metrics-grid .pm-method-value {
+        margin-top: 4px;
+        font-size: clamp(0.98rem, 4.4vw, 1.18rem);
+      }
+
+      .pm-metrics-grid .bk-stat-label {
+        font-size: 0.55rem;
+        line-height: 1.15;
+        letter-spacing: 0.04em;
+      }
+
+      .bk-stats-grid .bk-stat-card,
+      .summary-bar .summary-item {
+        min-height: 92px;
+        padding: 10px 6px;
+        align-items: center;
+        text-align: center;
+        justify-content: center;
+        gap: 4px;
+      }
+
+      .bk-stats-grid .bk-stat-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        font-size: 0.78rem;
+      }
+
+      .bk-stats-grid .bk-stat-value,
+      .summary-bar .summary-value {
+        margin-top: 4px;
+        font-size: clamp(0.92rem, 4.2vw, 1.13rem);
+        line-height: 1.05;
+        overflow-wrap: anywhere;
+      }
+
+      .bk-stats-grid .bk-stat-label,
+      .summary-bar .summary-label {
+        font-size: 0.52rem;
+        line-height: 1.12;
+        letter-spacing: 0.035em;
+      }
+
+      .bk-status-row .bk-pill {
+        min-height: 54px;
+        flex-direction: column;
+        gap: 4px;
+        justify-content: center;
+        padding: 7px 5px;
+        border-radius: 8px;
+        font-size: 0.64rem;
+        line-height: 1.1;
+        text-align: center;
+        white-space: normal;
+      }
+
+      .bk-status-row .bk-pill i {
+        font-size: 0.86rem;
+      }
+
+      .bk-action-btns,
+      .pay-action-row,
+      .modal-footer {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+      }
+
+      .btn-pay,
+      .btn-print,
+      .btn-confirm-pay,
+      .btn-cancel-pay {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .paid-fees-header,
+      .paid-fee-card {
+        padding: 14px;
+      }
+
+      .paid-fee-card {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .paid-fee-right {
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding-left: 48px;
+      }
+
+      .paid-fees-total {
+        width: 100%;
+      }
+
+      .section-heading {
+        margin-top: 18px;
+      }
+
+      .table-wrap {
+        border: 0;
+        background: transparent;
+        overflow: visible;
+      }
+
+      .finance-table {
+        min-width: 0;
+        display: block;
+      }
+
+      .finance-table thead,
+      .finance-table tfoot {
+        display: none;
+      }
+
+      .finance-table tbody,
+      .finance-table tr,
+      .finance-table td {
+        display: block;
+        width: 100%;
+      }
+
+      .finance-table tr {
+        margin-bottom: 10px;
+        border: 1px solid var(--finance-line);
+        border-radius: 8px;
+        background: var(--finance-panel);
+        overflow: hidden;
+      }
+
+      .finance-table td {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 10px 12px;
+        text-align: right;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .finance-table td:last-child {
+        border-bottom: 0;
+      }
+
+      .finance-table td::before {
+        content: attr(data-label);
+        color: rgba(255, 255, 255, 0.52);
+        font-size: 0.72rem;
+        font-weight: 850;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        text-align: left;
+      }
+
+      .finance-table td.col-player {
+        display: block;
+        text-align: left;
+        font-size: 1rem;
+      }
+
+      .finance-table td.col-player::before {
+        display: block;
+        margin-bottom: 5px;
+      }
+
+      .modal-backdrop {
+        align-items: flex-end;
+        padding: 0;
+      }
+
+      .modal {
+        max-width: none;
+        border-radius: 14px 14px 0 0;
+        max-height: 92vh;
+        overflow: auto;
+      }
+
+      .table-wrap {
+        border: 0;
+        background: transparent;
+        overflow: visible;
+      }
+
+      .finance-table {
+        min-width: 0;
+        display: block;
+      }
+
+      .finance-table thead {
+        display: none;
+      }
+
+      .finance-table tfoot {
+        display: none;
+      }
+
+      .finance-table tbody {
+        display: grid;
+        gap: 10px;
+      }
+
+      .finance-table tr {
+        display: block;
+        border: 1px solid var(--finance-line);
+        border-radius: 8px;
+        background: rgba(12, 35, 23, 0.92);
+        overflow: hidden;
+      }
+
+      .finance-table td,
+      .finance-table th {
+        display: block;
+        width: auto;
+      }
+
+      .finance-table td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        min-height: 44px;
+        padding: 9px 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        text-align: right;
+        white-space: normal;
+      }
+
+      .finance-table td:last-child {
+        border-bottom: 0;
+      }
+
+      .finance-table td::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        max-width: 46%;
+        color: rgba(255, 255, 255, 0.52);
+        font-size: 0.68rem;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        line-height: 1.2;
+        text-align: left;
+        text-transform: uppercase;
+      }
+
+      .finance-table td:not([data-label])::before {
+        content: 'Detail';
+      }
+
+      .finance-table td.col-player {
+        display: block;
+        padding: 13px 12px;
+        text-align: left;
+        background: rgba(163, 230, 53, 0.06);
+      }
+
+      .finance-table td.col-player::before {
+        display: block;
+        max-width: none;
+        margin-bottom: 5px;
+      }
+
+      .finance-table td.col-amount {
+        text-align: right;
+      }
+
+      .finance-table .col-date {
+        font-size: 0.8rem;
+      }
     }
   `],
 })
@@ -1161,7 +2131,7 @@ export class FinanceComponent implements OnInit {
           .filter(c => c.chargeType === 'per_game')
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         this.allHostedPlayCharges = allCharges
-          .filter(c => c.chargeType === 'hosted_play')
+          .filter(c => c.chargeType === 'hosted_play' && c.approvalStatus !== 'rejected')
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         this.appServicePayments = payments;
         this.convenienceFeeMode = feeInfo.convenienceFeeMode;

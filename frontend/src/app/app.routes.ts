@@ -234,6 +234,10 @@ export const routes: Routes = [
   {
     path: 'player',
     canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/player/player-shell.component').then(
+        (m) => m.PlayerShellComponent,
+      ),
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       {
@@ -294,6 +298,7 @@ export const routes: Routes = [
       },
       {
         path: 'payment-approvals',
+        canActivate: [adminGuard],
         loadComponent: () =>
           import('./features/player/payment-approvals/player-payment-approvals.component').then(
             (m) => m.PlayerPaymentApprovalsComponent,

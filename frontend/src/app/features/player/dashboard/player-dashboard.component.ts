@@ -268,11 +268,6 @@ import { forkJoin } from 'rxjs';
               <span class="dm-ac-sub">Leaderboard</span>
             </button>
             -->
-            <button class="dm-action-card" (click)="navigateTo('/player/payment-approvals')">
-              <div class="dm-ac-icon dm-ac-rose"><i class="fas fa-clipboard-check"></i></div>
-              <span class="dm-ac-title">Approvals</span>
-              <span class="dm-ac-sub">My requests</span>
-            </button>
             @if (!isHostedPlay) {
               <button class="dm-action-card" (click)="navigateTo('/player/open-play')">
                 <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-table-tennis-paddle-ball"></i></div>
@@ -373,6 +368,11 @@ import { forkJoin } from 'rxjs';
                 <span class="dm-ac-title">Finance</span>
                 <span class="dm-ac-sub">Payments report</span>
               </button>
+              <button class="dm-action-card" (click)="navigateTo('/admin/payment-approvals')">
+                <div class="dm-ac-icon dm-ac-rose"><i class="fas fa-clipboard-check"></i></div>
+                <span class="dm-ac-title">Approvals</span>
+                <span class="dm-ac-sub">Payment requests</span>
+              </button>
               <!-- Tournaments hidden until feature is ready
               <button class="dm-action-card" (click)="navigateTo('/admin/tournaments')">
                 <div class="dm-ac-icon dm-ac-yellow"><i class="fas fa-trophy"></i></div>
@@ -468,37 +468,7 @@ import { forkJoin } from 'rxjs';
           }
         </div>
 
-        <div class="dm-bottom-spacer"></div>
       </div>
-
-      <!-- Bottom navigation (mobile only) -->
-      <nav class="dm-bottom-nav">
-        <button class="dm-nav-item" [class.dm-nav-active]="activeTab === 'home'"
-                (click)="navigateTo('/player/dashboard')">
-          <i class="fas fa-home"></i>
-          <span>Home</span>
-        </button>
-        <button class="dm-nav-item" [class.dm-nav-active]="activeTab === 'courts'"
-                (click)="navigateTo('/player/reserve')">
-          <i class="fas fa-table-tennis"></i>
-          <span>Courts</span>
-        </button>
-        <button class="dm-nav-item" [class.dm-nav-active]="activeTab === 'bookings'"
-                (click)="navigateTo('/player/reservations')">
-          <i class="far fa-calendar-check"></i>
-          <span>Bookings</span>
-        </button>
-        <button class="dm-nav-item" [class.dm-nav-active]="activeTab === 'rankings'"
-                (click)="navigateTo('/player/tournaments?tab=rankings')">
-          <i class="fas fa-trophy"></i>
-          <span>Rankings</span>
-        </button>
-        <button class="dm-nav-item" [class.dm-nav-active]="activeTab === 'profile'"
-                (click)="navigateTo('/player/profile/edit')">
-          <i class="far fa-user"></i>
-          <span>Profile</span>
-        </button>
-      </nav>
 
       <!-- Floating support chat (club admins only) -->
       @if (auth.isAdmin() && !auth.isSuperAdmin()) {
@@ -638,7 +608,7 @@ import { forkJoin } from 'rxjs';
       -webkit-overflow-scrolling: touch;
       background: #0c1a11;
     }
-    .dm-bottom-spacer { height: 80px; }
+
 
     /* ── Greeting (desktop only) ── */
     .dm-greeting { display: none; }
@@ -1017,40 +987,6 @@ import { forkJoin } from 'rxjs';
     .dm-news-thumb-announcement { background: rgba(251,191,36,0.12); color: #fbbf24; }
     .dm-news-thumb-event { background: rgba(163,230,53,0.12); color: #a3e635; }
 
-    /* ── Bottom Navigation ── */
-    .dm-bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 100%;
-      max-width: 480px;
-      background: #111f16;
-      border-top: 1px solid rgba(255,255,255,0.08);
-      display: flex;
-      align-items: stretch;
-      height: 62px;
-      z-index: 200;
-      box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
-    }
-    .dm-nav-item {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.18rem;
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: rgba(255,255,255,0.35);
-      font-size: 0.6rem;
-      font-weight: 600;
-      transition: color 0.2s;
-      padding: 0;
-    }
-    .dm-nav-item i { font-size: 1.1rem; }
-    .dm-nav-item.dm-nav-active { color: #a3e635; }
 
     /* ── Desktop override ── */
     @media (min-width: 769px) {
@@ -1117,8 +1053,7 @@ import { forkJoin } from 'rxjs';
       .dm-hero-cta { font-size: 0.88rem; padding: 0.5rem 1.2rem; }
       .dm-card-grid { grid-template-columns: repeat(4, 1fr); gap: 0.85rem; }
       .dm-action-card { min-height: 110px; }
-      .dm-bottom-nav { display: none; }
-      .dm-bottom-spacer { display: none; }
+
       .dm-section-label { font-size: 0.82rem; }
       .dm-booking-date { font-size: 0.95rem; }
       .dm-booking-time { font-size: 0.85rem; }
@@ -1378,9 +1313,10 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
 
   get activeTab(): string {
     const url = this.router.url;
-    if (url.includes('/player/reserve')) return 'courts';
     if (url.includes('/player/reservations')) return 'bookings';
-    if (url.includes('/player/tournaments')) return 'rankings';
+    if (url.includes('/player/reserve')) return 'courts';
+    if (url.includes('/player/per-game')) return 'pergame';
+    if (url.includes('/player/hosted-play')) return 'sessions';
     if (url.includes('/player/profile')) return 'profile';
     return 'home';
   }

@@ -32,7 +32,8 @@ router.get("/report", auth, superadmin, async (req, res) => {
 
     const confirmedFilter = {
       $or: [
-        { chargeType: { $in: ["open_play_session", "per_game", "hosted_play"] } },
+        { chargeType: { $in: ["open_play_session", "per_game"] } },
+        { chargeType: "hosted_play", approvalStatus: { $ne: "rejected" } },
         { "res.status": "confirmed" },
         { res: { $exists: false }, approvalStatus: "approved" },
       ],
@@ -174,7 +175,7 @@ router.get("/summary", auth, superadmin, async (req, res) => {
         { $group: { _id: "$clubId", totalPerGameFees: { $sum: "$breakdown.convenienceFee" } } },
       ]),
       Charge.aggregate([
-        { $match: { chargeType: "hosted_play" } },
+        { $match: { chargeType: "hosted_play", approvalStatus: { $ne: "rejected" } } },
         {
           $group: {
             _id: "$clubId",
