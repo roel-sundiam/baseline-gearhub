@@ -30,6 +30,7 @@ export interface HostedPlaySession {
   createdBy?: string;
   createdAt?: string;
   // Queue management config
+  queueManagementEnabled?: boolean;
   numberOfCourts?: number;
   playersPerCourt?: number;
   queueMode?: string;
@@ -170,6 +171,10 @@ export class HostedPlayService {
     return this.http.get<HostedPlayParticipant[]>(`${this.base}/sessions/${id}/participants`);
   }
 
+  enableQueue(id: string) {
+    return this.http.post<HostedPlaySession>(`${this.base}/sessions/${id}/enable-queue`, {});
+  }
+
   // ── Queue — player view (read-only) ──
   getPlayerQueue(id: string) {
     return this.http.get<QueueBoard>(`${this.base}/player/sessions/${id}/queue`);
@@ -233,5 +238,16 @@ export class HostedPlayService {
 
   reorderQueue(id: string, orderedParticipantIds: string[]) {
     return this.http.put<QueueBoard>(`${this.base}/sessions/${id}/queue/order`, { orderedParticipantIds });
+  }
+
+  // ── QR Self-Check-In ──
+  generateQr(sessionId: string) {
+    return this.http.post<{ qrToken: string; url: string }>(
+      `${this.base}/sessions/${sessionId}/generate-qr`, {});
+  }
+
+  selfCheckIn(sessionId: string, token: string) {
+    return this.http.post<QueueBoard>(
+      `${this.base}/sessions/${sessionId}/self-check-in`, { token });
   }
 }

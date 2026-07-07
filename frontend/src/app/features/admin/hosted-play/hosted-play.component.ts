@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, signal } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -41,9 +41,16 @@ type FormModel = HostedPlayInput;
             <div class="hero-actions">
               <button class="primary-action" (click)="openCreate()"><i class="fas fa-plus"></i> Create Session</button>
               <button class="secondary-action" (click)="openCourts()"><i class="fas fa-map-marker-alt"></i> Manage Courts</button>
-              @if (queueEnabled) {
-                <span class="queue-badge"><i class="fas fa-list-ol"></i> Queue enabled</span>
-              }
+            </div>
+            <div class="queue-setting-row">
+              <div class="queue-setting-copy">
+                <div class="queue-setting-title"><i class="fas fa-list-ol"></i> Queue Management</div>
+                <div class="queue-setting-desc">Enable check-in, court rotation, and live queue board for sessions.</div>
+              </div>
+              <label class="queue-switch">
+                <input type="checkbox" [checked]="queueEnabled()" (change)="requestToggleQueue($event)" [disabled]="togglingQueue" />
+                <span class="queue-slider"></span>
+              </label>
             </div>
           </section>
 
@@ -118,8 +125,10 @@ type FormModel = HostedPlayInput;
                   }
 
                   <div class="actions">
-                    @if (queueEnabled) {
+                    @if (s.queueManagementEnabled ?? queueEnabled()) {
                       <button class="action primary" (click)="openQueue(s)"><i class="fas fa-list-ol"></i> Queue</button>
+                    } @else if ((s.status === 'open' || s.status === 'full' || s.status === 'closed') && s.date >= todayStr) {
+                      <button class="action" (click)="openEnableQueue(s)"><i class="fas fa-list-ol"></i> Enable Queue</button>
                     }
                     <button class="action" (click)="viewParticipants(s)"><i class="fas fa-user-group"></i> Participants</button>
                     <button class="action" (click)="openEdit(s)"><i class="fas fa-pen"></i> Edit</button>
@@ -193,7 +202,7 @@ type FormModel = HostedPlayInput;
             <label class="field"><span>Maximum Players *</span>
               <input type="number" min="2" step="1" [(ngModel)]="form.maxPlayers" />
             </label>
-            @if (queueEnabled) {
+            @if (queueEnabled()) {
               <label class="field"><span>Number of Courts *</span>
                 <input type="number" min="1" step="1" [(ngModel)]="form.numberOfCourts" />
               </label>
@@ -214,6 +223,60 @@ type FormModel = HostedPlayInput;
             <button class="primary-action" [disabled]="saving" (click)="save()">
               @if (saving) { <i class="fas fa-circle-notch fa-spin"></i> Saving }
               @else { {{ editingId ? 'Save Changes' : 'Create Session' }} }
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (showQueueFeeDisclaimer) {
+      <div class="modal-backdrop" (click)="cancelQueueEnable()">
+        <div class="modal confirm-modal" (click)="$event.stopPropagation()">
+          <div class="confirm-icon queue-confirm-icon"><i class="fas fa-list-ol"></i></div>
+          <h3>Enable Queue Management?</h3>
+          <p>
+            Queue Management charges a fee of
+            <strong>{{ queueFeePerPlayer() | currency: 'PHP' : 'symbol' }}</strong> per session created
+            while this feature is active.
+            This fee is recorded in Finance &rsaquo; App Services.
+          </p>
+          <div class="modal-foot">
+            <button class="secondary-btn" (click)="cancelQueueEnable()">Cancel</button>
+            <button class="primary-action" (click)="confirmQueueEnable()"><i class="fas fa-check"></i> Enable Queue</button>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (showEnableQueue && enablingQueueSession) {
+      <div class="modal-backdrop" (click)="cancelEnableQueue()">
+        <div class="modal session-modal" style="max-width:420px" (click)="$event.stopPropagation()">
+          <div class="modal-head">
+            <div>
+              <span class="modal-kicker">Queue setup</span>
+              <h3>Enable Queue Management</h3>
+            </div>
+            <button class="x" (click)="cancelEnableQueue()" aria-label="Close"><i class="fas fa-xmark"></i></button>
+          </div>
+          <div class="modal-body">
+            <p style="color:var(--muted);font-size:.84rem;margin:0 0 .75rem;line-height:1.5">
+              Enabling Queue Management on <strong style="color:var(--text)">{{ enablingQueueSession.title }}</strong> is permanent.
+              Once enabled, court rotation and check-in management will be active. You can configure courts and players per court via <strong style="color:var(--text)">Edit</strong>.
+            </p>
+            @if (queueFeePerPlayer() > 0) {
+              <p style="color:var(--muted);font-size:.84rem;margin:0 0 .75rem;line-height:1.5">
+                A Queue Management fee of <strong style="color:var(--text)">{{ queueFeePerPlayer() | currency: 'PHP' : 'symbol' }}</strong> will be billed to App Services for this session.
+              </p>
+            }
+            @if (enableQueueError) {
+              <div class="alert"><i class="fas fa-exclamation-triangle"></i> {{ enableQueueError }}</div>
+            }
+          </div>
+          <div class="modal-foot">
+            <button class="secondary-btn" (click)="cancelEnableQueue()" [disabled]="enablingQueue">Cancel</button>
+            <button class="primary-action" (click)="doEnableQueue()" [disabled]="enablingQueue">
+              @if (enablingQueue) { <i class="fas fa-circle-notch fa-spin"></i> Enabling }
+              @else { <i class="fas fa-check"></i> Enable Queue }
             </button>
           </div>
         </div>
@@ -585,8 +648,23 @@ type FormModel = HostedPlayInput;
     .modal-foot { display: flex; justify-content: flex-end; gap: .65rem; padding: .85rem 1.1rem 1.1rem; }
     .modal-foot > * { min-width: 140px; }
     .confirm-icon { width: 58px; height: 58px; margin: 0 auto .8rem; border-radius: 50%; background: rgba(239,68,68,.14); color: #fca5a5; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
+    .queue-confirm-icon { background: rgba(163,230,53,.13); color: var(--accent); }
     .confirm-modal p { color: var(--muted); line-height: 1.55; margin: .6rem 0 0; }
     .confirm-modal strong { color: var(--text); }
+
+    /* Queue Management toggle row */
+    .queue-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .9rem; padding: .85rem 1rem; border: 1px solid rgba(163,230,53,.22); border-radius: 12px; background: rgba(8,25,17,.4); }
+    .queue-setting-copy { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+    .queue-setting-title { color: var(--text); font-size: .9rem; font-weight: 800; display: flex; align-items: center; gap: .45rem; }
+    .queue-setting-title i { color: var(--accent); }
+    .queue-setting-desc { color: var(--muted); font-size: .78rem; line-height: 1.4; }
+    .queue-switch { position: relative; display: inline-block; width: 46px; height: 26px; flex-shrink: 0; }
+    .queue-switch input { opacity: 0; width: 0; height: 0; }
+    .queue-slider { position: absolute; inset: 0; cursor: pointer; background: rgba(255,255,255,.16); border-radius: 999px; transition: .2s; }
+    .queue-slider:before { content: ""; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+    .queue-switch input:checked + .queue-slider { background: var(--accent); }
+    .queue-switch input:checked + .queue-slider:before { transform: translateX(20px); }
+    .queue-switch input:disabled + .queue-slider { opacity: .5; cursor: not-allowed; }
 
     .participant-list { display: flex; flex-direction: column; gap: .55rem; }
     .participant-row { display: flex; align-items: center; gap: .7rem; padding: .62rem .7rem; border-radius: 8px; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); }
@@ -634,7 +712,10 @@ export class AdminHostedPlayComponent implements OnInit {
   sessions: HostedPlaySession[] = [];
   errorMap: Record<string, string> = {};
   todayStr = new Date().toISOString().slice(0, 10);
-  queueEnabled = false;
+  queueEnabled = signal(false);
+  queueFeePerPlayer = signal(0);
+  togglingQueue = false;
+  showQueueFeeDisclaimer = false;
   clubCourts: Court[] = [];
 
   showCourtsModal = false;
@@ -660,6 +741,11 @@ export class AdminHostedPlayComponent implements OnInit {
   deletingSession: HostedPlaySession | null = null;
   deleting = false;
 
+  showEnableQueue = false;
+  enablingQueueSession: HostedPlaySession | null = null;
+  enablingQueue = false;
+  enableQueueError = '';
+
   constructor(
     private hp: HostedPlayService,
     private router: Router,
@@ -674,7 +760,12 @@ export class AdminHostedPlayComponent implements OnInit {
     const clubId = this.auth.user()?.clubId;
     if (clubId) {
       this.clubService.getClub(clubId).subscribe({
-        next: (c) => { this.queueEnabled = !!c.hostedPlayQueueEnabled; this.clubCourts = (c.courts ?? []) as Court[]; this.cdr.detectChanges(); },
+        next: (c) => {
+          this.queueEnabled.set(!!c.hostedPlayQueueEnabled);
+          this.queueFeePerPlayer.set(c.queueManagementFeePerPlayer ?? 0);
+          this.clubCourts = (c.courts ?? []) as Court[];
+          this.cdr.detectChanges();
+        },
         error: () => {},
       });
     }
@@ -713,7 +804,38 @@ export class AdminHostedPlayComponent implements OnInit {
   }
 
   queueReadyCount(): number {
-    return this.queueEnabled ? this.sessions.filter(s => s.status === 'open' || s.status === 'full').length : 0;
+    return this.sessions.filter(s => (s.queueManagementEnabled ?? this.queueEnabled()) && (s.status === 'open' || s.status === 'full')).length;
+  }
+
+  requestToggleQueue(e: Event) {
+    const enabled = (e.target as HTMLInputElement).checked;
+    if (enabled && this.queueFeePerPlayer() > 0) {
+      this.showQueueFeeDisclaimer = true;
+    } else {
+      this.applyQueueToggle(enabled);
+    }
+  }
+
+  confirmQueueEnable() {
+    this.showQueueFeeDisclaimer = false;
+    this.applyQueueToggle(true);
+  }
+
+  cancelQueueEnable() {
+    this.showQueueFeeDisclaimer = false;
+    this.cdr.detectChanges();
+  }
+
+  private applyQueueToggle(enabled: boolean) {
+    this.togglingQueue = true;
+    this.clubService.patchMyHostedPlayQueue(enabled).subscribe({
+      next: (club) => {
+        this.queueEnabled.set(!!club.hostedPlayQueueEnabled);
+        this.togglingQueue = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.togglingQueue = false; this.cdr.detectChanges(); },
+    });
   }
 
   fillPct(s: HostedPlaySession): number {
@@ -832,6 +954,41 @@ export class AdminHostedPlayComponent implements OnInit {
         this.showDeleteConfirm = false;
         this.deletingSession = null;
         this.deleting = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  openEnableQueue(s: HostedPlaySession) {
+    this.enablingQueueSession = s;
+    this.enableQueueError = '';
+    this.showEnableQueue = true;
+    this.cdr.detectChanges();
+  }
+
+  cancelEnableQueue() {
+    this.showEnableQueue = false;
+    this.enablingQueueSession = null;
+    this.cdr.detectChanges();
+  }
+
+  doEnableQueue() {
+    if (!this.enablingQueueSession) return;
+    const s = this.enablingQueueSession;
+    this.enablingQueue = true;
+    this.enableQueueError = '';
+    this.hp.enableQueue(s._id).subscribe({
+      next: (updated) => {
+        const idx = this.sessions.findIndex((x) => x._id === s._id);
+        if (idx !== -1) this.sessions[idx] = { ...this.sessions[idx], ...updated };
+        this.enablingQueue = false;
+        this.showEnableQueue = false;
+        this.enablingQueueSession = null;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.enableQueueError = err?.error?.error || 'Failed to enable queue.';
+        this.enablingQueue = false;
         this.cdr.detectChanges();
       },
     });

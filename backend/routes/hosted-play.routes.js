@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { randomUUID } = require("crypto");
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
 const HostedPlay = require("../models/HostedPlay");
@@ -223,10 +224,12 @@ router.delete("/player/sessions/:id/join", auth, async (req, res) => {
 // GET /api/hosted-play/player/sessions/:id/queue — live board for players (read-only)
 router.get("/player/sessions/:id/queue", auth, async (req, res) => {
   try {
-    const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId }).lean();
+    const [session, club] = await Promise.all([
+      HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId }).lean(),
+      Club.findById(req.user.clubId).select("hostedPlayQueueEnabled").lean(),
+    ]);
     if (!session) return res.status(404).json({ error: "Session not found" });
-    const club = await Club.findById(req.user.clubId).select("hostedPlayQueueEnabled").lean();
-    if (!club?.hostedPlayQueueEnabled) return res.status(403).json({ error: "Queue not enabled for this club" });
+    if (!(session.queueManagementEnabled ?? club?.hostedPlayQueueEnabled)) return res.status(403).json({ error: "Queue not enabled for this session" });
     const participants = await HostedPlayParticipant.find({ hostedPlayId: session._id })
       .sort({ createdAt: 1 }).lean();
     res.json(queue.buildBoard(session, participants));
@@ -263,29 +266,29 @@ router.post("/sessions", auth, admin, async (req, res) => {
       });
     }
 
-    const [session, club] = await Promise.all([
-      HostedPlay.create({
-        clubId: req.user.clubId,
-        createdBy: req.user.userId,
-        title,
-        sport,
-        date,
-        startTime,
-        endTime,
-        venue,
-        court,
-        address,
-        feePerPlayer: Math.max(0, Number(feePerPlayer ?? 0) || 0),
-        maxPlayers: Number(maxPlayers),
-        description,
-        numberOfCourts: Math.max(1, Number(numberOfCourts ?? 1) || 1),
-        ...(playersPerCourt !== undefined ? { playersPerCourt: Math.max(1, Number(playersPerCourt) || 4) } : {}),
-        ...(queueMode !== undefined ? { queueMode } : {}),
-      }),
-      Club.findById(req.user.clubId).select("hostedPlayQueueEnabled queueManagementFeePerPlayer").lean(),
-    ]);
+    const club = await Club.findById(req.user.clubId).select("hostedPlayQueueEnabled queueManagementFeePerPlayer").lean();
 
-    // Auto-bill the club the Queue Management fee when a session is created
+    const session = await HostedPlay.create({
+      clubId: req.user.clubId,
+      createdBy: req.user.userId,
+      title,
+      sport,
+      date,
+      startTime,
+      endTime,
+      venue,
+      court,
+      address,
+      feePerPlayer: Math.max(0, Number(feePerPlayer ?? 0) || 0),
+      maxPlayers: Number(maxPlayers),
+      description,
+      numberOfCourts: Math.max(1, Number(numberOfCourts ?? 1) || 1),
+      queueManagementEnabled: !!club?.hostedPlayQueueEnabled,
+      ...(playersPerCourt !== undefined ? { playersPerCourt: Math.max(1, Number(playersPerCourt) || 4) } : {}),
+      ...(queueMode !== undefined ? { queueMode } : {}),
+    });
+
+    // Auto-bill the club the Queue Management fee when a session is created with queue enabled
     if (club?.hostedPlayQueueEnabled && club.queueManagementFeePerPlayer > 0) {
       await AppServicePayment.create({
         clubId: req.user.clubId,
@@ -335,6 +338,40 @@ router.put("/sessions/:id", auth, admin, async (req, res) => {
     }
 
     await session.save();
+    res.json(session);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/enable-queue — retroactively enable Queue Management
+router.post("/sessions/:id/enable-queue", auth, admin, async (req, res) => {
+  try {
+    const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId });
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (session.queueManagementEnabled) return res.status(400).json({ error: "Queue Management is already enabled for this session" });
+    if (session.status === "cancelled" || session.status === "completed") {
+      return res.status(400).json({ error: "Cannot enable Queue Management on a session that has ended" });
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (session.date && session.date.toISOString().slice(0, 10) < today) {
+      return res.status(400).json({ error: "Cannot enable Queue Management on a past session" });
+    }
+
+    session.queueManagementEnabled = true;
+    await session.save();
+
+    const club = await Club.findById(req.user.clubId).select("queueManagementFeePerPlayer").lean();
+    if (club?.queueManagementFeePerPlayer > 0) {
+      await AppServicePayment.create({
+        clubId: req.user.clubId,
+        amount: parseFloat((Number(club.queueManagementFeePerPlayer) || 0).toFixed(2)),
+        type: "billing",
+        note: `Queue Management fee — ${session.title}`,
+        paidBy: req.user.userId,
+      });
+    }
+
     res.json(session);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -426,8 +463,9 @@ async function loadQueueContext(req, res) {
     res.status(404).json({ error: "Session not found" });
     return null;
   }
-  if (!club?.hostedPlayQueueEnabled) {
-    res.status(403).json({ error: "Queue Management is not enabled for this club" });
+  const queueAllowed = session.queueManagementEnabled ?? !!club?.hostedPlayQueueEnabled;
+  if (!queueAllowed) {
+    res.status(403).json({ error: "Queue Management is not enabled for this session" });
     return null;
   }
   const participants = await HostedPlayParticipant.find({ hostedPlayId: session._id })
@@ -518,6 +556,62 @@ router.patch("/sessions/:id/participants/:pid/check-in", auth, admin, async (req
     const result = queue.setCheckIn(ctx.session, ctx.participants, req.params.pid, !!req.body.checkedIn);
     if (result.error === "not_found") return res.status(404).json({ error: "Participant not found" });
     await applyAndRespond(res, ctx.session, ctx.participants, result, ctx.club);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/generate-qr — admin generates/regenerates a QR token
+router.post("/sessions/:id/generate-qr", auth, admin, async (req, res) => {
+  try {
+    const session = await HostedPlay.findById(req.params.id).lean();
+    if (!session) return res.status(404).json({ error: "Session not found" });
+
+    const qrToken = randomUUID();
+    await HostedPlay.findByIdAndUpdate(session._id, {
+      qrToken,
+      qrTokenGeneratedAt: new Date(),
+    });
+
+    const appUrl = process.env.APP_URL || "https://courtgo.club";
+    const url = `${appUrl}/player/hosted-play/check-in?s=${session._id}&t=${qrToken}`;
+    res.json({ qrToken, url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/self-check-in — player self-check-in via QR
+router.post("/sessions/:id/self-check-in", auth, async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Token is required" });
+
+    const session = await HostedPlay.findById(req.params.id).lean();
+    if (!session) return res.status(404).json({ error: "Session not found" });
+
+    if (session.qrToken !== token) return res.status(403).json({ error: "invalid_qr" });
+    if (["cancelled", "completed"].includes(session.status)) {
+      return res.status(409).json({ error: "session_ended" });
+    }
+
+    const participant = await HostedPlayParticipant.findOne({
+      hostedPlayId: session._id,
+      memberId: req.user.userId,
+    }).lean();
+    if (!participant) return res.status(404).json({ error: "not_a_participant" });
+    if (participant.checkedIn) return res.status(409).json({ error: "already_checked_in" });
+
+    const club = await Club.findById(session.clubId)
+      .select("convenienceFeeRate convenienceFeeMode numberOfCourts")
+      .lean();
+    const participants = await HostedPlayParticipant.find({ hostedPlayId: session._id })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    const result = queue.setCheckIn(session, participants, String(participant._id), true);
+    if (result.error === "not_found") return res.status(404).json({ error: "Participant not found" });
+    await applyAndRespond(res, session, participants, result, club);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
