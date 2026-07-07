@@ -31,6 +31,7 @@ export interface FeeReportClubRow {
 }
 
 export interface FeeReportTransaction {
+  _id: string;
   date: string;
   clubName: string;
   playerName: string;
@@ -137,6 +138,19 @@ export class AppServicePaymentsService {
     return this.http.post<{ message: string; payment: AppServicePayment }>(
       `${environment.apiUrl}/app-service-payments/bill-month`,
       { clubId },
+    );
+  }
+
+  deleteBilling(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(
+      `${environment.apiUrl}/app-service-payments/${id}`
+    );
+  }
+
+  clearConvenienceFee(chargeId: string): Observable<{ success: boolean }> {
+    return this.http.patch<{ success: boolean }>(
+      `${environment.apiUrl}/app-service-payments/charges/${chargeId}/clear-convenience-fee`,
+      {}
     );
   }
 

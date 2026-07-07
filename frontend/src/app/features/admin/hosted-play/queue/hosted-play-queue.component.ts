@@ -1,4 +1,5 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import QRCode from 'qrcode';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -48,6 +49,35 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                 {{ modal.type === 'remove' ? 'Remove' : 'End Session' }}
               </button>
             </div>
+          </div>
+        </div>
+      }
+
+      @if (qrModal) {
+        <div class="modal-backdrop" (click)="closeQrModal()">
+          <div class="modal-card qr-modal-card" (click)="$event.stopPropagation()">
+            <div class="qr-modal-header">
+              <div>
+                <p class="modal-title">QR Check-In Code</p>
+                <p class="modal-msg">Players scan this to self-check-in.</p>
+              </div>
+              <button class="qr-close-btn" (click)="closeQrModal()" aria-label="Close"><i class="fas fa-times"></i></button>
+            </div>
+            @if (qrModal.generating) {
+              <div class="qr-loading"><i class="fas fa-circle-notch fa-spin"></i> Generating…</div>
+            } @else if (qrModal.dataUrl) {
+              <div class="qr-image-wrap">
+                <img [src]="qrModal.dataUrl" alt="QR check-in code" class="qr-image" />
+              </div>
+              <div class="qr-modal-actions">
+                <button class="secondary-btn" (click)="regenerateQr()" [disabled]="qrModal.generating">
+                  <i class="fas fa-rotate-right"></i> Regenerate
+                </button>
+                <a class="primary-small qr-download-btn" [href]="qrModal.dataUrl" [download]="'checkin-qr-' + id + '.png'">
+                  <i class="fas fa-download"></i> Download
+                </a>
+              </div>
+            }
           </div>
         </div>
       }
@@ -307,7 +337,14 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                     <span class="panel-kicker">Attendance</span>
                     <h3>Check-In</h3>
                   </div>
-                  <span class="panel-count">{{ checkedInCount() }}/{{ board.roster.length }}</span>
+                  <div class="panel-head-right">
+                    <span class="panel-count">{{ checkedInCount() }}/{{ board.roster.length }}</span>
+                    @if (board.session.queueStatus !== 'ended') {
+                      <button class="qr-btn" (click)="showQr()" title="Show QR check-in code">
+                        <i class="fas fa-qrcode"></i>
+                      </button>
+                    }
+                  </div>
                 </div>
 
                 @if (board.session.queueStatus !== 'ended') {
@@ -845,6 +882,38 @@ import { ClubService, Court } from '../../../../core/services/club.service';
     .modal-confirm-danger { color: #fca5a5; border: 1px solid rgba(239,68,68,.32); background: rgba(239,68,68,.16); }
     .modal-confirm-end { color: var(--amber); border: 1px solid rgba(245,158,11,.32); background: rgba(245,158,11,.15); }
 
+    .panel-head-right { display: flex; align-items: center; gap: .55rem; }
+    .qr-btn {
+      width: 36px; height: 36px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 8px; border: 1px solid rgba(163,230,53,.28);
+      background: rgba(163,230,53,.1); color: var(--accent);
+      font-size: .95rem; cursor: pointer; transition: background .15s;
+    }
+    .qr-btn:hover { background: rgba(163,230,53,.2); }
+
+    .qr-modal-card { max-width: 340px; }
+    .qr-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+    .qr-close-btn {
+      flex-shrink: 0; width: 32px; height: 32px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 6px; border: 1px solid var(--border);
+      background: rgba(255,255,255,.06); color: var(--muted); cursor: pointer;
+    }
+    .qr-close-btn:hover { background: rgba(255,255,255,.12); color: var(--text); }
+    .qr-loading { padding: 2rem; text-align: center; color: var(--muted); }
+    .qr-image-wrap {
+      display: flex; align-items: center; justify-content: center;
+      padding: 1rem; background: #fff; border-radius: 8px;
+    }
+    .qr-image { width: 220px; height: 220px; display: block; }
+    .qr-modal-actions { display: flex; gap: .6rem; justify-content: flex-end; }
+    .qr-download-btn {
+      display: inline-flex; align-items: center; gap: .4rem;
+      text-decoration: none; cursor: pointer;
+      border-radius: 8px; border: 0;
+    }
+
     @media (max-width: 980px) {
       .content-grid { grid-template-columns: 1fr; }
       .side-column { position: static; }
@@ -965,6 +1034,7 @@ export class AdminHostedPlayQueueComponent implements OnInit {
   clubCourts: Court[] = [];
 
   modal: { type: 'remove' | 'end'; player?: QueuePlayer } | null = null;
+  qrModal: { generating: boolean; dataUrl?: string } | null = null;
 
   assigningCourt: number | null = null;
   selectedIds = new Set<string>();
@@ -1165,6 +1235,36 @@ export class AdminHostedPlayQueueComponent implements OnInit {
     this.selectedIds.clear();
     this.act(this.hp.assignCourt(this.id, court, ids));
   }
+
+  showQr() {
+    this.qrModal = { generating: true };
+    this.cdr.detectChanges();
+    this.hp.generateQr(this.id).subscribe({
+      next: ({ url }) => this.renderQr(url),
+      error: () => { this.qrModal = null; this.cdr.detectChanges(); },
+    });
+  }
+
+  regenerateQr() {
+    if (!this.qrModal) return;
+    this.qrModal = { generating: true };
+    this.cdr.detectChanges();
+    this.hp.generateQr(this.id).subscribe({
+      next: ({ url }) => this.renderQr(url),
+      error: () => { this.qrModal = null; this.cdr.detectChanges(); },
+    });
+  }
+
+  private renderQr(url: string) {
+    QRCode.toDataURL(url, { width: 440, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
+      .then((dataUrl: string) => {
+        this.qrModal = { generating: false, dataUrl };
+        this.cdr.detectChanges();
+      })
+      .catch(() => { this.qrModal = null; this.cdr.detectChanges(); });
+  }
+
+  closeQrModal() { this.qrModal = null; this.cdr.detectChanges(); }
 
   goBack() { this.router.navigate(['/admin/hosted-play']); }
 }

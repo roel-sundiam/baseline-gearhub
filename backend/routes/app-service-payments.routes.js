@@ -77,6 +77,7 @@ router.get("/report", auth, superadmin, async (req, res) => {
         { $limit: 500 },
         {
           $project: {
+            _id: 1,
             date: "$createdAt",
             clubId: 1,
             amount: 1,
@@ -131,6 +132,7 @@ router.get("/report", auth, superadmin, async (req, res) => {
         })
         .sort((a, b) => b.fees - a.fees),
       transactions: txDocs.map((t) => ({
+        _id: t._id.toString(),
         date: t.date,
         clubName: clubMap[t.clubId?.toString()]?.name ?? "Unknown",
         playerName: t.playerName,
@@ -412,6 +414,22 @@ router.post("/", auth, admin, async (req, res) => {
   }
 });
 
+// PATCH /api/app-service-payments/charges/:id/clear-convenience-fee — zero out conv. fee (superadmin only)
+router.patch("/charges/:id/clear-convenience-fee", auth, superadmin, async (req, res) => {
+  try {
+    const charge = await Charge.findById(req.params.id);
+    if (!charge) return res.status(404).json({ error: "Charge not found" });
+    const convFee = charge.breakdown?.convenienceFee ?? 0;
+    if (convFee <= 0) return res.status(400).json({ error: "No convenience fee to remove" });
+    charge.amount = Math.max(0, parseFloat((charge.amount - convFee).toFixed(2)));
+    charge.breakdown.convenienceFee = 0;
+    await charge.save();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PATCH /api/app-service-payments/:id/screenshot — attach/replace developer payment proof
 router.patch("/:id/screenshot", auth, admin, async (req, res) => {
   try {
@@ -437,6 +455,19 @@ router.patch("/:id/screenshot", auth, admin, async (req, res) => {
     res.json({ message: "Payment screenshot saved", payment });
   } catch (err) {
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+// DELETE /api/app-service-payments/:id — delete a billing entry (superadmin only)
+router.delete("/:id", auth, superadmin, async (req, res) => {
+  try {
+    const payment = await AppServicePayment.findById(req.params.id);
+    if (!payment) return res.status(404).json({ error: "Payment not found" });
+    if (payment.type !== "billing") return res.status(400).json({ error: "Only billing entries can be deleted" });
+    await payment.deleteOne();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

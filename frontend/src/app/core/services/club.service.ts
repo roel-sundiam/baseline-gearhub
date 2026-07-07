@@ -119,6 +119,10 @@ export class ClubService {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/hosted-play-queue`, { enabled });
   }
 
+  patchMyHostedPlayQueue(enabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/hosted-play-queue`, { enabled });
+  }
+
   patchQueueManagementFee(id: string, fee: number) {
     return this.http.patch<{ queueManagementFeePerPlayer: number }>(`${environment.apiUrl}/clubs/${id}/queue-management-fee`, { fee });
   }

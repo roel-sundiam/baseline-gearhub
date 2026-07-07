@@ -22,7 +22,8 @@ const hostedPlaySchema = new mongoose.Schema(
     description: { type: String, trim: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
-    // ── Queue Management (only used when the club has hostedPlayQueueEnabled) ──
+    // ── Queue Management ──
+    queueManagementEnabled: { type: Boolean, default: false },
     numberOfCourts: { type: Number, default: 1, min: 1 },
     playersPerCourt: { type: Number, default: 4, min: 1 }, // future-proof; V1 keeps 4
     queueMode: {
@@ -42,6 +43,10 @@ const hostedPlaySchema = new mongoose.Schema(
       totalCheckedIn: { type: Number },
       totalGamesPlayed: { type: Number },
     },
+
+    // ── QR Self-Check-In ──
+    qrToken: { type: String, sparse: true },
+    qrTokenGeneratedAt: { type: Date },
   },
   { timestamps: true },
 );

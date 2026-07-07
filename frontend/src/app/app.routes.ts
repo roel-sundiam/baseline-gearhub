@@ -290,6 +290,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'hosted-play/check-in',
+        loadComponent: () =>
+          import('./features/player/hosted-play/self-check-in.component').then(
+            (m) => m.SelfCheckInComponent,
+          ),
+      },
+      {
         path: 'reservations',
         loadComponent: () =>
           import('./features/player/my-reservations/my-reservations.component').then(

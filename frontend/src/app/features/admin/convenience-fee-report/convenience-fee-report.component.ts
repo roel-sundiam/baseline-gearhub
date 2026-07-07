@@ -266,9 +266,10 @@ import { ClubService, Club } from '../../../core/services/club.service';
                   <th>Type</th>
                   <th class="num-col">Booking Amt</th>
                   <th class="num-col">Conv. Fee</th>
+                  <th class="num-col"></th>
                 </tr></thead>
                 <tbody>
-                  @for (tx of pagedTransactions(); track $index) {
+                  @for (tx of pagedTransactions(); track tx._id) {
                     <tr>
                       <td class="cell-date">{{ tx.date | date: 'MMM d, y' : 'UTC' }}</td>
                       <td class="club-name">{{ tx.clubName }}</td>
@@ -276,6 +277,11 @@ import { ClubService, Club } from '../../../core/services/club.service';
                       <td><span class="type-badge type-{{ tx.chargeType ?? 'reservation' }}">{{ formatChargeType(tx.chargeType) }}</span></td>
                       <td class="num-col muted">{{ tx.amount | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       <td class="num-col fee-val">{{ tx.convenienceFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                      <td class="num-col">
+                        <button class="btn-del-fee" (click)="deleteConvenienceFee(tx)" title="Remove convenience fee">
+                          <i class="fas fa-trash-alt"></i>
+                        </button>
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -313,6 +319,7 @@ import { ClubService, Club } from '../../../core/services/club.service';
                     <th>Billed By</th>
                     <th>Note</th>
                     <th class="num-col">Amount</th>
+                    <th class="num-col"></th>
                   </tr></thead>
                   <tbody>
                     @for (p of queueMgmtBillings(); track p._id) {
@@ -322,6 +329,11 @@ import { ClubService, Club } from '../../../core/services/club.service';
                         <td>{{ p.paidBy?.name ?? '—' }}</td>
                         <td class="muted note-cell">{{ p.note || '—' }}</td>
                         <td class="num-col fee-val">{{ p.amount | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                        <td class="num-col">
+                          <button class="btn-del-fee" (click)="deleteQueueBilling(p)" title="Delete billing entry">
+                            <i class="fas fa-trash-alt"></i>
+                          </button>
+                        </td>
                       </tr>
                     }
                   </tbody>
@@ -333,6 +345,26 @@ import { ClubService, Club } from '../../../core/services/club.service';
         }
       }
     </div>
+
+    @if (pendingDelete()) {
+      <div class="cfr-modal-backdrop" (click)="pendingDelete.set(null)">
+        <div class="cfr-modal" (click)="$event.stopPropagation()">
+          <div class="cfr-modal-icon"><i class="fas fa-trash-alt"></i></div>
+          <p class="cfr-modal-msg">{{ pendingDelete()!.label }}</p>
+          <p class="cfr-modal-sub">{{ pendingDelete()!.subLabel }}</p>
+          <div class="cfr-modal-actions">
+            <button class="cfr-modal-delete-btn" [disabled]="deleting()" (click)="confirmDelete()">
+              @if (deleting()) {
+                <i class="fas fa-circle-notch fa-spin"></i> Deleting…
+              } @else {
+                Delete
+              }
+            </button>
+            <button class="cfr-modal-cancel-btn" [disabled]="deleting()" (click)="pendingDelete.set(null)">Cancel</button>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [`
     :host {
@@ -746,6 +778,111 @@ import { ClubService, Club } from '../../../core/services/club.service';
       font-size: .88rem;
     }
 
+    .cfr-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cfr-modal {
+      background: #1a2e1a;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      padding: 1.75rem 1.5rem 1.5rem;
+      max-width: 360px;
+      width: calc(100% - 2rem);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: .5rem;
+    }
+    .cfr-modal-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(248,113,113,.14);
+      border: 1px solid rgba(248,113,113,.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #f87171;
+      font-size: 1.1rem;
+      margin-bottom: .25rem;
+    }
+    .cfr-modal-msg {
+      margin: 0;
+      font-size: .97rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.4;
+    }
+    .cfr-modal-sub {
+      margin: 0 0 .75rem;
+      font-size: .82rem;
+      color: var(--muted);
+    }
+    .cfr-modal-actions {
+      display: flex;
+      gap: .6rem;
+      width: 100%;
+    }
+    .cfr-modal-delete-btn {
+      flex: 1;
+      padding: .6rem 1rem;
+      background: #f87171;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: .88rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .4rem;
+      transition: opacity .15s;
+    }
+    .cfr-modal-delete-btn:hover:not(:disabled) { opacity: .85; }
+    .cfr-modal-delete-btn:disabled { opacity: .5; cursor: default; }
+    .cfr-modal-cancel-btn {
+      flex: 1;
+      padding: .6rem 1rem;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: .88rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .15s;
+    }
+    .cfr-modal-cancel-btn:hover:not(:disabled) { background: rgba(255,255,255,.06); }
+    .cfr-modal-cancel-btn:disabled { opacity: .5; cursor: default; }
+
+    .btn-del-fee {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: #fca5a5;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: .75rem;
+      transition: all .15s;
+      opacity: .5;
+    }
+    .btn-del-fee:hover:not(:disabled) { border-color: #fca5a5; opacity: 1; }
+    .btn-del-fee:disabled { cursor: default; opacity: .35; }
+
     @media (max-width: 600px) {
       .cfr-shell { padding: 1rem .75rem 3rem; }
       .stat-pill { min-width: unset; flex: 1 1 120px; }
@@ -762,6 +899,8 @@ export class ConvenienceFeeReportComponent implements OnInit {
   report = signal<FeeReport | null>(null);
   payments = signal<AppServicePayment[]>([]);
   clubs = signal<Club[]>([]);
+  pendingDelete = signal<{ label: string; subLabel: string; onConfirm: () => void } | null>(null);
+  deleting = signal(false);
   startDateVal = '';
   endDateVal = '';
   selectedClubId = '';
@@ -915,6 +1054,62 @@ export class ConvenienceFeeReportComponent implements OnInit {
     if (payment.clubId && typeof payment.clubId === 'object') return payment.clubId.name;
     const club = this.clubs().find((c) => c._id === payment.clubId);
     return club?.name ?? 'Unknown';
+  }
+
+  deleteConvenienceFee(tx: FeeReportTransaction) {
+    this.pendingDelete.set({
+      label: `Remove ₱${tx.convenienceFee.toFixed(2)} convenience fee from ${tx.playerName}?`,
+      subLabel: "This will reduce the club's outstanding balance.",
+      onConfirm: () => {
+        this.svc.clearConvenienceFee(tx._id).subscribe({
+          next: () => {
+            const current = this.report();
+            if (current) {
+              const newTransactions = current.transactions.filter((t) => t._id !== tx._id);
+              const newTotalFees = parseFloat((current.summary.totalFees - tx.convenienceFee).toFixed(2));
+              const newTxCount = current.summary.txCount - 1;
+              this.report.set({
+                ...current,
+                summary: {
+                  totalFees: newTotalFees,
+                  txCount: newTxCount,
+                  avgFee: newTxCount > 0 ? parseFloat((newTotalFees / newTxCount).toFixed(2)) : 0,
+                },
+                transactions: newTransactions,
+              });
+            }
+            this.pendingDelete.set(null);
+            this.deleting.set(false);
+          },
+          error: () => this.deleting.set(false),
+        });
+      },
+    });
+  }
+
+  deleteQueueBilling(p: AppServicePayment) {
+    const clubName = this.getPaymentClubName(p);
+    this.pendingDelete.set({
+      label: `Delete ₱${p.amount.toFixed(2)} Queue Management billing for ${clubName}?`,
+      subLabel: "This will reduce their outstanding balance.",
+      onConfirm: () => {
+        this.svc.deleteBilling(p._id).subscribe({
+          next: () => {
+            this.payments.update((list) => list.filter((x) => x._id !== p._id));
+            this.pendingDelete.set(null);
+            this.deleting.set(false);
+          },
+          error: () => this.deleting.set(false),
+        });
+      },
+    });
+  }
+
+  confirmDelete() {
+    const pending = this.pendingDelete();
+    if (!pending || this.deleting()) return;
+    this.deleting.set(true);
+    pending.onConfirm();
   }
 
   goBack() { this.router.navigate(['/admin/dashboard']); }
