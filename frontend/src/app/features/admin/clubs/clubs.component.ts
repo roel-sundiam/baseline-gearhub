@@ -4191,6 +4191,7 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     });
     this.loadMessageData();
     this.msgPollInterval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
       if (this.chatTarget) return;
       this.loadMessageData(true);
     }, 20_000);

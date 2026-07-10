@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Club = require("../models/Club");
+const Rates = require("../models/Rates");
 const LoginHistory = require("../models/LoginHistory");
 const Notification = require("../models/Notification");
 const authMiddleware = require("../middleware/auth");
@@ -198,6 +199,18 @@ router.post("/register-club", async (req, res) => {
       contactNumber,
       description,
       photos,
+      bookingProcess,
+      courtCount,
+      openingHour,
+      closingHour,
+      paymentMethods,
+      paymentAccounts,
+      paymentQrCodes,
+      socialLinks,
+      reservationWeekdayRate,
+      reservationWeekendRate,
+      reservationHolidayRate,
+      perGameFee,
     } = req.body;
 
     if (!clubName || !adminName || !adminUsername || !adminPassword || !logo) {
@@ -232,6 +245,16 @@ router.post("/register-club", async (req, res) => {
       mobile: contactNumber || undefined,
       description: description || undefined,
       photos: Array.isArray(photos) ? photos.slice(0, 4) : [],
+      bookingProcess: bookingProcess || 'reservation',
+      courtCount: courtCount ? Number(courtCount) : 2,
+      openingHour: openingHour !== undefined ? Number(openingHour) : 5,
+      closingHour: closingHour !== undefined ? Number(closingHour) : 22,
+      paymentMethods: Array.isArray(paymentMethods) ? paymentMethods : [],
+      paymentAccounts: paymentAccounts && typeof paymentAccounts === 'object' ? paymentAccounts : {},
+      paymentQrCodes: paymentQrCodes && typeof paymentQrCodes === 'object' ? paymentQrCodes : {},
+      socialLinks: socialLinks && typeof socialLinks === 'object' ? socialLinks : {},
+      convenienceFeeMode: 'per_hour',
+      convenienceFeeRate: 0.05,
     });
 
     const passwordHash = await bcrypt.hash(adminPassword, 12);
@@ -251,6 +274,31 @@ router.post("/register-club", async (req, res) => {
       clubId: club._id,
       adminId: admin._id,
     });
+
+    if (bookingProcess === 'reservation' && (reservationWeekdayRate || reservationWeekendRate || reservationHolidayRate)) {
+      await Rates.findOneAndUpdate(
+        { clubId: club._id },
+        {
+          $set: {
+            reservationWeekdayRate: Number(reservationWeekdayRate) || 0,
+            reservationWeekendRate: Number(reservationWeekendRate) || 0,
+            reservationHolidayRate: Number(reservationHolidayRate) || 0,
+          },
+          $setOnInsert: { clubId: club._id },
+        },
+        { upsert: true },
+      );
+    }
+    if (bookingProcess === 'per_game' && perGameFee) {
+      await Rates.findOneAndUpdate(
+        { clubId: club._id },
+        {
+          $set: { perGameFee: Number(perGameFee) || 0 },
+          $setOnInsert: { clubId: club._id },
+        },
+        { upsert: true },
+      );
+    }
 
     notifySuperadmins(
       "New Club Registered",

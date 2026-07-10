@@ -142,6 +142,9 @@
               "proxyConfig": "proxy.conf.js",
               "liveReload": true,
               "hmr": false
+            },
+            "render": {
+              "buildTarget": "frontend:build:render"
             }
           },
           "defaultConfiguration": "development"

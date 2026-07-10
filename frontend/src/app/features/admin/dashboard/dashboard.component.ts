@@ -303,6 +303,14 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
                 </span>
                 <span class="action-sub">Animated walkthrough video — share or download</span>
               </a>
+              <a href="/video/hosted-play.mp4" target="_blank" class="action-card">
+                <span class="action-icon"><i class="fas fa-circle-play"></i></span>
+                <span class="action-title" style="display:flex;align-items:center;gap:4px;">
+                  Hosted Play Video
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="opacity:0.55"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </span>
+                <span class="action-sub">Hosted Play demo video — share or download</span>
+              </a>
             }
           </div>
         </section>
@@ -1507,6 +1515,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       error: () => {},
     });
     this.msgPollInterval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
       if (this.supportChatOpen) return;
       this.adminMessages.getUnreadCount().subscribe({
         next: ({ count }) => {

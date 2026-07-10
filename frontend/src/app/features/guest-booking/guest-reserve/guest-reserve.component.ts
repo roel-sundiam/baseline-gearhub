@@ -18,8 +18,9 @@ function slotToHour(slot: string): number {
   return m[2] === 'am' ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
 }
 function hourToSlot(h: number): string {
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}${h < 12 ? 'am' : 'pm'}`;
+  const h24 = h % 24;
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}${h24 < 12 ? 'am' : 'pm'}`;
 }
 function hoursToSlots(openingHour: number, closingHour: number): string[] {
   const slots: string[] = [];

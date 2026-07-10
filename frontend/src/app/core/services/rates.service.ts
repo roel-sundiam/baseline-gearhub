@@ -39,8 +39,9 @@ export interface Rates {
 export class RatesService {
   constructor(private http: HttpClient) {}
 
-  getRates() {
-    return this.http.get<Rates>(`${environment.apiUrl}/rates`);
+  getRates(clubId?: string) {
+    const qs = clubId ? `?clubId=${encodeURIComponent(clubId)}` : '';
+    return this.http.get<Rates>(`${environment.apiUrl}/rates${qs}`);
   }
 
   updateRates(data: {
@@ -72,7 +73,8 @@ export class RatesService {
     coachingRate1Pax: number;
     coachingRate2Pax: number;
     coachingRate3to6Pax: number;
-  }) {
-    return this.http.put<Rates>(`${environment.apiUrl}/rates`, data);
+  }, clubId?: string) {
+    const qs = clubId ? `?clubId=${encodeURIComponent(clubId)}` : '';
+    return this.http.put<Rates>(`${environment.apiUrl}/rates${qs}`, data);
   }
 }

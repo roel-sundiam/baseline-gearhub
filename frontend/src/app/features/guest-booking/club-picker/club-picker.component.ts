@@ -2,6 +2,7 @@ import { Component, OnInit, signal, computed, ElementRef, ViewChild } from '@ang
 import { CommonModule, DecimalPipe, DatePipe } from '@angular/common';
 import { NgTemplateOutlet } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
+import { forkJoin } from 'rxjs';
 import { PublicBookingService } from '../../../core/services/public-booking.service';
 
 type Club = {
@@ -10,11 +11,37 @@ type Club = {
   courtCount?: number; openingHour?: number; closingHour?: number;
 };
 
-type OpenPlaySession = {
+type RawOpenPlaySession = {
   _id: string; title: string; sport: string;
   sessionDate: string; startTime: string; endTime: string;
   matchType: string; maxPlayers: number; joinedPlayers: number;
   club: { _id: string; name: string; slug?: string; location?: string; logo?: string };
+};
+
+type RawHostedSession = {
+  _id: string; title: string; sport: string;
+  date: string; startTime: string; endTime: string;
+  venue: string; court?: string; feePerPlayer: number;
+  maxPlayers: number; currentPlayers: number; status: 'open' | 'full';
+  venueLogo?: string | null;
+  club: { _id: string; name: string; slug?: string; location?: string; logo?: string };
+};
+
+type UnifiedSession = {
+  _id: string;
+  type: 'open_play' | 'hosted_play';
+  title: string;
+  sport: string;
+  sessionDate: string;
+  startTime: string;
+  endTime: string;
+  matchType?: string;
+  feePerPlayer?: number;
+  maxPlayers: number;
+  currentPlayers: number;
+  isFull: boolean;
+  club: { _id: string; name: string; slug?: string; location?: string; logo?: string };
+  logoUrl?: string | null;
 };
 
 @Component({
@@ -211,7 +238,7 @@ type OpenPlaySession = {
               <p>{{ openPlayError() }}</p>
               <button class="retry-btn" (click)="loadOpenPlay()">Try again</button>
             </div>
-          } @else if (filteredSessions().length === 0 && openPlaySessions().length === 0) {
+          } @else if (filteredSessions().length === 0 && openPlaySessions().length === 0 && hostedSessions().length === 0) {
             <div class="state-centered">
               <div class="state-icon">&#127934;</div>
               <p>No open play sessions are currently available.</p>
@@ -238,14 +265,21 @@ type OpenPlaySession = {
                       <span class="sport-badge" [class.sport-tennis]="session.sport === 'tennis'" [class.sport-pickle]="session.sport === 'pickleball'">
                         {{ session.sport === 'tennis' ? '&#127934; Tennis' : '&#127947; Pickleball' }}
                       </span>
-                      <span class="match-chip">{{ session.matchType }}</span>
+                      @if (session.type === 'hosted_play') {
+                        <span class="match-chip hosted-chip">Hosted</span>
+                        @if ((session.feePerPlayer ?? 0) > 0) {
+                          <span class="match-chip fee-chip">&#8369;{{ session.feePerPlayer | number }} fee</span>
+                        }
+                      } @else {
+                        <span class="match-chip">{{ session.matchType }}</span>
+                      }
                     </div>
 
                     <div class="session-title">{{ session.title }}</div>
 
                     <div class="session-club-row">
-                      @if (session.club.logo) {
-                        <img [src]="session.club.logo" class="session-club-logo" [alt]="session.club.name" />
+                      @if (session.logoUrl) {
+                        <img [src]="session.logoUrl" class="session-club-logo" [alt]="session.club.name" />
                       } @else {
                         <div class="session-club-logo-placeholder"></div>
                       }
@@ -270,24 +304,24 @@ type OpenPlaySession = {
 
                     <div class="session-spots">
                       <div class="spots-label">
-                        <span>{{ session.joinedPlayers }} / {{ session.maxPlayers }} players</span>
-                        @if (session.joinedPlayers >= session.maxPlayers) {
+                        <span>{{ session.currentPlayers }} / {{ session.maxPlayers }} players</span>
+                        @if (session.isFull) {
                           <span class="spots-full">Full</span>
                         } @else {
-                          <span class="spots-open">{{ session.maxPlayers - session.joinedPlayers }} spots left</span>
+                          <span class="spots-open">{{ session.maxPlayers - session.currentPlayers }} spots left</span>
                         }
                       </div>
                       <div class="spots-bar">
-                        <div class="spots-fill" [style.width.%]="(session.joinedPlayers / session.maxPlayers) * 100"></div>
+                        <div class="spots-fill" [style.width.%]="(session.currentPlayers / session.maxPlayers) * 100"></div>
                       </div>
                     </div>
 
                     <button
                       class="register-btn"
-                      [disabled]="session.joinedPlayers >= session.maxPlayers"
-                      (click)="router.navigate(['/register'])"
+                      [disabled]="session.isFull"
+                      (click)="session.type === 'hosted_play' ? router.navigate(['/book', session.club.slug ?? session.club._id]) : router.navigate(['/register'])"
                     >
-                      {{ session.joinedPlayers >= session.maxPlayers ? 'Session Full' : 'Register as Player' }}
+                      {{ session.isFull ? 'Session Full' : (session.type === 'hosted_play' ? 'View & Join' : 'Register as Player') }}
                     </button>
                   </div>
                 }
@@ -999,6 +1033,8 @@ type OpenPlaySession = {
       padding: 0.2rem 0.6rem;
       border-radius: 100px;
     }
+    .hosted-chip { background: rgba(168,85,247,0.15); color: #c084fc; border-color: rgba(168,85,247,0.3); }
+    .fee-chip    { background: rgba(34,197,94,0.12); color: #86efac; border-color: rgba(34,197,94,0.25); font-size: 0.65rem; }
 
     .session-title {
       font-size: 1rem;
@@ -1174,7 +1210,8 @@ export class ClubPickerComponent implements OnInit {
   error = signal('');
 
   // ── Open play tab ──
-  openPlaySessions = signal<OpenPlaySession[]>([]);
+  openPlaySessions = signal<RawOpenPlaySession[]>([]);
+  hostedSessions = signal<RawHostedSession[]>([]);
   openPlayLoading = signal(false);
   openPlayError = signal('');
   openPlayLoaded = signal(false);
@@ -1196,14 +1233,26 @@ export class ClubPickerComponent implements OnInit {
     });
   });
 
-  filteredSessions = computed(() => {
+  filteredSessions = computed((): UnifiedSession[] => {
     const term = this.searchTerm().toLowerCase().trim();
     const city = this.selectedCity().toLowerCase().trim();
-    return this.openPlaySessions().filter(s => {
-      const matchesTerm = !term || s.title.toLowerCase().includes(term) || (s.club.name.toLowerCase().includes(term)) || (s.club.location?.toLowerCase().includes(term) ?? false);
-      const matchesCity = !city || (s.club.location?.toLowerCase().includes(city) ?? false);
-      return matchesTerm && matchesCity;
-    });
+    const merged = [
+      ...this.openPlaySessions().map(s => this.normalizeOpenPlay(s)),
+      ...this.hostedSessions().map(s => this.normalizeHosted(s)),
+    ];
+    return merged
+      .filter(s => {
+        const matchesTerm = !term
+          || s.title.toLowerCase().includes(term)
+          || s.club.name.toLowerCase().includes(term)
+          || (s.club.location?.toLowerCase().includes(term) ?? false);
+        const matchesCity = !city || (s.club.location?.toLowerCase().includes(city) ?? false);
+        return matchesTerm && matchesCity;
+      })
+      .sort((a, b) => {
+        const d = a.sessionDate.localeCompare(b.sessionDate);
+        return d !== 0 ? d : a.startTime.localeCompare(b.startTime);
+      });
   });
 
   savedClubs = computed(() =>
@@ -1226,10 +1275,17 @@ export class ClubPickerComponent implements OnInit {
   cityOptions = computed(() => {
     const seen = new Set<string>();
     const cities: string[] = [];
-    const sources = this.activeTab() === 'play'
-      ? this.openPlaySessions().map(s => s.club.location).filter(Boolean) as string[]
-      : this.clubs().map(c => c.location).filter(Boolean) as string[];
+    let sources: (string | undefined)[];
+    if (this.activeTab() === 'play') {
+      sources = [
+        ...this.openPlaySessions().map(s => s.club.location),
+        ...this.hostedSessions().map(s => s.club.location),
+      ];
+    } else {
+      sources = this.clubs().map(c => c.location);
+    }
     for (const loc of sources) {
+      if (!loc) continue;
       const city = loc.trim();
       if (!seen.has(city)) { seen.add(city); cities.push(city); }
     }
@@ -1264,9 +1320,13 @@ export class ClubPickerComponent implements OnInit {
   loadOpenPlay() {
     this.openPlayLoading.set(true);
     this.openPlayError.set('');
-    this.publicBookingService.getAllOpenPlaySessions().subscribe({
-      next: (sessions) => {
-        this.openPlaySessions.set(sessions);
+    forkJoin({
+      open: this.publicBookingService.getAllOpenPlaySessions(),
+      hosted: this.publicBookingService.getAllHostedPlaySessions(),
+    }).subscribe({
+      next: ({ open, hosted }) => {
+        this.openPlaySessions.set(open);
+        this.hostedSessions.set(hosted);
         this.openPlayLoading.set(false);
         this.openPlayLoaded.set(true);
       },
@@ -1345,6 +1405,30 @@ export class ClubPickerComponent implements OnInit {
       },
       () => { this.detectingLocation.set(false); }
     );
+  }
+
+  private normalizeOpenPlay(s: RawOpenPlaySession): UnifiedSession {
+    return {
+      _id: s._id.toString(), type: 'open_play',
+      title: s.title, sport: s.sport,
+      sessionDate: s.sessionDate, startTime: s.startTime, endTime: s.endTime,
+      matchType: s.matchType, maxPlayers: s.maxPlayers,
+      currentPlayers: s.joinedPlayers,
+      isFull: s.joinedPlayers >= s.maxPlayers,
+      club: s.club, logoUrl: s.club.logo ?? null,
+    };
+  }
+
+  private normalizeHosted(s: RawHostedSession): UnifiedSession {
+    return {
+      _id: s._id.toString(), type: 'hosted_play',
+      title: s.title, sport: s.sport,
+      sessionDate: s.date, startTime: s.startTime, endTime: s.endTime,
+      feePerPlayer: s.feePerPlayer, maxPlayers: s.maxPlayers,
+      currentPlayers: s.currentPlayers,
+      isFull: s.status === 'full' || s.currentPlayers >= s.maxPlayers,
+      club: s.club, logoUrl: s.venueLogo ?? s.club.logo ?? null,
+    };
   }
 
   formatTime(t: string): string {

@@ -1429,6 +1429,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
         error: () => {},
       });
       this.msgPollInterval = setInterval(() => {
+        if (document.visibilityState !== 'visible') return;
         if (this.supportChatOpen) return;
         this.adminMessages.getUnreadCount().subscribe({
           next: ({ count }) => {

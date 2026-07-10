@@ -68,6 +68,18 @@ export class AuthService {
     contactNumber?: string;
     description?: string;
     photos?: string[];
+    bookingProcess?: 'reservation' | 'per_game' | 'hosted_play';
+    courtCount?: number;
+    openingHour?: number;
+    closingHour?: number;
+    paymentMethods?: string[];
+    paymentAccounts?: Record<string, string>;
+    paymentQrCodes?: Record<string, string>;
+    socialLinks?: Record<string, string>;
+    reservationWeekdayRate?: number;
+    reservationWeekendRate?: number;
+    reservationHolidayRate?: number;
+    perGameFee?: number;
   }) {
     return this.http.post<{ message: string; clubId: string; adminId: string }>(
       `${environment.apiUrl}/auth/register-club`,

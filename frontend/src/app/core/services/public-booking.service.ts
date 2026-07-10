@@ -125,6 +125,17 @@ export class PublicBookingService {
     }[]>(`${this.base}/open-play`);
   }
 
+  getAllHostedPlaySessions() {
+    return this.http.get<{
+      _id: string; title: string; sport: 'tennis' | 'pickleball';
+      date: string; startTime: string; endTime: string;
+      venue: string; court?: string; feePerPlayer: number;
+      maxPlayers: number; currentPlayers: number; status: 'open' | 'full';
+      venueLogo?: string | null;
+      club: { _id: string; name: string; slug?: string; location?: string; logo?: string };
+    }[]>(`${this.base}/hosted-play`);
+  }
+
   registerForOpenPlay(sessionId: string, payload: { guestName: string; guestEmail: string; guestPhone?: string }) {
     return this.http.post<{ success: boolean; joinedPlayers: number }>(
       `${this.base}/open-play/${sessionId}/register`,

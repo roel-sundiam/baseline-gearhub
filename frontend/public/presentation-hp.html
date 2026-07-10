@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1280px;height:720px;overflow:hidden;background:#0a1610;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#fff}
+/* Background */
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+.orb{position:absolute;border-radius:50%;filter:blur(40px)}
+.o1{width:560px;height:560px;top:-160px;left:-130px;background:radial-gradient(circle,rgba(124,255,78,.18) 0%,transparent 70%);animation:fOrb 13s ease-in-out infinite alternate}
+.o2{width:380px;height:380px;bottom:-100px;right:-80px;background:radial-gradient(circle,rgba(124,255,78,.12) 0%,transparent 70%);animation:fOrb 10s ease-in-out infinite alternate;animation-delay:-5s}
+@keyframes fOrb{from{transform:translateY(0) scale(1)}to{transform:translateY(-40px) scale(1.05)}}
+.grid{position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,rgba(124,255,78,.022) 0,rgba(124,255,78,.022) 1px,transparent 1px,transparent 80px),repeating-linear-gradient(90deg,rgba(124,255,78,.022) 0,rgba(124,255,78,.022) 1px,transparent 1px,transparent 80px)}
+/* Watermark */
+.wm{position:fixed;top:20px;left:32px;z-index:200}.wm img{height:24px}
+/* Progress dots */
+.progress{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:7px;z-index:200}
+.dot{width:7px;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
+/* Slides */
+.slide{position:absolute;inset:0;opacity:0;display:flex;align-items:center;z-index:1}
+/* Title */
+.title-slide{justify-content:center}
+.ti{display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center}
+.t-logo{height:48px}
+.t-badge{display:inline-flex;align-items:center;gap:8px;font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.65);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);padding:.3rem .85rem;border-radius:100px}
+.tdot{width:7px;height:7px;border-radius:50%;background:#7cff4e;box-shadow:0 0 8px #7cff4e;flex-shrink:0}
+.t-h1{font-size:3.8rem;font-weight:800;letter-spacing:-.04em;line-height:1.07}.ac{color:#7cff4e}
+.t-sub{font-size:1rem;color:rgba(255,255,255,.4)}
+/* Feature: browser left (or right when .rev), text the other side */
+.feature-slide{padding:0 40px;gap:48px;align-items:center}.feature-slide.rev{flex-direction:row-reverse}
+/* Browser window frame */
+.browser-col{flex:0 0 auto;position:relative}
+.browser-glow{position:absolute;width:100%;height:200px;bottom:-60px;left:0;background:radial-gradient(ellipse,rgba(124,255,78,.18) 0%,transparent 70%);filter:blur(20px);pointer-events:none;z-index:0}
+.browser-frame{width:730px;border-radius:10px;border:1px solid rgba(255,255,255,.13);overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.75),0 0 0 1px rgba(124,255,78,.05);background:#111d14;position:relative;z-index:1}
+.browser-bar{height:30px;background:#182b1e;display:flex;align-items:center;padding:0 12px;gap:6px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0}
+.bd{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.bd-r{background:#ff5f57}.bd-y{background:#febc2e}.bd-g{background:#28c840}
+.browser-addr{flex:1;margin:0 10px;height:16px;background:rgba(255,255,255,.05);border-radius:3px}
+.browser-content{overflow:hidden;display:block}
+.browser-content img{width:730px;height:auto;display:block;object-fit:cover;object-position:top left}
+/* Small browser for split slide */
+.browser-sm{width:530px}
+.browser-sm .browser-content img{width:530px}
+/* Text column */
+.text-col{flex:1;min-width:0}
+.f-tag{display:inline-flex;align-items:center;font-size:.66rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7cff4e;background:rgba(124,255,78,.08);border:1px solid rgba(124,255,78,.2);padding:.24rem .65rem;border-radius:100px;margin-bottom:12px}
+.f-title{font-size:2.4rem;font-weight:800;letter-spacing:-.03em;line-height:1.1;color:#fff;margin-bottom:12px}
+.f-desc{font-size:.88rem;color:rgba(255,255,255,.45);line-height:1.7;margin-bottom:16px}
+.f-bullets{list-style:none;display:flex;flex-direction:column;gap:9px}
+.f-bullets li{display:flex;align-items:center;gap:9px;font-size:.85rem;color:rgba(255,255,255,.75);font-weight:500}
+/* Split slide */
+.split-slide{flex-direction:column;justify-content:center;align-items:center;gap:20px}
+.sp-header{text-align:center}
+.sp-tag{display:inline-flex;align-items:center;font-size:.66rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7cff4e;background:rgba(124,255,78,.08);border:1px solid rgba(124,255,78,.2);padding:.24rem .65rem;border-radius:100px;margin-bottom:8px}
+.sp-title{font-size:2.2rem;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.sp-browsers{display:flex;align-items:flex-start;gap:28px}
+.sp-left,.sp-right{display:flex;flex-direction:column;align-items:center;gap:8px}
+.sp-label{font-size:.68rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.38)}
+.sp-arrow{font-size:2rem;color:#7cff4e;opacity:.6;align-self:center;flex-shrink:0;margin-top:30px}
+/* CTA */
+.cta-slide{flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:16px}
+.cta-logo{height:42px}
+.cta-tag{display:inline-flex;align-items:center;font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#7cff4e;background:rgba(124,255,78,.08);border:1px solid rgba(124,255,78,.2);padding:.3rem .85rem;border-radius:100px}
+.cta-h2{font-size:3.1rem;font-weight:800;letter-spacing:-.03em}
+.cta-sub{font-size:1rem;color:rgba(255,255,255,.45)}
+.cta-btn{display:inline-block;padding:.9rem 2.6rem;background:#7cff4e;color:#081209;font-weight:700;font-size:1rem;border-radius:12px;box-shadow:0 0 28px rgba(124,255,78,.5)}
+.cta-url{font-size:.82rem;color:rgba(255,255,255,.28);letter-spacing:.06em}
+/* Keyframes */
+@keyframes showSlide{0%{opacity:0}6%{opacity:1}88%{opacity:1}100%{opacity:0}}
+@keyframes showLast{0%{opacity:0}6%{opacity:1}100%{opacity:1}}
+@keyframes fUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+@keyframes sInR{from{opacity:0;transform:translateX(65px) scale(.94)}to{opacity:1;transform:translateX(0) scale(1)}}
+@keyframes sInL{from{opacity:0;transform:translateX(-65px) scale(.94)}to{opacity:1;transform:translateX(0) scale(1)}}
+@keyframes dotOn{0%{background:rgba(255,255,255,.18);width:7px}6%{background:#7cff4e;width:22px;border-radius:4px}88%{background:#7cff4e;width:22px}100%{background:rgba(255,255,255,.18);width:7px}}
+#s0{animation:showSlide 9.340s 0.000s both}
+#d0{animation:dotOn 9.340s 0.000s both}
+#s0 .t-logo{animation:fUp .8s 0.100s both}
+#s0 .t-badge{animation:fUp .8s 0.400s both}
+#s0 .t-h1{animation:fUp .8s 0.700s both}
+#s0 .t-sub{animation:fUp .8s 1.000s both}
+#s1{animation:showSlide 9.600s 9.340s both}
+#d1{animation:dotOn 9.600s 9.340s both}
+#s1 .browser-col{animation:sInR .8s 9.490s both}
+#s1 .f-tag{animation:fUp .6s 9.690s both}
+#s1 .f-title{animation:fUp .6s 9.890s both}
+#s1 .f-desc{animation:fUp .6s 10.090s both}
+#s1 .f-bullets li:nth-child(1){animation:fUp .5s 10.290s both}
+#s1 .f-bullets li:nth-child(2){animation:fUp .5s 10.440s both}
+#s1 .f-bullets li:nth-child(3){animation:fUp .5s 10.590s both}
+#s1 .f-bullets li:nth-child(4){animation:fUp .5s 10.740s both}
+#s2{animation:showSlide 9.070s 18.940s both}
+#d2{animation:dotOn 9.070s 18.940s both}
+#s2 .browser-col{animation:sInL .8s 19.090s both}
+#s2 .f-tag{animation:fUp .6s 19.290s both}
+#s2 .f-title{animation:fUp .6s 19.490s both}
+#s2 .f-desc{animation:fUp .6s 19.690s both}
+#s2 .f-bullets li:nth-child(1){animation:fUp .5s 19.890s both}
+#s2 .f-bullets li:nth-child(2){animation:fUp .5s 20.040s both}
+#s2 .f-bullets li:nth-child(3){animation:fUp .5s 20.190s both}
+#s2 .f-bullets li:nth-child(4){animation:fUp .5s 20.340s both}
+#s3{animation:showSlide 9.290s 28.010s both}
+#d3{animation:dotOn 9.290s 28.010s both}
+#s3 .browser-col{animation:sInR .8s 28.160s both}
+#s3 .f-tag{animation:fUp .6s 28.360s both}
+#s3 .f-title{animation:fUp .6s 28.560s both}
+#s3 .f-desc{animation:fUp .6s 28.760s both}
+#s3 .f-bullets li:nth-child(1){animation:fUp .5s 28.960s both}
+#s3 .f-bullets li:nth-child(2){animation:fUp .5s 29.110s both}
+#s3 .f-bullets li:nth-child(3){animation:fUp .5s 29.260s both}
+#s3 .f-bullets li:nth-child(4){animation:fUp .5s 29.410s both}
+#s4{animation:showSlide 10.700s 37.300s both}
+#d4{animation:dotOn 10.700s 37.300s both}
+#s4 .sp-tag{animation:fUp .7s 37.500s both}
+#s4 .sp-title{animation:fUp .7s 37.750s both}
+#s4 .sp-left{animation:fUp .7s 37.950s both}
+#s4 .sp-right{animation:fUp .7s 38.200s both}
+#s5{animation:showSlide 8.741s 48.000s both}
+#d5{animation:dotOn 8.741s 48.000s both}
+#s5 .browser-col{animation:sInL .8s 48.150s both}
+#s5 .f-tag{animation:fUp .6s 48.350s both}
+#s5 .f-title{animation:fUp .6s 48.550s both}
+#s5 .f-desc{animation:fUp .6s 48.750s both}
+#s5 .f-bullets li:nth-child(1){animation:fUp .5s 48.950s both}
+#s5 .f-bullets li:nth-child(2){animation:fUp .5s 49.100s both}
+#s5 .f-bullets li:nth-child(3){animation:fUp .5s 49.250s both}
+#s5 .f-bullets li:nth-child(4){animation:fUp .5s 49.400s both}
+#s6{animation:showSlide 10.030s 56.741s both}
+#d6{animation:dotOn 10.030s 56.741s both}
+#s6 .browser-col{animation:sInR .8s 56.891s both}
+#s6 .f-tag{animation:fUp .6s 57.091s both}
+#s6 .f-title{animation:fUp .6s 57.291s both}
+#s6 .f-desc{animation:fUp .6s 57.491s both}
+#s6 .f-bullets li:nth-child(1){animation:fUp .5s 57.691s both}
+#s6 .f-bullets li:nth-child(2){animation:fUp .5s 57.841s both}
+#s6 .f-bullets li:nth-child(3){animation:fUp .5s 57.991s both}
+#s6 .f-bullets li:nth-child(4){animation:fUp .5s 58.141s both}
+#s7{animation:showLast 6.960s 66.771s both}
+#d7{animation:dotOn 6.960s 66.771s both}
+#s7 .cta-logo{animation:fUp .8s 66.971s both}
+#s7 .cta-tag{animation:fUp .8s 67.171s both}
+#s7 .cta-h2{animation:fUp .8s 67.371s both}
+#s7 .cta-sub{animation:fUp .8s 67.571s both}
+#s7 .cta-btn{animation:fUp .8s 67.771s both}
+#s7 .cta-url{animation:fUp .8s 67.971s both}
+
+</style></head>
+<body>
+<div class="bg"><div class="orb o1"></div><div class="orb o2"></div><div class="grid"></div></div>
+<div class="wm"><img src="http://localhost:4200/CourtGo.png"/></div>
+<div class="progress"><div class="dot" id="d0"></div><div class="dot" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div><div class="dot" id="d4"></div><div class="dot" id="d5"></div><div class="dot" id="d6"></div><div class="dot" id="d7"></div></div>
+
+  <div class="slide title-slide" id="s0">
+    <div class="ti">
+      <img src="http://localhost:4200/CourtGo.png" class="t-logo"/>
+      <div class="t-badge"><span class="tdot"></span>Hosted Play</div>
+      <h1 class="t-h1">The smarter way to<br><span class="ac">RUN CLUB SESSIONS.</span></h1>
+      <p class="t-sub">Digital payments · QR check-in · Auto court rotation · Live queue board</p>
+    </div>
+  </div>
+  <div class="slide feature-slide" id="s1">
+    <div class="browser-col">
+      <div class="browser-glow"></div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <span class="bd bd-r"></span><span class="bd bd-y"></span><span class="bd bd-g"></span>
+          <div class="browser-addr"></div>
+        </div>
+        <div class="browser-content" style="height:452px">
+          <img src="http://localhost:4200/features/hp-session-list.png"/>
+        </div>
+      </div>
+    </div>
+      <div class="text-col">
+        <div class="f-tag">Find a Session</div>
+        <h2 class="f-title">Browse open<br>sessions instantly</h2>
+        <p class="f-desc">Players see every available club session — sport, date, venue, fee, and how many spots are left.</p>
+        <ul class="f-bullets"><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>9 sessions at a glance</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>"Joined" badge confirms your spot</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Live capacity bar per session</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Stats: sessions · mine · open spots</li></ul>
+      </div>
+  </div>
+  <div class="slide feature-slide rev" id="s2">
+    
+      <div class="text-col">
+        <div class="f-tag">Session Setup</div>
+        <h2 class="f-title">Create a session<br>in under a minute</h2>
+        <p class="f-desc">Set the title, sport, date, fee, max players, and number of courts. Queue management is one toggle.</p>
+        <ul class="f-bullets"><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Sport, date, time, and venue</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Fee per player — free or paid</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Max players & court count</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Queue management ON in one toggle</li></ul>
+      </div><div class="browser-col">
+      <div class="browser-glow"></div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <span class="bd bd-r"></span><span class="bd bd-y"></span><span class="bd bd-g"></span>
+          <div class="browser-addr"></div>
+        </div>
+        <div class="browser-content" style="height:452px">
+          <img src="http://localhost:4200/features/hp-create-form.png"/>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="slide feature-slide" id="s3">
+    <div class="browser-col">
+      <div class="browser-glow"></div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <span class="bd bd-r"></span><span class="bd bd-y"></span><span class="bd bd-g"></span>
+          <div class="browser-addr"></div>
+        </div>
+        <div class="browser-content" style="height:452px">
+          <img src="http://localhost:4200/features/hp-payment-modal.png"/>
+        </div>
+      </div>
+    </div>
+      <div class="text-col">
+        <div class="f-tag">Digital Payment</div>
+        <h2 class="f-title">Pay in the app.<br>No cash at the door.</h2>
+        <p class="f-desc">Players submit GCash or bank payments in-app. Admins approve with one click — full audit trail included.</p>
+        <ul class="f-bullets"><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Session fee + convenience fee shown</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>GCash QR displayed instantly</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Upload proof of payment</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Status updates in real time</li></ul>
+      </div>
+  </div>
+  <div class="slide split-slide" id="s4">
+    <div class="sp-header">
+      <div class="sp-tag">QR Self Check-In</div>
+      <h2 class="sp-title">Scan. Check in.<br>Head to the courts.</h2>
+    </div>
+    <div class="sp-browsers">
+      <div class="sp-left">
+        <div class="sp-label">Admin: Show QR Code</div>
+        <div class="browser-frame browser-sm">
+          <div class="browser-bar"><span class="bd bd-r"></span><span class="bd bd-y"></span><span class="bd bd-g"></span><div class="browser-addr"></div></div>
+          <div class="browser-content" style="height:330px"><img src="http://localhost:4200/features/hp-admin-qr.png"/></div>
+        </div>
+      </div>
+      <div class="sp-arrow">→</div>
+      <div class="sp-right">
+        <div class="sp-label">Player: Already Checked In</div>
+        <div class="browser-frame browser-sm">
+          <div class="browser-bar"><span class="bd bd-r"></span><span class="bd bd-y"></span><span class="bd bd-g"></span><div class="browser-addr"></div></div>
+          <div class="browser-content" style="height:330px"><img src="http://localhost:4200/features/hp-qr-checkin.png"/></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="slide feature-slide rev" id="s5">
+    
+      <div class="text-col">
+        <div class="f-tag">Live Queue Board</div>
+        <h2 class="f-title">Full court control.<br>Zero clipboards.</h2>
+        <p class="f-desc">See every court live — who's playing, who's waiting, and how many games played. Finish a court to auto-rotate.</p>
+        <ul class="f-bullets"><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Court 1: 4 players · 1 game played</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Waiting queue with reorder controls</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Check-In roster on the right panel</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Finish court → next players auto-fill</li></ul>
+      </div><div class="browser-col">
+      <div class="browser-glow"></div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <span class="bd bd-r"></span><span class="bd bd-y"></span><span class="bd bd-g"></span>
+          <div class="browser-addr"></div>
+        </div>
+        <div class="browser-content" style="height:452px">
+          <img src="http://localhost:4200/features/hp-admin-courts.png"/>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="slide feature-slide" id="s6">
+    <div class="browser-col">
+      <div class="browser-glow"></div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <span class="bd bd-r"></span><span class="bd bd-y"></span><span class="bd bd-g"></span>
+          <div class="browser-addr"></div>
+        </div>
+        <div class="browser-content" style="height:452px">
+          <img src="http://localhost:4200/features/hp-player-live.png"/>
+        </div>
+      </div>
+    </div>
+      <div class="text-col">
+        <div class="f-tag">Player Live View</div>
+        <h2 class="f-title">Always know<br>where you stand.</h2>
+        <p class="f-desc">Players see their status, which court they're on, and who's next in queue — updated live.</p>
+        <ul class="f-bullets"><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>"Playing on Court 1" — 1 played</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>4 Playing · 3 Waiting · 1 Game</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Courts panel with teammates</li><li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7cff4e" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Waiting queue shows your position</li></ul>
+      </div>
+  </div>
+  <div class="slide cta-slide" id="s7">
+    <img src="http://localhost:4200/CourtGo.png" class="cta-logo"/>
+    <div class="cta-tag">Hosted Play</div>
+    <h2 class="cta-h2">Run better sessions.<br><span class="ac">Play more. Manage less.</span></h2>
+    <p class="cta-sub">Available now on CourtGo — for tennis and pickleball clubs.</p>
+    <div class="cta-btn">Get Started Free</div>
+    <p class="cta-url">courtgo.app</p>
+  </div>
+</body></html>

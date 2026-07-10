@@ -186,6 +186,72 @@ router.get("/open-play", async (req, res) => {
   }
 });
 
+// GET /api/public/hosted-play — all upcoming hosted sessions across all active clubs
+router.get("/hosted-play", async (req, res) => {
+  try {
+    const now = new Date();
+    const PHT_OFFSET_MS = 8 * 60 * 60 * 1000;
+    const nowPHT = new Date(now.getTime() + PHT_OFFSET_MS);
+    const todayStr = nowPHT.toISOString().slice(0, 10);
+    const today = new Date(todayStr);
+    const currentTimeStr = nowPHT.toISOString().slice(11, 16);
+
+    const activeClubs = await Club.find({ status: "active" })
+      .select("_id name slug location logo courts")
+      .lean();
+    const activeClubIds = activeClubs.map(c => c._id.toString());
+    const clubMap = Object.fromEntries(activeClubs.map(c => [c._id.toString(), c]));
+
+    const rawSessions = await HostedPlay.find({
+      clubId: { $in: activeClubIds },
+      status: { $in: ["open", "full"] },
+      date: { $gte: today },
+    }).sort({ date: 1, startTime: 1 }).lean();
+
+    const sessions = rawSessions.filter(s => {
+      const sessionDate = new Date(s.date).toISOString().slice(0, 10);
+      if (sessionDate === todayStr) return (s.endTime || '23:59') > currentTimeStr;
+      return true;
+    });
+
+    res.json(sessions.map(s => {
+      const club = clubMap[s.clubId.toString()] ?? {};
+      const courts = Array.isArray(club.courts) ? club.courts : [];
+      const v = (s.venue || '').trim().toLowerCase();
+      const c = (s.court || '').trim().toLowerCase();
+      const match = courts.find(ct => {
+        const n = (ct.name || '').trim().toLowerCase();
+        return n === v || (c && n === c);
+      });
+      return {
+        _id: s._id,
+        title: s.title,
+        sport: s.sport,
+        date: s.date,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        venue: s.venue,
+        court: s.court,
+        feePerPlayer: s.feePerPlayer,
+        maxPlayers: s.maxPlayers,
+        currentPlayers: s.currentPlayers,
+        status: s.status,
+        venueLogo: match?.logo || null,
+        club: {
+          _id: club._id,
+          name: club.name,
+          slug: club.slug,
+          location: club.location,
+          logo: club.logo,
+        },
+      };
+    }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // POST /api/public/open-play/:sessionId/register — guest self-registration
 router.post("/open-play/:sessionId/register", async (req, res) => {
   try {
@@ -762,10 +828,11 @@ router.get("/:clubId/hosted-play", async (req, res) => {
     if (!club) return res.status(404).json({ error: "Club not found" });
 
     const now = new Date();
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().slice(0, 10);
-    const currentTimeStr = now.toISOString().slice(11, 16); // "HH:mm" UTC
+    const PHT_OFFSET_MS = 8 * 60 * 60 * 1000; // PHT = UTC+8; endTime strings are stored in local time
+    const nowPHT = new Date(now.getTime() + PHT_OFFSET_MS);
+    const todayStr = nowPHT.toISOString().slice(0, 10);        // "YYYY-MM-DD" in PHT
+    const today = new Date(todayStr);                           // midnight UTC = PHT day boundary
+    const currentTimeStr = nowPHT.toISOString().slice(11, 16); // "HH:mm" in PHT
 
     const rawSessions = await HostedPlay.find({
       clubId: club._id,

@@ -528,7 +528,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
     });
     if (this.auth.isAdmin() && !this.auth.isSuperAdmin()) {
       this.loadUnreadCount();
-      this.unreadPollTimer = setInterval(() => this.loadUnreadCount(), 15000);
+      this.unreadPollTimer = setInterval(() => {
+        if (document.visibilityState !== 'visible') return;
+        this.loadUnreadCount();
+      }, 15000);
     }
 
     // Use window.location.pathname because router.url is '/' until first NavigationEnd
