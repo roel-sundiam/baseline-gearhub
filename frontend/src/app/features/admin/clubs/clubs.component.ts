@@ -984,7 +984,28 @@ interface AdminUser {
                         }
                       </div>
 
-                      @if (bookingProcess === 'hosted_play') {
+                      @if (bookingProcess === 'reservation') {
+                        <div class="hpq-toggle-row">
+                          <div class="hpq-toggle-copy">
+                            <div class="hpq-toggle-title"><i class="fas fa-calendar-check"></i> Hosted Play Add-on</div>
+                            <div class="hpq-toggle-desc">Lets this reservation club also schedule hosted play sessions that members and guests can join.</div>
+                          </div>
+                          <label class="hpq-switch">
+                            <input type="checkbox" [(ngModel)]="hostedPlayAddonEnabled" />
+                            <span class="hpq-slider"></span>
+                          </label>
+                        </div>
+                        <div class="cfs-actions xfee-actions">
+                          <button type="button" class="cfs-save-btn" (click)="saveHostedPlayAddon()" [disabled]="savingHostedPlayAddon">
+                            @if (savingHostedPlayAddon) { <i class="fas fa-circle-notch fa-spin"></i> } Save Add-on Setting
+                          </button>
+                          @if (hostedPlayAddonSaveMsg) {
+                            <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ hostedPlayAddonSaveMsg }}</span>
+                          }
+                        </div>
+                      }
+
+                      @if (bookingProcess === 'hosted_play' || (bookingProcess === 'reservation' && hostedPlayAddonEnabled)) {
                         <div class="hpq-toggle-row">
                           <div class="hpq-toggle-copy">
                             <div class="hpq-toggle-title"><i class="fas fa-list-ol"></i> Queue Management</div>
@@ -4018,6 +4039,9 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   bookingProcess: 'reservation' | 'per_game' | 'hosted_play' = 'reservation';
   savingBookingProcess = false;
   bookingProcessSaveMsg = '';
+  hostedPlayAddonEnabled = false;
+  savingHostedPlayAddon = false;
+  hostedPlayAddonSaveMsg = '';
   hostedPlayQueueEnabled = false;
   savingHostedPlayQueue = false;
   hostedPlayQueueSaveMsg = '';
@@ -4290,6 +4314,8 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     this.balanceAlertSaveMsg = '';
     this.bookingProcess = club.bookingProcess ?? 'reservation';
     this.bookingProcessSaveMsg = '';
+    this.hostedPlayAddonEnabled = club.hostedPlayEnabled ?? false;
+    this.hostedPlayAddonSaveMsg = '';
     this.hostedPlayQueueEnabled = club.hostedPlayQueueEnabled ?? false;
     this.hostedPlayQueueSaveMsg = '';
     this.editQueueManagementFee = club.queueManagementFeePerPlayer ?? 0;
@@ -4384,17 +4410,26 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     });
   }
 
+  private membersRequestId = 0;
+
   loadClubMembers() {
     if (!this.selectedClub?._id || !this.auth.isSuperAdmin()) return;
+    const requestId = ++this.membersRequestId;
     this.membersLoading = true;
     this.membersError = '';
     this.usersService.getClubUsers(this.selectedClub._id).subscribe({
       next: (users) => {
+        if (requestId !== this.membersRequestId) return;
         this.clubMembers = users.filter(u => u.role === 'player');
-        this.cdr.detectChanges();
         this.membersLoading = false;
+        this.cdr.detectChanges();
       },
-      error: () => { this.membersError = 'Failed to load members.'; this.membersLoading = false; this.cdr.detectChanges(); },
+      error: () => {
+        if (requestId !== this.membersRequestId) return;
+        this.membersError = 'Failed to load members.';
+        this.membersLoading = false;
+        this.cdr.detectChanges();
+      },
     });
   }
 
@@ -4569,14 +4604,32 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     this.bookingProcessSaveMsg = '';
     this.clubService.patchBookingProcess(this.selectedClub._id, this.bookingProcess).subscribe({
       next: (updated) => {
-        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, bookingProcess: updated.bookingProcess } : c);
-        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, bookingProcess: updated.bookingProcess };
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, bookingProcess: updated.bookingProcess, hostedPlayEnabled: updated.hostedPlayEnabled } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, bookingProcess: updated.bookingProcess, hostedPlayEnabled: updated.hostedPlayEnabled };
+        this.hostedPlayAddonEnabled = updated.hostedPlayEnabled ?? false;
         this.savingBookingProcess = false;
         this.bookingProcessSaveMsg = 'Saved!';
         this.cdr.detectChanges();
         setTimeout(() => { this.bookingProcessSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
       },
       error: () => { this.savingBookingProcess = false; this.bookingProcessSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
+  saveHostedPlayAddon() {
+    if (!this.selectedClub?._id) return;
+    this.savingHostedPlayAddon = true;
+    this.hostedPlayAddonSaveMsg = '';
+    this.clubService.patchHostedPlayAddon(this.selectedClub._id, this.hostedPlayAddonEnabled).subscribe({
+      next: (updated) => {
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, hostedPlayEnabled: updated.hostedPlayEnabled } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, hostedPlayEnabled: updated.hostedPlayEnabled };
+        this.savingHostedPlayAddon = false;
+        this.hostedPlayAddonSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.hostedPlayAddonSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingHostedPlayAddon = false; this.hostedPlayAddonSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
     });
   }
 

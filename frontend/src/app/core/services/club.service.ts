@@ -49,6 +49,7 @@ export interface Club {
   requirePaymentScreenshot?: boolean;
   balanceAlertEnabled?: boolean;
   bookingProcess?: 'reservation' | 'per_game' | 'hosted_play';
+  hostedPlayEnabled?: boolean;
   hostedPlayQueueEnabled?: boolean;
   queueManagementFeePerPlayer?: number;
   courts?: Court[];
@@ -113,6 +114,14 @@ export class ClubService {
 
   patchBookingProcess(id: string, bookingProcess: 'reservation' | 'per_game' | 'hosted_play') {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/booking-process`, { bookingProcess });
+  }
+
+  patchHostedPlayAddon(id: string, enabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/hosted-play-addon`, { enabled });
+  }
+
+  patchMyHostedPlayAddon(enabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/hosted-play-addon`, { enabled });
   }
 
   patchHostedPlayQueue(id: string, enabled: boolean) {

@@ -74,48 +74,7 @@ import { forkJoin } from 'rxjs';
 
         <!-- Book a Court / Play hero card -->
         @if (isHostedPlay) {
-          <div class="dm-hero-card" (click)="navigateTo('/player/hosted-play')">
-            <div class="dm-hero-text">
-              <div class="dm-hero-icon"><i class="fas fa-calendar-check"></i></div>
-              <h3 class="dm-hero-title">Hosted Play</h3>
-              @if (upcomingHostedSession) {
-                <p class="dm-hero-hours">Next session</p>
-                <div class="dm-hp-next">
-                  <div class="dm-hp-next-title">
-                    {{ upcomingHostedSession.title }}
-                    @if (upcomingHostedSession.joined) { <span class="dm-hp-joined"><i class="fas fa-circle-check"></i> Joined</span> }
-                  </div>
-                  <div class="dm-hp-next-meta">
-                    <span><i class="fas fa-calendar-day"></i> {{ upcomingHostedSession.date | date: 'EEE, MMM d' : 'UTC' }}</span>
-                    <span><i class="fas fa-clock"></i> {{ upcomingHostedSession.startTime }}</span>
-                    <span><i class="fas fa-users"></i> {{ upcomingHostedSession.currentPlayers }}/{{ upcomingHostedSession.maxPlayers }}</span>
-                  </div>
-                  <div class="dm-hp-next-meta">
-                    <span><i class="fas fa-location-dot"></i> {{ upcomingHostedSession.venue }}</span>
-                  </div>
-                </div>
-                <button class="dm-hero-cta">{{ upcomingHostedSession.joined ? 'View Session' : 'View &amp; Join' }}</button>
-              } @else {
-                <p class="dm-hero-hours">{{ operatingHours }}</p>
-                <p class="dm-hero-desc">Browse scheduled sessions and tap Join.</p>
-                <button class="dm-hero-cta">View Sessions</button>
-              }
-            </div>
-            <div class="dm-hero-image">
-              <img src="/racketball.png" alt="Racketball" />
-            </div>
-          </div>
-          @if (liveQueueSession) {
-            <div class="dm-live-queue-card" (click)="navigateTo('/player/hosted-play/' + liveQueueSession._id + '/live')">
-              <div class="dm-lq-pulse"></div>
-              <div class="dm-lq-text">
-                <span class="dm-lq-label"><i class="fas fa-circle"></i> Queue is live</span>
-                <span class="dm-lq-title">{{ liveQueueSession.title }}</span>
-                <span class="dm-lq-sub">Tap to see courts and your queue position</span>
-              </div>
-              <i class="fas fa-chevron-right dm-lq-arrow"></i>
-            </div>
-          }
+          <ng-container *ngTemplateOutlet="hostedPlayHeroTpl"></ng-container>
         } @else if (isPerGame) {
           <div class="dm-hero-card" (click)="navigateTo('/player/per-game')">
             <div class="dm-hero-text">
@@ -175,6 +134,57 @@ import { forkJoin } from 'rxjs';
           </div>
         }
 
+        <!-- Open Hosted Play hero (reservation clubs with the Hosted Play add-on) -->
+        @if (!isHostedPlay && hasHostedPlay && upcomingHostedSession) {
+          <ng-container *ngTemplateOutlet="hostedPlayHeroTpl"></ng-container>
+        }
+
+        @if (hasHostedPlay && liveQueueSession) {
+          <div class="dm-live-queue-card" (click)="navigateTo('/player/hosted-play/' + liveQueueSession._id + '/live')">
+            <div class="dm-lq-pulse"></div>
+            <div class="dm-lq-text">
+              <span class="dm-lq-label"><i class="fas fa-circle"></i> Queue is live</span>
+              <span class="dm-lq-title">{{ liveQueueSession.title }}</span>
+              <span class="dm-lq-sub">Tap to see courts and your queue position</span>
+            </div>
+            <i class="fas fa-chevron-right dm-lq-arrow"></i>
+          </div>
+        }
+
+        <ng-template #hostedPlayHeroTpl>
+          <div class="dm-hero-card" (click)="navigateTo('/player/hosted-play')">
+            <div class="dm-hero-text">
+              <div class="dm-hero-icon"><i class="fas fa-calendar-check"></i></div>
+              <h3 class="dm-hero-title">Hosted Play</h3>
+              @if (upcomingHostedSession) {
+                <p class="dm-hero-hours">Next session</p>
+                <div class="dm-hp-next">
+                  <div class="dm-hp-next-title">
+                    {{ upcomingHostedSession.title }}
+                    @if (upcomingHostedSession.joined) { <span class="dm-hp-joined"><i class="fas fa-circle-check"></i> Joined</span> }
+                  </div>
+                  <div class="dm-hp-next-meta">
+                    <span><i class="fas fa-calendar-day"></i> {{ upcomingHostedSession.date | date: 'EEE, MMM d' : 'UTC' }}</span>
+                    <span><i class="fas fa-clock"></i> {{ upcomingHostedSession.startTime }}</span>
+                    <span><i class="fas fa-users"></i> {{ upcomingHostedSession.currentPlayers }}/{{ upcomingHostedSession.maxPlayers }}</span>
+                  </div>
+                  <div class="dm-hp-next-meta">
+                    <span><i class="fas fa-location-dot"></i> {{ upcomingHostedSession.venue }}</span>
+                  </div>
+                </div>
+                <button class="dm-hero-cta">{{ upcomingHostedSession.joined ? 'View Session' : 'View &amp; Join' }}</button>
+              } @else {
+                <p class="dm-hero-hours">{{ operatingHours }}</p>
+                <p class="dm-hero-desc">Browse scheduled sessions and tap Join.</p>
+                <button class="dm-hero-cta">View Sessions</button>
+              }
+            </div>
+            <div class="dm-hero-image">
+              <img src="/racketball.png" alt="Racketball" />
+            </div>
+          </div>
+        </ng-template>
+
         <!-- Upcoming Booking -->
         @if (!isPerGame && !isHostedPlay) {
         <div class="dm-section">
@@ -205,7 +215,7 @@ import { forkJoin } from 'rxjs';
         <div class="dm-section">
           <h4 class="dm-section-label">Quick Actions</h4>
           <div class="dm-card-grid">
-            @if (isHostedPlay) {
+            @if (hasHostedPlay) {
               <button class="dm-action-card" (click)="navigateTo('/player/hosted-play')">
                 <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-calendar-check"></i></div>
                 <span class="dm-ac-title">Hosted Play</span>
@@ -225,13 +235,14 @@ import { forkJoin } from 'rxjs';
                   <span class="dm-ac-sub">View courts &amp; position</span>
                 </button>
               }
-            } @else if (isPerGame) {
+            }
+            @if (isPerGame) {
               <button class="dm-action-card" [class.dm-ac-active]="showDatePicker" (click)="toggleDatePicker($event)">
                 <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-play-circle"></i></div>
                 <span class="dm-ac-title">Play</span>
                 <span class="dm-ac-sub">Join & play</span>
               </button>
-            } @else {
+            } @else if (!isHostedPlay) {
               <button class="dm-action-card" (click)="navigateTo('/player/reserve')">
                 <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-calendar-alt"></i></div>
                 <span class="dm-ac-title">Reserve Court</span>
@@ -268,6 +279,7 @@ import { forkJoin } from 'rxjs';
               <span class="dm-ac-sub">Leaderboard</span>
             </button>
             -->
+            <!-- Open Play hidden until feature is ready
             @if (!isHostedPlay) {
               <button class="dm-action-card" (click)="navigateTo('/player/open-play')">
                 <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-table-tennis-paddle-ball"></i></div>
@@ -275,6 +287,7 @@ import { forkJoin } from 'rxjs';
                 <span class="dm-ac-sub">Join a session</span>
               </button>
             }
+            -->
             <button class="dm-action-card" (click)="navigateTo('/player/rules')">
               <div class="dm-ac-icon dm-ac-orange"><i class="fas fa-gavel"></i></div>
               <span class="dm-ac-title">Rules & Pricing</span>
@@ -1251,8 +1264,10 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   clubName = 'Baseline Club';
   clubLogo = '';
   bookingProcess: 'reservation' | 'per_game' | 'hosted_play' = 'reservation';
+  hostedPlayEnabled = false;
   get isPerGame() { return this.bookingProcess === 'per_game'; }
   get isHostedPlay() { return this.bookingProcess === 'hosted_play'; }
+  get hasHostedPlay() { return this.isHostedPlay || this.hostedPlayEnabled; }
   joinedPlayers: GameJoin[] = [];
   upcomingHostedSession: HostedPlaySession | null = null;
   liveQueueSession: HostedPlaySession | null = null;
@@ -1483,6 +1498,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
           this.clubSlug    = club.slug ?? '';
           this.clubLogo    = club.logo ?? '';
           this.bookingProcess = club.bookingProcess ?? 'reservation';
+          this.hostedPlayEnabled = !!club.hostedPlayEnabled;
           this.courtCount  = club.courtCount  ?? 2;
           this.openingHour = club.openingHour ?? 5;
           this.closingHour = club.closingHour ?? 22;
@@ -1493,7 +1509,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
               error: () => {},
             });
           }
-          if (this.bookingProcess === 'hosted_play') {
+          if (this.hasHostedPlay) {
             this.hostedPlayService.listOpen().subscribe({
               next: (sessions) => {
                 const today = new Date();

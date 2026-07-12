@@ -25,3 +25,7 @@ LOGINS.md
 # Backups
 backups/
 backup_prod_*/
+
+# Video pipeline intermediates (see frontend/make-video-hosted-play.js)
+frontend/public/video/raw-*.webm
+frontend/public/video/audio-*/

@@ -29,6 +29,9 @@ import { ClubService, Court } from '../../../../core/services/club.service';
         <span class="status-pill" [ngClass]="board?.session?.queueStatus">
           <span class="status-dot"></span>{{ statusLabel() }}
         </span>
+        <button class="tv-display-btn" (click)="openTvDisplay()" title="Open big-screen display">
+          <i class="fas fa-tv"></i> <span class="tv-display-label">TV Display</span>
+        </button>
       </header>
 
       @if (modal) {
@@ -439,7 +442,7 @@ import { ClubService, Court } from '../../../../core/services/club.service';
       margin: 0 auto;
       min-height: 74px;
       display: grid;
-      grid-template-columns: 44px minmax(0, 1fr) auto;
+      grid-template-columns: 44px minmax(0, 1fr) auto auto;
       align-items: center;
       gap: .85rem;
       padding: .85rem 0;
@@ -486,6 +489,25 @@ import { ClubService, Court } from '../../../../core/services/club.service';
     .status-pill.running { color: var(--accent); background: rgba(163,230,53,.14); border-color: rgba(163,230,53,.22); }
     .status-pill.paused { color: var(--amber); background: rgba(245,158,11,.13); border-color: rgba(245,158,11,.22); }
     .status-pill.ended { color: #fca5a5; background: rgba(239,68,68,.13); border-color: rgba(239,68,68,.22); }
+
+    .tv-display-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      white-space: nowrap;
+      font-family: inherit;
+      font-size: .78rem;
+      font-weight: 900;
+      border-radius: 999px;
+      padding: .5rem .85rem;
+      color: var(--accent);
+      background: rgba(163,230,53,.1);
+      border: 1px solid rgba(163,230,53,.22);
+      cursor: pointer;
+      transition: background .15s, transform .15s;
+    }
+    .tv-display-btn:hover { background: rgba(163,230,53,.2); }
+    .tv-display-btn:active { transform: scale(.96); }
 
     .state-card {
       max-width: 520px;
@@ -923,7 +945,7 @@ import { ClubService, Court } from '../../../../core/services/club.service';
     @media (max-width: 720px) {
       .queue-shell { padding-inline: .75rem; }
       .topbar { grid-template-columns: 42px minmax(0, 1fr); }
-      .status-pill { grid-column: 1 / -1; justify-self: start; }
+      .status-pill, .tv-display-btn { grid-column: 1 / -1; justify-self: start; }
       .hero-panel { grid-template-columns: 1fr; padding: 1rem; }
       .venue-mark { width: 48px; height: 48px; flex-basis: 48px; }
       .hero-actions { align-items: stretch; }
@@ -1267,4 +1289,8 @@ export class AdminHostedPlayQueueComponent implements OnInit {
   closeQrModal() { this.qrModal = null; this.cdr.detectChanges(); }
 
   goBack() { this.router.navigate(['/admin/hosted-play']); }
+
+  openTvDisplay() {
+    window.open(`/admin/hosted-play/${this.id}/queue/display`, '_blank');
+  }
 }

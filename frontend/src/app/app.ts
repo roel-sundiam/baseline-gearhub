@@ -29,10 +29,10 @@ import { PushNotificationService } from './core/services/push-notification.servi
       </div>
     }
 
-    @if (!isAuthRoute()) {
+    @if (!isAuthRoute() && !isTvDisplayRoute()) {
       <app-navbar />
     }
-    <main class="main-content" [class.full-bleed]="isAuthRoute()">
+    <main class="main-content" [class.full-bleed]="isAuthRoute() || isTvDisplayRoute()">
       <router-outlet />
     </main>
 
@@ -334,5 +334,9 @@ export class App {
   isAuthRoute(): boolean {
     const url = this.router.url;
     return url === '/' || url === '' || url.includes('/player-login') || url.includes('/register') || url.startsWith('/book') || url.startsWith('/features') || url.startsWith('/review');
+  }
+
+  isTvDisplayRoute(): boolean {
+    return this.router.url.includes('/queue/display');
   }
 }

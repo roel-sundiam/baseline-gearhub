@@ -38,7 +38,7 @@ import { ClubService } from '../../core/services/club.service';
           <span>Per Game</span>
         </button>
       }
-      @if (isHostedPlay) {
+      @if (showHostedPlayTab) {
         <button class="ps-nav-item" [class.ps-nav-active]="activeTab === 'sessions'"
                 (click)="navigateTo('/player/hosted-play')">
           <i class="far fa-calendar-check"></i>
@@ -98,9 +98,11 @@ import { ClubService } from '../../core/services/club.service';
 })
 export class PlayerShellComponent implements OnInit {
   bookingProcess: 'reservation' | 'per_game' | 'hosted_play' = 'reservation';
+  hostedPlayEnabled = false;
 
   get isPerGame() { return this.bookingProcess === 'per_game'; }
   get isHostedPlay() { return this.bookingProcess === 'hosted_play'; }
+  get showHostedPlayTab() { return this.isHostedPlay || this.hostedPlayEnabled; }
 
   get activeTab(): string {
     const url = this.router.url;
@@ -125,6 +127,7 @@ export class PlayerShellComponent implements OnInit {
       this.clubService.getClub(clubId).subscribe({
         next: (club) => {
           this.bookingProcess = club.bookingProcess ?? 'reservation';
+          this.hostedPlayEnabled = !!club.hostedPlayEnabled;
           this.cdr.detectChanges();
         },
         error: () => {},

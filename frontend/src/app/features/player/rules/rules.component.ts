@@ -268,7 +268,7 @@ import { AuthService } from '../../../core/services/auth.service';
                     <span><i class="fas fa-percent"></i> Convenience Fee</span>
                     <strong>{{ convenienceFeeSummary }}</strong>
                   </div>
-                  @if (club()!.bookingProcess === 'hosted_play' && club()!.hostedPlayQueueEnabled && club()!.queueManagementFeePerPlayer! > 0) {
+                  @if ((club()!.bookingProcess === 'hosted_play' || club()!.hostedPlayEnabled) && club()!.hostedPlayQueueEnabled && club()!.queueManagementFeePerPlayer! > 0) {
                     <div class="rate-row">
                       <span><i class="fas fa-list-ol"></i> Queue Management</span>
                       <strong>{{ club()!.queueManagementFeePerPlayer | currency:'PHP':'symbol':'1.0-0' }} / session</strong>

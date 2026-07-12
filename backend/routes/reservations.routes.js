@@ -6,6 +6,7 @@ const Charge = require("../models/Charge");
 const Rates = require("../models/Rates");
 const Club = require("../models/Club");
 const { sendPushToClubAdmins } = require("../utils/push");
+const { ownsClub } = require("../utils/scope");
 const OpenPlaySession = require("../models/OpenPlaySession");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
@@ -467,7 +468,7 @@ router.patch("/:id", auth, async (req, res) => {
     const reservation = await Reservation.findById(req.params.id);
     if (!reservation) return res.status(404).json({ error: "Reservation not found" });
 
-    const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
+    const isAdmin = (req.user.role === "admin" || req.user.role === "superadmin") && ownsClub(req, reservation.clubId);
     const isOwner = reservation.player && reservation.player.toString() === req.user.userId;
 
     if (!isAdmin && !isOwner)
@@ -632,7 +633,7 @@ router.patch("/:id/cancel", auth, async (req, res) => {
     if (!reservation) return res.status(404).json({ error: "Reservation not found" });
 
     const isOwner = reservation.player != null && reservation.player.toString() === req.user.userId;
-    const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
+    const isAdmin = (req.user.role === "admin" || req.user.role === "superadmin") && ownsClub(req, reservation.clubId);
     if (!isOwner && !isAdmin) return res.status(403).json({ error: "Access denied" });
 
     reservation.status = "cancelled";
@@ -655,6 +656,7 @@ router.delete("/:id", auth, admin, async (req, res) => {
   try {
     const reservation = await Reservation.findById(req.params.id);
     if (!reservation) return res.status(404).json({ error: "Reservation not found" });
+    if (!ownsClub(req, reservation.clubId)) return res.status(403).json({ error: "Access denied" });
 
     const approvedCharge = await Charge.findOne({ reservationId: reservation._id, approvalStatus: "approved" });
     if (approvedCharge && reservation.status !== "cancelled") {

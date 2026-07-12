@@ -4,6 +4,7 @@ const admin = require("../middleware/admin");
 const superadmin = require("../middleware/superadmin");
 const Club = require("../models/Club");
 const User = require("../models/User");
+const { ownsClub } = require("../utils/scope");
 
 const router = express.Router();
 
@@ -56,6 +57,7 @@ router.post("/", auth, admin, async (req, res) => {
 // PUT /api/clubs/:id — update a club (admin only)
 router.put("/:id", auth, admin, async (req, res) => {
   try {
+    if (!ownsClub(req, req.params.id)) return res.status(403).json({ error: "You can only manage your own club" });
     const { name, location, mobile, email, logo, courtCount, courts, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount } = req.body;
     const club = await Club.findByIdAndUpdate(
       req.params.id,
@@ -73,6 +75,7 @@ router.put("/:id", auth, admin, async (req, res) => {
 // PATCH /api/clubs/:id/status — suspend or unsuspend a club (admin only)
 router.patch("/:id/status", auth, admin, async (req, res) => {
   try {
+    if (!ownsClub(req, req.params.id)) return res.status(403).json({ error: "You can only manage your own club" });
     const { status } = req.body;
     if (!['active', 'suspended'].includes(status))
       return res.status(400).json({ error: "Invalid status" });
@@ -199,13 +202,51 @@ router.patch("/:id/booking-process", auth, superadmin, async (req, res) => {
     if (!["reservation", "per_game", "hosted_play"].includes(bookingProcess)) {
       return res.status(400).json({ error: "bookingProcess must be 'reservation', 'per_game' or 'hosted_play'" });
     }
+    const update = { bookingProcess };
+    if (bookingProcess !== "reservation") update.hostedPlayEnabled = false;
     const club = await Club.findByIdAndUpdate(
       req.params.id,
-      { bookingProcess },
+      update,
       { new: true },
     ).lean();
     if (!club) return res.status(404).json({ error: "Club not found" });
     res.json(club);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /api/clubs/me/hosted-play-addon — club admin self-toggle Hosted Play add-on (reservation mode only)
+router.patch("/me/hosted-play-addon", auth, admin, async (req, res) => {
+  try {
+    const clubId = req.user.clubId;
+    if (!clubId) return res.status(400).json({ error: "No club associated with this account" });
+    const club = await Club.findById(clubId);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    if (club.bookingProcess !== "reservation") {
+      return res.status(400).json({ error: "Hosted Play add-on is only available for reservation-mode clubs" });
+    }
+    club.hostedPlayEnabled = !!req.body.enabled;
+    await club.save();
+    res.json(club.toObject());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /api/clubs/:id/hosted-play-addon — enable/disable Hosted Play add-on (superadmin only)
+router.patch("/:id/hosted-play-addon", auth, superadmin, async (req, res) => {
+  try {
+    const club = await Club.findById(req.params.id);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    if (club.bookingProcess !== "reservation") {
+      return res.status(400).json({ error: "Hosted Play add-on is only available for reservation-mode clubs" });
+    }
+    club.hostedPlayEnabled = !!req.body.enabled;
+    await club.save();
+    res.json(club.toObject());
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -268,6 +309,7 @@ router.patch("/:id/queue-management-fee", auth, superadmin, async (req, res) => 
 // PATCH /api/clubs/:id/booking-qr — set or clear the booking QR code (admin only)
 router.patch("/:id/booking-qr", auth, admin, async (req, res) => {
   try {
+    if (!ownsClub(req, req.params.id)) return res.status(403).json({ error: "You can only manage your own club" });
     const { bookingQrCode } = req.body;
     const club = await Club.findByIdAndUpdate(
       req.params.id,
@@ -311,6 +353,7 @@ router.patch("/:id/guest-terms", auth, admin, async (req, res) => {
 // DELETE /api/clubs/:id — delete a club (admin only)
 router.delete("/:id", auth, admin, async (req, res) => {
   try {
+    if (!ownsClub(req, req.params.id)) return res.status(403).json({ error: "You can only manage your own club" });
     const club = await Club.findByIdAndDelete(req.params.id);
     if (!club) return res.status(404).json({ error: "Club not found" });
     res.json({ message: "Club deleted" });

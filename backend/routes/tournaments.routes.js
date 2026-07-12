@@ -2,6 +2,7 @@ const express = require("express");
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
 const Tournament = require("../models/Tournament");
+const { ownsClub, clubFilter } = require("../utils/scope");
 
 const router = express.Router();
 
@@ -251,6 +252,7 @@ router.get("/:id", auth, async (req, res) => {
       .populate("matches.slot2Players", "name profileImage")
       .lean();
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
     const isAdmin = ["admin", "superadmin"].includes(req.user.role);
     if (!tournament.published && !isAdmin) return res.status(403).json({ error: "Access denied" });
     res.json(tournament);
@@ -265,8 +267,8 @@ router.patch("/:id", auth, admin, async (req, res) => {
     const { name } = req.body;
     const update = {};
     if (name) update.name = name;
-    const tournament = await Tournament.findByIdAndUpdate(req.params.id, update, { new: true })
-      .populate(...populateOpts());
+    const tournament = await Tournament.findOneAndUpdate({ _id: req.params.id, ...clubFilter(req) }, update, { new: true })
+      .populate(populateOpts());
     if (!tournament) return res.status(404).json({ error: "Not found" });
     res.json(tournament);
   } catch (err) {
@@ -277,7 +279,8 @@ router.patch("/:id", auth, admin, async (req, res) => {
 // DELETE /api/tournaments/:id (admin)
 router.delete("/:id", auth, admin, async (req, res) => {
   try {
-    await Tournament.findByIdAndDelete(req.params.id);
+    const deleted = await Tournament.findOneAndDelete({ _id: req.params.id, ...clubFilter(req) });
+    if (!deleted) return res.status(404).json({ error: "Not found" });
     res.json({ message: "Deleted" });
   } catch (err) {
     res.status(500).json({ error: "Server error" });
@@ -289,6 +292,7 @@ router.post("/:id/participants", auth, admin, async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
     if (tournament.status === "completed") return res.status(400).json({ error: "Cannot modify a completed tournament" });
     if (tournament.type !== "singles") return res.status(400).json({ error: "Use /teams for doubles" });
 
@@ -313,6 +317,7 @@ router.delete("/:id/participants/:pid", auth, admin, async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
     if (tournament.status === "completed") return res.status(400).json({ error: "Cannot modify a completed tournament" });
 
     tournament.participants = tournament.participants.filter((p) => p.toString() !== req.params.pid);
@@ -329,6 +334,7 @@ router.post("/:id/teams", auth, admin, async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
     if (tournament.status === "completed") return res.status(400).json({ error: "Cannot modify a completed tournament" });
     if (tournament.type !== "doubles") return res.status(400).json({ error: "Use /participants for singles" });
 
@@ -352,6 +358,7 @@ router.delete("/:id/teams/:teamIndex", auth, admin, async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
     if (tournament.status === "completed") return res.status(400).json({ error: "Cannot modify a completed tournament" });
 
     const idx = parseInt(req.params.teamIndex, 10);
@@ -389,6 +396,7 @@ router.post("/:id/generate-bracket", auth, admin, async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
     if (tournament.status !== "draft") return res.status(400).json({ error: "Bracket already generated" });
 
     const entries =
@@ -421,6 +429,7 @@ router.post("/:id/matches", auth, admin, async (req, res) => {
     const { roundName, slot1Players, slot2Players, scheduledDate, timeSlot } = req.body;
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
 
     const position = tournament.matches.filter((m) => m.round === 0).length;
     tournament.matches.push({
@@ -452,6 +461,7 @@ router.patch("/:id/matches/:matchId", auth, admin, async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
 
     const match = tournament.matches.id(req.params.matchId);
     if (!match) return res.status(404).json({ error: "Match not found" });
@@ -501,6 +511,7 @@ router.delete("/:id/matches/:matchId", auth, admin, async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
     const match = tournament.matches.id(req.params.matchId);
     if (!match) return res.status(404).json({ error: "Match not found" });
     match.deleteOne();
@@ -529,6 +540,7 @@ router.post("/:id/matches/swap", auth, admin, async (req, res) => {
 
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
 
     const m1 = tournament.matches.id(matchId1);
     const m2 = tournament.matches.id(matchId2);
@@ -566,6 +578,7 @@ router.patch("/:id/rounds/:round/name", auth, admin, async (req, res) => {
 
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
 
     const round = parseInt(req.params.round, 10);
     tournament.matches
@@ -591,6 +604,7 @@ router.post("/:id/random-matches", auth, admin, async (req, res) => {
     // Step 1: load doc and splice out round-0 matches from back to front
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
     if (tournament.status === "completed") return res.status(400).json({ error: "Cannot modify a completed tournament" });
 
     // Wipe ALL matches for a clean slate
@@ -646,6 +660,7 @@ router.patch("/:id/publish", auth, admin, async (req, res) => {
     const { published } = req.body;
     const existing = await Tournament.findById(req.params.id).lean();
     if (!existing) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, existing.clubId)) return res.status(403).json({ error: "Access denied" });
     const update = { published: !!published };
     if (!!published && existing.status === "draft") update.status = "active";
     const tournament = await Tournament.findByIdAndUpdate(
@@ -658,6 +673,7 @@ router.patch("/:id/publish", auth, admin, async (req, res) => {
       .populate("matches.slot2Players", "name profileImage")
       .lean();
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
     res.json(tournament);
   } catch (err) {
     res.status(500).json({ error: "Server error" });
@@ -669,6 +685,7 @@ router.post("/:id/complete", auth, admin, async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ error: "Not found" });
+    if (!ownsClub(req, tournament.clubId)) return res.status(403).json({ error: "Access denied" });
     if (tournament.status === "completed") return res.status(400).json({ error: "Already completed" });
 
     tournament.status = "completed";

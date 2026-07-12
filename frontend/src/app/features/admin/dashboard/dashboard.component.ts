@@ -258,11 +258,13 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
                 <span class="action-sub">Chat with CourtGo support</span>
               </button>
             }
+            <!-- Open Play hidden until feature is ready
             <a routerLink="/admin/open-play" class="action-card">
               <span class="action-icon"><i class="fas fa-table-tennis-paddle-ball"></i></span>
               <span class="action-title">Open Play</span>
               <span class="action-sub">Run skill-balanced sessions and track CRI ratings</span>
             </a>
+            -->
             @if (!authService.isSuperAdmin() && club?.bookingProcess === 'per_game') {
               <a routerLink="/admin/per-game" class="action-card">
                 <span class="action-icon"><i class="fas fa-play-circle"></i></span>
@@ -270,14 +272,26 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
                 <span class="action-sub">See joined players and record games played</span>
               </a>
             }
-            @if (!authService.isSuperAdmin() && club?.bookingProcess === 'hosted_play') {
+            @if (!authService.isSuperAdmin() && isReservationClub) {
+              <div class="action-card action-card--toggle">
+                <span class="action-icon"><i class="fas fa-calendar-check"></i></span>
+                <span class="action-title">Hosted Play Add-on
+                  <label class="hpq-switch">
+                    <input type="checkbox" [checked]="!!club?.hostedPlayEnabled" [disabled]="togglingHostedPlayAddon" (change)="toggleHostedPlayAddon($any($event.target).checked)" />
+                    <span class="hpq-slider"></span>
+                  </label>
+                </span>
+                <span class="action-sub">Run hosted sessions alongside court reservations</span>
+              </div>
+            }
+            @if (!authService.isSuperAdmin() && hostedPlayActive) {
               <a routerLink="/admin/hosted-play" class="action-card">
                 <span class="action-icon"><i class="fas fa-calendar-check"></i></span>
                 <span class="action-title">Hosted Play</span>
                 <span class="action-sub">Schedule play sessions and manage participants</span>
               </a>
             }
-            @if (!authService.isSuperAdmin() && club?.bookingProcess === 'hosted_play' && club?.hostedPlayQueueEnabled) {
+            @if (!authService.isSuperAdmin() && hostedPlayActive && club?.hostedPlayQueueEnabled) {
               <a routerLink="/admin/hosted-play" class="action-card action-card--queue">
                 <span class="action-icon action-icon--queue"><i class="fas fa-list-ol"></i></span>
                 <span class="action-title">Queue Management
@@ -900,6 +914,17 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         color: rgba(255,255,255,0.72);
       }
 
+      .action-card--toggle { cursor: default; }
+      .action-card--toggle:hover { transform: none; }
+      .action-card--toggle .action-title { justify-content: space-between; }
+      .hpq-switch { position: relative; display: inline-block; width: 46px; height: 26px; flex-shrink: 0; }
+      .hpq-switch input { opacity: 0; width: 0; height: 0; }
+      .hpq-slider { position: absolute; inset: 0; cursor: pointer; background: rgba(255,255,255,.16); border-radius: 999px; transition: .2s; }
+      .hpq-slider:before { content: ""; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+      .hpq-switch input:checked + .hpq-slider { background: var(--dm-accent); }
+      .hpq-switch input:checked + .hpq-slider:before { transform: translateX(20px); }
+      .hpq-switch input:disabled + .hpq-slider { opacity: .5; cursor: wait; }
+
       .action-card--queue {
         border-color: rgba(56,189,248,.22);
         background: rgba(56,189,248,.05);
@@ -1478,6 +1503,15 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   supportContactName = 'CourtGo Support';
   private msgPollInterval: ReturnType<typeof setInterval> | null = null;
 
+  // ── Hosted Play add-on toggle (reservation-mode clubs) ──
+  togglingHostedPlayAddon = false;
+  get isReservationClub() {
+    return !!this.club && (this.club.bookingProcess ?? 'reservation') === 'reservation';
+  }
+  get hostedPlayActive() {
+    return this.club?.bookingProcess === 'hosted_play' || !!this.club?.hostedPlayEnabled;
+  }
+
   // ── Balance alert modal ──
   showBalanceAlert = signal(false);
   balanceAlertAmount = signal(0);
@@ -1499,6 +1533,22 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     private sound: SoundService,
     private appServicePayments: AppServicePaymentsService,
   ) {}
+
+  toggleHostedPlayAddon(enabled: boolean) {
+    if (!this.club || this.togglingHostedPlayAddon) return;
+    this.togglingHostedPlayAddon = true;
+    this.clubService.patchMyHostedPlayAddon(enabled).subscribe({
+      next: (club) => {
+        this.club = { ...this.club!, hostedPlayEnabled: !!club.hostedPlayEnabled };
+        this.togglingHostedPlayAddon = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.togglingHostedPlayAddon = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
 
   ngOnInit() {
     const today = new Date();

@@ -6,6 +6,7 @@ const Charge = require("../models/Charge");
 const Rates = require("../models/Rates");
 const Club = require("../models/Club");
 const { sendPushToClubAdmins, sendPushToUser } = require("../utils/push");
+const { ownsClub } = require("../utils/scope");
 
 const router = express.Router();
 
@@ -156,6 +157,7 @@ router.post("/:id/record", auth, admin, async (req, res) => {
 
     const entry = await GameJoin.findById(req.params.id);
     if (!entry) return res.status(404).json({ error: "Join entry not found" });
+    if (!ownsClub(req, entry.clubId)) return res.status(403).json({ error: "Access denied" });
     if (entry.status !== "joined") {
       return res.status(400).json({ error: "This player has already been recorded" });
     }
@@ -232,6 +234,7 @@ router.put("/:id/record", auth, admin, async (req, res) => {
 
     const entry = await GameJoin.findById(req.params.id);
     if (!entry) return res.status(404).json({ error: "Join entry not found" });
+    if (!ownsClub(req, entry.clubId)) return res.status(403).json({ error: "Access denied" });
     if (entry.status !== "recorded") {
       return res.status(400).json({ error: "Entry has not been recorded yet" });
     }

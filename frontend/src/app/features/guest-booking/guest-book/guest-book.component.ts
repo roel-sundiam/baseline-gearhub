@@ -190,7 +190,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
             }
 
             <!-- Hosted Play Sessions -->
-            @if (isHostedPlay) {
+            @if (showHostedPlaySessions) {
               <div class="lp-card lp-op-card">
                 <div class="lp-op-toggle" style="cursor:default">
                   <div class="lp-op-toggle-left">
@@ -1434,6 +1434,8 @@ export class GuestBookComponent implements OnInit, OnDestroy {
   clubSuspended = false;
   isPerGame = false;
   isHostedPlay = false;
+  hostedPlayAddon = false;
+  get showHostedPlaySessions() { return this.isHostedPlay || this.hostedPlayAddon; }
   hostedPlaySessions: {
     _id: string; title: string; sport: 'tennis' | 'pickleball';
     date: string; startTime: string; endTime: string;
@@ -1541,13 +1543,14 @@ export class GuestBookComponent implements OnInit, OnDestroy {
         if (club.status === 'suspended') this.clubSuspended = true;
         this.isPerGame = club.bookingProcess === 'per_game';
         this.isHostedPlay = club.bookingProcess === 'hosted_play';
+        this.hostedPlayAddon = club.bookingProcess === 'reservation' && !!club.hostedPlayEnabled;
         this.paymentMethods = (club.paymentMethods ?? []).filter(m => m !== 'Cash');
         this.paymentAccounts = club.paymentAccounts ?? {};
         this.paymentQrCodes = club.paymentQrCodes ?? {};
         if (this.paymentMethods.length > 0) {
           this.guestJoinPaymentMethod.set(this.paymentMethods[0]);
         }
-        if (this.isHostedPlay) {
+        if (this.showHostedPlaySessions) {
           this.publicBookingService.getHostedPlaySessions(this.clubId).subscribe({
             next: (sessions) => { this.hostedPlaySessions = sessions; this.cdr.detectChanges(); },
             error: () => {},

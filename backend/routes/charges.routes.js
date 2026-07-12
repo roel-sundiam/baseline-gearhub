@@ -8,6 +8,7 @@ const HostedPlay = require("../models/HostedPlay");
 const HostedPlayParticipant = require("../models/HostedPlayParticipant");
 const User = require("../models/User");
 const { sendPushToUser, sendPushToClubAdmins } = require("../utils/push");
+const { ownsClub } = require("../utils/scope");
 
 const router = express.Router();
 
@@ -70,6 +71,7 @@ router.patch("/:id/approve", auth, admin, async (req, res) => {
   try {
     const charge = await Charge.findById(req.params.id);
     if (!charge) return res.status(404).json({ error: "Charge not found" });
+    if (!ownsClub(req, charge.clubId)) return res.status(403).json({ error: "Access denied" });
 
     if (charge.approvalStatus !== "pending") {
       return res.status(400).json({ error: "Charge is not pending approval" });
@@ -157,6 +159,7 @@ router.patch("/:id/reject", auth, admin, async (req, res) => {
     const { adminNote } = req.body;
     const charge = await Charge.findById(req.params.id);
     if (!charge) return res.status(404).json({ error: "Charge not found" });
+    if (!ownsClub(req, charge.clubId)) return res.status(403).json({ error: "Access denied" });
 
     if (charge.approvalStatus !== "pending") {
       return res.status(400).json({ error: "Charge is not pending approval" });
@@ -213,7 +216,7 @@ router.get("/:id", auth, async (req, res) => {
     }
 
     const isOwner = charge.playerId._id.toString() === req.user.userId;
-    const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
+    const isAdmin = (req.user.role === "admin" || req.user.role === "superadmin") && ownsClub(req, charge.clubId);
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ error: "Access denied" });
@@ -235,6 +238,7 @@ router.patch("/:id/mark-paid", auth, admin, async (req, res) => {
     }
     const charge = await Charge.findById(req.params.id);
     if (!charge) return res.status(404).json({ error: "Charge not found" });
+    if (!ownsClub(req, charge.clubId)) return res.status(403).json({ error: "Access denied" });
     if (charge.status === "paid") {
       return res.status(400).json({ error: "Charge is already paid" });
     }
@@ -275,7 +279,7 @@ router.patch("/:id/pay", auth, async (req, res) => {
     }
 
     const isOwner = charge.playerId.toString() === req.user.userId;
-    const isAdmin = req.user.role === "admin" || req.user.role === "superadmin";
+    const isAdmin = (req.user.role === "admin" || req.user.role === "superadmin") && ownsClub(req, charge.clubId);
 
     console.log("Is owner:", isOwner, "Is admin:", isAdmin);
 

@@ -234,12 +234,19 @@ type FormModel = HostedPlayInput;
         <div class="modal confirm-modal" (click)="$event.stopPropagation()">
           <div class="confirm-icon queue-confirm-icon"><i class="fas fa-list-ol"></i></div>
           <h3>Enable Queue Management?</h3>
-          <p>
-            Queue Management charges a fee of
-            <strong>{{ queueFeePerPlayer() | currency: 'PHP' : 'symbol' }}</strong> per session created
-            while this feature is active.
-            This fee is recorded in Finance &rsaquo; App Services.
-          </p>
+          @if (queueFeePerPlayer() > 0) {
+            <p>
+              Queue Management charges a fee of
+              <strong>{{ queueFeePerPlayer() | currency: 'PHP' : 'symbol' }}</strong> per session created
+              while this feature is active.
+              This fee is recorded in Finance &rsaquo; App Services.
+            </p>
+          } @else {
+            <p>
+              Enabling Queue Management turns on check-in, court rotation, and a live queue board
+              for sessions you create while this feature is active.
+            </p>
+          }
           <div class="modal-foot">
             <button class="secondary-btn" (click)="cancelQueueEnable()">Cancel</button>
             <button class="primary-action" (click)="confirmQueueEnable()"><i class="fas fa-check"></i> Enable Queue</button>
@@ -809,7 +816,7 @@ export class AdminHostedPlayComponent implements OnInit {
 
   requestToggleQueue(e: Event) {
     const enabled = (e.target as HTMLInputElement).checked;
-    if (enabled && this.queueFeePerPlayer() > 0) {
+    if (enabled) {
       this.showQueueFeeDisclaimer = true;
     } else {
       this.applyQueueToggle(enabled);

@@ -4,6 +4,7 @@ const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
 const superadmin = require("../middleware/superadmin");
 const User = require("../models/User");
+const { ownsClub } = require("../utils/scope");
 
 const router = express.Router();
 
@@ -137,6 +138,10 @@ router.get("/active-players", auth, async (req, res) => {
 // PUT /api/users/:id/approve (admin)
 router.put("/:id/approve", auth, admin, async (req, res) => {
   try {
+    const target = await User.findById(req.params.id).select("clubId");
+    if (!target) return res.status(404).json({ error: "User not found" });
+    if (!ownsClub(req, target.clubId)) return res.status(403).json({ error: "You can only manage your own club's members" });
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
       { status: "active" },
@@ -154,6 +159,10 @@ router.put("/:id/approve", auth, admin, async (req, res) => {
 // PUT /api/users/:id/reject (admin)
 router.put("/:id/reject", auth, admin, async (req, res) => {
   try {
+    const target = await User.findById(req.params.id).select("clubId");
+    if (!target) return res.status(404).json({ error: "User not found" });
+    if (!ownsClub(req, target.clubId)) return res.status(403).json({ error: "You can only manage your own club's members" });
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
       { status: "rejected" },
@@ -173,6 +182,7 @@ router.put("/:id/deactivate", auth, admin, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
+    if (!ownsClub(req, user.clubId)) return res.status(403).json({ error: "You can only manage your own club's members" });
     if (user.role !== "player") return res.status(403).json({ error: "Only players can be deactivated" });
 
     user.status = "deactivated";
@@ -189,6 +199,7 @@ router.put("/:id/reactivate", auth, admin, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
+    if (!ownsClub(req, user.clubId)) return res.status(403).json({ error: "You can only manage your own club's members" });
     if (user.role !== "player") return res.status(403).json({ error: "Only players can be reactivated" });
 
     user.status = "active";
@@ -203,13 +214,14 @@ router.put("/:id/reactivate", auth, admin, async (req, res) => {
 // GET /api/users/:id/profile — get user's profile (authenticated)
 router.get("/:id/profile", auth, async (req, res) => {
   try {
-    // Users can only view their own profile (unless admin)
-    if (req.user.userId !== req.params.id && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-
     const user = await User.findById(req.params.id).select("-passwordHash");
     if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Own profile, or staff (admin/superadmin) of the same club
+    const isSelf = req.user.userId === req.params.id;
+    const isClubStaff = (req.user.role === "admin" || req.user.role === "superadmin") && ownsClub(req, user.clubId);
+    if (!isSelf && !isClubStaff) return res.status(403).json({ error: "Forbidden" });
+
     res.json(user);
   } catch (err) {
     console.error(err);
@@ -220,10 +232,13 @@ router.get("/:id/profile", auth, async (req, res) => {
 // PUT /api/users/:id/profile — update user's profile (authenticated)
 router.put("/:id/profile", auth, async (req, res) => {
   try {
-    // Users can only update their own profile (unless admin)
-    if (req.user.userId !== req.params.id && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    const target = await User.findById(req.params.id).select("clubId");
+    if (!target) return res.status(404).json({ error: "User not found" });
+
+    // Own profile, or staff (admin/superadmin) of the same club
+    const isSelf = req.user.userId === req.params.id;
+    const isClubStaff = (req.user.role === "admin" || req.user.role === "superadmin") && ownsClub(req, target.clubId);
+    if (!isSelf && !isClubStaff) return res.status(403).json({ error: "Forbidden" });
 
     const { name, contactNumber, gender, profileImage } = req.body;
 
@@ -248,10 +263,13 @@ router.put("/:id/profile", auth, async (req, res) => {
 // PUT /api/users/:id/change-password — change user's password (authenticated)
 router.put("/:id/change-password", auth, async (req, res) => {
   try {
-    // Users can only change their own password (unless admin changing their own)
-    if (req.user.userId !== req.params.id && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    const target = await User.findById(req.params.id).select("clubId");
+    if (!target) return res.status(404).json({ error: "User not found" });
+
+    // Own password, or staff (admin/superadmin) of the same club
+    const isSelf = req.user.userId === req.params.id;
+    const isClubStaff = (req.user.role === "admin" || req.user.role === "superadmin") && ownsClub(req, target.clubId);
+    if (!isSelf && !isClubStaff) return res.status(403).json({ error: "Forbidden" });
 
     const { currentPassword, newPassword } = req.body;
 

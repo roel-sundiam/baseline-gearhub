@@ -65,6 +65,14 @@ const SLIDES = [
   },
   {
     type: 'feature', reverse: false, duration: 6500,
+    tag: 'Big-Screen Display', title: 'Put it on\nthe big screen.',
+    desc: 'Pop the live queue onto any TV or monitor at the venue — courts and the waiting list, always current.',
+    bullets: ['Full-bleed layout built for TVs', 'Auto-refreshes — zero taps needed', 'Every court + the next players up', 'One tap from the admin queue page'],
+    img: 'http://localhost:4200/features/hp-tv-display.png',
+    narration: 'Pop the queue onto any TV at the venue. Players see who\'s playing and who\'s next automatically — no admin required.',
+  },
+  {
+    type: 'feature', reverse: true, duration: 6500,
     tag: 'Player Live View', title: 'Always know\nwhere you stand.',
     desc: 'Players see their status, which court they\'re on, and who\'s next in queue — updated live.',
     bullets: ['"Playing on Court 1" — 1 played', '4 Playing · 3 Waiting · 1 Game', 'Courts panel with teammates', 'Waiting queue shows your position'],

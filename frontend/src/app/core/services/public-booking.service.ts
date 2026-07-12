@@ -93,6 +93,7 @@ export class PublicBookingService {
       socialLinks?: { facebook?: string; instagram?: string; reclub?: string };
       rating?: number; reviewCount?: number; totalBookings?: number;
       bookingProcess?: 'reservation' | 'per_game' | 'hosted_play';
+      hostedPlayEnabled?: boolean;
       guestTermsText?: string;
       guestTermsNotification?: string;
     }>(`${this.base}/${clubId}`);

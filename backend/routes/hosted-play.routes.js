@@ -12,6 +12,7 @@ const AppServicePayment = require("../models/AppServicePayment");
 const queue = require("../services/queue-engine");
 const { sendPushToClubAdmins, sendPushToUser } = require("../utils/push");
 const { computePlayerFees } = require("../utils/fees");
+const { ownsClub } = require("../utils/scope");
 
 // ── Member endpoints (auth required, any role) ───────────────────────────────
 
@@ -566,6 +567,7 @@ router.post("/sessions/:id/generate-qr", auth, admin, async (req, res) => {
   try {
     const session = await HostedPlay.findById(req.params.id).lean();
     if (!session) return res.status(404).json({ error: "Session not found" });
+    if (!ownsClub(req, session.clubId)) return res.status(403).json({ error: "Access denied" });
 
     const qrToken = randomUUID();
     await HostedPlay.findByIdAndUpdate(session._id, {

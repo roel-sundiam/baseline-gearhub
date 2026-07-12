@@ -489,7 +489,8 @@ router.post("/sessions/:id/players", auth, admin, async (req, res) => {
 // DELETE /api/open-play/sessions/:id/players/:entryId
 router.delete("/sessions/:id/players/:entryId", auth, admin, async (req, res) => {
   try {
-    await OpenPlaySessionPlayer.findByIdAndDelete(req.params.entryId);
+    const removed = await OpenPlaySessionPlayer.findOneAndDelete({ _id: req.params.entryId, clubId: req.user.clubId });
+    if (!removed) return res.status(404).json({ error: "Player entry not found" });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -500,8 +501,8 @@ router.delete("/sessions/:id/players/:entryId", auth, admin, async (req, res) =>
 router.patch("/sessions/:id/players/:entryId/checkin", auth, admin, async (req, res) => {
   try {
     const { checkedIn } = req.body;
-    const entry = await OpenPlaySessionPlayer.findByIdAndUpdate(
-      req.params.entryId,
+    const entry = await OpenPlaySessionPlayer.findOneAndUpdate(
+      { _id: req.params.entryId, clubId: req.user.clubId },
       { checkedIn: checkedIn !== undefined ? checkedIn : true },
       { new: true, lean: true },
     );

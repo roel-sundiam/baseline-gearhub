@@ -216,6 +216,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'hosted-play/:id/queue/display',
+        loadComponent: () =>
+          import('./features/admin/hosted-play/queue/hosted-play-queue-display.component').then(
+            (m) => m.AdminHostedPlayQueueDisplayComponent,
+          ),
+      },
+      {
         path: 'award-generator',
         loadComponent: () =>
           import('./features/admin/clubs/award-generator-page.component').then(

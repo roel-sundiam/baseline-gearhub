@@ -24,6 +24,7 @@ const clubSchema = new mongoose.Schema(
     convenienceFeeMode: { type: String, enum: ['per_transaction', 'per_hour', 'monthly_flat', 'club_absorbs'], default: 'per_hour' },
     convenienceFeeMonthlyAmount: { type: Number, default: 0, min: 0 },
     bookingProcess: { type: String, enum: ['reservation', 'per_game', 'hosted_play'], default: 'reservation' },
+    hostedPlayEnabled: { type: Boolean, default: false },
     hostedPlayQueueEnabled: { type: Boolean, default: false },
     queueManagementFeePerPlayer: { type: Number, default: 0, min: 0 },
     additionalFees: [{

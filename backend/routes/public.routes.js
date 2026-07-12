@@ -377,6 +377,7 @@ router.get("/:clubId", async (req, res) => {
       reviewCount: club.reviewCount ?? 0,
       totalBookings: club.totalBookings ?? 0,
       bookingProcess: club.bookingProcess ?? 'reservation',
+      hostedPlayEnabled: club.hostedPlayEnabled ?? false,
       guestTermsText,
       guestTermsNotification: club.guestTermsNotification ?? null,
     });
