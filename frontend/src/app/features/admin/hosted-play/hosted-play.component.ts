@@ -97,7 +97,7 @@ type FormModel = HostedPlayInput;
                       }
                     </div>
                     <div class="title-block">
-                      <span class="sport-label">{{ s.sport | titlecase }}</span>
+                      <span class="sport-label">{{ sportLabel(s.sport) }}</span>
                       <h3>{{ s.title }}</h3>
                     </div>
                     <span class="status-pill" [ngClass]="s.status">{{ statusLabel(s.status) }}</span>
@@ -190,8 +190,12 @@ type FormModel = HostedPlayInput;
                 </label>
                 <label class="field"><span>Sport *</span>
                   <select [(ngModel)]="form.sport">
-                    <option value="tennis">Tennis</option>
                     <option value="pickleball">Pickleball</option>
+                    <option value="tennis">Tennis</option>
+                    <option value="badminton">Badminton</option>
+                    <option value="squash">Squash</option>
+                    <option value="table_tennis">Table Tennis</option>
+                    <option value="padel">Padel</option>
                   </select>
                 </label>
                 <label class="field"><span>Date *</span>
@@ -874,7 +878,7 @@ export class AdminHostedPlayComponent implements OnInit {
 
   blankForm(): FormModel {
     return {
-      title: '', sport: 'tennis', date: '', startTime: '', endTime: '',
+      title: '', sport: 'pickleball', date: '', startTime: '', endTime: '',
       venue: '', court: '', address: '', feePerPlayer: 0, maxPlayers: 8, description: '',
       numberOfCourts: 1, queueMode: 'fcfs', minSkillLevel: null, maxSkillLevel: null,
     };
@@ -955,6 +959,10 @@ export class AdminHostedPlayComponent implements OnInit {
 
   venueLabel(s: HostedPlaySession): string {
     return this.courtForSession(s)?.name || s.court || s.venue || s.title || 'Venue';
+  }
+
+  sportLabel(sport: string): string {
+    return sport.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
   }
 
   venueInitials(s: HostedPlaySession): string {

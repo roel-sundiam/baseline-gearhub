@@ -4,7 +4,7 @@ const hostedPlaySchema = new mongoose.Schema(
   {
     clubId: { type: mongoose.Schema.Types.ObjectId, ref: "Club", required: true, index: true },
     title: { type: String, required: true, trim: true },
-    sport: { type: String, enum: ["tennis", "pickleball"], required: true },
+    sport: { type: String, enum: ["tennis", "pickleball", "badminton", "squash", "table_tennis", "padel"], required: true },
     date: { type: Date, required: true },
     startTime: { type: String, required: true },
     endTime: { type: String, required: true },

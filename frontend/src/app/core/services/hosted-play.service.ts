@@ -27,7 +27,7 @@ export interface HostedPlaySession {
   _id: string;
   clubId: string;
   title: string;
-  sport: 'tennis' | 'pickleball';
+  sport: 'tennis' | 'pickleball' | 'badminton' | 'squash' | 'table_tennis' | 'padel';
   date: string;
   startTime: string;
   endTime: string;
@@ -149,7 +149,7 @@ export interface HostedPlayParticipant {
 
 export interface HostedPlayInput {
   title: string;
-  sport: 'tennis' | 'pickleball';
+  sport: 'tennis' | 'pickleball' | 'badminton' | 'squash' | 'table_tennis' | 'padel';
   date: string;
   startTime: string;
   endTime: string;
