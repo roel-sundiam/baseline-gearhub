@@ -86,6 +86,9 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
                             [class.pa-badge-rejected]="charge.approvalStatus === 'rejected'">
                         {{ charge.approvalStatus | uppercase }}
                       </span>
+                      @if (isPartialCredit(charge)) {
+                        <span class="pa-badge pa-badge-credit"><i class="fas fa-coins"></i> Partial Credit</span>
+                      }
                     </div>
 
                     @if (charge.guestEmail || charge.guestPhone) {
@@ -220,6 +223,18 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
                           <span>Total</span>
                           <span>{{ charge.amount | currency:'PHP':'symbol' }}</span>
                         </div>
+                        @if ((charge.creditApplied ?? 0) > 0) {
+                          <div class="pa-bk-row pa-bk-credit">
+                            <span>Paid via credit</span>
+                            <span>-{{ charge.creditApplied | currency:'PHP':'symbol' }}</span>
+                          </div>
+                          @if (charge.paymentMethod && charge.paymentMethod !== 'Credit') {
+                            <div class="pa-bk-row pa-bk-remaining">
+                              <span>Paid via {{ charge.paymentMethod }}</span>
+                              <span>{{ (charge.amount - charge.creditApplied!) | currency:'PHP':'symbol' }}</span>
+                            </div>
+                          }
+                        }
                       </div>
                     }
 
@@ -482,6 +497,7 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
     .pa-badge-pending  { background: rgba(245,158,11,0.15); color: #fcd34d; }
     .pa-badge-approved { background: rgba(163,230,53,0.15); color: var(--accent); }
     .pa-badge-rejected { background: rgba(239,68,68,0.15); color: #fca5a5; }
+    .pa-badge-credit   { background: rgba(163,230,53,0.15); color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
 
     /* Guest contact */
     .pa-guest-contact {
@@ -709,6 +725,8 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
       margin-top: 0.2rem;
       padding-top: 0.3rem;
     }
+    .pa-bk-credit { color: var(--accent); font-weight: 600; }
+    .pa-bk-remaining { color: var(--muted); font-weight: 600; }
 
     @media (max-width: 480px) {
       .pa-card-top { flex-direction: column; }
@@ -792,6 +810,12 @@ export class PaymentApprovalsComponent implements OnInit {
       return (charge.playerId as any).name || 'Unknown Player';
     }
     return charge.guestName || 'Unknown Player';
+  }
+
+  // True when a charge was paid using a mix of account credit and an external method
+  // (as opposed to fully paid by credit alone, which already shows paymentMethod "Credit").
+  isPartialCredit(charge: Charge): boolean {
+    return (charge.creditApplied ?? 0) > 0 && !!charge.paymentMethod && charge.paymentMethod !== 'Credit';
   }
 
   formatTimeSlot(slot?: string, durationHours = 1): string {

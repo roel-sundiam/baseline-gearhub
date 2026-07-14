@@ -52,6 +52,7 @@ export interface Club {
   hostedPlayEnabled?: boolean;
   hostedPlayQueueEnabled?: boolean;
   queueManagementFeePerPlayer?: number;
+  duprClubId?: string | null;
   courts?: Court[];
 }
 
@@ -134,6 +135,10 @@ export class ClubService {
 
   patchQueueManagementFee(id: string, fee: number) {
     return this.http.patch<{ queueManagementFeePerPlayer: number }>(`${environment.apiUrl}/clubs/${id}/queue-management-fee`, { fee });
+  }
+
+  patchDuprClubId(id: string, duprClubId: string | null) {
+    return this.http.patch<{ duprClubId: string | null }>(`${environment.apiUrl}/clubs/${id}/dupr-club-id`, { duprClubId });
   }
 
   setSelectedClubId(id: string) {

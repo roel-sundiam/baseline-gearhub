@@ -77,6 +77,11 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                 <div class="pm-method-value">{{ bankTotal | currency: 'PHP' : 'symbol' : '1.0-0' }}</div>
                 <div class="bk-stat-label">Bank Transfer</div>
               </div>
+              <div class="pm-method-card">
+                <i class="fas fa-coins pm-method-icon credit-icon"></i>
+                <div class="pm-method-value">{{ creditTotal | currency: 'PHP' : 'symbol' : '1.0-0' }}</div>
+                <div class="bk-stat-label">Credit</div>
+              </div>
             </div>
 
             <!-- Filters -->
@@ -144,6 +149,9 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                           <span class="method-badge" [ngClass]="methodClass(charge.paymentMethod)">
                             {{ charge.paymentMethod }}
                           </span>
+                          @if (isPartialCredit(charge)) {
+                            <span class="method-credit-note">+{{ charge.creditApplied | currency: 'PHP' : 'symbol' }} credit</span>
+                          }
                         </td>
                         <td class="col-date" data-label="Approved">{{ charge.updatedAt | date: 'MMM d, yyyy' : 'UTC' }}</td>
                         <td class="col-amount" data-label="Amount">{{ charge.amount | currency: 'PHP' : 'symbol' }}</td>
@@ -392,6 +400,9 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                           <span class="method-badge" [ngClass]="methodClass(charge.paymentMethod)">
                             {{ charge.paymentMethod }}
                           </span>
+                          @if (isPartialCredit(charge)) {
+                            <span class="method-credit-note">+{{ charge.creditApplied | currency: 'PHP' : 'symbol' }} credit</span>
+                          }
                         </td>
                         <td class="col-amount" data-label="Court Fee">{{ charge.amount | currency: 'PHP' : 'symbol' }}</td>
                         <td class="col-amount col-service" data-label="Conv. Fee">{{ (charge.breakdown?.convenienceFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
@@ -482,6 +493,9 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                           <span class="method-badge" [ngClass]="methodClass(charge.paymentMethod)">
                             {{ charge.paymentMethod ?? 'Unpaid' }}
                           </span>
+                          @if (isPartialCredit(charge)) {
+                            <span class="method-credit-note">+{{ charge.creditApplied | currency: 'PHP' : 'symbol' }} credit</span>
+                          }
                         </td>
                         <td class="col-amount">{{ ((charge.breakdown?.gameFee ?? 0) + (charge.breakdown?.guestFee ?? 0)) | currency: 'PHP' : 'symbol' }}</td>
                         <td class="col-amount col-service">{{ (charge.breakdown?.convenienceFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
@@ -526,6 +540,9 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                           <span class="method-badge" [ngClass]="methodClass(charge.paymentMethod)">
                             {{ charge.paymentMethod ?? 'Unpaid' }}
                           </span>
+                          @if (isPartialCredit(charge)) {
+                            <span class="method-credit-note">+{{ charge.creditApplied | currency: 'PHP' : 'symbol' }} credit</span>
+                          }
                         </td>
                         <td class="col-amount">{{ (charge.breakdown?.hostedPlayFee ?? 0) | currency: 'PHP' : 'symbol' }}</td>
                         <td class="col-amount col-service">{{ (charge.breakdown?.convenienceFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
@@ -966,6 +983,8 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .method-badge.method-gcash { background: rgba(139,92,246,0.16); color: #c4b5fd; }
     .method-badge.method-cash { background: rgba(163,230,53,0.14); color: var(--dm-accent); }
     .method-badge.method-bank-transfer { background: rgba(59,130,246,0.16); color: #93c5fd; }
+    .method-badge.method-credit { background: rgba(252,211,77,0.16); color: #fcd34d; }
+    .method-credit-note { display: block; font-size: 0.68rem; color: #fcd34d; margin-top: 2px; white-space: nowrap; }
     .court-chip {
       padding: 3px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700;
       background: rgba(59,130,246,0.16); color: #93c5fd;
@@ -1000,6 +1019,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .gcash-icon { color: #c4b5fd; }
     .cash-icon { color: var(--dm-accent); }
     .bank-icon { color: #93c5fd; }
+    .credit-icon { color: #fcd34d; }
     .pm-method-value { font-size: 1rem; font-weight: 700; color: #ffffff; }
 
     /* Bookings tab redesign */
@@ -2066,9 +2086,12 @@ export class FinanceComponent implements OnInit {
 
   get total() { return this.charges.reduce((s, c) => s + c.amount, 0); }
   get filteredTotal() { return this.filtered.reduce((s, c) => s + c.amount, 0); }
-  get gcashTotal() { return this.charges.filter(c => c.paymentMethod === 'GCash').reduce((s, c) => s + c.amount, 0); }
-  get cashTotal() { return this.charges.filter(c => c.paymentMethod === 'Cash').reduce((s, c) => s + c.amount, 0); }
-  get bankTotal() { return this.charges.filter(c => c.paymentMethod === 'Bank Transfer').reduce((s, c) => s + c.amount, 0); }
+  // Per-method totals reflect actual money received through that method — any portion
+  // covered by account credit is excluded here and rolled into creditTotal instead.
+  get gcashTotal() { return this.charges.filter(c => c.paymentMethod === 'GCash').reduce((s, c) => s + (c.amount - (c.creditApplied ?? 0)), 0); }
+  get cashTotal() { return this.charges.filter(c => c.paymentMethod === 'Cash').reduce((s, c) => s + (c.amount - (c.creditApplied ?? 0)), 0); }
+  get bankTotal() { return this.charges.filter(c => c.paymentMethod === 'Bank Transfer').reduce((s, c) => s + (c.amount - (c.creditApplied ?? 0)), 0); }
+  get creditTotal() { return this.charges.reduce((s, c) => s + (c.creditApplied ?? 0), 0); }
 
   get reservationCharges() { return this.allReservationCharges; }
   get reservationTotal() { return this.reservationCharges.reduce((s, c) => s + c.amount, 0); }
@@ -2266,7 +2289,13 @@ export class FinanceComponent implements OnInit {
       'method-gcash': method === 'GCash',
       'method-cash': method === 'Cash',
       'method-bank-transfer': method === 'Bank Transfer',
+      'method-credit': method === 'Credit',
     };
+  }
+
+  // True when a charge was paid using a mix of account credit and an external method.
+  isPartialCredit(charge: Charge): boolean {
+    return (charge.creditApplied ?? 0) > 0 && !!charge.paymentMethod && charge.paymentMethod !== 'Credit';
   }
 
   getPlayerName(charge: Charge): string {

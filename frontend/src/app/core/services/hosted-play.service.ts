@@ -5,10 +5,22 @@ import { switchMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 export type HostedPlayStatus = 'open' | 'full' | 'closed' | 'cancelled';
+export type SkillLevel =
+  | 'beginner'
+  | 'novice'
+  | 'lower_intermediate'
+  | 'intermediate'
+  | 'upper_intermediate'
+  | 'advanced'
+  | 'expert_elite'
+  | 'professional';
 
 export interface HostedPlayJoinPayload {
   paymentMethod?: string;
   paymentScreenshot?: string;
+  // Whether to apply available account credit toward the fee. Defaults to true server-side
+  // when omitted; pass false when the player chooses to pay via the club's payment methods instead.
+  useCredit?: boolean;
 }
 
 export interface HostedPlaySession {
@@ -35,9 +47,18 @@ export interface HostedPlaySession {
   playersPerCourt?: number;
   queueMode?: string;
   queueStatus?: QueueStatus;
+  // Optional skill band
+  minSkillLevel?: SkillLevel | null;
+  maxSkillLevel?: SkillLevel | null;
   // Member-facing extras
   joined?: boolean;
   pendingApproval?: boolean;
+  // Waitlist state (when the session is/was full)
+  waitlisted?: boolean;                 // list view: I'm on the waitlist
+  offered?: boolean;                    // list view: a spot has been offered to me
+  waitlistStatus?: 'waitlisted' | 'offered' | null; // detail view
+  waitlistPosition?: number | null;     // my place in line (detail view)
+  offerExpiresAt?: string | null;       // claim deadline when offered (detail view)
   participants?: HostedPlayParticipant[];
   convenienceFeePerPlayer?: number;
   convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs';
@@ -58,7 +79,10 @@ export interface QueuePlayer {
   queueStatus: ParticipantQueueStatus;
   queueOrder: number | null;
   courtNumber: number | null;
+  courtSlot?: number | null;
   gamesPlayed: number;
+  wins?: number;
+  losses?: number;
 }
 
 export interface QueueCourt {
@@ -74,6 +98,7 @@ export interface QueueBoard {
     venue?: string;
     court?: string;
     queueStatus: QueueStatus;
+    queueMode?: string;
     numberOfCourts: number;
     playersPerCourt: number;
     feePerPlayer?: number;
@@ -85,6 +110,7 @@ export interface QueueBoard {
   paused: QueuePlayer[];
   nextGroup: QueuePlayer[];
   roster: QueuePlayer[];
+  leaderboard?: QueuePlayer[];
   counts: {
     checkedIn: number;
     waiting: number;
@@ -92,6 +118,23 @@ export interface QueueBoard {
     paused: number;
     activeGames: number;
   };
+}
+
+// Splits a court's players into Team A / Team B for display (e.g. "Team A vs Team B"
+// on the admin board, TV display, and player live board). Low half of courtSlot
+// (1..ceil(size/2)) is Team A, the rest is Team B. Falls back to array order for
+// legacy/mid-flight participants that predate slot tracking (courtSlot missing).
+export function splitCourtTeams(players: QueuePlayer[], playersPerCourt: number): { teamA: QueuePlayer[]; teamB: QueuePlayer[] } {
+  const half = Math.ceil((playersPerCourt || 4) / 2);
+  const hasSlots = players.length > 0 && players.every(p => typeof p.courtSlot === 'number');
+  if (hasSlots) {
+    const sorted = [...players].sort((a, b) => (a.courtSlot ?? 0) - (b.courtSlot ?? 0));
+    return {
+      teamA: sorted.filter(p => (p.courtSlot ?? 0) <= half),
+      teamB: sorted.filter(p => (p.courtSlot ?? 0) > half),
+    };
+  }
+  return { teamA: players.slice(0, half), teamB: players.slice(half) };
 }
 
 export interface HostedPlayParticipant {
@@ -119,6 +162,8 @@ export interface HostedPlayInput {
   numberOfCourts?: number;
   playersPerCourt?: number;
   queueMode?: string;
+  minSkillLevel?: SkillLevel | null;
+  maxSkillLevel?: SkillLevel | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -132,13 +177,38 @@ export class HostedPlayService {
     return this.http.get<HostedPlaySession[]>(`${this.base}/player/sessions`);
   }
 
+  // Player's self-declared skill tier (stored on their user profile).
+  getSkillLevel(userId: string) {
+    return this.http.get<{ skillLevel: SkillLevel | null; duprRating?: number | null; duprId?: string | null }>(`${environment.apiUrl}/users/${userId}/profile`);
+  }
+  setSkillLevel(userId: string, skillLevel: SkillLevel | null) {
+    return this.http.put<{ skillLevel: SkillLevel | null }>(`${environment.apiUrl}/users/${userId}/profile`, { skillLevel });
+  }
+
+  // Player's self-reported DUPR doubles rating (2.000-8.000) and DUPR ID (free text),
+  // stored on their user profile. Phase 0: no DUPR API verification.
+  getDuprProfile(userId: string) {
+    return this.http.get<{ duprRating: number | null; duprId: string | null }>(`${environment.apiUrl}/users/${userId}/profile`);
+  }
+  setDuprProfile(userId: string, data: { duprRating?: number | null; duprId?: string | null }) {
+    return this.http.put<{ duprRating: number | null; duprId: string | null }>(`${environment.apiUrl}/users/${userId}/profile`, data);
+  }
+
   getSession(id: string) {
     return this.http.get<HostedPlaySession>(`${this.base}/player/sessions/${id}`);
   }
 
   join(id: string, payment?: HostedPlayJoinPayload) {
-    return this.http.post<{ success: boolean; currentPlayers?: number; status: HostedPlayStatus | 'pending_approval'; chargeId?: string }>(
+    return this.http.post<{ success: boolean; currentPlayers?: number; sessionStatus?: HostedPlayStatus; status: HostedPlayStatus | 'pending_approval' | 'waitlisted'; chargeId?: string; waitlistPosition?: number; creditApplied?: number; remaining?: number }>(
       `${this.base}/player/sessions/${id}/join`, payment ?? {});
+  }
+
+  // Claim a waitlist spot that was offered to me. If account credit fully covers the fee
+  // no payment proof is required (status resolves to 'active' immediately); otherwise
+  // paymentMethod + paymentScreenshot are required for the remainder.
+  claim(id: string, payment?: HostedPlayJoinPayload) {
+    return this.http.post<{ success: boolean; status: 'pending_approval' | 'active'; chargeId?: string; creditApplied?: number; remaining?: number }>(
+      `${this.base}/player/sessions/${id}/claim`, payment ?? {});
   }
 
   cancelJoin(id: string) {
@@ -211,8 +281,8 @@ export class HostedPlayService {
     return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/walkins`, { name });
   }
 
-  finishCourt(id: string, courtNumber: number) {
-    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/courts/${courtNumber}/finish`, {});
+  finishCourt(id: string, courtNumber: number, winnerIds: string[] = []) {
+    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/courts/${courtNumber}/finish`, { winnerIds });
   }
 
   assignCourt(id: string, courtNumber: number, participantIds: string[]) {

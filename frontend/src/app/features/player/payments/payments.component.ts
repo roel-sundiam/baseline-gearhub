@@ -6,6 +6,7 @@ import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ClubService } from '../../../core/services/club.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
+import { CreditService } from '../../../core/services/credit.service';
 
 type FilterTab = 'all' | 'unpaid' | 'paid';
 
@@ -31,6 +32,13 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
           }
         </div>
       </header>
+
+      @if (creditBalance > 0) {
+        <div class="dm-credit-banner">
+          <i class="fas fa-coins"></i>
+          <span>{{ creditBalance | currency: 'PHP' : 'symbol' }} credit available</span>
+        </div>
+      }
 
       <!-- Filter tabs -->
       <div class="dm-tabs">
@@ -269,6 +277,12 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                   <h4>Payment Submitted!</h4>
                   <p>{{ selectedCharge.amount | currency: 'PHP' : 'symbol' }} via {{ selectedPaymentMethod }} is awaiting admin approval.</p>
                 </div>
+              } @else if (creditPaymentSuccessful) {
+                <div class="dm-success-state">
+                  <div class="dm-success-icon"><i class="fas fa-check-circle"></i></div>
+                  <h4>Paid with Credit!</h4>
+                  <p>{{ selectedCharge.amount | currency: 'PHP' : 'symbol' }} was covered by your account credit.</p>
+                </div>
               } @else {
                 <div class="dm-modal-charge-box">
                   @if (selectedCharge.chargeType === 'reservation' && selectedCharge.reservationId) {
@@ -290,8 +304,11 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                 </div>
 
                 <div class="dm-amount-box">
-                  <span class="dm-amount-label">Amount Due</span>
-                  <span class="dm-amount-display">{{ selectedCharge.amount | currency: 'PHP' : 'symbol' }}</span>
+                  <span class="dm-amount-label">{{ (selectedCharge.creditApplied ?? 0) > 0 ? 'Remaining Due' : 'Amount Due' }}</span>
+                  <span class="dm-amount-display">{{ remainingOwed(selectedCharge) | currency: 'PHP' : 'symbol' }}</span>
+                  @if ((selectedCharge.creditApplied ?? 0) > 0) {
+                    <span class="dm-amount-fee-note">{{ selectedCharge.creditApplied ?? 0 | currency: 'PHP' : 'symbol' }} applied from credit</span>
+                  }
                   @if ((selectedCharge.breakdown?.convenienceFee ?? 0) > 0 && !hostedPlayClubAbsorbs(selectedCharge)) {
                     <span class="dm-amount-fee-note">includes {{ selectedCharge.breakdown?.convenienceFee | currency: 'PHP' : 'symbol' }} convenience fee</span>
                   }
@@ -299,6 +316,22 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                     <span class="dm-amount-fee-note">{{ selectedCharge.breakdown?.convenienceFee | currency: 'PHP' : 'symbol' }} convenience fee absorbed by club</span>
                   }
                 </div>
+
+                @if (creditBalance > 0) {
+                  <div class="dm-credit-box">
+                    <div class="dm-credit-info">
+                      <i class="fas fa-coins"></i>
+                      <span>{{ creditBalance | currency: 'PHP' : 'symbol' }} credit available</span>
+                    </div>
+                    <button type="button" class="dm-credit-apply-btn" [disabled]="applyingCredit" (click)="applyCredit()">
+                      @if (applyingCredit) {
+                        <i class="fas fa-circle-notch fa-spin"></i>
+                      } @else {
+                        Apply {{ creditToApply(selectedCharge) | currency: 'PHP' : 'symbol' }} Credit
+                      }
+                    </button>
+                  </div>
+                }
 
                 <div class="dm-payment-methods">
                   <div class="dm-methods-label">Select Payment Method</div>
@@ -881,6 +914,46 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
       margin-top: 0.3rem;
     }
 
+    .dm-credit-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      background: rgba(163,230,53,0.08);
+      border: 1px solid rgba(163,230,53,0.25);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .dm-credit-info { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; color: #a3e635; }
+    .dm-credit-apply-btn {
+      background: #a3e635;
+      color: #0a0f0a;
+      border: none;
+      border-radius: 8px;
+      padding: 0.5rem 0.9rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .dm-credit-apply-btn:hover:not(:disabled) { filter: brightness(1.08); }
+    .dm-credit-apply-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .dm-credit-banner {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(163,230,53,0.1);
+      border-bottom: 1px solid rgba(163,230,53,0.2);
+      color: #a3e635;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+    }
+
     .dm-payment-methods { margin-bottom: 1rem; }
 
     .dm-account-info {
@@ -1139,6 +1212,10 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
   paymentScreenshot: File | null = null;
   screenshotPreviewUrl: string | null = null;
 
+  creditBalance = 0;
+  applyingCredit = false;
+  creditPaymentSuccessful = false;
+
   constructor(
     private chargesService: ChargesService,
     public auth: AuthService,
@@ -1147,6 +1224,7 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
     private renderer: Renderer2,
     private clubService: ClubService,
     private cloudinaryService: CloudinaryService,
+    private creditService: CreditService,
   ) {}
 
   ngOnInit() {
@@ -1154,6 +1232,56 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
     this.renderer.addClass(document.body, 'dark-player-page');
     this.loadCharges();
     this.loadClubPaymentMethods();
+    this.loadCreditBalance();
+  }
+
+  loadCreditBalance() {
+    this.creditService.getMyCredit().subscribe({
+      next: ({ balance }) => {
+        this.creditBalance = balance;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  remainingOwed(charge: Charge): number {
+    return charge.amount - (charge.creditApplied ?? 0);
+  }
+
+  creditToApply(charge: Charge): number {
+    return Math.min(this.creditBalance, this.remainingOwed(charge));
+  }
+
+  applyCredit() {
+    if (!this.selectedCharge || this.applyingCredit) return;
+
+    this.applyingCredit = true;
+    this.creditService.applyCreditToCharge(this.selectedCharge._id).subscribe({
+      next: ({ charge, newBalance }) => {
+        const idx = this.charges.findIndex((c) => c._id === charge._id);
+        if (idx >= 0) this.charges[idx] = charge;
+        this.totals = this.chargesService.calculateTotals(this.charges);
+        this.applyFilter();
+
+        this.creditBalance = newBalance;
+        this.selectedCharge = charge;
+        this.applyingCredit = false;
+
+        if (charge.status === 'paid') {
+          this.creditPaymentSuccessful = true;
+          this.cdr.markForCheck();
+          setTimeout(() => { this.closePaymentModal(); }, 2000);
+        } else {
+          this.cdr.markForCheck();
+        }
+      },
+      error: (err) => {
+        console.error('Apply credit failed:', err);
+        alert(`Failed to apply credit: ${err.error?.error || 'Please try again.'}`);
+        this.applyingCredit = false;
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   hostedPlayClubAbsorbs(charge: Charge): boolean {
@@ -1277,6 +1405,7 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
     this.selectedCharge = null;
     this.selectedPaymentMethod = '';
     this.paymentSuccessful = false;
+    this.creditPaymentSuccessful = false;
     this.paymentScreenshot = null;
     this.screenshotPreviewUrl = null;
   }

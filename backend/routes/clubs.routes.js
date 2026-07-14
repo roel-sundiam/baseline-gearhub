@@ -306,6 +306,24 @@ router.patch("/:id/queue-management-fee", auth, superadmin, async (req, res) => 
   }
 });
 
+// PATCH /api/clubs/:id/dupr-club-id — set this club's DUPR Club ID (superadmin only)
+router.patch("/:id/dupr-club-id", auth, superadmin, async (req, res) => {
+  try {
+    const raw = req.body.duprClubId;
+    const duprClubId = raw === null || raw === undefined || raw === "" ? null : String(raw).trim().slice(0, 64);
+    const club = await Club.findByIdAndUpdate(
+      req.params.id,
+      { duprClubId },
+      { new: true },
+    ).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json({ duprClubId: club.duprClubId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // PATCH /api/clubs/:id/booking-qr — set or clear the booking QR code (admin only)
 router.patch("/:id/booking-qr", auth, admin, async (req, res) => {
   try {

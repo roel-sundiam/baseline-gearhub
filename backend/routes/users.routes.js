@@ -240,13 +240,43 @@ router.put("/:id/profile", auth, async (req, res) => {
     const isClubStaff = (req.user.role === "admin" || req.user.role === "superadmin") && ownsClub(req, target.clubId);
     if (!isSelf && !isClubStaff) return res.status(403).json({ error: "Forbidden" });
 
-    const { name, contactNumber, gender, profileImage } = req.body;
+    const { name, contactNumber, gender, profileImage, skillLevel, duprRating, duprId } = req.body;
 
     const update = {};
     if (name) update.name = name;
     if (contactNumber) update.contactNumber = contactNumber;
     if (gender) update.gender = gender;
     if (profileImage !== undefined) update.profileImage = profileImage;
+    if (skillLevel !== undefined) {
+      const validLevels = [
+        "beginner",
+        "novice",
+        "lower_intermediate",
+        "intermediate",
+        "upper_intermediate",
+        "advanced",
+        "expert_elite",
+        "professional",
+      ];
+      if (skillLevel !== null && !validLevels.includes(skillLevel)) {
+        return res.status(400).json({ error: "Invalid skillLevel" });
+      }
+      update.skillLevel = skillLevel;
+    }
+    if (duprRating !== undefined) {
+      if (duprRating === null) {
+        update.duprRating = null;
+      } else {
+        const n = Number(duprRating);
+        if (!Number.isFinite(n) || n < 2.0 || n > 8.0) {
+          return res.status(400).json({ error: "Invalid duprRating (must be between 2.000 and 8.000)" });
+        }
+        update.duprRating = Math.round(n * 1000) / 1000;
+      }
+    }
+    if (duprId !== undefined) {
+      update.duprId = duprId === null ? null : String(duprId).trim().slice(0, 64);
+    }
 
     const user = await User.findByIdAndUpdate(req.params.id, update, {
       new: true,

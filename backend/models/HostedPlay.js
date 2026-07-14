@@ -47,6 +47,43 @@ const hostedPlaySchema = new mongoose.Schema(
     // ── QR Self-Check-In ──
     qrToken: { type: String, sparse: true },
     qrTokenGeneratedAt: { type: Date },
+
+    // Minutes after startTime after which an unchecked-in confirmed player may be
+    // bumped to free their spot for a waitlister. 0 = disabled (no auto-release).
+    checkInCutoffMinutes: { type: Number, default: 0, min: 0 },
+
+    // Optional skill band — only players whose self-declared tier falls within
+    // [minSkillLevel, maxSkillLevel] may join. null = no restriction on that end.
+    minSkillLevel: {
+      type: String,
+      enum: [
+        "beginner",
+        "novice",
+        "lower_intermediate",
+        "intermediate",
+        "upper_intermediate",
+        "advanced",
+        "expert_elite",
+        "professional",
+        null,
+      ],
+      default: null,
+    },
+    maxSkillLevel: {
+      type: String,
+      enum: [
+        "beginner",
+        "novice",
+        "lower_intermediate",
+        "intermediate",
+        "upper_intermediate",
+        "advanced",
+        "expert_elite",
+        "professional",
+        null,
+      ],
+      default: null,
+    },
   },
   { timestamps: true },
 );

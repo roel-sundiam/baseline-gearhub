@@ -62,6 +62,13 @@ export const routes: Routes = [
           import('./features/admin/users/users.component').then((m) => m.AdminUsersComponent),
       },
       {
+        path: 'member-credits',
+        loadComponent: () =>
+          import('./features/admin/member-credits/member-credits.component').then(
+            (m) => m.MemberCreditsComponent,
+          ),
+      },
+      {
         path: 'rates',
         loadComponent: () =>
           import('./features/admin/rates/rates.component').then((m) => m.AdminRatesComponent),

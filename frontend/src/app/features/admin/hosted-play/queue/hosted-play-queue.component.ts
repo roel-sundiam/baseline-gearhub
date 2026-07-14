@@ -1,13 +1,16 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import QRCode from 'qrcode';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Observable } from 'rxjs';
+import { Observable, Subscription, interval, EMPTY } from 'rxjs';
+import { switchMap, catchError } from 'rxjs/operators';
 import {
   HostedPlayService,
   QueueBoard,
+  QueueCourt,
   QueuePlayer,
+  splitCourtTeams,
 } from '../../../../core/services/hosted-play.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { ClubService, Court } from '../../../../core/services/club.service';
@@ -176,12 +179,12 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                           <span class="court-title">Court {{ c.courtNumber }}</span>
                           @if (c.players.length > 0 && board.session.queueStatus === 'running') {
                             <div class="court-top-actions">
-                              @if (c.players.length < board.session.playersPerCourt) {
-                                <button class="add-player-btn" [disabled]="busy" (click)="beginAssign(c.courtNumber)" title="Fill open slot">
-                                  <i class="fas fa-user-plus"></i> Add Player
+                              @if (selectingWinnerCourt === c.courtNumber) {
+                                <button class="finish-btn finish-btn--confirm" [disabled]="busy || winnerIds.size === 0" (click)="confirmFinishWinners(c.courtNumber)">
+                                  <i class="fas fa-trophy"></i> Finish ({{ winnerIds.size }} won)
                                 </button>
-                              }
-                              @if (confirmingFinishCourt === c.courtNumber) {
+                                <button class="finish-btn finish-btn--cancel" [disabled]="busy" (click)="cancelFinish()">Cancel</button>
+                              } @else if (confirmingFinishCourt === c.courtNumber) {
                                 <button class="finish-btn finish-btn--confirm" [disabled]="busy" (click)="confirmFinish(c.courtNumber)">
                                   <i class="fas fa-exclamation"></i> Confirm?
                                 </button>
@@ -189,6 +192,11 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                                   Cancel
                                 </button>
                               } @else {
+                                @if (c.players.length < board.session.playersPerCourt) {
+                                  <button class="add-player-btn" [disabled]="busy" (click)="beginAssign(c.courtNumber)" title="Fill open slot">
+                                    <i class="fas fa-user-plus"></i> Add Player
+                                  </button>
+                                }
                                 <button class="finish-btn" [disabled]="busy" (click)="requestFinish(c.courtNumber)">
                                   <i class="fas fa-check"></i> Finish
                                 </button>
@@ -206,21 +214,61 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                             }
                           </div>
                         } @else {
-                          <div class="court-players">
-                            @for (p of c.players; track p._id) {
-                              <div class="player-chip">
-                                <div class="avatar">{{ initials(p.memberName) }}</div>
-                                <div class="player-main">
-                                  <span class="player-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span>
-                                  <span class="player-meta">{{ p.gamesPlayed }} games played</span>
-                                </div>
-                                <div class="row-actions">
-                                  <button class="icon-btn" title="Pause" [disabled]="busy" (click)="pause(p)"><i class="fas fa-pause"></i></button>
-                                  <button class="icon-btn danger" title="Remove" [disabled]="busy" (click)="remove(p)"><i class="fas fa-xmark"></i></button>
-                                </div>
+                          @let teams = teamsFor(c);
+                          @if (selectingWinnerCourt === c.courtNumber) {
+                            <div class="winner-hint"><i class="fas fa-hand-pointer"></i> Tap the winning team, then Finish</div>
+                            <div class="court-teams">
+                              <button type="button" class="team-block team-a winner-pick" [class.is-winner]="isTeamWinner(teams.teamA)" [disabled]="busy || teams.teamA.length === 0" (click)="toggleTeamWinner(teams.teamA)">
+                                <span class="team-label">Team A <i class="fas" [class.fa-trophy]="isTeamWinner(teams.teamA)"></i></span>
+                                @for (p of teams.teamA; track p._id) {
+                                  <div class="team-player"><div class="avatar">{{ initials(p.memberName) }}</div><span class="player-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span></div>
+                                }
+                              </button>
+                              <span class="vs-divider">VS</span>
+                              <button type="button" class="team-block team-b winner-pick" [class.is-winner]="isTeamWinner(teams.teamB)" [disabled]="busy || teams.teamB.length === 0" (click)="toggleTeamWinner(teams.teamB)">
+                                <span class="team-label">Team B <i class="fas" [class.fa-trophy]="isTeamWinner(teams.teamB)"></i></span>
+                                @for (p of teams.teamB; track p._id) {
+                                  <div class="team-player"><div class="avatar">{{ initials(p.memberName) }}</div><span class="player-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span></div>
+                                }
+                              </button>
+                            </div>
+                          } @else {
+                            <div class="court-teams">
+                              <div class="team-block team-a">
+                                <span class="team-label">Team A</span>
+                                @for (p of teams.teamA; track p._id) {
+                                  <div class="player-chip">
+                                    <div class="avatar">{{ initials(p.memberName) }}</div>
+                                    <div class="player-main">
+                                      <span class="player-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span>
+                                      <span class="player-meta">{{ p.gamesPlayed }} games@if ((p.wins ?? 0) + (p.losses ?? 0) > 0) { · {{ p.wins }}W–{{ p.losses }}L }</span>
+                                    </div>
+                                    <div class="row-actions">
+                                      <button class="icon-btn" title="Pause" [disabled]="busy" (click)="pause(p)"><i class="fas fa-pause"></i></button>
+                                      <button class="icon-btn danger" title="Remove" [disabled]="busy" (click)="remove(p)"><i class="fas fa-xmark"></i></button>
+                                    </div>
+                                  </div>
+                                }
                               </div>
-                            }
-                          </div>
+                              <span class="vs-divider">VS</span>
+                              <div class="team-block team-b">
+                                <span class="team-label">Team B</span>
+                                @for (p of teams.teamB; track p._id) {
+                                  <div class="player-chip">
+                                    <div class="avatar">{{ initials(p.memberName) }}</div>
+                                    <div class="player-main">
+                                      <span class="player-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span>
+                                      <span class="player-meta">{{ p.gamesPlayed }} games@if ((p.wins ?? 0) + (p.losses ?? 0) > 0) { · {{ p.wins }}W–{{ p.losses }}L }</span>
+                                    </div>
+                                    <div class="row-actions">
+                                      <button class="icon-btn" title="Pause" [disabled]="busy" (click)="pause(p)"><i class="fas fa-pause"></i></button>
+                                      <button class="icon-btn danger" title="Remove" [disabled]="busy" (click)="remove(p)"><i class="fas fa-xmark"></i></button>
+                                    </div>
+                                  </div>
+                                }
+                              </div>
+                            </div>
+                          }
                         }
                       </article>
                     }
@@ -613,7 +661,7 @@ import { ClubService, Court } from '../../../../core/services/club.service';
     .panel h3 { margin: .12rem 0 0; font-size: 1.05rem; line-height: 1.2; }
     .panel-count { white-space: nowrap; color: var(--muted); background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); border-radius: 999px; padding: .3rem .65rem; font-size: .72rem; font-weight: 900; }
 
-    .courts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .85rem; }
+    .courts-grid { display: grid; grid-template-columns: 1fr; gap: .85rem; }
     .court-card {
       min-height: 190px;
       padding: .9rem;
@@ -641,7 +689,7 @@ import { ClubService, Court } from '../../../../core/services/club.service';
       background: rgba(255,255,255,.045);
       border: 1px solid rgba(255,255,255,.08);
     }
-    .player-chip { padding: .62rem; }
+    .player-chip { padding: .62rem; flex-wrap: wrap; row-gap: .4rem; }
     .queue-row { padding: .62rem .7rem; }
     .roster-row {
       padding: .58rem .65rem;
@@ -714,6 +762,8 @@ import { ClubService, Court } from '../../../../core/services/club.service';
     .pause-rank { color: var(--amber); background: rgba(245,158,11,.14); }
 
     .player-main, .roster-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .12rem; }
+    .player-chip .player-main { flex-basis: 84px; min-width: 84px; }
+    .player-chip .row-actions { margin-left: auto; }
     .player-name, .q-name, .roster-name { color: var(--text); font-size: .9rem; font-weight: 850; min-width: 0; overflow-wrap: anywhere; }
     .player-meta, .roster-meta, .q-games { color: var(--muted); font-size: .74rem; font-weight: 750; white-space: nowrap; }
     .q-name { flex: 1; }
@@ -768,6 +818,23 @@ import { ClubService, Court } from '../../../../core/services/club.service';
     .finish-btn--confirm { background: #f97316; color: #fff; animation: pulse .6s ease-in-out infinite alternate; }
     .finish-btn--cancel { background: rgba(255,255,255,.08); color: var(--text); border: 1px solid var(--border); }
     @keyframes pulse { from { opacity: 1; } to { opacity: .75; } }
+    .winner-hint { display: flex; align-items: center; gap: .4rem; font-size: .72rem; font-weight: 800; color: #f59e0b; margin-bottom: .5rem; }
+    .winner-hint i { color: #f59e0b; }
+
+    .court-teams { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: .55rem; }
+    .team-block { display: flex; flex-direction: column; gap: .4rem; min-width: 0; }
+    .team-label { font-size: .68rem; font-weight: 950; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); display: flex; align-items: center; gap: .3rem; margin-bottom: .1rem; }
+    .team-a .team-label { color: #38bdf8; }
+    .team-b .team-label { color: #f472b6; }
+    .vs-divider { align-self: center; font-size: .68rem; font-weight: 950; color: var(--muted); background: rgba(255,255,255,.06); border-radius: 999px; padding: .3rem .5rem; white-space: nowrap; margin-top: 1.4rem; }
+
+    button.team-block.winner-pick { text-align: left; cursor: pointer; font-family: inherit; background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: 10px; padding: .55rem; color: var(--text); transition: background .12s, border-color .12s; }
+    button.team-block.winner-pick:hover:not(:disabled) { background: rgba(255,255,255,.07); }
+    button.team-block.winner-pick.is-winner { background: rgba(245,158,11,.14); border-color: rgba(245,158,11,.5); }
+    button.team-block.winner-pick.is-winner .team-label { color: #f59e0b; }
+    button.team-block.winner-pick:disabled { opacity: .45; cursor: default; }
+    .team-player { display: flex; align-items: center; gap: .5rem; padding: .2rem 0; font-size: .82rem; font-weight: 700; }
+    .team-player .avatar { width: 26px; height: 26px; font-size: .64rem; }
     .secondary-btn { min-height: 36px; padding: .48rem .78rem; background: rgba(255,255,255,.07); color: var(--text); border: 1px solid var(--border); font-size: .78rem; }
     .text-action { padding: .35rem .65rem; color: var(--accent); background: rgba(163,230,53,.09); border: 1px solid rgba(163,230,53,.18); font-size: .76rem; }
     button:disabled { opacity: .48; cursor: not-allowed; }
@@ -950,7 +1017,6 @@ import { ClubService, Court } from '../../../../core/services/club.service';
       .venue-mark { width: 48px; height: 48px; flex-basis: 48px; }
       .hero-actions { align-items: stretch; }
       .primary-action, .danger-action { width: 100%; }
-      .courts-grid { grid-template-columns: 1fr; }
       .panel { padding: .85rem; }
       .queue-row { align-items: flex-start; flex-wrap: wrap; }
       .q-name { min-width: calc(100% - 50px); }
@@ -991,42 +1057,8 @@ import { ClubService, Court } from '../../../../core/services/club.service';
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      .player-chip {
-        align-items: center;
-        flex-wrap: nowrap;
-        gap: .55rem;
-        min-height: 50px;
-      }
-      .player-main {
-        min-width: 0;
-        flex: 1 1 auto;
-        display: flex;
-        align-items: center;
-        gap: .4rem;
-      }
-      .player-name {
-        display: inline-block;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .player-meta {
-        flex-shrink: 0;
-        font-size: .68rem;
-        color: rgba(255,255,255,.48);
-      }
-      .player-chip .row-actions {
-        width: auto;
-        margin-left: 0;
-        justify-content: flex-end;
-        flex-wrap: nowrap;
-      }
-      .player-chip .icon-btn {
-        width: 30px;
-        height: 30px;
-        flex: 0 0 30px;
-      }
+      .court-teams { grid-template-columns: 1fr; gap: .7rem; }
+      .vs-divider { margin: 0; justify-self: center; }
     }
 
     @media (max-width: 440px) {
@@ -1043,7 +1075,7 @@ import { ClubService, Court } from '../../../../core/services/club.service';
     }
   `],
 })
-export class AdminHostedPlayQueueComponent implements OnInit {
+export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
   id = '';
   board: QueueBoard | null = null;
   loading = true;
@@ -1051,9 +1083,13 @@ export class AdminHostedPlayQueueComponent implements OnInit {
   busy = false;
   walkInName = '';
   confirmingFinishCourt: number | null = null;
+  selectingWinnerCourt: number | null = null; // winner_stays / king_of_court: pick the winning side
+  winnerIds = new Set<string>();
   private finishConfirmTimer: ReturnType<typeof setTimeout> | null = null;
   lastUpdated = '';
   clubCourts: Court[] = [];
+  private pollSub?: Subscription;
+  private readonly POLL_MS = 6000;
 
   modal: { type: 'remove' | 'end'; player?: QueuePlayer } | null = null;
   qrModal: { generating: boolean; dataUrl?: string } | null = null;
@@ -1080,9 +1116,44 @@ export class AdminHostedPlayQueueComponent implements OnInit {
       });
     }
     this.hp.getQueue(this.id).subscribe({
-      next: (b) => { this.setBoard(b); this.loading = false; this.cdr.detectChanges(); },
+      next: (b) => { this.setBoard(b); this.loading = false; this.startPolling(); this.cdr.detectChanges(); },
       error: (err) => { this.loading = false; this.error = err?.error?.error || 'Failed to load queue.'; this.cdr.detectChanges(); },
     });
+  }
+
+  ngOnDestroy() {
+    this.stopPolling();
+    if (this.finishConfirmTimer) clearTimeout(this.finishConfirmTimer);
+  }
+
+  // Auto-refresh the live console so self-check-ins and rotations appear without
+  // tapping refresh. Skips ticks while the admin is mid-action (busy, a modal
+  // open, assigning, or confirming a finish) so a background poll never clobbers
+  // an in-progress interaction. Resilient to transient network errors.
+  private startPolling() {
+    if (this.pollSub) return;
+    this.pollSub = interval(this.POLL_MS).pipe(
+      switchMap(() => (this.canPoll() ? this.hp.getQueue(this.id).pipe(catchError(() => EMPTY)) : EMPTY)),
+    ).subscribe((b) => {
+      this.setBoard(b);
+      if (b.session.queueStatus === 'ended') this.stopPolling();
+      this.cdr.detectChanges();
+    });
+  }
+
+  private canPoll(): boolean {
+    return !this.busy
+      && !this.modal
+      && !this.qrModal
+      && this.assigningCourt === null
+      && this.confirmingFinishCourt === null
+      && this.selectingWinnerCourt === null
+      && this.board?.session?.queueStatus !== 'ended';
+  }
+
+  private stopPolling() {
+    this.pollSub?.unsubscribe();
+    this.pollSub = undefined;
   }
 
   refresh() {
@@ -1179,7 +1250,21 @@ export class AdminHostedPlayQueueComponent implements OnInit {
     this.act(this.hp.addWalkIn(this.id, name));
   }
 
+  // Winner-based modes ask the admin to tap the winning side before finishing.
+  needsWinner(): boolean {
+    const m = this.board?.session?.queueMode;
+    return m === 'winner_stays' || m === 'king_of_court';
+  }
+
   requestFinish(court: number) {
+    if (this.needsWinner()) {
+      this.confirmingFinishCourt = null;
+      if (this.finishConfirmTimer) { clearTimeout(this.finishConfirmTimer); this.finishConfirmTimer = null; }
+      this.selectingWinnerCourt = court;
+      this.winnerIds.clear();
+      this.cdr.detectChanges();
+      return;
+    }
     this.confirmingFinishCourt = court;
     this.cdr.detectChanges();
     if (this.finishConfirmTimer) clearTimeout(this.finishConfirmTimer);
@@ -1196,9 +1281,43 @@ export class AdminHostedPlayQueueComponent implements OnInit {
     this.act(this.hp.finishCourt(this.id, court));
   }
 
+  toggleWinner(id: string) {
+    if (this.winnerIds.has(id)) this.winnerIds.delete(id);
+    else this.winnerIds.add(id);
+    this.cdr.detectChanges();
+  }
+
+  teamsFor(c: QueueCourt): { teamA: QueuePlayer[]; teamB: QueuePlayer[] } {
+    return splitCourtTeams(c.players, this.board?.session?.playersPerCourt ?? 4);
+  }
+
+  isTeamWinner(team: QueuePlayer[]): boolean {
+    return team.length > 0 && team.every(p => this.winnerIds.has(p._id));
+  }
+
+  // Tap anywhere on a team block to select/deselect the whole team as winners at once.
+  toggleTeamWinner(team: QueuePlayer[]) {
+    const allIn = this.isTeamWinner(team);
+    for (const p of team) {
+      if (allIn) this.winnerIds.delete(p._id);
+      else this.winnerIds.add(p._id);
+    }
+    this.cdr.detectChanges();
+  }
+
+  confirmFinishWinners(court: number) {
+    if (this.winnerIds.size === 0) return;
+    const ids = [...this.winnerIds];
+    this.selectingWinnerCourt = null;
+    this.winnerIds.clear();
+    this.act(this.hp.finishCourt(this.id, court, ids));
+  }
+
   cancelFinish() {
     if (this.finishConfirmTimer) { clearTimeout(this.finishConfirmTimer); this.finishConfirmTimer = null; }
     this.confirmingFinishCourt = null;
+    this.selectingWinnerCourt = null;
+    this.winnerIds.clear();
     this.cdr.detectChanges();
   }
 

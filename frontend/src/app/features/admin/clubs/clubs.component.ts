@@ -1043,6 +1043,22 @@ interface AdminUser {
                           </div>
                         }
                       }
+
+                      <div class="hpq-fee-row">
+                        <div class="hpq-fee-label">
+                          <i class="fas fa-table-tennis-paddle-ball"></i> DUPR Club ID
+                          <span class="hpq-fee-hint">This club's DUPR Club ID — for future DUPR API integration, not yet validated.</span>
+                        </div>
+                        <div class="hpq-fee-input-row">
+                          <input type="text" class="hpq-fee-input dupr-club-input" [(ngModel)]="editDuprClubId" placeholder="e.g. ABC123" maxlength="64" />
+                          <button type="button" class="cfs-save-btn" (click)="saveDuprClubId()" [disabled]="savingDuprClubId">
+                            @if (savingDuprClubId) { <i class="fas fa-circle-notch fa-spin"></i> } Save
+                          </button>
+                        </div>
+                        @if (duprClubIdSaveMsg) {
+                          <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ duprClubIdSaveMsg }}</span>
+                        }
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2309,6 +2325,7 @@ interface AdminUser {
     .hpq-fee-prefix{color:#a3e635;font-weight:900;font-size:.95rem}
     .hpq-fee-input{width:100px;padding:.45rem .65rem;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:.88rem;font-family:inherit}
     .hpq-fee-input:focus{outline:none;border-color:rgba(163,230,53,.4)}
+    .dupr-club-input{width:180px}
 
     /* Extra (additional) fees tab */
     .xfee-page{display:flex;flex-direction:column;gap:1rem}
@@ -4048,6 +4065,9 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   editQueueManagementFee = 0;
   savingQueueManagementFee = false;
   queueManagementFeeSaveMsg = '';
+  editDuprClubId = '';
+  savingDuprClubId = false;
+  duprClubIdSaveMsg = '';
 
   // ── Additional (extra) fees ──
   editingExtraFees: AdditionalFee[] = [];
@@ -4320,6 +4340,8 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     this.hostedPlayQueueSaveMsg = '';
     this.editQueueManagementFee = club.queueManagementFeePerPlayer ?? 0;
     this.queueManagementFeeSaveMsg = '';
+    this.editDuprClubId = club.duprClubId ?? '';
+    this.duprClubIdSaveMsg = '';
     this.editingExtraFees = (club.additionalFees ?? []).map(f => ({ ...f }));
     this.newExtraFeeName = '';
     this.newExtraFeeAmount = 0;
@@ -4663,6 +4685,22 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
         setTimeout(() => { this.queueManagementFeeSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
       },
       error: () => { this.savingQueueManagementFee = false; this.queueManagementFeeSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
+  saveDuprClubId() {
+    if (!this.selectedClub?._id) return;
+    this.savingDuprClubId = true;
+    this.duprClubIdSaveMsg = '';
+    this.clubService.patchDuprClubId(this.selectedClub._id, this.editDuprClubId.trim() || null).subscribe({
+      next: (res) => {
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, duprClubId: res.duprClubId };
+        this.savingDuprClubId = false;
+        this.duprClubIdSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.duprClubIdSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingDuprClubId = false; this.duprClubIdSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
     });
   }
 

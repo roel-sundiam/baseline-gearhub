@@ -47,11 +47,14 @@ const chargeSchema = new mongoose.Schema(
     chargeType: { type: String, enum: ["reservation", "session", "open_play_session", "per_game", "hosted_play"], default: "reservation" },
     status: { type: String, enum: ["unpaid", "paid"], default: "unpaid" },
     approvalStatus: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "none" },
-    paymentMethod: { type: String, enum: ["GCash", "Cash", "Bank Transfer", "GoTyme"] },
+    paymentMethod: { type: String, enum: ["GCash", "Cash", "Bank Transfer", "GoTyme", "Credit"] },
     paidAt: { type: Date },
     adminNote: { type: String },
     paymentScreenshot: { type: String, default: null },
     clubId: { type: mongoose.Schema.Types.ObjectId, ref: "Club", required: true },
+    // Peso amount of this charge covered by the member's credit ledger (backend/models/Credit.js).
+    // charge.amount is never mutated down — remaining owed is always amount - creditApplied.
+    creditApplied: { type: Number, default: 0 },
   },
   { timestamps: true },
 );

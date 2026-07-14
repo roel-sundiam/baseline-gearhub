@@ -13,6 +13,18 @@ const hostedPlayParticipantSchema = new mongoose.Schema(
     guestEmail: { type: String, trim: true, lowercase: true },
     guestPhone: { type: String, trim: true },
 
+    // ── Waitlist state (pre-session) ──
+    // active          = confirmed participant, counts toward currentPlayers (default)
+    // waitlisted      = full session; waiting in line, no charge, not counted
+    // offered         = a freed spot was offered to them; claim window open (paid) /
+    //                   awaiting admin approval after claim
+    // pending_payment = joined directly and reserved a real slot (counts toward
+    //                   currentPlayers), but payment proof is awaiting admin approval;
+    //                   offerExpiresAt holds the auto-release deadline
+    waitStatus: { type: String, enum: ["active", "waitlisted", "offered", "pending_payment"], default: "active" },
+    waitlistOrder: { type: Number, default: null }, // FIFO among waitlisted (join timestamp)
+    offerExpiresAt: { type: Date, default: null },  // claim window deadline while "offered"
+
     // ── Queue Management state ──
     isWalkIn: { type: Boolean, default: false },
     checkedIn: { type: Boolean, default: false },
@@ -24,7 +36,11 @@ const hostedPlayParticipantSchema = new mongoose.Schema(
     },
     queueOrder: { type: Number, default: null }, // gap strategy (steps of 1000); null when not waiting
     courtNumber: { type: Number, default: null }, // 1..numberOfCourts when playing; else null
+    courtSlot: { type: Number, default: null }, // 1..playersPerCourt; low half = Team A, high half = Team B
     gamesPlayed: { type: Number, default: 0, min: 0 },
+    wins: { type: Number, default: 0, min: 0 },
+    losses: { type: Number, default: 0, min: 0 },
+    courtStreak: { type: Number, default: 0, min: 0 }, // consecutive wins held on court (king_of_court cap)
     enteredQueueAt: { type: Date },
     lastGameEndedAt: { type: Date },
   },

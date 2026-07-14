@@ -6,11 +6,96 @@ const Reservation = require("../models/Reservation");
 const Session = require("../models/Session");
 const HostedPlay = require("../models/HostedPlay");
 const HostedPlayParticipant = require("../models/HostedPlayParticipant");
+const Club = require("../models/Club");
 const User = require("../models/User");
 const { sendPushToUser, sendPushToClubAdmins } = require("../utils/push");
 const { ownsClub } = require("../utils/scope");
+const { promoteFromWaitlist } = require("../utils/waitlist");
+const { refundCredit } = require("../utils/credit");
 
 const router = express.Router();
+
+// Shared side effects for a charge that has just been marked status:"paid"
+// (called from both /:id/approve and /api/credits/apply/:chargeId).
+// Confirms a pending-payment reservation, syncs the legacy embedded Session
+// player entry, and creates/activates the HostedPlayParticipant.
+async function syncChargePaidSideEffects(charge) {
+  // Confirm reservation if it was pending payment (guest booking)
+  if (charge.reservationId) {
+    await Reservation.updateOne(
+      { _id: charge.reservationId, status: "pending_payment" },
+      { $set: { status: "confirmed" } },
+    );
+  }
+
+  // Sync session embedded player entry if applicable
+  if (charge.sessionId) {
+    await Session.updateOne(
+      { _id: charge.sessionId, "players.playerId": charge.playerId },
+      {
+        $set: {
+          "players.$.status": "paid",
+          "players.$.approvalStatus": "approved",
+          "players.$.paymentMethod": charge.paymentMethod,
+          "players.$.paidAt": charge.paidAt,
+        },
+      },
+    );
+  }
+
+  // Create (or activate) the hosted play participant now that payment is approved.
+  if (charge.chargeType === "hosted_play" && charge.hostedPlayId) {
+    const hpSession = await HostedPlay.findById(charge.hostedPlayId);
+    if (hpSession) {
+      // A waitlist claim already has a participant record (waitlisted/offered);
+      // activate it in place rather than creating a duplicate.
+      const existing = charge.playerId
+        ? await HostedPlayParticipant.findOne({ hostedPlayId: hpSession._id, memberId: charge.playerId })
+        : null;
+      if (existing) {
+        // active and pending_payment both already reserved the slot at creation
+        // time (immediate join / hold-on-submission) — only offered/waitlisted
+        // (a waitlist claim being approved) still needs the slot counted here.
+        const alreadyReserved = ["active", "pending_payment"].includes(existing.waitStatus ?? "active");
+        existing.waitStatus = "active";
+        existing.offerExpiresAt = null;
+        existing.chargeId = charge._id;
+        await existing.save();
+        if (!alreadyReserved) {
+          hpSession.currentPlayers += 1;
+          if (hpSession.currentPlayers >= hpSession.maxPlayers) hpSession.status = "full";
+          await hpSession.save();
+        }
+      } else {
+        if (charge.playerId) {
+          // Member path
+          const hpUser = await User.findById(charge.playerId).select("name").lean();
+          await HostedPlayParticipant.create({
+            hostedPlayId: hpSession._id,
+            clubId: hpSession.clubId,
+            memberId: charge.playerId,
+            memberName: hpUser?.name ?? "Member",
+            chargeId: charge._id,
+          });
+        } else {
+          // Guest path — use contact info stored on the charge
+          await HostedPlayParticipant.create({
+            hostedPlayId: hpSession._id,
+            clubId: hpSession.clubId,
+            isWalkIn: true,
+            memberName: charge.guestName ?? "Guest",
+            guestEmail: charge.guestEmail,
+            guestPhone: charge.guestPhone,
+            chargeId: charge._id,
+          });
+        }
+        hpSession.currentPlayers += 1;
+        if (hpSession.currentPlayers >= hpSession.maxPlayers) hpSession.status = "full";
+        await hpSession.save();
+      }
+    }
+  }
+}
 
 // GET /api/charges/my - get player's own charges
 router.get("/my", auth, async (req, res) => {
@@ -77,64 +162,25 @@ router.patch("/:id/approve", auth, admin, async (req, res) => {
       return res.status(400).json({ error: "Charge is not pending approval" });
     }
 
+    // If the reserved spot behind this charge already expired and was swept/reassigned
+    // (no held participant, session now full), approving would push currentPlayers past
+    // maxPlayers. Catch that before mutating the charge.
+    if (charge.chargeType === "hosted_play" && charge.hostedPlayId && charge.playerId) {
+      const hpSession = await HostedPlay.findById(charge.hostedPlayId).select("currentPlayers maxPlayers").lean();
+      const existing = await HostedPlayParticipant.findOne({
+        hostedPlayId: charge.hostedPlayId, memberId: charge.playerId,
+      }).select("waitStatus").lean();
+      const alreadyReserved = existing && ["active", "pending_payment"].includes(existing.waitStatus ?? "active");
+      if (hpSession && !alreadyReserved && hpSession.currentPlayers >= hpSession.maxPlayers) {
+        return res.status(409).json({ error: "This player's reserved spot expired and was given to someone else. Reject this payment instead." });
+      }
+    }
+
     charge.status = "paid";
     charge.approvalStatus = "approved";
     await charge.save();
 
-    // Confirm reservation if it was pending payment (guest booking)
-    if (charge.reservationId) {
-      await Reservation.updateOne(
-        { _id: charge.reservationId, status: "pending_payment" },
-        { $set: { status: "confirmed" } },
-      );
-    }
-
-    // Sync session embedded player entry if applicable
-    if (charge.sessionId) {
-      await Session.updateOne(
-        { _id: charge.sessionId, "players.playerId": charge.playerId },
-        {
-          $set: {
-            "players.$.status": "paid",
-            "players.$.approvalStatus": "approved",
-            "players.$.paymentMethod": charge.paymentMethod,
-            "players.$.paidAt": charge.paidAt,
-          },
-        },
-      );
-    }
-
-    // Create hosted play participant now that payment is approved
-    if (charge.chargeType === "hosted_play" && charge.hostedPlayId) {
-      const hpSession = await HostedPlay.findById(charge.hostedPlayId);
-      if (hpSession) {
-        if (charge.playerId) {
-          // Member path
-          const hpUser = await User.findById(charge.playerId).select("name").lean();
-          await HostedPlayParticipant.create({
-            hostedPlayId: hpSession._id,
-            clubId: hpSession.clubId,
-            memberId: charge.playerId,
-            memberName: hpUser?.name ?? "Member",
-            chargeId: charge._id,
-          });
-        } else {
-          // Guest path — use contact info stored on the charge
-          await HostedPlayParticipant.create({
-            hostedPlayId: hpSession._id,
-            clubId: hpSession.clubId,
-            isWalkIn: true,
-            memberName: charge.guestName ?? "Guest",
-            guestEmail: charge.guestEmail,
-            guestPhone: charge.guestPhone,
-            chargeId: charge._id,
-          });
-        }
-        hpSession.currentPlayers += 1;
-        if (hpSession.currentPlayers >= hpSession.maxPlayers) hpSession.status = "full";
-        await hpSession.save();
-      }
-    }
+    await syncChargePaidSideEffects(charge);
 
     // Only notify member users — guests have no account to receive push notifications
     if (charge.playerId) {
@@ -165,6 +211,20 @@ router.patch("/:id/reject", auth, admin, async (req, res) => {
       return res.status(400).json({ error: "Charge is not pending approval" });
     }
 
+    // Any credit already applied toward this charge (e.g. a partial credit + external
+    // remainder) is returned to the player's balance since the charge is unwinding.
+    if (charge.creditApplied > 0) {
+      await refundCredit({
+        clubId: charge.clubId,
+        playerId: charge.playerId,
+        amount: charge.creditApplied,
+        chargeId: charge._id,
+        grantedBy: req.user.userId,
+        reason: "Credit returned — payment rejected",
+      });
+      charge.creditApplied = 0;
+    }
+
     charge.status = "unpaid";
     charge.approvalStatus = "rejected";
     charge.paymentMethod = undefined;
@@ -187,6 +247,38 @@ router.patch("/:id/reject", auth, admin, async (req, res) => {
           },
         },
       );
+    }
+
+    // Release any spot this rejected payment was holding, and offer it onward.
+    if (charge.chargeType === "hosted_play" && charge.hostedPlayId && charge.playerId) {
+      const held = await HostedPlayParticipant.findOne({
+        hostedPlayId: charge.hostedPlayId, memberId: charge.playerId,
+        waitStatus: { $in: ["offered", "pending_payment"] },
+      });
+      if (held) {
+        const hpSession = await HostedPlay.findById(charge.hostedPlayId);
+        const hpClub = hpSession && await Club.findById(hpSession.clubId)
+          .select("convenienceFeeRate convenienceFeeMode").lean();
+
+        if (held.waitStatus === "offered") {
+          // Waitlist claim rejected — never counted toward currentPlayers; send
+          // them back to the waitlist line.
+          held.waitStatus = "waitlisted";
+          held.offerExpiresAt = null;
+          held.waitlistOrder = Date.now();
+          held.chargeId = undefined;
+          await held.save();
+        } else {
+          // Direct-join hold rejected — it already reserved a real slot; release it.
+          await HostedPlayParticipant.deleteOne({ _id: held._id });
+          if (hpSession) {
+            hpSession.currentPlayers = Math.max(0, hpSession.currentPlayers - 1);
+            if (hpSession.status === "full") hpSession.status = "open";
+            await hpSession.save();
+          }
+        }
+        if (hpSession) await promoteFromWaitlist(hpSession, hpClub);
+      }
     }
 
     sendPushToUser(charge.playerId, {
@@ -345,5 +437,7 @@ router.get("/", auth, admin, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
+router.syncChargePaidSideEffects = syncChargePaidSideEffects;
 
 module.exports = router;

@@ -20,19 +20,52 @@
  */
 
 const STEP = 1000; // gap between queue positions so reorder/append never renumbers everyone
+const KING_STREAK_CAP = 3; // king_of_court: winners must abdicate after this many consecutive holds
 
 // ── Strategy interface ───────────────────────────────────────────────────────
 // A strategy = {
-//   pickGroup(waiting, size, session) -> participants to send onto a free court
-//   onFinish(courtPlayers, session)   -> { requeue: [...], keepOnCourt: [...] }
+//   needsWinner?: boolean                      whether onFinish requires winnerSet
+//   pickGroup(waiting, size, session)          -> participants to send onto a free court
+//   onFinish(courtPlayers, session, winnerSet) -> { requeue: [...], keepOnCourt: [...] }
 // }
 const strategies = {
+  // First-come-first-served: everyone rotates off after each game (fairness by games played).
   fcfs: {
     pickGroup(waiting, size) {
       return waiting.slice(0, size);
     },
     onFinish(courtPlayers) {
       return { requeue: courtPlayers, keepOnCourt: [] };
+    },
+  },
+
+  // Challenge court: the winning side stays on, losers go to the back of the line.
+  winner_stays: {
+    needsWinner: true,
+    pickGroup(waiting, size) {
+      return waiting.slice(0, size);
+    },
+    onFinish(courtPlayers, session, winnerSet) {
+      const winners = courtPlayers.filter((p) => winnerSet.has(String(p._id)));
+      const losers = courtPlayers.filter((p) => !winnerSet.has(String(p._id)));
+      return { requeue: losers, keepOnCourt: winners };
+    },
+  },
+
+  // King of the court: winners defend the court, but must abdicate after a capped
+  // streak of consecutive holds so no group dominates all night.
+  king_of_court: {
+    needsWinner: true,
+    pickGroup(waiting, size) {
+      return waiting.slice(0, size);
+    },
+    onFinish(courtPlayers, session, winnerSet) {
+      const cap = session.kingStreakCap || KING_STREAK_CAP;
+      const winners = courtPlayers.filter((p) => winnerSet.has(String(p._id)));
+      const losers = courtPlayers.filter((p) => !winnerSet.has(String(p._id)));
+      const staying = winners.filter((p) => (p.courtStreak || 0) + 1 < cap);
+      const abdicating = winners.filter((p) => (p.courtStreak || 0) + 1 >= cap);
+      return { requeue: [...losers, ...abdicating], keepOnCourt: staying };
     },
   },
 };
@@ -66,6 +99,14 @@ function getCourtPlayers(participants, courtNumber) {
   );
 }
 
+// Lowest unoccupied slot (1..size) on a court — slot position determines team
+// (low half = Team A, high half = Team B) for board display purposes.
+function nextFreeSlot(participants, courtNumber, size) {
+  const taken = new Set(getCourtPlayers(participants, courtNumber).map((p) => p.courtSlot));
+  for (let s = 1; s <= size; s++) if (!taken.has(s)) return s;
+  return null;
+}
+
 // Courts with zero playing participants (auto-assign targets).
 function getFreeCourts(participants, session) {
   const n = session.numberOfCourts || 1;
@@ -89,6 +130,7 @@ function find(participants, id) {
 function enqueueToEnd(participant, participants, dirty) {
   participant.queueStatus = "waiting";
   participant.courtNumber = null;
+  participant.courtSlot = null;
   participant.queueOrder = maxWaitingOrder(participants) + STEP;
   participant.enteredQueueAt = new Date();
   dirty.add(participant);
@@ -108,6 +150,7 @@ function fillPartialCourts(session, participants, dirty) {
       if (!next) break;
       next.queueStatus = "playing";
       next.courtNumber = c;
+      next.courtSlot = nextFreeSlot(participants, c, size);
       next.queueOrder = null;
       dirty.add(next);
     }
@@ -125,12 +168,13 @@ function assignFreeCourts(session, participants, dirty) {
     const waiting = getWaiting(participants); // recompute — previous iterations consumed players
     if (waiting.length < size) break; // groups are fixed-size; later courts can't fill either
     const group = strat.pickGroup(waiting, size, session);
-    for (const p of group) {
+    group.forEach((p, i) => {
       p.queueStatus = "playing";
       p.courtNumber = court;
+      p.courtSlot = i + 1; // slot order = pick order: low half Team A, high half Team B
       p.queueOrder = null;
       dirty.add(p);
-    }
+    });
   }
 }
 
@@ -206,6 +250,7 @@ function setCheckIn(session, participants, participantId, checkedIn) {
       const wasPlaying = p.queueStatus === "playing";
       p.queueStatus = "not_checked_in";
       p.courtNumber = null;
+      p.courtSlot = null;
       p.queueOrder = null;
       if (wasPlaying && running) assignFreeCourts(session, participants, dirty);
     }
@@ -213,25 +258,46 @@ function setCheckIn(session, participants, participantId, checkedIn) {
   return { changed: [...dirty] };
 }
 
-function finishGame(session, participants, courtNumber) {
+function finishGame(session, participants, courtNumber, winnerIds = []) {
   const players = getCourtPlayers(participants, courtNumber);
   if (players.length === 0) return { error: "court_empty" };
 
+  const strat = strategyFor(session);
+  const winnerSet = new Set((winnerIds || []).map(String));
+  const onCourt = new Set(players.map((p) => String(p._id)));
+  if (strat.needsWinner) {
+    if (winnerSet.size === 0) return { error: "winner_required" };
+    for (const id of winnerSet) if (!onCourt.has(id)) return { error: "invalid_winner" };
+  }
+
   const dirty = new Set();
   const now = new Date();
-  const { requeue } = strategyFor(session).onFinish(players, session);
+  const { requeue, keepOnCourt = [] } = strat.onFinish(players, session, winnerSet);
   const requeueSet = new Set(requeue.map((p) => String(p._id)));
 
   for (const p of players) {
     p.gamesPlayed = (p.gamesPlayed || 0) + 1;
     p.lastGameEndedAt = now;
+    // Record win/loss + court streak whenever a winner was tapped (any mode).
+    if (winnerSet.size) {
+      if (winnerSet.has(String(p._id))) {
+        p.wins = (p.wins || 0) + 1;
+        p.courtStreak = (p.courtStreak || 0) + 1;
+      } else {
+        p.losses = (p.losses || 0) + 1;
+        p.courtStreak = 0;
+      }
+    }
     dirty.add(p);
     if (requeueSet.has(String(p._id))) {
+      p.courtStreak = 0; // streak resets when a player leaves the court
       enqueueToEnd(p, participants, dirty);
     }
-    // keepOnCourt players retain their courtNumber (future winner-stays modes)
+    // keepOnCourt players retain their courtNumber (winner_stays / king_of_court)
   }
 
+  // Top up courts where winners stayed, then fill any fully-empty courts.
+  fillPartialCourts(session, participants, dirty);
   assignFreeCourts(session, participants, dirty);
   return { changed: [...dirty] };
 }
@@ -245,8 +311,10 @@ function pausePlayer(session, participants, participantId) {
   const dirty = new Set([p]);
   const wasPlaying = p.queueStatus === "playing";
   const vacatedCourt = p.courtNumber;
+  const vacatedSlot = p.courtSlot; // preserved so the replacement keeps the same team position
   p.queueStatus = "paused";
   p.courtNumber = null;
+  p.courtSlot = null;
   p.queueOrder = null;
 
   if (wasPlaying && session.queueStatus === "running") {
@@ -255,6 +323,7 @@ function pausePlayer(session, participants, participantId) {
     if (next) {
       next.queueStatus = "playing";
       next.courtNumber = vacatedCourt;
+      next.courtSlot = vacatedSlot;
       next.queueOrder = null;
       dirty.add(next);
     }
@@ -292,6 +361,7 @@ function removePlayer(session, participants, participantId) {
   const wasPlaying = p.queueStatus === "playing";
   p.queueStatus = "done";
   p.courtNumber = null;
+  p.courtSlot = null;
   p.queueOrder = null;
   if (wasPlaying && session.queueStatus === "running") {
     assignFreeCourts(session, participants, dirty);
@@ -314,6 +384,7 @@ function reorderQueue(session, participants, orderedIds) {
 
 function manualAssign(session, participants, participantIds, courtNumber) {
   const n = session.numberOfCourts || 1;
+  const size = session.playersPerCourt || 4;
   if (courtNumber < 1 || courtNumber > n) return { error: "invalid_court" };
   const dirty = new Set();
   for (const id of participantIds) {
@@ -322,6 +393,7 @@ function manualAssign(session, participants, participantIds, courtNumber) {
     if (!["waiting", "paused", "done"].includes(p.queueStatus)) continue;
     p.queueStatus = "playing";
     p.courtNumber = courtNumber;
+    p.courtSlot = nextFreeSlot(participants, courtNumber, size);
     p.queueOrder = null;
     dirty.add(p);
   }
@@ -353,7 +425,10 @@ function toPublic(p) {
     queueStatus: p.queueStatus,
     queueOrder: p.queueOrder ?? null,
     courtNumber: p.courtNumber ?? null,
+    courtSlot: p.courtSlot ?? null,
     gamesPlayed: p.gamesPlayed || 0,
+    wins: p.wins || 0,
+    losses: p.losses || 0,
   };
 }
 
@@ -367,6 +442,18 @@ function buildBoard(session, participants) {
   const waiting = getWaiting(participants);
   const paused = getPaused(participants);
 
+  // Standings — everyone who has played, ranked by wins, then fewest losses, then games.
+  const leaderboard = participants
+    .filter((p) => (p.gamesPlayed || 0) > 0 || p.wins || p.losses)
+    .map(toPublic)
+    .sort(
+      (a, b) =>
+        (b.wins - a.wins) ||
+        (a.losses - b.losses) ||
+        (b.gamesPlayed - a.gamesPlayed) ||
+        String(a.memberName).localeCompare(String(b.memberName)),
+    );
+
   return {
     session: {
       _id: session._id,
@@ -375,6 +462,7 @@ function buildBoard(session, participants) {
       venue: session.venue,
       court: session.court,
       queueStatus: session.queueStatus,
+      queueMode: session.queueMode || "fcfs",
       numberOfCourts: n,
       playersPerCourt: size,
     },
@@ -383,6 +471,7 @@ function buildBoard(session, participants) {
     paused: paused.map(toPublic),
     nextGroup: waiting.slice(0, size).map(toPublic),
     roster: participants.map(toPublic), // full roster for the check-in view
+    leaderboard,
     counts: {
       checkedIn: participants.filter((p) => p.checkedIn).length,
       waiting: waiting.length,

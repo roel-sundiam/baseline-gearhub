@@ -1,15 +1,17 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { HostedPlayService, HostedPlaySession, HostedPlayParticipant, HostedPlayJoinPayload } from '../../../core/services/hosted-play.service';
+import { HostedPlayService, HostedPlaySession, HostedPlayParticipant, HostedPlayJoinPayload, SkillLevel } from '../../../core/services/hosted-play.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ClubService, Court } from '../../../core/services/club.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
+import { CreditService } from '../../../core/services/credit.service';
 
 @Component({
   selector: 'app-player-hosted-play',
   standalone: true,
-  imports: [CommonModule, CurrencyPipe, DatePipe],
+  imports: [CommonModule, CurrencyPipe, DatePipe, FormsModule],
   template: `
     <div class="hp-shell">
       <header class="hp-topbar">
@@ -59,9 +61,31 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
           </div>
         </section>
 
+        <div class="level-bar">
+          <span class="level-bar-label"><i class="fas fa-signal"></i> Your skill level</span>
+          <div class="level-choices">
+            @for (lvl of skillLevels; track lvl) {
+              <button class="level-chip" [class.active]="myLevel === lvl" [disabled]="savingLevel" (click)="setMyLevel(lvl)">{{ levelLabel(lvl) }}</button>
+            }
+            <button class="level-chip level-chip--none" [class.active]="!myLevel" [disabled]="savingLevel" (click)="setMyLevel(null)">Not set</button>
+          </div>
+          <span class="level-bar-label dupr-label"><i class="fas fa-table-tennis-paddle-ball"></i> DUPR rating</span>
+          <div class="dupr-input-row">
+            <input type="number" class="dupr-input" min="2.0" max="8.0" step="0.001"
+                   [(ngModel)]="myDuprRating" [disabled]="savingDupr" placeholder="e.g. 3.500" />
+            <button type="button" class="dupr-save-btn" (click)="saveMyDupr()" [disabled]="savingDupr">
+              @if (savingDupr) { <i class="fas fa-circle-notch fa-spin"></i> } Save
+            </button>
+            @if (duprSaveMsg) { <span class="dupr-save-msg">{{ duprSaveMsg }}</span> }
+          </div>
+        </div>
+
         <main class="session-grid">
           @for (s of sessions; track s._id) {
             <article class="session-card" [class.session-card--joined]="s.joined">
+              @if (levelBand(s)) {
+                <div class="level-band-badge"><i class="fas fa-signal"></i> {{ levelBand(s) }} level</div>
+              }
               <div class="card-head">
                 <div class="club-mark">
                   @if (venueLogo(s)) {
@@ -74,8 +98,8 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                   <span class="sport-label">{{ s.sport | titlecase }}</span>
                   <h2>{{ s.title }}</h2>
                 </div>
-                <span class="status-pill" [class.full]="s.status === 'full'" [class.joined]="s.joined" [class.pending]="s.pendingApproval">
-                  {{ s.joined ? 'Joined' : s.pendingApproval ? 'Pending' : statusLabel(s) }}
+                <span class="status-pill" [class.full]="s.status === 'full'" [class.joined]="s.joined || s.offered" [class.pending]="s.pendingApproval || s.waitlisted">
+                  {{ s.joined ? 'Joined' : s.offered ? 'Spot open!' : s.pendingApproval ? 'Pending' : s.waitlisted ? 'Waitlisted' : statusLabel(s) }}
                 </span>
               </div>
 
@@ -148,17 +172,41 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                     {{ busyId === s._id ? 'Cancelling...' : 'Cancel my spot' }}
                   </button>
                 } @else if (s.pendingApproval) {
-                  <div class="pending-note"><i class="fas fa-clock"></i> Payment submitted — awaiting admin approval.</div>
+                  <div class="pending-note"><i class="fas fa-clock"></i> Your spot is held — awaiting admin approval of your payment.</div>
+                  <button class="btn-cancel" [disabled]="busyId === s._id" (click)="cancel(s)">
+                    {{ busyId === s._id ? 'Cancelling...' : 'Cancel my reservation' }}
+                  </button>
+                } @else if (s.offered) {
+                  <div class="joined-note"><i class="fas fa-star"></i> A spot opened up — it's yours to claim!</div>
+                  <button class="btn-join" [disabled]="busyId === s._id" (click)="claim(s)">
+                    {{ busyId === s._id ? 'Opening...' : 'Claim my spot' }}
+                  </button>
+                  <button class="btn-cancel" [disabled]="busyId === s._id" (click)="cancel(s)">Give up spot</button>
+                } @else if (s.waitlisted) {
+                  <div class="pending-note"><i class="fas fa-hourglass-half"></i> On the waitlist@if (s.waitlistPosition) { — position {{ s.waitlistPosition }}}. We'll notify you if a spot opens.</div>
+                  <button class="btn-cancel" [disabled]="busyId === s._id" (click)="cancel(s)">
+                    {{ busyId === s._id ? 'Leaving...' : 'Leave waitlist' }}
+                  </button>
+                } @else if (s.status === 'full') {
+                  <button class="btn-join" [disabled]="busyId === s._id" (click)="join(s)">
+                    {{ busyId === s._id ? 'Joining...' : 'Join waitlist' }}
+                  </button>
                 } @else {
-                  <button class="btn-join" [disabled]="busyId === s._id || s.status === 'full'" (click)="join(s)">
-                    {{ s.status === 'full' ? 'Session full' : (busyId === s._id ? 'Joining...' : 'Join session') }}
+                  <button class="btn-join" [disabled]="busyId === s._id" (click)="join(s)">
+                    {{ busyId === s._id ? 'Joining...' : 'Join session' }}
                   </button>
                 }
               </div>
 
-              @if (s.feePerPlayer > 0 && !s.joined && !s.pendingApproval) {
+              @if (s.feePerPlayer > 0 && !s.joined && !s.pendingApproval && !s.waitlisted) {
                 <p class="fee-note"><i class="fas fa-circle-info"></i>
-                  {{ s.feePerPlayer | currency: 'PHP' : 'symbol-narrow' }} player fee@if ((s.convenienceFeePerPlayer ?? 0) > 0) { + {{ s.convenienceFeePerPlayer | currency: 'PHP' : 'symbol-narrow' }} service fee} = {{ (s.totalPerPlayer ?? s.feePerPlayer) | currency: 'PHP' : 'symbol-narrow' }} total, billed to Payments after you join.
+                  @if (creditBalance >= (s.totalPerPlayer ?? s.feePerPlayer)) {
+                    You have enough account credit to join this session for free.
+                  } @else if (creditBalance > 0) {
+                    You have {{ creditBalance | currency: 'PHP' : 'symbol-narrow' }} credit available toward this session's {{ (s.totalPerPlayer ?? s.feePerPlayer) | currency: 'PHP' : 'symbol-narrow' }} fee.
+                  } @else {
+                    {{ s.feePerPlayer | currency: 'PHP' : 'symbol-narrow' }} player fee@if ((s.convenienceFeePerPlayer ?? 0) > 0) { + {{ s.convenienceFeePerPlayer | currency: 'PHP' : 'symbol-narrow' }} service fee} = {{ (s.totalPerPlayer ?? s.feePerPlayer) | currency: 'PHP' : 'symbol-narrow' }} total, billed to Payments after you join.
+                  }
                 </p>
               }
             </article>
@@ -171,7 +219,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
           <div class="pm-modal" (click)="$event.stopPropagation()">
 
             <div class="pm-header">
-              <span class="pm-title"><i class="fas fa-credit-card"></i> Complete Payment</span>
+              <span class="pm-title"><i class="fas fa-credit-card"></i> {{ claimMode ? 'Claim Your Spot' : 'Complete Payment' }}</span>
               <button class="pm-close" (click)="closePaymentModal()" [disabled]="submittingPayment">
                 <i class="fas fa-times"></i>
               </button>
@@ -190,74 +238,96 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                   <span>Convenience fee @if (pendingSession.convenienceFeeMode === 'club_absorbs') { <span class="pm-fee-absorbed">(Club absorbs)</span> }</span>
                   <span>{{ (pendingSession.convenienceFeePerPlayer ?? 0) | currency:'PHP':'symbol-narrow' }}</span>
                 </div>
-                <div class="pm-fee-row pm-fee-total">
-                  <span>Total due</span>
-                  <span>{{ (pendingSession.totalPerPlayer ?? pendingSession.feePerPlayer) | currency:'PHP':'symbol-narrow' }}</span>
-                </div>
-              </div>
-
-              <div class="pm-section-label">Select Payment Method</div>
-              <div class="pm-methods">
-                @for (method of clubPaymentMethods; track method) {
-                  <button class="pm-method-btn" [class.active]="paymentMethod === method"
-                    (click)="setPaymentMethod(method)">{{ method }}</button>
+                @if (useCredit && creditBalance > 0) {
+                  <div class="pm-fee-row pm-fee-sub pm-fee-credit">
+                    <span>Credit applied</span>
+                    <span>-{{ creditForSession(pendingSession) | currency:'PHP':'symbol-narrow' }}</span>
+                  </div>
                 }
+                <div class="pm-fee-row pm-fee-total">
+                  <span>{{ useCredit && creditBalance > 0 ? 'Remaining due' : 'Total due' }}</span>
+                  <span>{{ remainingAfterCredit(pendingSession) | currency:'PHP':'symbol-narrow' }}</span>
+                </div>
               </div>
 
-              @if (clubPaymentQrCodes[paymentMethod] || clubPaymentAccounts[paymentMethod]) {
-                <div class="pm-pay-details">
-                  @if (clubPaymentQrCodes[paymentMethod]) {
-                    <img [src]="clubPaymentQrCodes[paymentMethod]" alt="QR Code" class="pm-qr" />
-                  }
-                  @if (clubPaymentAccounts[paymentMethod]) {
-                    <div class="pm-account">
-                      <span class="pm-account-label">{{ paymentMethod }}</span>
-                      <span class="pm-account-value">{{ clubPaymentAccounts[paymentMethod] }}</span>
-                    </div>
-                  }
-                </div>
+              @if (creditBalance > 0) {
+                <label class="pm-credit-toggle">
+                  <input type="checkbox" [checked]="useCredit" (change)="toggleUseCredit()" />
+                  <span>Use my {{ creditBalance | currency:'PHP':'symbol-narrow' }} account credit</span>
+                </label>
               }
 
-              <div class="pm-section-label">Proof of Payment <span class="pm-required">Required</span></div>
-              @if (screenshotPreviewUrl) {
-                <div class="pm-preview">
-                  <img [src]="screenshotPreviewUrl" alt="Payment screenshot" class="pm-preview-img" />
-                  @if (uploadingScreenshot) {
-                    <div class="pm-uploading-overlay"><i class="fas fa-circle-notch fa-spin"></i></div>
-                  } @else {
-                    <button class="pm-preview-remove" type="button"
-                      (click)="clearScreenshot()">
-                      <i class="fas fa-times"></i>
-                    </button>
-                  }
+              @if (remainingAfterCredit(pendingSession) <= 0) {
+                <div class="pm-credit-only-note">
+                  <i class="fas fa-circle-check"></i>
+                  Fully covered by your account credit — no payment needed.
                 </div>
               } @else {
-                <label class="pm-upload-btn" [class.uploading]="uploadingScreenshot">
-                  <i class="fas fa-camera"></i>
-                  <span>{{ uploadingScreenshot ? 'Uploading…' : 'Tap to attach screenshot' }}</span>
-                  <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none"
-                    [disabled]="uploadingScreenshot" (change)="onScreenshotSelected($event)" />
-                </label>
+                <div class="pm-section-label">Select Payment Method</div>
+                <div class="pm-methods">
+                  @for (method of clubPaymentMethods; track method) {
+                    <button class="pm-method-btn" [class.active]="paymentMethod === method"
+                      (click)="setPaymentMethod(method)">{{ method }}</button>
+                  }
+                </div>
+
+                @if (clubPaymentQrCodes[paymentMethod] || clubPaymentAccounts[paymentMethod]) {
+                  <div class="pm-pay-details">
+                    @if (clubPaymentQrCodes[paymentMethod]) {
+                      <img [src]="clubPaymentQrCodes[paymentMethod]" alt="QR Code" class="pm-qr" />
+                    }
+                    @if (clubPaymentAccounts[paymentMethod]) {
+                      <div class="pm-account">
+                        <span class="pm-account-label">{{ paymentMethod }}</span>
+                        <span class="pm-account-value">{{ clubPaymentAccounts[paymentMethod] }}</span>
+                      </div>
+                    }
+                  </div>
+                }
+
+                <div class="pm-section-label">Proof of Payment <span class="pm-required">Required</span></div>
+                @if (screenshotPreviewUrl) {
+                  <div class="pm-preview">
+                    <img [src]="screenshotPreviewUrl" alt="Payment screenshot" class="pm-preview-img" />
+                    @if (uploadingScreenshot) {
+                      <div class="pm-uploading-overlay"><i class="fas fa-circle-notch fa-spin"></i></div>
+                    } @else {
+                      <button class="pm-preview-remove" type="button"
+                        (click)="clearScreenshot()">
+                        <i class="fas fa-times"></i>
+                      </button>
+                    }
+                  </div>
+                } @else {
+                  <label class="pm-upload-btn" [class.uploading]="uploadingScreenshot">
+                    <i class="fas fa-camera"></i>
+                    <span>{{ uploadingScreenshot ? 'Uploading…' : 'Tap to attach screenshot' }}</span>
+                    <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none"
+                      [disabled]="uploadingScreenshot" (change)="onScreenshotSelected($event)" />
+                  </label>
+                }
+
+                <div class="pm-disclaimer">
+                  <i class="fas fa-circle-info"></i>
+                  Your spot will be held as soon as you submit. You'll be fully confirmed once the club admin approves your payment.
+                </div>
               }
 
               @if (paymentError) {
                 <div class="pm-error"><i class="fas fa-exclamation-triangle"></i> {{ paymentError }}</div>
               }
 
-              <div class="pm-disclaimer">
-                <i class="fas fa-circle-info"></i>
-                Your registration is not yet confirmed. You will only be officially joined after the club admin approves your payment.
-              </div>
-
               <div class="pm-footer">
                 <button class="pm-cancel" (click)="closePaymentModal()" [disabled]="submittingPayment">Cancel</button>
                 <button class="pm-submit"
-                  [disabled]="!paymentScreenshotUrl || uploadingScreenshot || submittingPayment"
+                  [disabled]="(remainingAfterCredit(pendingSession) > 0 && !paymentScreenshotUrl) || uploadingScreenshot || submittingPayment"
                   (click)="submitJoinWithPayment()">
                   @if (submittingPayment) {
-                    <i class="fas fa-circle-notch fa-spin"></i> Joining…
+                    <i class="fas fa-circle-notch fa-spin"></i> {{ claimMode ? 'Claiming…' : 'Joining…' }}
+                  } @else if (remainingAfterCredit(pendingSession) <= 0) {
+                    {{ claimMode ? 'Claim with Credit' : 'Join with Credit' }}
                   } @else {
-                    Join & Submit Payment
+                    {{ claimMode ? 'Claim & Submit Payment' : 'Join & Submit Payment' }}
                   }
                 </button>
               </div>
@@ -442,6 +512,24 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
       gap: 1rem;
       align-items: start;
     }
+
+    .level-bar { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem .9rem; margin-bottom: 1rem; padding: .7rem .9rem; background: rgba(18,37,29,.7); border: 1px solid var(--border); border-radius: 8px; }
+    .level-bar-label { font-size: .8rem; font-weight: 800; color: var(--muted); display: inline-flex; align-items: center; gap: .4rem; }
+    .level-bar-label i { color: var(--accent); }
+    .level-choices { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .level-chip { min-height: 32px; padding: .35rem .7rem; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,.05); color: var(--text); font-size: .76rem; font-weight: 800; font-family: inherit; cursor: pointer; transition: background .12s, border-color .12s; }
+    .level-chip:hover:not(:disabled) { background: rgba(255,255,255,.1); }
+    .level-chip.active { background: var(--accent); color: #07130d; border-color: var(--accent); }
+    .level-chip--none.active { background: rgba(255,255,255,.16); color: var(--text); }
+    .level-chip:disabled { opacity: .55; cursor: default; }
+    .dupr-label { margin-left: .4rem; }
+    .dupr-input-row { display: flex; align-items: center; gap: .5rem; }
+    .dupr-input { width: 90px; padding: .35rem .55rem; border-radius: 6px; border: 1px solid var(--border); background: rgba(255,255,255,.05); color: var(--text); font-size: .8rem; font-weight: 700; font-family: inherit; }
+    .dupr-save-btn { min-height: 32px; padding: .35rem .8rem; border-radius: 999px; border: 1px solid var(--border); background: var(--accent); color: #07130d; font-size: .76rem; font-weight: 800; cursor: pointer; }
+    .dupr-save-btn:disabled { opacity: .55; cursor: default; }
+    .dupr-save-msg { font-size: .74rem; color: var(--muted); }
+    .level-band-badge { display: inline-flex; align-items: center; gap: .35rem; align-self: flex-start; margin-bottom: .55rem; padding: .2rem .55rem; border-radius: 999px; font-size: .68rem; font-weight: 900; letter-spacing: .02em; color: #c4b5fd; background: rgba(139,92,246,.14); border: 1px solid rgba(139,92,246,.32); }
+    .level-band-badge i { font-size: .6rem; }
 
     .session-card {
       background: rgba(18,37,29,.92);
@@ -721,6 +809,10 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .pm-fee-sub { font-size:.78rem; }
     .pm-fee-absorbed { font-size:.72rem; color:rgba(255,255,255,.45); font-style:italic; margin-left:.25rem; }
     .pm-fee-total { color:#fff; font-weight:700; font-size:.9rem; border-top:1px solid rgba(255,255,255,.08); margin-top:.35rem; padding-top:.45rem; }
+    .pm-fee-credit { color:#a3e635; }
+    .pm-credit-toggle { display:flex; align-items:center; gap:.55rem; padding:.7rem .85rem; border-radius:10px; background:rgba(163,230,53,.08); border:1px solid rgba(163,230,53,.25); color:#a3e635; font-size:.85rem; font-weight:600; cursor:pointer; }
+    .pm-credit-toggle input { width:17px; height:17px; accent-color:#a3e635; cursor:pointer; }
+    .pm-credit-only-note { display:flex; align-items:center; gap:.5rem; padding:.7rem .85rem; border-radius:10px; background:rgba(163,230,53,.08); border:1px solid rgba(163,230,53,.25); color:#a3e635; font-size:.83rem; font-weight:600; }
     .pm-section-label { font-size:.78rem; font-weight:800; color:rgba(255,255,255,.55); text-transform:uppercase; letter-spacing:.06em; }
     .pm-required { color:#f87171; font-size:.72rem; font-weight:700; margin-left:.35rem; }
     .pm-methods { display:flex; gap:.5rem; flex-wrap:wrap; }
@@ -759,11 +851,31 @@ export class PlayerHostedPlayComponent implements OnInit {
   expandedId: string | null = null;
   playersLoading = false;
   players: HostedPlayParticipant[] = [];
+
+  // Self-declared skill level (for level-gated sessions)
+  readonly skillLevels: SkillLevel[] = [
+    'beginner',
+    'novice',
+    'lower_intermediate',
+    'intermediate',
+    'upper_intermediate',
+    'advanced',
+    'expert_elite',
+    'professional',
+  ];
+  myLevel: SkillLevel | null = null;
+  savingLevel = false;
+
+  // Self-reported DUPR doubles rating (2.000-8.000). Phase 0: no DUPR API verification.
+  myDuprRating: number | null = null;
+  savingDupr = false;
+  duprSaveMsg = '';
   clubPaymentMethods: string[] = [];
   clubPaymentAccounts: Record<string, string> = {};
   clubPaymentQrCodes: Record<string, string> = {};
 
   showPaymentModal = false;
+  claimMode = false; // payment modal is claiming an offered waitlist spot vs a normal join
   pendingSession: HostedPlaySession | null = null;
   paymentMethod: string = 'GCash';
   paymentScreenshotUrl: string | null = null;
@@ -772,6 +884,9 @@ export class PlayerHostedPlayComponent implements OnInit {
   submittingPayment = false;
   paymentError: string | null = null;
 
+  creditBalance = 0;
+  useCredit = true; // whether the join/claim modal should apply available credit, or the player opted for club payment methods
+
   constructor(
     private hp: HostedPlayService,
     private router: Router,
@@ -779,11 +894,123 @@ export class PlayerHostedPlayComponent implements OnInit {
     private auth: AuthService,
     private clubService: ClubService,
     private cloudinary: CloudinaryService,
+    private creditService: CreditService,
   ) {}
 
   ngOnInit() {
     this.loadClubCourts();
     this.refresh();
+    this.loadMyLevel();
+    this.loadCreditBalance();
+  }
+
+  private loadCreditBalance() {
+    this.creditService.getMyCredit().subscribe({
+      next: ({ balance }) => { this.creditBalance = balance; this.cdr.detectChanges(); },
+    });
+  }
+
+  // How much credit would be applied toward this session's fee, respecting the player's toggle choice.
+  creditForSession(s: HostedPlaySession): number {
+    if (!this.useCredit) return 0;
+    return Math.min(this.creditBalance, s.totalPerPlayer ?? s.feePerPlayer ?? 0);
+  }
+
+  // Amount still owed externally after account credit is applied (or the full fee if the
+  // player opted out of using credit).
+  remainingAfterCredit(s: HostedPlaySession): number {
+    return Math.max(0, (s.totalPerPlayer ?? s.feePerPlayer ?? 0) - this.creditForSession(s));
+  }
+
+  private loadMyLevel() {
+    const uid = this.auth.user()?.id;
+    if (!uid) return;
+    this.hp.getSkillLevel(uid).subscribe({
+      next: (u) => { this.myLevel = u.skillLevel ?? null; this.myDuprRating = u.duprRating ?? null; this.cdr.detectChanges(); },
+      error: () => {},
+    });
+  }
+
+  setMyLevel(level: SkillLevel | null) {
+    const uid = this.auth.user()?.id;
+    if (!uid || this.savingLevel || this.myLevel === level) return;
+    this.savingLevel = true;
+    this.cdr.detectChanges();
+    this.hp.setSkillLevel(uid, level).subscribe({
+      next: (u) => { this.myLevel = u.skillLevel ?? null; this.savingLevel = false; this.cdr.detectChanges(); },
+      error: () => { this.savingLevel = false; this.cdr.detectChanges(); },
+    });
+  }
+
+  saveMyDupr() {
+    const uid = this.auth.user()?.id;
+    if (!uid || this.savingDupr) return;
+    const val = this.myDuprRating;
+    if (val !== null && (isNaN(val) || val < 2.0 || val > 8.0)) {
+      this.duprSaveMsg = 'Must be between 2.000 and 8.000';
+      this.cdr.detectChanges();
+      return;
+    }
+    this.savingDupr = true;
+    this.duprSaveMsg = '';
+    this.cdr.detectChanges();
+    this.hp.setDuprProfile(uid, { duprRating: val }).subscribe({
+      next: (u) => {
+        this.myDuprRating = u.duprRating ?? null;
+        this.savingDupr = false;
+        this.duprSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.duprSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingDupr = false; this.duprSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
+  private readonly skillLevelLabels: Record<SkillLevel, string> = {
+    beginner: 'Beginner',
+    novice: 'Novice',
+    lower_intermediate: 'Lower Intermediate',
+    intermediate: 'Intermediate',
+    upper_intermediate: 'Upper Intermediate',
+    advanced: 'Advanced',
+    expert_elite: 'Expert / Elite',
+    professional: 'Professional',
+  };
+
+  levelLabel(l: SkillLevel | null): string {
+    return l ? this.skillLevelLabels[l] : 'Not set';
+  }
+
+  // Human-readable band on a session card, e.g. "Intermediate+" / "Up to Advanced" / "Intermediate–Advanced".
+  levelBand(s: HostedPlaySession): string {
+    const min = s.minSkillLevel, max = s.maxSkillLevel;
+    if (!min && !max) return '';
+    if (min && max) return min === max ? this.levelLabel(min) : `${this.levelLabel(min)}–${this.levelLabel(max)}`;
+    if (min) return `${this.levelLabel(min)}+`;
+    return `Up to ${this.levelLabel(max!)}`;
+  }
+
+  // Mirrors the server-side SKILL_ORDER in hosted-play.routes.js — checked here too so a
+  // blocked player is told immediately, before wading into the payment modal for a paid session.
+  private readonly skillOrder: Record<SkillLevel, number> = {
+    beginner: 1,
+    novice: 2,
+    lower_intermediate: 3,
+    intermediate: 4,
+    upper_intermediate: 5,
+    advanced: 6,
+    expert_elite: 7,
+    professional: 8,
+  };
+
+  skillGateError(s: HostedPlaySession): string | null {
+    const min = s.minSkillLevel, max = s.maxSkillLevel;
+    if (!min && !max) return null;
+    if (!this.myLevel) return 'This session is limited by skill level — set your level in your profile first.';
+    const o = this.skillOrder[this.myLevel];
+    if (min && o < this.skillOrder[min]) return `This session is for ${this.levelLabel(min)} level and up.`;
+    if (max && o > this.skillOrder[max]) return `This session is capped at ${this.levelLabel(max)} level.`;
+    return null;
   }
 
   loadClubCourts() {
@@ -878,25 +1105,34 @@ export class PlayerHostedPlayComponent implements OnInit {
   }
 
   join(s: HostedPlaySession) {
-    if ((s.feePerPlayer ?? 0) > 0) {
-      this.pendingSession = s;
-      this.paymentMethod = this.clubPaymentMethods[0] ?? 'GCash';
-      this.paymentScreenshotUrl = null;
-      this.screenshotPreviewUrl = null;
-      this.uploadingScreenshot = false;
-      this.submittingPayment = false;
-      this.paymentError = null;
-      this.showPaymentModal = true;
+    // Check the skill gate up front so a blocked player is told immediately,
+    // instead of only after filling out the payment modal for a paid session.
+    const gateErr = this.skillGateError(s);
+    if (gateErr) {
+      this.errorMap[s._id] = gateErr;
       this.cdr.detectChanges();
+      return;
+    }
+    // Full session → join the waitlist (no upfront payment; paid players pay on claim).
+    if (s.status === 'full') { this.joinWaitlist(s); return; }
+    // Paid session — let the player choose credit vs. club payment methods before joining.
+    if ((s.totalPerPlayer ?? s.feePerPlayer ?? 0) > 0) {
+      this.openPaymentModal(s, false);
       return;
     }
     this.busyId = s._id;
     this.errorMap[s._id] = '';
     this.hp.join(s._id).subscribe({
       next: (r) => {
-        s.joined = true;
-        s.currentPlayers = r.currentPlayers ?? s.currentPlayers;
-        s.status = r.status as any;
+        if (r.status === 'waitlisted') {
+          s.waitlisted = true;
+          s.waitlistPosition = r.waitlistPosition ?? null;
+        } else {
+          s.joined = true;
+          s.currentPlayers = r.currentPlayers ?? s.currentPlayers;
+          s.status = r.status as any;
+        }
+        if (r.creditApplied) this.creditBalance = Math.max(0, this.creditBalance - r.creditApplied);
         this.busyId = null;
         if (this.expandedId === s._id) this.loadPlayers(s._id);
         this.cdr.detectChanges();
@@ -907,6 +1143,57 @@ export class PlayerHostedPlayComponent implements OnInit {
         this.cdr.detectChanges();
       },
     });
+  }
+
+  // Full session: add to the waitlist (works for free and paid — no payment yet).
+  private joinWaitlist(s: HostedPlaySession) {
+    this.busyId = s._id;
+    this.errorMap[s._id] = '';
+    this.hp.join(s._id).subscribe({
+      next: (r) => {
+        if (r.status === 'waitlisted') {
+          s.waitlisted = true;
+          s.waitlistPosition = r.waitlistPosition ?? null;
+        } else {
+          // Race: a spot was free after all.
+          s.joined = true;
+          s.currentPlayers = r.currentPlayers ?? s.currentPlayers;
+          s.status = r.status as any;
+        }
+        this.busyId = null;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.busyId = null;
+        this.errorMap[s._id] = err?.error?.error || 'Failed to join the waitlist.';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  // Claim an offered waitlist spot (paid session) — let the player choose
+  // credit vs. club payment methods before claiming.
+  claim(s: HostedPlaySession) {
+    this.openPaymentModal(s, true);
+  }
+
+  private openPaymentModal(s: HostedPlaySession, claimMode: boolean) {
+    this.pendingSession = s;
+    this.claimMode = claimMode;
+    this.useCredit = this.creditBalance > 0;
+    this.paymentMethod = this.clubPaymentMethods[0] ?? 'GCash';
+    this.paymentScreenshotUrl = null;
+    this.screenshotPreviewUrl = null;
+    this.uploadingScreenshot = false;
+    this.submittingPayment = false;
+    this.paymentError = null;
+    this.showPaymentModal = true;
+    this.cdr.detectChanges();
+  }
+
+  toggleUseCredit() {
+    this.useCredit = !this.useCredit;
+    this.cdr.detectChanges();
   }
 
   async onScreenshotSelected(event: Event) {
@@ -933,35 +1220,53 @@ export class PlayerHostedPlayComponent implements OnInit {
 
   submitJoinWithPayment() {
     const s = this.pendingSession;
-    if (!s || !this.paymentScreenshotUrl || this.submittingPayment) return;
+    if (!s || this.submittingPayment) return;
+    const remaining = this.remainingAfterCredit(s);
+    if (remaining > 0 && !this.paymentScreenshotUrl) return;
+
     this.submittingPayment = true;
     this.paymentError = null;
     this.busyId = s._id;
     this.cdr.detectChanges();
 
     const payload: HostedPlayJoinPayload = {
-      paymentMethod: this.paymentMethod,
-      paymentScreenshot: this.paymentScreenshotUrl,
+      useCredit: this.useCredit,
+      ...(remaining > 0
+        ? { paymentMethod: this.paymentMethod, paymentScreenshot: this.paymentScreenshotUrl! }
+        : {}),
     };
 
-    this.hp.join(s._id, payload).subscribe({
-      next: (r) => {
-        if (r.status === 'pending_approval') {
+    const request$ = (this.claimMode ? this.hp.claim(s._id, payload) : this.hp.join(s._id, payload)) as
+      import('rxjs').Observable<{ status: string; currentPlayers?: number; sessionStatus?: string; creditApplied?: number }>;
+    request$.subscribe({
+      next: (r: { status: string; currentPlayers?: number; sessionStatus?: string; creditApplied?: number }) => {
+        if (this.claimMode) {
+          s.offered = false;
+          if (r.status === 'active') {
+            // Fully covered by credit — claimed immediately, no approval needed.
+            s.joined = true;
+          } else {
+            s.pendingApproval = true;
+          }
+        } else if (r.status === 'pending_approval') {
           s.pendingApproval = true;
+          s.currentPlayers = r.currentPlayers ?? s.currentPlayers;
+          if (r.sessionStatus) s.status = r.sessionStatus as any;
         } else {
           s.joined = true;
           s.currentPlayers = r.currentPlayers ?? s.currentPlayers;
           s.status = r.status as any;
         }
+        if (r.creditApplied) this.creditBalance = Math.max(0, this.creditBalance - r.creditApplied);
         this.busyId = null;
         this.submittingPayment = false;
         this.closePaymentModal();
         this.cdr.detectChanges();
       },
-      error: (err) => {
+      error: (err: any) => {
         this.busyId = null;
         this.submittingPayment = false;
-        this.paymentError = err?.error?.error || 'Failed to join. Please try again.';
+        this.paymentError = err?.error?.error || 'Something went wrong. Please try again.';
         this.cdr.detectChanges();
       },
     });
@@ -981,6 +1286,7 @@ export class PlayerHostedPlayComponent implements OnInit {
   closePaymentModal() {
     if (this.submittingPayment) return;
     this.showPaymentModal = false;
+    this.claimMode = false;
     this.pendingSession = null;
     this.paymentMethod = 'GCash';
     this.paymentScreenshotUrl = null;
@@ -997,6 +1303,10 @@ export class PlayerHostedPlayComponent implements OnInit {
     this.hp.cancelJoin(s._id).subscribe({
       next: (r) => {
         s.joined = false;
+        s.waitlisted = false;
+        s.offered = false;
+        s.pendingApproval = false;
+        s.waitlistPosition = null;
         s.currentPlayers = r.currentPlayers;
         s.status = r.status;
         this.busyId = null;

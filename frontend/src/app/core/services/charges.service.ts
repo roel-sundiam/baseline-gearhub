@@ -19,10 +19,11 @@ export interface Charge {
   chargeType: 'reservation' | 'session' | 'open_play_session' | 'per_game' | 'hosted_play';
   status: 'unpaid' | 'paid';
   approvalStatus?: 'none' | 'pending' | 'approved' | 'rejected';
-  paymentMethod?: 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme';
+  paymentMethod?: 'GCash' | 'Cash' | 'Bank Transfer' | 'GoTyme' | 'Credit';
   paidAt?: string;
   adminNote?: string;
   paymentScreenshot?: string | null;
+  creditApplied?: number;
   createdAt: string;
   updatedAt: string;
 }

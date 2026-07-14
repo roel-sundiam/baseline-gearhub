@@ -192,6 +192,11 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
               <span class="action-title">Manage Users</span>
               <span class="action-sub">Approve and maintain member accounts</span>
             </a>
+            <a routerLink="/admin/member-credits" class="action-card">
+              <span class="action-icon"><i class="fas fa-coins"></i></span>
+              <span class="action-title">Member Credits</span>
+              <span class="action-sub">Grant and track member credit balances</span>
+            </a>
             <a routerLink="/admin/reservations" class="action-card">
               <span class="action-icon"><i class="fas fa-calendar-check"></i></span>
               <span class="action-title">Court Reservations</span>
@@ -1470,6 +1475,49 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
         .poster-input {
           min-height: 40px;
           width: 100%;
+        }
+
+        /* Swipeable dashboard cards on phones */
+        .stats-grid,
+        .action-grid {
+          display: flex;
+          grid-template-columns: none;
+          overflow-x: auto;
+          overflow-y: hidden;
+          scroll-snap-type: x mandatory;
+          scroll-padding-inline: 0.75rem;
+          overscroll-behavior-inline: contain;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(163,230,53,0.45) rgba(255,255,255,0.06);
+          padding-bottom: 0.6rem;
+        }
+
+        .stats-grid::-webkit-scrollbar,
+        .action-grid::-webkit-scrollbar {
+          height: 4px;
+        }
+
+        .stats-grid::-webkit-scrollbar-track,
+        .action-grid::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.06);
+          border-radius: 999px;
+        }
+
+        .stats-grid::-webkit-scrollbar-thumb,
+        .action-grid::-webkit-scrollbar-thumb {
+          background: rgba(163,230,53,0.45);
+          border-radius: 999px;
+        }
+
+        .stats-grid .stat-card {
+          flex: 0 0 min(72vw, 250px);
+          scroll-snap-align: start;
+        }
+
+        .action-grid .action-card {
+          flex: 0 0 min(76vw, 270px);
+          scroll-snap-align: start;
         }
       }
     `,

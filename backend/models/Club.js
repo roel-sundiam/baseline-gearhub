@@ -27,6 +27,13 @@ const clubSchema = new mongoose.Schema(
     hostedPlayEnabled: { type: Boolean, default: false },
     hostedPlayQueueEnabled: { type: Boolean, default: false },
     queueManagementFeePerPlayer: { type: Number, default: 0, min: 0 },
+    // When a Hosted Play session is full, let players join a waitlist and get
+    // auto-promoted (free) / offered the spot to claim (paid) when one frees up.
+    hostedPlayWaitlistEnabled: { type: Boolean, default: true },
+    // This club's own DUPR Club ID, entered manually by a superadmin. Reserved
+    // for a future phase once a real DUPR API partnership/credentials exist -
+    // not validated against DUPR today.
+    duprClubId: { type: String, trim: true, default: null },
     additionalFees: [{
       name: { type: String, required: true },
       amount: { type: Number, required: true, min: 0 },

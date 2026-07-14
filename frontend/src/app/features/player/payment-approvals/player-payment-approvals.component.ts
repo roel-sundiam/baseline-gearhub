@@ -38,6 +38,9 @@ import { AuthService } from '../../../core/services/auth.service';
                       <div class="dm-charge-top">
                         <span class="dm-charge-title">{{ charge.chargeType === 'reservation' ? 'Court Reservation Fee' : 'Session Charge' }}</span>
                         <span class="dm-status dm-status-pending"><i class="fas fa-hourglass-half"></i> Pending</span>
+                        @if (isPartialCredit(charge)) {
+                          <span class="dm-status dm-status-credit"><i class="fas fa-coins"></i> Partial Credit</span>
+                        }
                       </div>
                       <div class="dm-charge-player">
                         <i class="far fa-user"></i>
@@ -53,6 +56,14 @@ import { AuthService } from '../../../core/services/auth.service';
                         @if (charge.paymentMethod) { <span>· <i class="far fa-credit-card"></i> {{ charge.paymentMethod }}</span> }
                         @if (charge.paidAt) { <span>· Submitted {{ charge.paidAt | date: 'MMM d' : 'UTC' }}</span> }
                       </div>
+                      @if ((charge.creditApplied ?? 0) > 0) {
+                        <div class="dm-charge-credit-note">
+                          <i class="fas fa-coins"></i> {{ charge.creditApplied | currency: 'PHP' : 'symbol' }} paid via credit
+                          @if (charge.paymentMethod && charge.paymentMethod !== 'Credit') {
+                            &middot; {{ (charge.amount - charge.creditApplied!) | currency: 'PHP' : 'symbol' }} via {{ charge.paymentMethod }}
+                          }
+                        </div>
+                      }
                       @if (rejectingId === charge._id) {
                         <div class="dm-reject-form">
                           <input class="dm-reject-input" type="text" placeholder="Reason (optional)"
@@ -196,6 +207,8 @@ import { AuthService } from '../../../core/services/auth.service';
     .dm-status { font-size: 0.65rem; font-weight: 700; border-radius: 8px; padding: 0.18rem 0.5rem; display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; }
     .dm-status-pending { background: rgba(245,158,11,0.14); color: #f59e0b; }
     .dm-status-rejected { background: rgba(239,68,68,0.14); color: #ef4444; }
+    .dm-status-credit { background: rgba(163,230,53,0.14); color: #a3e635; }
+    .dm-charge-credit-note { font-size: 0.72rem; color: #a3e635; display: flex; align-items: center; gap: 0.3rem; margin-top: 0.25rem; flex-wrap: wrap; }
 
     .dm-charge-right { display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; padding: 0.85rem 0.9rem; gap: 0.5rem; flex-shrink: 0; }
     .dm-charge-amount { font-size: 1rem; font-weight: 800; color: #a3e635; white-space: nowrap; }
@@ -290,6 +303,12 @@ export class PlayerPaymentApprovalsComponent implements OnInit, OnDestroy {
       return (charge.playerId as any).name || 'Unknown';
     }
     return 'Unknown';
+  }
+
+  // True when a charge was paid using a mix of account credit and an external method
+  // (as opposed to fully paid by credit alone, which already shows paymentMethod "Credit").
+  isPartialCredit(charge: Charge): boolean {
+    return (charge.creditApplied ?? 0) > 0 && !!charge.paymentMethod && charge.paymentMethod !== 'Credit';
   }
 
   approve(id: string) {

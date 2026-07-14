@@ -162,68 +162,122 @@ type FormModel = HostedPlayInput;
             <button class="x" (click)="closeForm()" aria-label="Close"><i class="fas fa-xmark"></i></button>
           </div>
 
-          <div class="modal-body form-grid">
-            <label class="field wide"><span>Event Title *</span>
-              <input type="text" [(ngModel)]="form.title" placeholder="Friday Night Doubles" />
-            </label>
-            <label class="field"><span>Sport *</span>
-              <select [(ngModel)]="form.sport">
-                <option value="tennis">Tennis</option>
-                <option value="pickleball">Pickleball</option>
-              </select>
-            </label>
-            <label class="field"><span>Date *</span>
-              <input type="date" [(ngModel)]="form.date" [min]="todayStr" />
-            </label>
-            <label class="field"><span>Start Time *</span>
-              <input type="time" [(ngModel)]="form.startTime" />
-            </label>
-            <label class="field"><span>End Time *</span>
-              <input type="time" [(ngModel)]="form.endTime" />
-            </label>
-            <label class="field wide"><span>Venue Name *</span>
-              @if (clubCourts.length > 0) {
-                <select [ngModel]="form.venue" (ngModelChange)="onVenueSelected($event)">
-                  <option value="" disabled>Select court...</option>
-                  @for (c of clubCourts; track c.name) {
-                    <option [value]="c.name">{{ c.name }}</option>
-                  }
-                </select>
-              } @else {
-                <input type="text" [(ngModel)]="form.venue" placeholder="Baseline Courts" />
-              }
-            </label>
-            <label class="field"><span>Court Name</span>
-              <input type="text" [(ngModel)]="form.court" placeholder="Court 1" />
-            </label>
-            <label class="field"><span>Fee Per Player</span>
-              <input type="number" min="0" step="1" [(ngModel)]="form.feePerPlayer" />
-            </label>
-            <label class="field"><span>Maximum Players *</span>
-              <input type="number" min="2" step="1" [(ngModel)]="form.maxPlayers" />
-            </label>
-            @if (queueEnabled()) {
-              <label class="field"><span>Number of Courts *</span>
-                <input type="number" min="1" step="1" [(ngModel)]="form.numberOfCourts" />
-              </label>
-            }
-            <label class="field wide"><span>Address</span>
-              <input type="text" [(ngModel)]="form.address" placeholder="123 Main St" />
-            </label>
-            <label class="field wide"><span>Description</span>
-              <textarea rows="3" [(ngModel)]="form.description" placeholder="Notes for members..."></textarea>
-            </label>
-            @if (formError) {
-              <div class="alert wide"><i class="fas fa-exclamation-triangle"></i> {{ formError }}</div>
+          <div class="form-stepper" aria-label="Session form progress">
+            @for (step of [1, 2, 3]; track step) {
+              <div class="step-item" [class.active]="formStep === step" [class.complete]="formStep > step">
+                <span class="step-number">
+                  @if (formStep > step) { <i class="fas fa-check"></i> } @else { {{ step }} }
+                </span>
+                <span class="step-copy">
+                  <strong>{{ step === 1 ? 'Basics' : step === 2 ? 'Venue' : 'Play settings' }}</strong>
+                  <small>{{ step === 1 ? 'What and when' : step === 2 ? 'Where and capacity' : 'Player preferences' }}</small>
+                </span>
+              </div>
             }
           </div>
 
-          <div class="modal-foot">
+          <div class="modal-body wizard-body">
+            <div class="wizard-heading">
+              <span>Step {{ formStep }} of 3</span>
+              <h4>{{ formStep === 1 ? 'Session basics' : formStep === 2 ? 'Venue & capacity' : 'Play settings' }}</h4>
+              <p>{{ formStep === 1 ? 'Give members the essential schedule details.' : formStep === 2 ? 'Set where the session happens and how many can join.' : 'Fine-tune queue, skill, and member-facing details.' }}</p>
+            </div>
+
+            <div class="form-grid step-fields">
+              @if (formStep === 1) {
+                <label class="field wide"><span>Event Title *</span>
+                  <input type="text" [(ngModel)]="form.title" placeholder="Friday Night Doubles" />
+                </label>
+                <label class="field"><span>Sport *</span>
+                  <select [(ngModel)]="form.sport">
+                    <option value="tennis">Tennis</option>
+                    <option value="pickleball">Pickleball</option>
+                  </select>
+                </label>
+                <label class="field"><span>Date *</span>
+                  <input type="date" [(ngModel)]="form.date" [min]="todayStr" />
+                </label>
+                <label class="field"><span>Start Time *</span>
+                  <input type="time" [(ngModel)]="form.startTime" />
+                </label>
+                <label class="field"><span>End Time *</span>
+                  <input type="time" [(ngModel)]="form.endTime" />
+                </label>
+              }
+
+              @if (formStep === 2) {
+                <label class="field wide"><span>Venue Name *</span>
+                  @if (clubCourts.length > 0) {
+                    <select [ngModel]="form.venue" (ngModelChange)="onVenueSelected($event)">
+                      <option value="" disabled>Select court...</option>
+                      @for (c of clubCourts; track c.name) { <option [value]="c.name">{{ c.name }}</option> }
+                    </select>
+                  } @else {
+                    <input type="text" [(ngModel)]="form.venue" placeholder="Baseline Courts" />
+                  }
+                </label>
+                <label class="field"><span>Court Name</span>
+                  <input type="text" [(ngModel)]="form.court" placeholder="Court 1" />
+                </label>
+                <label class="field"><span>Maximum Players *</span>
+                  <input type="number" min="2" step="1" [(ngModel)]="form.maxPlayers" />
+                </label>
+                <label class="field"><span>Fee Per Player</span>
+                  <input type="number" min="0" step="1" [(ngModel)]="form.feePerPlayer" />
+                </label>
+                <label class="field wide"><span>Address</span>
+                  <input type="text" [(ngModel)]="form.address" placeholder="123 Main St" />
+                </label>
+              }
+
+              @if (formStep === 3) {
+                @if (queueEnabled()) {
+                  <div class="step-callout wide"><i class="fas fa-list-ol"></i><div><strong>Queue management is enabled</strong><span>Configure court rotation for this session.</span></div></div>
+                  <label class="field"><span>Number of Courts *</span>
+                    <input type="number" min="1" step="1" [(ngModel)]="form.numberOfCourts" />
+                  </label>
+                  <label class="field"><span>Rotation Format</span>
+                    <select [(ngModel)]="form.queueMode">
+                      <option value="fcfs">First come, first served</option>
+                      <option value="winner_stays">Winner stays (challenge court)</option>
+                      <option value="king_of_court">King of the court</option>
+                    </select>
+                  </label>
+                }
+                <label class="field"><span>Min Skill Level</span>
+                  <select [(ngModel)]="form.minSkillLevel">
+                    <option [ngValue]="null">Any</option><option value="beginner">Beginner</option><option value="novice">Novice</option><option value="lower_intermediate">Lower Intermediate</option><option value="intermediate">Intermediate</option><option value="upper_intermediate">Upper Intermediate</option><option value="advanced">Advanced</option><option value="expert_elite">Expert / Elite</option><option value="professional">Professional</option>
+                  </select>
+                </label>
+                <label class="field"><span>Max Skill Level</span>
+                  <select [(ngModel)]="form.maxSkillLevel">
+                    <option [ngValue]="null">Any</option><option value="beginner">Beginner</option><option value="novice">Novice</option><option value="lower_intermediate">Lower Intermediate</option><option value="intermediate">Intermediate</option><option value="upper_intermediate">Upper Intermediate</option><option value="advanced">Advanced</option><option value="expert_elite">Expert / Elite</option><option value="professional">Professional</option>
+                  </select>
+                </label>
+                <label class="field wide"><span>Description</span>
+                  <textarea rows="3" [(ngModel)]="form.description" placeholder="Notes for members..."></textarea>
+                </label>
+              }
+            </div>
+
+            @if (formError) {
+              <div class="alert"><i class="fas fa-exclamation-triangle"></i> {{ formError }}</div>
+            }
+          </div>
+
+          <div class="modal-foot wizard-foot">
             <button class="secondary-btn" (click)="closeForm()">Cancel</button>
-            <button class="primary-action" [disabled]="saving" (click)="save()">
-              @if (saving) { <i class="fas fa-circle-notch fa-spin"></i> Saving }
-              @else { {{ editingId ? 'Save Changes' : 'Create Session' }} }
-            </button>
+            <div class="wizard-actions">
+              @if (formStep > 1) { <button class="secondary-btn" (click)="previousFormStep()"><i class="fas fa-arrow-left"></i> Back</button> }
+              @if (formStep < 3) {
+                <button class="primary-action" (click)="nextFormStep()">Next <i class="fas fa-arrow-right"></i></button>
+              } @else {
+                <button class="primary-action" [disabled]="saving" (click)="save()">
+                  @if (saving) { <i class="fas fa-circle-notch fa-spin"></i> Saving }
+                  @else { {{ editingId ? 'Save Changes' : 'Create Session' }} }
+                </button>
+              }
+            </div>
           </div>
         </div>
       </div>
@@ -621,8 +675,29 @@ type FormModel = HostedPlayInput;
     .confirm-modal { max-width: 390px; padding: 1.4rem; text-align: center; }
     .modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.1rem .7rem; }
     .modal h3 { margin: .1rem 0 0; font-size: 1.15rem; }
+    .form-stepper { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; padding: .5rem 1.1rem 1rem; border-bottom: 1px solid var(--border); }
+    .step-item { position: relative; display: flex; align-items: center; gap: .55rem; min-width: 0; padding: .6rem; border: 1px solid transparent; border-radius: 10px; color: var(--soft); }
+    .step-item:not(:last-child)::after { content: ''; position: absolute; left: calc(100% + .05rem); top: 50%; width: .45rem; height: 1px; background: var(--border); }
+    .step-item.active { color: var(--text); background: rgba(163,230,53,.08); border-color: rgba(163,230,53,.25); }
+    .step-item.complete { color: var(--muted); }
+    .step-number { width: 28px; height: 28px; flex: 0 0 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--border); background: rgba(255,255,255,.05); font-size: .72rem; font-weight: 950; }
+    .step-item.active .step-number, .step-item.complete .step-number { color: #07130d; background: var(--accent); border-color: var(--accent); }
+    .step-copy { min-width: 0; display: flex; flex-direction: column; gap: .08rem; }
+    .step-copy strong { font-size: .76rem; white-space: nowrap; }
+    .step-copy small { color: var(--muted); font-size: .64rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .modal-body { padding: .4rem 1.1rem 1rem; }
+    .wizard-body { min-height: 335px; padding-top: 1rem; }
+    .wizard-heading { margin-bottom: 1rem; }
+    .wizard-heading > span { color: var(--accent); font-size: .68rem; font-weight: 950; text-transform: uppercase; letter-spacing: .08em; }
+    .wizard-heading h4 { margin: .25rem 0 .2rem; color: var(--text); font-size: 1.05rem; }
+    .wizard-heading p { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.45; }
     .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .8rem; }
+    .step-fields { align-content: start; }
+    .step-callout { display: flex; align-items: center; gap: .7rem; padding: .7rem .8rem; border: 1px solid rgba(163,230,53,.18); border-radius: 8px; background: rgba(163,230,53,.06); }
+    .step-callout > i { color: var(--accent); }
+    .step-callout div { display: flex; flex-direction: column; gap: .1rem; }
+    .step-callout strong { color: var(--text); font-size: .78rem; }
+    .step-callout span { color: var(--muted); font-size: .72rem; }
     .wide { grid-column: 1 / -1; }
     .field { display: flex; flex-direction: column; gap: .35rem; }
     .field span { color: var(--muted); font-size: .78rem; font-weight: 850; }
@@ -654,6 +729,9 @@ type FormModel = HostedPlayInput;
     }
     .modal-foot { display: flex; justify-content: flex-end; gap: .65rem; padding: .85rem 1.1rem 1.1rem; }
     .modal-foot > * { min-width: 140px; }
+    .wizard-foot { justify-content: space-between; border-top: 1px solid var(--border); }
+    .wizard-actions { display: flex; justify-content: flex-end; gap: .65rem; }
+    .wizard-actions > * { min-width: 120px; }
     .confirm-icon { width: 58px; height: 58px; margin: 0 auto .8rem; border-radius: 50%; background: rgba(239,68,68,.14); color: #fca5a5; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
     .queue-confirm-icon { background: rgba(163,230,53,.13); color: var(--accent); }
     .confirm-modal p { color: var(--muted); line-height: 1.55; margin: .6rem 0 0; }
@@ -701,9 +779,16 @@ type FormModel = HostedPlayInput;
       .action { width: 100%; }
       .modal-backdrop { align-items: flex-end; padding: 0; }
       .modal { border-radius: 14px 14px 0 0; max-height: 94vh; }
+      .form-stepper { gap: .3rem; padding-inline: .75rem; }
+      .step-item { justify-content: center; padding: .45rem .25rem; }
+      .step-copy small { display: none; }
+      .step-copy strong { font-size: .68rem; }
+      .wizard-body { min-height: 360px; }
       .form-grid { grid-template-columns: 1fr; }
       .modal-foot { flex-direction: column-reverse; }
       .modal-foot > * { width: 100%; }
+      .wizard-actions { width: 100%; }
+      .wizard-actions > * { flex: 1; min-width: 0; }
       .participant-date { display: none; }
     }
 
@@ -735,6 +820,7 @@ export class AdminHostedPlayComponent implements OnInit {
   courtsError = '';
 
   showForm = false;
+  formStep = 1;
   editingId: string | null = null;
   saving = false;
   formError = '';
@@ -790,7 +876,7 @@ export class AdminHostedPlayComponent implements OnInit {
     return {
       title: '', sport: 'tennis', date: '', startTime: '', endTime: '',
       venue: '', court: '', address: '', feePerPlayer: 0, maxPlayers: 8, description: '',
-      numberOfCourts: 1,
+      numberOfCourts: 1, queueMode: 'fcfs', minSkillLevel: null, maxSkillLevel: null,
     };
   }
 
@@ -880,6 +966,7 @@ export class AdminHostedPlayComponent implements OnInit {
 
   openCreate() {
     this.editingId = null;
+    this.formStep = 1;
     this.form = this.blankForm();
     this.formError = '';
     this.showForm = true;
@@ -888,11 +975,14 @@ export class AdminHostedPlayComponent implements OnInit {
 
   openEdit(s: HostedPlaySession) {
     this.editingId = s._id;
+    this.formStep = 1;
     this.form = {
       title: s.title, sport: s.sport, date: (s.date || '').slice(0, 10),
       startTime: s.startTime, endTime: s.endTime, venue: s.venue, court: s.court || '',
       address: s.address || '', feePerPlayer: s.feePerPlayer, maxPlayers: s.maxPlayers,
       description: s.description || '', numberOfCourts: s.numberOfCourts ?? 1,
+      queueMode: s.queueMode || 'fcfs',
+      minSkillLevel: s.minSkillLevel ?? null, maxSkillLevel: s.maxSkillLevel ?? null,
     };
     this.formError = '';
     this.showForm = true;
@@ -901,16 +991,51 @@ export class AdminHostedPlayComponent implements OnInit {
 
   closeForm() { this.showForm = false; this.cdr.detectChanges(); }
 
-  save() {
-    if (!this.form.title || !this.form.date || !this.form.startTime || !this.form.endTime || !this.form.venue) {
-      this.formError = 'Please fill in all required fields.';
+  nextFormStep() {
+    const error = this.validateFormStep(this.formStep);
+    if (error) {
+      this.formError = error;
       this.cdr.detectChanges();
       return;
     }
-    if (!this.form.maxPlayers || this.form.maxPlayers < 2) {
-      this.formError = 'Maximum players must be at least 2.';
-      this.cdr.detectChanges();
-      return;
+    this.formError = '';
+    this.formStep = Math.min(3, this.formStep + 1);
+    this.cdr.detectChanges();
+  }
+
+  previousFormStep() {
+    this.formError = '';
+    this.formStep = Math.max(1, this.formStep - 1);
+    this.cdr.detectChanges();
+  }
+
+  private validateFormStep(step: number): string {
+    if (step === 1) {
+      if (!this.form.title?.trim()) return 'Enter an event title to continue.';
+      if (!this.form.date) return 'Choose a session date to continue.';
+      if (!this.form.startTime || !this.form.endTime) return 'Enter both the start and end time.';
+      if (this.form.endTime <= this.form.startTime) return 'End time must be later than start time.';
+    }
+    if (step === 2) {
+      if (!this.form.venue?.trim()) return 'Select or enter a venue to continue.';
+      if (!this.form.maxPlayers || this.form.maxPlayers < 2) return 'Maximum players must be at least 2.';
+      if (this.form.feePerPlayer < 0) return 'Fee per player cannot be negative.';
+    }
+    if (step === 3 && this.queueEnabled() && (!this.form.numberOfCourts || this.form.numberOfCourts < 1)) {
+      return 'Number of courts must be at least 1.';
+    }
+    return '';
+  }
+
+  save() {
+    for (let step = 1; step <= 3; step++) {
+      const error = this.validateFormStep(step);
+      if (error) {
+        this.formStep = step;
+        this.formError = error;
+        this.cdr.detectChanges();
+        return;
+      }
     }
     this.saving = true;
     this.formError = '';
