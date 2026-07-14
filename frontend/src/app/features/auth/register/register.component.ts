@@ -1,7 +1,7 @@
 import { Component, ChangeDetectorRef, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink, Router } from '@angular/router';
+import { RouterLink, Router, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
 import { ClubService, Club } from '../../../core/services/club.service';
@@ -630,6 +630,7 @@ export class RegisterComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private clubService: ClubService,
     private router: Router,
+    private route: ActivatedRoute,
     private location: Location,
   ) {}
 
@@ -648,6 +649,11 @@ export class RegisterComponent implements OnInit, OnDestroy {
         this.clubs = active;
         this.filteredClubs = active;
         this.loadingClubs = false;
+        const preselectId = this.route.snapshot.queryParamMap.get('clubId');
+        if (preselectId) {
+          const match = active.find(c => c._id === preselectId);
+          if (match) this.selectClub(match);
+        }
         this.cdr.detectChanges();
       },
       error: () => {

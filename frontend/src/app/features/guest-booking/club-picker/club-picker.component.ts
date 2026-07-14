@@ -392,6 +392,11 @@ type UnifiedSession = {
               <span class="no-rating">New</span>
             }
           </div>
+        </div>
+        <div class="card-actions">
+          <button class="register-player-btn" (click)="$event.stopPropagation(); registerPlayer(club)">
+            Register Player
+          </button>
           <button class="book-btn" (click)="$event.stopPropagation(); pick(club)">
             {{ activeTab() === 'play' ? 'View Sessions' : 'Book Now' }}
           </button>
@@ -895,6 +900,7 @@ type UnifiedSession = {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 0.75rem;
       margin-top: auto;
       padding-top: 0.5rem;
     }
@@ -910,13 +916,23 @@ type UnifiedSession = {
     .review-count { color: rgba(255,255,255,0.35); }
     .no-rating { color: rgba(255,255,255,0.35); font-style: italic; font-size: 0.78rem; }
 
+    .card-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.6rem;
+    }
+    .card-actions button {
+      flex: 1;
+      text-align: center;
+    }
     .book-btn {
-      padding: 0.5rem 1.1rem;
+      padding: 0.5rem 0.6rem;
       background: #a3e635;
       color: #0c1a11;
       border: none;
       border-radius: 10px;
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       font-weight: 800;
       font-family: inherit;
       cursor: pointer;
@@ -925,6 +941,21 @@ type UnifiedSession = {
     }
     .book-btn:hover { background: #b6f241; }
     .book-btn:active { transform: scale(0.97); }
+    .register-player-btn {
+      padding: 0.5rem 0.6rem;
+      background: transparent;
+      color: #a3e635;
+      border: 1px solid rgba(163,230,53,0.5);
+      border-radius: 10px;
+      font-size: 0.8rem;
+      font-weight: 800;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+    .register-player-btn:hover { background: rgba(163,230,53,0.12); }
+    .register-player-btn:active { transform: scale(0.97); }
 
     /* ── State views ── */
     .state-centered {
@@ -1346,6 +1377,10 @@ export class ClubPickerComponent implements OnInit {
 
   pick(club: Club) {
     this.router.navigate(['/book', club.slug ?? club._id]);
+  }
+
+  registerPlayer(club: Club) {
+    this.router.navigate(['/register'], { queryParams: { clubId: club._id } });
   }
 
   applyFilters() {
