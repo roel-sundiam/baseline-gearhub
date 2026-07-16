@@ -19,7 +19,7 @@ export interface CreditEntry {
 export interface MemberBalance {
   _id: string;
   name: string;
-  email: string;
+  email?: string;
   username: string;
   balance: number;
 }

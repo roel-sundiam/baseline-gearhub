@@ -383,7 +383,7 @@ export class MemberCreditsComponent implements OnInit {
   applySearch() {
     const q = this.searchQuery.toLowerCase().trim();
     this.filteredMembers = q
-      ? this.members.filter(m => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
+      ? this.members.filter(m => m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q))
       : this.members;
   }
 
