@@ -22,6 +22,7 @@ type RawHostedSession = {
   _id: string; title: string; sport: string;
   date: string; startTime: string; endTime: string;
   venue: string; court?: string; feePerPlayer: number;
+  guestFeePerPlayer?: number;
   maxPlayers: number; currentPlayers: number; status: 'open' | 'full';
   venueLogo?: string | null;
   club: { _id: string; name: string; slug?: string; location?: string; logo?: string };
@@ -1459,7 +1460,8 @@ export class ClubPickerComponent implements OnInit {
       _id: s._id.toString(), type: 'hosted_play',
       title: s.title, sport: s.sport,
       sessionDate: s.date, startTime: s.startTime, endTime: s.endTime,
-      feePerPlayer: s.feePerPlayer, maxPlayers: s.maxPlayers,
+      // Public viewers join as guests, so quote the (resolved) guest fee.
+      feePerPlayer: s.guestFeePerPlayer ?? s.feePerPlayer, maxPlayers: s.maxPlayers,
       currentPlayers: s.currentPlayers,
       isFull: s.status === 'full' || s.currentPlayers >= s.maxPlayers,
       club: s.club, logoUrl: s.venueLogo ?? s.club.logo ?? null,

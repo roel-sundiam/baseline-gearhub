@@ -12,6 +12,10 @@ const hostedPlaySchema = new mongoose.Schema(
     court: { type: String, trim: true },
     address: { type: String, trim: true },
     feePerPlayer: { type: Number, default: 0, min: 0 },
+    // Guest pricing/capacity. guestFeePerPlayer null = guests pay feePerPlayer.
+    // maxGuests counts within maxPlayers; null = no guest-specific limit, 0 = no guests.
+    guestFeePerPlayer: { type: Number, default: null, min: 0 },
+    maxGuests: { type: Number, default: null, min: 0 },
     maxPlayers: { type: Number, required: true, min: 2 },
     currentPlayers: { type: Number, default: 0, min: 0 },
     status: {

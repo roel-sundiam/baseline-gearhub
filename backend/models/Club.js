@@ -30,6 +30,13 @@ const clubSchema = new mongoose.Schema(
     // When a Hosted Play session is full, let players join a waitlist and get
     // auto-promoted (free) / offered the spot to claim (paid) when one frees up.
     hostedPlayWaitlistEnabled: { type: Boolean, default: true },
+    // Finance Report premium add-on: club admin self-subscribes; the monthly fee
+    // accrues as AppServicePayment billing entries while enabled. subscribedAt is
+    // kept on cancel (for display); ledger data is always preserved.
+    financeReportEnabled: { type: Boolean, default: false },
+    financeReportSubscribedAt: { type: Date, default: null },
+    financeReportFeeOverride: { type: Number, default: null, min: 0 }, // null => global default
+
     // This club's own DUPR Club ID, entered manually by a superadmin. Reserved
     // for a future phase once a real DUPR API partnership/credentials exist -
     // not validated against DUPR today.

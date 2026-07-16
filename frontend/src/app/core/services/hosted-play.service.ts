@@ -35,7 +35,9 @@ export interface HostedPlaySession {
   court?: string;
   address?: string;
   feePerPlayer: number;
+  guestFeePerPlayer?: number | null;
   maxPlayers: number;
+  maxGuests?: number | null;
   currentPlayers: number;
   status: HostedPlayStatus | 'completed';
   description?: string;
@@ -104,6 +106,9 @@ export interface QueueBoard {
     feePerPlayer?: number;
     convenienceFeePerPlayer?: number;
     totalPerPlayer?: number;
+    guestFeePerPlayer?: number;
+    guestConvenienceFeePerPlayer?: number;
+    guestTotalPerPlayer?: number;
   };
   courts: QueueCourt[];
   waiting: QueuePlayer[];
@@ -157,7 +162,9 @@ export interface HostedPlayInput {
   court?: string;
   address?: string;
   feePerPlayer: number;
+  guestFeePerPlayer?: number | null;
   maxPlayers: number;
+  maxGuests?: number | null;
   description?: string;
   numberOfCourts?: number;
   playersPerCourt?: number;

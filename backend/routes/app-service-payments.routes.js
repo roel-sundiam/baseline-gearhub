@@ -5,6 +5,7 @@ const superadmin = require("../middleware/superadmin");
 const AppServicePayment = require("../models/AppServicePayment");
 const Charge = require("../models/Charge");
 const Club = require("../models/Club");
+const { ensureFinanceReportBilling, getEffectiveFinanceReportFee } = require("../utils/financeReportBilling");
 
 const router = express.Router();
 
@@ -150,8 +151,15 @@ router.get("/report", auth, superadmin, async (req, res) => {
 // GET /api/app-service-payments/summary — cross-club overview (superadmin only)
 router.get("/summary", auth, superadmin, async (req, res) => {
   try {
-    const [clubs, chargeAgg, openPlayAgg, perGameAgg, hostedPlayAgg, paymentAgg, waiverAgg, billingAgg] = await Promise.all([
-      Club.find({ status: { $ne: "suspended" } }, "_id name convenienceFeeRate convenienceFeeMode convenienceFeeMonthlyAmount").lean(),
+    // Accrue any pending Finance Report add-on billing before aggregating owed amounts
+    const financeReportClubs = await Club.find(
+      { financeReportEnabled: true, status: { $ne: "suspended" } },
+      "_id financeReportEnabled financeReportSubscribedAt financeReportFeeOverride",
+    ).lean();
+    await Promise.all(financeReportClubs.map((c) => ensureFinanceReportBilling(c, req.user.userId)));
+
+    const [clubs, chargeAgg, openPlayAgg, perGameAgg, hostedPlayAgg, paymentAgg, waiverAgg, billingAgg, defaultFinanceReportFee] = await Promise.all([
+      Club.find({ status: { $ne: "suspended" } }, "_id name convenienceFeeRate convenienceFeeMode convenienceFeeMonthlyAmount financeReportEnabled financeReportSubscribedAt financeReportFeeOverride").lean(),
       Charge.aggregate([
         { $match: { chargeType: "reservation" } },
         { $lookup: { from: "reservations", localField: "reservationId", foreignField: "_id", as: "reservation" } },
@@ -198,8 +206,25 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       ]),
       AppServicePayment.aggregate([
         { $match: { type: "billing" } },
-        { $group: { _id: "$clubId", totalBilled: { $sum: "$amount" } } },
+        {
+          $group: {
+            _id: "$clubId",
+            totalBilled: { $sum: "$amount" },
+            // Finance Report billing docs are tagged with billingKey "finance_report:YYYY-MM" —
+            // segregate them out so they aren't mislabeled as a "convenience fee".
+            totalFinanceReportBilled: {
+              $sum: {
+                $cond: [
+                  { $regexMatch: { input: { $ifNull: ["$billingKey", ""] }, regex: /^finance_report:/ } },
+                  "$amount",
+                  0,
+                ],
+              },
+            },
+          },
+        },
       ]),
+      getEffectiveFinanceReportFee(null),
     ]);
 
     const chargeMap = Object.fromEntries(chargeAgg.map((r) => [r._id.toString(), { totalCourtFees: r.totalCourtFees, totalConvenienceFees: r.totalConvenienceFees }]));
@@ -209,6 +234,7 @@ router.get("/summary", auth, superadmin, async (req, res) => {
     const paymentMap = Object.fromEntries(paymentAgg.map((r) => [r._id.toString(), r.totalPaid]));
     const waiverMap = Object.fromEntries(waiverAgg.map((r) => [r._id.toString(), r.totalWaived]));
     const billingMap = Object.fromEntries(billingAgg.map((r) => [r._id.toString(), r.totalBilled]));
+    const financeReportBilledMap = Object.fromEntries(billingAgg.map((r) => [r._id.toString(), r.totalFinanceReportBilled]));
 
     const clubData = clubs.map((club) => {
       const id = club._id.toString();
@@ -218,8 +244,9 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       const convenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
       const convenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
       const hostedPlayData = hostedPlayMap[id] ?? { convFee: 0, sessionFees: 0 };
+      // monthly_flat clubs also owe their billing entries (queue management, finance report add-on)
       const feesOwed = convenienceFeeMode === 'monthly_flat'
-        ? parseFloat((convenienceFeeMonthlyAmount).toFixed(2))
+        ? parseFloat((convenienceFeeMonthlyAmount + (billingMap[id] ?? 0)).toFixed(2))
         : parseFloat((chargeData.totalConvenienceFees + (openPlayMap[id] ?? 0) + (perGameMap[id] ?? 0) + hostedPlayData.convFee + (billingMap[id] ?? 0)).toFixed(2));
       const totalPaid = paymentMap[id] || 0;
       const totalWaived = waiverMap[id] || 0;
@@ -227,7 +254,22 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       const balance = convenienceFeeMode === 'monthly_flat'
         ? parseFloat(Math.max(0, feesOwed - totalPaid).toFixed(2))
         : parseFloat((feesOwed - totalPaid - totalWaived).toFixed(2));
-      return { clubId: id, clubName: club.name, convenienceFeeRate, convenienceFeeMode, convenienceFeeMonthlyAmount, totalCourtFees, totalHostedPlaySessionFees, feesOwed, totalPaid, totalWaived, balance };
+      const financeReportMonthlyFee = typeof club.financeReportFeeOverride === 'number'
+        ? club.financeReportFeeOverride
+        : defaultFinanceReportFee;
+      // feesOwed/balance stay the grand total (what the club must actually settle); this is just
+      // the true convenience-fee portion, with the Finance Report add-on billing pulled out.
+      const financeReportFeesBilled = parseFloat((financeReportBilledMap[id] ?? 0).toFixed(2));
+      const convenienceFeesOwed = parseFloat((feesOwed - financeReportFeesBilled).toFixed(2));
+      return {
+        clubId: id, clubName: club.name, convenienceFeeRate, convenienceFeeMode, convenienceFeeMonthlyAmount,
+        totalCourtFees, totalHostedPlaySessionFees, feesOwed, totalPaid, totalWaived, balance,
+        convenienceFeesOwed, financeReportFeesBilled,
+        financeReportEnabled: !!club.financeReportEnabled,
+        financeReportSubscribedAt: club.financeReportSubscribedAt ?? null,
+        financeReportFeeOverride: club.financeReportFeeOverride ?? null,
+        financeReportMonthlyFee,
+      };
     });
 
     clubData.sort((a, b) => b.balance - a.balance);
@@ -238,9 +280,11 @@ router.get("/summary", auth, superadmin, async (req, res) => {
         acc.totalPaid = parseFloat((acc.totalPaid + c.totalPaid).toFixed(2));
         acc.totalWaived = parseFloat((acc.totalWaived + c.totalWaived).toFixed(2));
         acc.outstanding = parseFloat((acc.outstanding + Math.max(0, c.balance)).toFixed(2));
+        acc.convenienceFeesOwed = parseFloat((acc.convenienceFeesOwed + c.convenienceFeesOwed).toFixed(2));
+        acc.financeReportFeesBilled = parseFloat((acc.financeReportFeesBilled + c.financeReportFeesBilled).toFixed(2));
         return acc;
       },
-      { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0 },
+      { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0, convenienceFeesOwed: 0, financeReportFeesBilled: 0 },
     );
 
     res.json({ clubs: clubData, totals });
@@ -304,6 +348,14 @@ router.get("/fee-info", auth, admin, async (req, res) => {
     const mongoose = require("mongoose");
     const clubObjId = new mongoose.Types.ObjectId(clubId);
 
+    // Accrue any pending Finance Report add-on billing before computing the balance
+    const clubForBilling = await Club.findById(clubId)
+      .select("financeReportEnabled financeReportSubscribedAt financeReportFeeOverride")
+      .lean();
+    if (!clubForBilling) return res.status(404).json({ error: "Club not found" });
+    await ensureFinanceReportBilling(clubForBilling, req.user.userId);
+    const financeReportMonthlyFee = await getEffectiveFinanceReportFee(clubForBilling);
+
     const [club, chargeAgg, paymentAgg, waiverAgg, billingAgg] = await Promise.all([
       Club.findById(clubId).select("convenienceFeeMode convenienceFeeMonthlyAmount balanceAlertEnabled").lean(),
       // Only confirmed reservation charges + all open_play_session / per_game / hosted_play charges
@@ -330,7 +382,21 @@ router.get("/fee-info", auth, admin, async (req, res) => {
       ]),
       AppServicePayment.aggregate([
         { $match: { type: "billing", clubId: clubObjId } },
-        { $group: { _id: null, totalBilled: { $sum: "$amount" } } },
+        {
+          $group: {
+            _id: null,
+            totalBilled: { $sum: "$amount" },
+            totalFinanceReportBilled: {
+              $sum: {
+                $cond: [
+                  { $regexMatch: { input: { $ifNull: ["$billingKey", ""] }, regex: /^finance_report:/ } },
+                  "$amount",
+                  0,
+                ],
+              },
+            },
+          },
+        },
       ]),
     ]);
 
@@ -340,6 +406,7 @@ router.get("/fee-info", auth, admin, async (req, res) => {
     const convenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
     const totalConvenienceFees = chargeAgg[0]?.totalConvenienceFees ?? 0;
     const totalBilled = billingAgg[0]?.totalBilled ?? 0;
+    const totalFinanceReportBilled = billingAgg[0]?.totalFinanceReportBilled ?? 0;
     const totalPaid = paymentAgg[0]?.totalPaid ?? 0;
     const totalWaived = waiverAgg[0]?.totalWaived ?? 0;
 
@@ -349,12 +416,21 @@ router.get("/fee-info", auth, admin, async (req, res) => {
     const balance = convenienceFeeMode === 'monthly_flat'
       ? parseFloat(Math.max(0, feesOwed - totalPaid).toFixed(2))
       : parseFloat(Math.max(0, feesOwed - totalPaid - totalWaived).toFixed(2));
+    // feesOwed/balance stay the grand total (what's actually owed); this is just the true
+    // convenience-fee portion, with the Finance Report add-on billing pulled out.
+    const convenienceFeesOwed = parseFloat((feesOwed - totalFinanceReportBilled).toFixed(2));
 
     res.json({
       convenienceFeeMode,
       convenienceFeeMonthlyAmount,
       balanceAlertEnabled: club.balanceAlertEnabled ?? false,
       balance,
+      convenienceFeesOwed,
+      financeReportFeesBilled: parseFloat(totalFinanceReportBilled.toFixed(2)),
+      financeReportEnabled: !!clubForBilling.financeReportEnabled,
+      financeReportSubscribedAt: clubForBilling.financeReportSubscribedAt ?? null,
+      // Effective price, returned even when unsubscribed so the paywall can show it
+      financeReportMonthlyFee,
     });
   } catch (err) {
     res.status(500).json({ error: "Server error" });

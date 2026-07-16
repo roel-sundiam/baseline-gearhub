@@ -104,6 +104,7 @@ export class PublicBookingService {
       _id: string; title: string; sport: 'tennis' | 'pickleball';
       date: string; startTime: string; endTime: string;
       venue: string; court?: string; feePerPlayer: number;
+      guestFeePerPlayer: number; maxGuests: number | null; currentGuests: number;
       maxPlayers: number; currentPlayers: number; status: 'open' | 'full';
       venueLogo?: string | null;
     }[]>(`${this.base}/${clubId}/hosted-play`);
@@ -131,6 +132,7 @@ export class PublicBookingService {
       _id: string; title: string; sport: 'tennis' | 'pickleball';
       date: string; startTime: string; endTime: string;
       venue: string; court?: string; feePerPlayer: number;
+      guestFeePerPlayer: number;
       maxPlayers: number; currentPlayers: number; status: 'open' | 'full';
       venueLogo?: string | null;
       club: { _id: string; name: string; slug?: string; location?: string; logo?: string };

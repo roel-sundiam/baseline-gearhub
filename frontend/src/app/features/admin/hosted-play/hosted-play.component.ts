@@ -108,6 +108,12 @@ type FormModel = HostedPlayInput;
                     <span><i class="fas fa-clock"></i> {{ s.startTime }} - {{ s.endTime }}</span>
                     <span><i class="fas fa-location-dot"></i> {{ s.venue }}{{ s.court ? ' - ' + s.court : '' }}</span>
                     <span><i class="fas fa-coins"></i> {{ s.feePerPlayer | currency: 'PHP' : 'symbol-narrow' }} / player</span>
+                    @if (s.guestFeePerPlayer != null) {
+                      <span><i class="fas fa-user-friends"></i> {{ s.guestFeePerPlayer | currency: 'PHP' : 'symbol-narrow' }} / guest</span>
+                    }
+                    @if (s.maxGuests != null) {
+                      <span><i class="fas fa-user-plus"></i> {{ s.maxGuests }} guest {{ s.maxGuests === 1 ? 'spot' : 'spots' }}</span>
+                    }
                   </div>
 
                   <div class="capacity">
@@ -228,6 +234,12 @@ type FormModel = HostedPlayInput;
                 </label>
                 <label class="field"><span>Fee Per Player</span>
                   <input type="number" min="0" step="1" [(ngModel)]="form.feePerPlayer" />
+                </label>
+                <label class="field"><span>Max Guests</span>
+                  <input type="number" min="0" step="1" [(ngModel)]="form.maxGuests" placeholder="No limit" />
+                </label>
+                <label class="field"><span>Guest Fee Per Player</span>
+                  <input type="number" min="0" step="1" [(ngModel)]="form.guestFeePerPlayer" placeholder="Same as member fee" />
                 </label>
                 <label class="field wide"><span>Address</span>
                   <input type="text" [(ngModel)]="form.address" placeholder="123 Main St" />
@@ -879,7 +891,8 @@ export class AdminHostedPlayComponent implements OnInit {
   blankForm(): FormModel {
     return {
       title: '', sport: 'pickleball', date: '', startTime: '', endTime: '',
-      venue: '', court: '', address: '', feePerPlayer: 0, maxPlayers: 8, description: '',
+      venue: '', court: '', address: '', feePerPlayer: 0, guestFeePerPlayer: null,
+      maxPlayers: 8, maxGuests: null, description: '',
       numberOfCourts: 1, queueMode: 'fcfs', minSkillLevel: null, maxSkillLevel: null,
     };
   }
@@ -987,7 +1000,8 @@ export class AdminHostedPlayComponent implements OnInit {
     this.form = {
       title: s.title, sport: s.sport, date: (s.date || '').slice(0, 10),
       startTime: s.startTime, endTime: s.endTime, venue: s.venue, court: s.court || '',
-      address: s.address || '', feePerPlayer: s.feePerPlayer, maxPlayers: s.maxPlayers,
+      address: s.address || '', feePerPlayer: s.feePerPlayer, guestFeePerPlayer: s.guestFeePerPlayer ?? null,
+      maxPlayers: s.maxPlayers, maxGuests: s.maxGuests ?? null,
       description: s.description || '', numberOfCourts: s.numberOfCourts ?? 1,
       queueMode: s.queueMode || 'fcfs',
       minSkillLevel: s.minSkillLevel ?? null, maxSkillLevel: s.maxSkillLevel ?? null,
@@ -1028,6 +1042,9 @@ export class AdminHostedPlayComponent implements OnInit {
       if (!this.form.venue?.trim()) return 'Select or enter a venue to continue.';
       if (!this.form.maxPlayers || this.form.maxPlayers < 2) return 'Maximum players must be at least 2.';
       if (this.form.feePerPlayer < 0) return 'Fee per player cannot be negative.';
+      if (this.form.maxGuests != null && this.form.maxGuests < 0) return 'Max guests cannot be negative.';
+      if (this.form.maxGuests != null && this.form.maxGuests > this.form.maxPlayers) return 'Max guests cannot exceed maximum players.';
+      if (this.form.guestFeePerPlayer != null && this.form.guestFeePerPlayer < 0) return 'Guest fee cannot be negative.';
     }
     if (step === 3 && this.queueEnabled() && (!this.form.numberOfCourts || this.form.numberOfCourts < 1)) {
       return 'Number of courts must be at least 1.';

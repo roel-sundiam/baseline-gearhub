@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { ClubService } from '../../../core/services/club.service';
+import { ClubLedgerService } from '../../../core/services/club-ledger.service';
 import {
   AppServicePaymentsService,
   AppServicePayment,
@@ -80,7 +81,7 @@ import {
                     <th class="col-center">Fee Rate</th>
                     <th class="col-right">Court Fees Collected</th>
                     <th class="col-right">Hosted Play Fees</th>
-                    <th class="col-right">Conv. Fee Owed</th>
+                    <th class="col-right" title="Convenience fees only — Finance Report add-on billing is shown separately below">Conv. Fee Owed</th>
                     <th class="col-right">Paid to Dev</th>
                     <th class="col-right">Waived</th>
                     <th class="col-right">Outstanding</th>
@@ -118,7 +119,7 @@ import {
                       </td>
                       <td class="col-right col-muted">{{ club.totalCourtFees | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       <td class="col-right col-orange">{{ club.totalHostedPlaySessionFees | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
-                      <td class="col-right col-blue">{{ club.feesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                      <td class="col-right col-blue">{{ club.convenienceFeesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       <td class="col-right col-green">{{ club.totalPaid | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       <td class="col-right col-purple">{{ club.totalWaived | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       <td class="col-right" [class.col-red]="club.balance > 0" [class.col-green]="club.balance <= 0">
@@ -149,7 +150,7 @@ import {
                     <td></td>
                     <td class="col-right foot-muted">—</td>
                     <td class="col-right foot-orange">{{ totalHostedPlaySessionFees | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
-                    <td class="col-right foot-blue">{{ totals.feesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                    <td class="col-right foot-blue">{{ totals.convenienceFeesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     <td class="col-right foot-green">{{ totals.totalPaid | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     <td class="col-right foot-purple">{{ totals.totalWaived | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     <td class="col-right foot-red">{{ totals.outstanding | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
@@ -160,6 +161,114 @@ import {
               </table>
             </div>
           }
+
+          <!-- Finance Report Add-on -->
+          <div class="section-header payments-section-header">
+            <i class="fas fa-chart-line section-icon"></i>
+            <h3 class="section-title">Finance Report Add-on</h3>
+            <span class="section-note">Premium income &amp; expense reports — billed monthly per club</span>
+            <button class="btn-view-reports" (click)="viewAllReports()">
+              <i class="fas fa-magnifying-glass-chart"></i> View All Reports
+            </button>
+          </div>
+
+          <div class="addon-default-bar">
+            <span class="addon-default-label">Default price</span>
+            <input
+              type="number"
+              class="fee-rate-input"
+              [(ngModel)]="globalFeeValue"
+              min="0" step="1"
+              style="width:90px"
+            />
+            <span class="fee-rate-pct">₱ / month</span>
+            <button class="btn-fee-save" (click)="saveGlobalFee()" [disabled]="savingGlobalFee">
+              @if (savingGlobalFee) { <i class="fas fa-circle-notch fa-spin"></i> }
+              @else { <i class="fas fa-check"></i> Save }
+            </button>
+            @if (globalFeeSaved) {
+              <span class="addon-saved-note"><i class="fas fa-check-circle"></i> Saved</span>
+            }
+          </div>
+
+          <div class="clubs-table-wrap">
+            <table class="clubs-table">
+              <thead>
+                <tr>
+                  <th>Club</th>
+                  <th class="col-center">Status</th>
+                  <th class="col-center">Monthly Fee</th>
+                  <th class="col-right" title="Total Finance Report add-on billing to date — kept separate from Conv. Fee Owed above">Fees Billed</th>
+                  <th class="col-center">Report</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (club of clubs; track club.clubId) {
+                  <tr>
+                    <td class="col-club">{{ club.clubName }}</td>
+                    <td class="col-center">
+                      @if (club.financeReportEnabled) {
+                        <span class="status-chip status-paid">
+                          <i class="fas fa-crown"></i>
+                          Subscribed{{ club.financeReportSubscribedAt ? ' · ' + (club.financeReportSubscribedAt | date: 'MMM d, y') : '' }}
+                        </span>
+                      } @else {
+                        <span class="col-muted">—</span>
+                      }
+                    </td>
+                    <td class="col-center">
+                      <div class="fee-rate-cell">
+                        @if (editingAddonFeeClubId === club.clubId) {
+                          <input
+                            type="number"
+                            class="fee-rate-input"
+                            [(ngModel)]="editingAddonFeeValue"
+                            min="0" step="1"
+                            style="width:80px"
+                          />
+                          <button class="btn-fee-save" (click)="saveAddonFee(club)" [disabled]="savingAddonFee">
+                            @if (savingAddonFee) { <i class="fas fa-circle-notch fa-spin"></i> }
+                            @else { <i class="fas fa-check"></i> }
+                          </button>
+                          @if (club.financeReportFeeOverride != null) {
+                            <button class="btn-fee-cancel" title="Reset to default" (click)="resetAddonFee(club)" [disabled]="savingAddonFee">
+                              <i class="fas fa-rotate-left"></i>
+                            </button>
+                          }
+                          <button class="btn-fee-cancel" (click)="cancelAddonFee()"><i class="fas fa-times"></i></button>
+                        } @else {
+                          <span class="fee-rate-badge">
+                            {{ club.financeReportMonthlyFee | currency: 'PHP' : 'symbol' : '1.0-2' }}/mo
+                            @if (club.financeReportFeeOverride != null) {
+                              <span class="override-tag">override</span>
+                            }
+                          </span>
+                          <button class="btn-fee-edit" (click)="startEditAddonFee(club)" title="Edit add-on fee">
+                            <i class="fas fa-pen"></i>
+                          </button>
+                        }
+                      </div>
+                    </td>
+                    <td class="col-right col-blue">{{ club.financeReportFeesBilled | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                    <td class="col-center">
+                      <button class="btn-waive" (click)="viewReport(club)">
+                        <i class="fas fa-chart-pie"></i> View
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td class="foot-label">Total</td>
+                  <td></td>
+                  <td></td>
+                  <td class="col-right foot-blue">{{ totals.financeReportFeesBilled | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
 
           <!-- All App Service Payments -->
           <div class="section-header payments-section-header">
@@ -358,6 +467,13 @@ import {
       background: rgba(163,230,53,0.16); color: var(--dm-accent); font-size: 0.7rem; font-weight: 700;
       padding: 2px 8px; border-radius: 10px;
     }
+    .btn-view-reports {
+      margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 8px; font-size: 0.78rem; font-weight: 700;
+      background: rgba(250,204,21,0.14); color: #facc15; border: 1px solid rgba(250,204,21,0.32);
+      cursor: pointer; font-family: inherit; transition: background 0.15s;
+    }
+    .btn-view-reports:hover { background: rgba(250,204,21,0.26); }
 
     /* Clubs Table */
     .clubs-table-wrap { padding: 0 24px 24px; overflow-x: auto; }
@@ -550,16 +666,34 @@ import {
     }
     .btn-fee-cancel:hover { background: rgba(239,68,68,0.22); }
 
+    /* Finance Report Add-on */
+    .addon-default-bar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin: 0 24px 14px; padding: 10px 14px; border-radius: 10px;
+      background: rgba(250,204,21,0.06); border: 1px solid rgba(250,204,21,0.18);
+    }
+    .addon-default-label {
+      font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.7);
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .addon-saved-note { color: var(--dm-accent); font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px; }
+    .override-tag {
+      font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+      background: rgba(250,204,21,0.16); color: #fde047;
+      border-radius: 8px; padding: 1px 6px; margin-left: 5px;
+    }
+
     @media (max-width: 700px) {
       .clubs-table-wrap, .table-wrap { padding: 0 12px 20px; }
       .summary-bar { padding: 16px 12px; }
       .section-header { padding: 16px 12px 10px; }
+      .addon-default-bar { margin: 0 12px 14px; }
     }
   `],
 })
 export class DevFinanceComponent implements OnInit {
   clubs: ClubServiceSummary[] = [];
-  totals: ServiceSummaryTotals = { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0 };
+  totals: ServiceSummaryTotals = { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0, convenienceFeesOwed: 0, financeReportFeesBilled: 0 };
   payments: AppServicePayment[] = [];
   loading = true;
 
@@ -576,6 +710,13 @@ export class DevFinanceComponent implements OnInit {
   editingFeeRateValue = 10;
   savingFeeRate = false;
 
+  globalFeeValue = 0;
+  savingGlobalFee = false;
+  globalFeeSaved = false;
+  editingAddonFeeClubId: string | null = null;
+  editingAddonFeeValue = 0;
+  savingAddonFee = false;
+
   get outstandingClubCount() { return this.clubs.filter(c => c.balance > 0).length; }
   get totalPaymentsSum() { return this.payments.reduce((s, p) => s + p.amount, 0); }
   get totalHostedPlaySessionFees() { return this.clubs.reduce((s, c) => s + (c.totalHostedPlaySessionFees ?? 0), 0); }
@@ -584,6 +725,7 @@ export class DevFinanceComponent implements OnInit {
     private auth: AuthService,
     private appServicePaymentsService: AppServicePaymentsService,
     private clubService: ClubService,
+    private clubLedgerService: ClubLedgerService,
     private router: Router,
     private cdr: ChangeDetectorRef,
   ) {}
@@ -601,11 +743,13 @@ export class DevFinanceComponent implements OnInit {
     forkJoin({
       summary: this.appServicePaymentsService.getSummary(),
       payments: this.appServicePaymentsService.getAll(),
+      globalFee: this.clubLedgerService.getGlobalFee(),
     }).subscribe({
-      next: ({ summary, payments }) => {
+      next: ({ summary, payments, globalFee }) => {
         this.clubs = summary.clubs;
         this.totals = summary.totals;
         this.payments = payments;
+        this.globalFeeValue = globalFee.financeReportMonthlyFee;
         this.loading = false;
         this.cdr.detectChanges();
       },
@@ -686,6 +830,83 @@ export class DevFinanceComponent implements OnInit {
         this.cdr.detectChanges();
       },
     });
+  }
+
+  saveGlobalFee() {
+    const amount = Number(this.globalFeeValue);
+    if (!Number.isFinite(amount) || amount < 0) return;
+    this.savingGlobalFee = true;
+    this.globalFeeSaved = false;
+    this.clubLedgerService.setGlobalFee(amount).subscribe({
+      next: (res) => {
+        this.globalFeeValue = res.financeReportMonthlyFee;
+        // Refresh effective fees for clubs without an override
+        this.clubs = this.clubs.map((c) =>
+          c.financeReportFeeOverride == null ? { ...c, financeReportMonthlyFee: res.financeReportMonthlyFee } : c,
+        );
+        this.savingGlobalFee = false;
+        this.globalFeeSaved = true;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.savingGlobalFee = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  startEditAddonFee(club: ClubServiceSummary) {
+    this.editingAddonFeeClubId = club.clubId;
+    this.editingAddonFeeValue = club.financeReportMonthlyFee ?? this.globalFeeValue;
+  }
+
+  cancelAddonFee() {
+    this.editingAddonFeeClubId = null;
+    this.savingAddonFee = false;
+  }
+
+  saveAddonFee(club: ClubServiceSummary) {
+    const amount = Number(this.editingAddonFeeValue);
+    if (!Number.isFinite(amount) || amount < 0) return;
+    this.savingAddonFee = true;
+    this.clubService.patchFinanceReportFee(club.clubId, amount).subscribe({
+      next: () => {
+        club.financeReportFeeOverride = amount;
+        club.financeReportMonthlyFee = amount;
+        this.editingAddonFeeClubId = null;
+        this.savingAddonFee = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.savingAddonFee = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  resetAddonFee(club: ClubServiceSummary) {
+    this.savingAddonFee = true;
+    this.clubService.patchFinanceReportFee(club.clubId, null).subscribe({
+      next: () => {
+        club.financeReportFeeOverride = null;
+        club.financeReportMonthlyFee = this.globalFeeValue;
+        this.editingAddonFeeClubId = null;
+        this.savingAddonFee = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.savingAddonFee = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  viewReport(club: ClubServiceSummary) {
+    this.router.navigate(['/admin/finance-reports'], { queryParams: { clubId: club.clubId } });
+  }
+
+  viewAllReports() {
+    this.router.navigate(['/admin/finance-reports']);
   }
 
   goBack() { this.router.navigate(['/admin/dashboard']); }

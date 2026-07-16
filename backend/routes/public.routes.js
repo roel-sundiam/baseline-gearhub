@@ -13,6 +13,7 @@ const HostedPlayParticipant = require("../models/HostedPlayParticipant");
 const AppReview = require("../models/AppReview");
 const { sendPushToClubAdmins } = require("../utils/push");
 const { computePlayerFees } = require("../utils/fees");
+const { resolveGuestFee, countGuests, countGuestsBySession } = require("../utils/guests");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
 
@@ -60,6 +61,21 @@ function timeRangeToSlots(startTime, endTime) {
   const slots = [];
   for (let h = startH; h < endH; h++) slots.push(hourToSlot(h));
   return slots;
+}
+
+// Hosted Play sessions store court as a free-text name (tied to club.courts[].name)
+// rather than the numeric 1..courtCount used by Reservation/the availability endpoints.
+// Match by name so an occupied Hosted Play court shows as booked.
+function matchHostedPlayCourtNumber(courtName, club) {
+  if (!courtName) return null;
+  const name = courtName.trim().toLowerCase();
+  const courtCount = club.courtCount ?? 2;
+  for (let c = 1; c <= courtCount; c++) {
+    if (name === `court ${c}`) return c;
+    const named = club.courts?.[c - 1]?.name;
+    if (named && name === named.trim().toLowerCase()) return c;
+  }
+  return null;
 }
 
 const router = express.Router();
@@ -233,6 +249,7 @@ router.get("/hosted-play", async (req, res) => {
         venue: s.venue,
         court: s.court,
         feePerPlayer: s.feePerPlayer,
+        guestFeePerPlayer: resolveGuestFee(s),
         maxPlayers: s.maxPlayers,
         currentPlayers: s.currentPlayers,
         status: s.status,
@@ -307,7 +324,7 @@ router.get("/:clubId/all-availability", async (req, res) => {
     const end = new Date(date);
     end.setUTCHours(23, 59, 59, 999);
 
-    const [reservations, openPlaySessions] = await Promise.all([
+    const [reservations, openPlaySessions, hostedPlaySessions] = await Promise.all([
       Reservation.find({
         clubId: resolvedClubId,
         date: { $gte: start, $lte: end },
@@ -318,6 +335,11 @@ router.get("/:clubId/all-availability", async (req, res) => {
         sessionDate: { $gte: start, $lte: end },
         status: { $ne: "cancelled" },
       }).select("courts startTime endTime -_id").lean(),
+      HostedPlay.find({
+        clubId: resolvedClubId,
+        date: { $gte: start, $lte: end },
+        status: { $nin: ["cancelled", "completed"] },
+      }).select("court startTime endTime -_id").lean(),
     ]);
 
     const result = {};
@@ -328,7 +350,10 @@ router.get("/:clubId/all-availability", async (req, res) => {
       const bookedFromOP = openPlaySessions
         .filter((s) => Array.isArray(s.courts) ? s.courts.includes(c) : true)
         .flatMap((s) => timeRangeToSlots(s.startTime, s.endTime));
-      result[c] = [...new Set([...bookedFromRes, ...bookedFromOP])];
+      const bookedFromHP = hostedPlaySessions
+        .filter((s) => matchHostedPlayCourtNumber(s.court, club) === c)
+        .flatMap((s) => timeRangeToSlots(s.startTime, s.endTime));
+      result[c] = [...new Set([...bookedFromRes, ...bookedFromOP, ...bookedFromHP])];
     }
     res.json(result);
   } catch (err) {
@@ -405,15 +430,28 @@ router.get("/:clubId/slots", async (req, res) => {
     const endDate = new Date(queryDate);
     endDate.setUTCHours(23, 59, 59, 999);
 
-    const reservations = await Reservation.find({
-      clubId: resolvedClubId,
-      date: { $gte: queryDate, $lte: endDate },
-      status: { $in: ["confirmed", "pending_payment"] },
-    }).select("timeSlot durationHours -_id").lean();
+    const [reservations, hostedPlaySessions] = await Promise.all([
+      Reservation.find({
+        clubId: resolvedClubId,
+        date: { $gte: queryDate, $lte: endDate },
+        status: { $in: ["confirmed", "pending_payment"] },
+      }).select("timeSlot durationHours -_id").lean(),
+      HostedPlay.find({
+        clubId: resolvedClubId,
+        date: { $gte: queryDate, $lte: endDate },
+        status: { $nin: ["cancelled", "completed"] },
+      }).select("court startTime endTime -_id").lean(),
+    ]);
 
     const bookedCount = {};
     for (const r of reservations) {
       for (const slot of expandSlots(r.timeSlot, r.durationHours ?? 1)) {
+        bookedCount[slot] = (bookedCount[slot] || 0) + 1;
+      }
+    }
+    for (const s of hostedPlaySessions) {
+      if (matchHostedPlayCourtNumber(s.court, club) === null) continue;
+      for (const slot of timeRangeToSlots(s.startTime, s.endTime)) {
         bookedCount[slot] = (bookedCount[slot] || 0) + 1;
       }
     }
@@ -459,7 +497,7 @@ router.get("/:clubId/availability", async (req, res) => {
     const end = new Date(date);
     end.setUTCHours(23, 59, 59, 999);
 
-    const [booked, openPlaySessions] = await Promise.all([
+    const [booked, openPlaySessions, hostedPlaySessions] = await Promise.all([
       Reservation.find({
         clubId: resolvedClubId,
         court: courtNum,
@@ -472,11 +510,19 @@ router.get("/:clubId/availability", async (req, res) => {
         sessionDate: { $gte: start, $lte: end },
         status: { $ne: "cancelled" },
       }).select("startTime endTime -_id"),
+      HostedPlay.find({
+        clubId: resolvedClubId,
+        date: { $gte: start, $lte: end },
+        status: { $nin: ["cancelled", "completed"] },
+      }).select("court startTime endTime -_id").lean(),
     ]);
 
     const openPlaySlots = openPlaySessions.flatMap((s) => timeRangeToSlots(s.startTime, s.endTime));
+    const hostedPlaySlots = hostedPlaySessions
+      .filter((s) => matchHostedPlayCourtNumber(s.court, club) === courtNum)
+      .flatMap((s) => timeRangeToSlots(s.startTime, s.endTime));
 
-    res.json({ bookedSlots: [...booked.flatMap((r) => expandSlots(r.timeSlot, r.durationHours ?? 1)), ...openPlaySlots] });
+    res.json({ bookedSlots: [...booked.flatMap((r) => expandSlots(r.timeSlot, r.durationHours ?? 1)), ...openPlaySlots, ...hostedPlaySlots] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -861,6 +907,8 @@ router.get("/:clubId/hosted-play", async (req, res) => {
       return match?.logo || null;
     };
 
+    const guestCounts = await countGuestsBySession(sessions.map(s => s._id));
+
     res.json(sessions.map(s => ({
       _id: s._id,
       title: s.title,
@@ -871,7 +919,10 @@ router.get("/:clubId/hosted-play", async (req, res) => {
       venue: s.venue,
       court: s.court,
       feePerPlayer: s.feePerPlayer,
+      guestFeePerPlayer: resolveGuestFee(s),
       maxPlayers: s.maxPlayers,
+      maxGuests: s.maxGuests ?? null,
+      currentGuests: guestCounts.get(s._id.toString()) ?? 0,
       currentPlayers: s.currentPlayers,
       status: s.status,
       venueLogo: findLogo(s.venue, s.court),
@@ -900,13 +951,21 @@ router.post("/:clubId/hosted-play/:sessionId/guest-join", async (req, res) => {
     if (session.status !== "open") return res.status(400).json({ error: "Session is not open" });
     if (session.currentPlayers >= session.maxPlayers) return res.status(400).json({ error: "Session is full" });
 
+    if (session.maxGuests != null) {
+      const guests = await countGuests(session._id);
+      if (guests >= session.maxGuests) {
+        return res.status(400).json({ error: "Guest spots for this session are full", code: "guest_spots_full" });
+      }
+    }
+
     const normalizedEmail = email.trim().toLowerCase();
 
     // Duplicate check: existing participant with same email
     const existing = await HostedPlayParticipant.findOne({ hostedPlayId: session._id, guestEmail: normalizedEmail });
     if (existing) return res.status(400).json({ error: "This email is already registered for this session" });
 
-    if (session.feePerPlayer > 0) {
+    const guestFee = resolveGuestFee(session);
+    if (guestFee > 0) {
       // ── Paid session ──
       const VALID_METHODS = ["GCash", "Bank Transfer", "GoTyme"];
       if (!paymentMethod || !VALID_METHODS.includes(paymentMethod)) {
@@ -921,7 +980,7 @@ router.post("/:clubId/hosted-play/:sessionId/guest-join", async (req, res) => {
       if (pendingCharge) return res.status(400).json({ error: "A pending payment for this email already exists" });
 
       const clubFull = await Club.findById(club._id).select("convenienceFeeRate convenienceFeeMode").lean();
-      const { baseFee, convenienceFee, total: amount, feeMode } = computePlayerFees(clubFull, session.feePerPlayer);
+      const { baseFee, convenienceFee, total: amount, feeMode } = computePlayerFees(clubFull, guestFee);
       const netSessionFee = feeMode === "club_absorbs" ? baseFee - convenienceFee : baseFee;
 
       await Charge.create({

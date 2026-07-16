@@ -219,8 +219,11 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                               <span><i class="far fa-calendar"></i> {{ s.date | date:'EEE, MMM d' : 'UTC' }}</span>
                               <span><i class="far fa-clock"></i> {{ s.startTime }} – {{ s.endTime }}</span>
                               <span><i class="fas fa-location-dot"></i> {{ s.venue }}</span>
-                              @if (s.feePerPlayer > 0) {
-                                <span class="lp-op-type">₱{{ s.feePerPlayer | number }}/player</span>
+                              @if (s.guestFeePerPlayer > 0) {
+                                <span class="lp-op-type">₱{{ s.guestFeePerPlayer | number }}/player</span>
+                              }
+                              @if (s.maxGuests != null) {
+                                <span class="lp-op-type">{{ guestSpotsLeft(s) }} guest {{ guestSpotsLeft(s) === 1 ? 'spot' : 'spots' }} left</span>
                               }
                             </div>
                           </div>
@@ -232,6 +235,8 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                               <div class="lp-op-pending-badge"><i class="fas fa-clock"></i> Pending</div>
                             } @else if (s.status === 'full') {
                               <div class="lp-op-type">Full</div>
+                            } @else if (s.maxGuests != null && s.currentGuests >= s.maxGuests) {
+                              <div class="lp-op-type">Guest spots full</div>
                             } @else {
                               <button class="lp-op-join-btn"
                                 (click)="openGuestJoinForm(s._id)"
@@ -268,7 +273,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                               @if (activeSessionIsPaid()) {
                                 <div class="lp-gjf-fee-note">
                                   <i class="fas fa-coins"></i>
-                                  Session fee: <strong>₱{{ s.feePerPlayer | number }}</strong>
+                                  Session fee: <strong>₱{{ s.guestFeePerPlayer | number }}</strong>
                                 </div>
 
                                 @if (paymentMethods.length > 0) {
@@ -1440,6 +1445,7 @@ export class GuestBookComponent implements OnInit, OnDestroy {
     _id: string; title: string; sport: 'tennis' | 'pickleball';
     date: string; startTime: string; endTime: string;
     venue: string; court?: string; feePerPlayer: number;
+    guestFeePerPlayer: number; maxGuests: number | null; currentGuests: number;
     maxPlayers: number; currentPlayers: number; status: 'open' | 'full';
     venueLogo?: string | null;
   }[] = [];
@@ -1492,8 +1498,13 @@ export class GuestBookComponent implements OnInit, OnDestroy {
   activeSessionIsPaid = computed(() => {
     const id = this.activeJoinSessionId();
     const s = this.hostedPlaySessions.find(x => x._id === id);
-    return (s?.feePerPlayer ?? 0) > 0;
+    return (s?.guestFeePerPlayer ?? s?.feePerPlayer ?? 0) > 0;
   });
+
+  guestSpotsLeft(s: { maxGuests: number | null; currentGuests: number }): number {
+    if (s.maxGuests == null) return 0;
+    return Math.max(0, s.maxGuests - s.currentGuests);
+  }
 
   // Chat state
   inquiry = { senderName: '', senderEmail: '', message: '' };

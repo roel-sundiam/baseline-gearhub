@@ -1338,7 +1338,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
 
   private buildAvailabilitySlots(): void {
     const slots: string[] = [];
-    for (let h = this.openingHour; h < this.closingHour; h++) {
+    for (let h = this.openingHour; h <= this.closingHour; h++) {
       const h12 = h % 12 === 0 ? 12 : h % 12;
       slots.push(`${h12}${h < 12 ? 'am' : 'pm'}`);
     }

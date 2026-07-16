@@ -51,6 +51,7 @@ const reviewsRoutes = require("./routes/reviews.routes");
 const perGameRoutes = require("./routes/game-join.routes");
 const hostedPlayRoutes = require("./routes/hosted-play.routes");
 const configRoutes = require("./routes/config.routes");
+const clubLedgerRoutes = require("./routes/club-ledger.routes");
 
 const app = express();
 
@@ -160,5 +161,6 @@ app.use("/api/reviews", reviewsRoutes);
 app.use("/api/per-game", perGameRoutes);
 app.use("/api/hosted-play", hostedPlayRoutes);
 app.use("/api/config", configRoutes);
+app.use("/api/club-ledger", clubLedgerRoutes);
 
 module.exports = app;

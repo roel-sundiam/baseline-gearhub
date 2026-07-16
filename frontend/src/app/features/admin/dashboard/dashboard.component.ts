@@ -7,7 +7,7 @@ import { UsersService } from '../../../core/services/users.service';
 import { SessionsService } from '../../../core/services/sessions.service';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { ClubService, Club } from '../../../core/services/club.service';
+import { ClubService, Club, Court } from '../../../core/services/club.service';
 import { PublicBookingService } from '../../../core/services/public-booking.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
 import { AdminMessagesService } from '../../../core/services/admin-messages.service';
@@ -17,8 +17,10 @@ import { AnnouncementModalComponent } from '../../../shared/components/announcem
 import { SoundService } from '../../../core/services/sound.service';
 import { AppServicePaymentsService } from '../../../core/services/app-service-payments.service';
 import { AnnouncementService } from '../../../core/services/announcement.service';
+import { HostedPlayService, HostedPlaySession } from '../../../core/services/hosted-play.service';
 import { forkJoin, timeout, of, catchError } from 'rxjs';
 import { marked } from 'marked';
+import QRCode from 'qrcode';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -309,6 +311,19 @@ import { marked } from 'marked';
                 <span class="action-sub">Check in players, manage courts and live rotation</span>
               </a>
             }
+            @if (!authService.isSuperAdmin()) {
+              <a routerLink="/admin/finance-report" class="action-card action-card--premium">
+                <span class="action-icon action-icon--premium"><i class="fas fa-chart-line"></i></span>
+                <span class="action-title">Finance Report
+                  <span class="premium-badge"><i class="fas fa-crown"></i> Premium</span>
+                </span>
+                <span class="action-sub">
+                  {{ club?.financeReportEnabled
+                    ? 'Income & expenses report for your club'
+                    : 'Add-on — subscribe to unlock income & expense reports' }}
+                </span>
+              </a>
+            }
             @if (authService.isSuperAdmin()) {
               <a routerLink="/features" target="_blank" class="action-card action-card--features">
                 <span class="action-icon"><i class="fas fa-star"></i></span>
@@ -349,16 +364,18 @@ import { marked } from 'marked';
 
           <!-- Controls -->
           <div class="poster-ctrl-row">
-            <label class="poster-ctrl-label">Date
-              <input type="date" class="poster-input" [(ngModel)]="posterDate" (change)="loadPosterSlots()" />
-            </label>
-            <label class="poster-ctrl-label">Court
-              <select class="poster-input" [(ngModel)]="posterCourt" (ngModelChange)="loadPosterSlots()">
-                @for (c of courtArray(); track c) {
-                  <option [value]="c">Court {{ c }}</option>
-                }
-              </select>
-            </label>
+            @if (!isPureHostedPlayClub) {
+              <label class="poster-ctrl-label">Date
+                <input type="date" class="poster-input" [(ngModel)]="posterDate" (change)="loadPosterData()" />
+              </label>
+              <label class="poster-ctrl-label">Court
+                <select class="poster-input" [(ngModel)]="posterCourt" (ngModelChange)="loadPosterSlots()">
+                  @for (c of courtArray(); track c) {
+                    <option [value]="c">Court {{ c }}</option>
+                  }
+                </select>
+              </label>
+            }
             <div class="poster-ctrl-actions">
               @if (!club?.bookingQrCode) {
                 <label class="poster-upload-btn" [class.poster-upload-btn--busy]="uploadingPosterQr">
@@ -394,49 +411,113 @@ import { marked } from 'marked';
 
                   <!-- ── Centered header ── -->
                   <div [ngStyle]="{ textAlign: 'center', marginBottom: '14px' }">
-                    <div [ngStyle]="{ color: '#ffffff', fontWeight: '900', fontSize: '26px', letterSpacing: '3px', textShadow: '0 2px 6px rgba(0,0,0,0.6)', lineHeight: '1.1' }">
-                      AVAILABLE SLOTS
-                    </div>
-                    <div [ngStyle]="{ color: '#e5e7eb', fontSize: '13px', fontWeight: '600', marginTop: '5px', letterSpacing: '1px' }">
-                      {{ posterDateLine1() }}
-                    </div>
-                    <div [ngStyle]="{ color: '#e5e7eb', fontSize: '13px', fontWeight: '600', letterSpacing: '1px' }">
-                      {{ posterDateLine2() }}
-                    </div>
-                  </div>
-
-                  <!-- ── Body: slots + QR ── -->
-                  <div [ngStyle]="{ display: 'flex', flexDirection: 'row', gap: '16px', flex: '1', minHeight: '0' }">
-
-                    <!-- Left: court name + slot list -->
-                    <div [ngStyle]="{ flex: '1', minWidth: '0', display: 'flex', flexDirection: 'column' }">
-                      <div [ngStyle]="{ color: '#ffffff', fontWeight: '900', fontSize: '28px', marginBottom: '10px', letterSpacing: '1px', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }">
-                        COURT {{ posterCourt }}
+                    @if (!isPureHostedPlayClub) {
+                      <div [ngStyle]="{ color: '#ffffff', fontWeight: '900', fontSize: '26px', letterSpacing: '3px', textShadow: '0 2px 6px rgba(0,0,0,0.6)', lineHeight: '1.1' }">
+                        AVAILABLE SLOTS
                       </div>
-                      @if (posterSlots.length === 0) {
-                        <div [ngStyle]="{ color: '#9ca3af', fontSize: '13px' }">No slots for this date.</div>
-                      }
-                      @for (s of posterSlots; track s.slot) {
-                        <div [ngStyle]="posterSlotRowStyle()">
-                          <span [ngStyle]="{ color: '#ffffff', fontSize: '13px', fontWeight: '700', letterSpacing: '0.3px' }">{{ s.label }}</span>
-                          <span [ngStyle]="s.open ? posterOpenBadgeStyle() : posterTakenBadgeStyle()">
-                            {{ s.open ? 'OPEN' : 'TAKEN' }}
-                          </span>
-                        </div>
-                      }
-                    </div>
-
-                    <!-- Right: QR code -->
-                    @if (club?.bookingQrCode) {
-                      <div [ngStyle]="{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', justifyContent: 'center', flexShrink: '0' }">
-                        <span [ngStyle]="{ color: '#ffffff', fontWeight: '800', fontSize: '15px', letterSpacing: '1px', textAlign: 'center', textShadow: '0 1px 4px rgba(0,0,0,0.5)' }">SCAN TO BOOK:</span>
-                        <img [src]="club!.bookingQrCode!"
-                             [ngStyle]="{ width: '200px', height: '200px', borderRadius: '6px', backgroundColor: '#ffffff', padding: '5px', display: 'block' }"
-                             alt="Booking QR Code"
-                             crossorigin="anonymous" />
+                      <div [ngStyle]="{ color: '#e5e7eb', fontSize: '13px', fontWeight: '600', marginTop: '5px', letterSpacing: '1px' }">
+                        {{ posterDateLine1() }}
+                      </div>
+                      <div [ngStyle]="{ color: '#e5e7eb', fontSize: '13px', fontWeight: '600', letterSpacing: '1px' }">
+                        {{ posterDateLine2() }}
+                      </div>
+                    } @else {
+                      <div [ngStyle]="{ color: '#ffffff', fontWeight: '900', fontSize: '26px', letterSpacing: '3px', textShadow: '0 2px 6px rgba(0,0,0,0.6)', lineHeight: '1.1' }">
+                        HOSTED PLAY
+                      </div>
+                      <div [ngStyle]="{ color: '#e5e7eb', fontSize: '13px', fontWeight: '600', marginTop: '5px', letterSpacing: '1px' }">
+                        UPCOMING SESSIONS
                       </div>
                     }
                   </div>
+
+                  @if (!isPureHostedPlayClub) {
+                    <!-- ── Body: court slot list + QR, side by side ── -->
+                    <div [ngStyle]="{ display: 'flex', flexDirection: 'row', gap: '16px', flex: '1', minHeight: '0' }">
+                      <div [ngStyle]="{ flex: '1', minWidth: '0', display: 'flex', flexDirection: 'column' }">
+                        <div [ngStyle]="{ color: '#ffffff', fontWeight: '900', fontSize: '28px', marginBottom: '10px', letterSpacing: '1px', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }">
+                          COURT {{ posterCourt }}
+                        </div>
+                        @if (posterSlots.length === 0) {
+                          <div [ngStyle]="{ color: '#9ca3af', fontSize: '13px' }">No slots for this date.</div>
+                        }
+                        @for (s of posterSlots; track s.slot) {
+                          <div [ngStyle]="posterSlotRowStyle()">
+                            <span [ngStyle]="{ color: '#ffffff', fontSize: '13px', fontWeight: '700', letterSpacing: '0.3px' }">{{ s.label }}</span>
+                            <span [ngStyle]="s.open ? posterOpenBadgeStyle() : posterTakenBadgeStyle()">
+                              {{ s.open ? 'OPEN' : 'TAKEN' }}
+                            </span>
+                          </div>
+                        }
+                      </div>
+
+                      @if (club?.bookingQrCode) {
+                        <div [ngStyle]="{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', justifyContent: 'center', flexShrink: '0' }">
+                          <span [ngStyle]="{ color: '#ffffff', fontWeight: '800', fontSize: '15px', letterSpacing: '1px', textAlign: 'center', textShadow: '0 1px 4px rgba(0,0,0,0.5)' }">SCAN TO BOOK:</span>
+                          <img [src]="club!.bookingQrCode!"
+                               [ngStyle]="{ width: '200px', height: '200px', borderRadius: '6px', backgroundColor: '#ffffff', padding: '5px', display: 'block' }"
+                               alt="Booking QR Code"
+                               crossorigin="anonymous" />
+                        </div>
+                      }
+                    </div>
+                  } @else {
+                    <!-- ── Body: full-width Hosted Play session list, QR centered below ── -->
+                    <div [ngStyle]="{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1', minHeight: '0' }">
+                      <div [ngStyle]="{ display: 'flex', flexDirection: 'column', gap: '8px' }">
+                        @if (posterHostedPlaySessions.length === 0) {
+                          <div [ngStyle]="{ color: '#9ca3af', fontSize: '13px' }">No upcoming sessions.</div>
+                        }
+                        @for (s of posterHostedPlaySessions; track s._id; let i = $index) {
+                          <div [ngStyle]="{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '12px', padding: '12px 14px', background: 'linear-gradient(135deg, #fdfcf8 0%, #eee9db 100%)', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 4px 14px rgba(0,0,0,0.28)', borderRadius: '14px' }">
+                            <!-- Day badge -->
+                            <div [ngStyle]="posterDayBadgeStyle(i)">
+                              <span [ngStyle]="{ fontSize: '10px', fontWeight: '800', letterSpacing: '0.5px', opacity: '0.85' }">{{ posterSessionMonthLabel(s.date) }}</span>
+                              <span [ngStyle]="{ fontSize: '20px', fontWeight: '900', lineHeight: '1' }">{{ posterSessionDayNumLabel(s.date) }}</span>
+                            </div>
+
+                            <!-- Venue + time -->
+                            <div [ngStyle]="{ flex: '1', minWidth: '0', display: 'flex', flexDirection: 'column', gap: '5px' }">
+                              <div [ngStyle]="{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '0' }">
+                                <span [ngStyle]="{ fontSize: '14px', flexShrink: '0' }">📍</span>
+                                <span [ngStyle]="{ color: '#111827', fontSize: '17px', fontWeight: '900', letterSpacing: '0.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }">
+                                  {{ posterSessionVenueLabel(s) }}
+                                </span>
+                              </div>
+                              <div [ngStyle]="{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }">
+                                <span [ngStyle]="{ color: '#ffffff', backgroundColor: '#14532d', fontSize: '12px', fontWeight: '800', letterSpacing: '0.3px', padding: '4px 12px', borderRadius: '999px' }">
+                                  {{ posterSessionTimeLabel(s) }}
+                                </span>
+                                <span [ngStyle]="{ color: '#6b7280', fontSize: '12px', fontWeight: '700' }">{{ s.title }}</span>
+                              </div>
+                            </div>
+
+                            <!-- Venue logo + status -->
+                            <div [ngStyle]="{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', flexShrink: '0' }">
+                              @if (posterSessionLogo(s)) {
+                                <img [src]="posterSessionLogo(s)"
+                                     [ngStyle]="{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #14532d', backgroundColor: '#ffffff' }"
+                                     alt="" crossorigin="anonymous" />
+                              }
+                              <span [ngStyle]="s.currentPlayers < s.maxPlayers ? posterHPOpenBadgeStyle() : posterHPTakenBadgeStyle()">
+                                {{ s.currentPlayers < s.maxPlayers ? 'OPEN' : 'FULL' }}
+                              </span>
+                            </div>
+                          </div>
+                        }
+                      </div>
+
+                      @if (club?.bookingQrCode) {
+                        <div [ngStyle]="{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', margin: '6px 0 0' }">
+                          <span [ngStyle]="{ color: '#ffffff', fontWeight: '800', fontSize: '14px', letterSpacing: '1px', textAlign: 'center', textShadow: '0 1px 4px rgba(0,0,0,0.5)' }">SCAN TO BOOK:</span>
+                          <img [src]="club!.bookingQrCode!"
+                               [ngStyle]="{ width: '150px', height: '150px', borderRadius: '6px', backgroundColor: '#ffffff', padding: '5px', display: 'block' }"
+                               alt="Booking QR Code"
+                               crossorigin="anonymous" />
+                        </div>
+                      }
+                    </div>
+                  }
 
                   <!-- ── Bottom-right logo ── -->
                   <div [ngStyle]="{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }">
@@ -451,6 +532,53 @@ import { marked } from 'marked';
             </div>
           }
         </section>
+
+        <!-- Booking link QR -->
+        @if (club) {
+          <section class="qr-link-section">
+            <div class="section-header">
+              <div>
+                <p class="section-kicker">Share</p>
+                <h3>Your Booking Link</h3>
+              </div>
+            </div>
+
+            <div class="qr-link-body">
+              <div #qrLinkCardRef class="qr-link-shareable">
+                @if (bookingLinkQrDataUrl) {
+                  <img [src]="bookingLinkQrDataUrl" alt="Booking link QR code" class="qr-link-image" />
+                } @else {
+                  <div class="qr-link-image qr-link-image--placeholder">
+                    <i class="fas fa-circle-notch fa-spin"></i>
+                  </div>
+                }
+                <p class="qr-link-shareable-caption">Scan to book at {{ club.name }}</p>
+              </div>
+
+              <div class="qr-link-info">
+                <p class="qr-link-desc">Players can scan this code or use the link below to book courts at your club directly.</p>
+                <div class="qr-link-row">
+                  <input type="text" class="poster-input qr-link-input" [value]="bookingLinkUrl" readonly
+                         (focus)="$any($event.target).select()" />
+                  <button type="button" class="poster-action-btn poster-action-btn--primary"
+                          (click)="copyBookingLinkUrl()" [disabled]="!bookingLinkUrl">
+                    <i class="fas {{ bookingLinkCopied ? 'fa-check' : 'fa-copy' }}"></i>
+                    {{ bookingLinkCopied ? 'Copied!' : 'Copy Link' }}
+                  </button>
+                </div>
+                <div class="qr-link-row">
+                  <button type="button" class="poster-action-btn" (click)="copyQrLinkImage()" [disabled]="capturingQrLinkImage || !bookingLinkQrDataUrl">
+                    <i class="fas {{ capturingQrLinkImage ? 'fa-circle-notch fa-spin' : 'fa-copy' }}"></i>
+                    {{ capturingQrLinkImage ? 'Capturing…' : 'Copy Image' }}
+                  </button>
+                  @if (qrLinkImageCopied) {
+                    <span class="poster-copied-toast"><i class="fas fa-check-circle"></i> Copied!</span>
+                  }
+                </div>
+              </div>
+            </div>
+          </section>
+        }
       }
     </section>
 
@@ -965,6 +1093,30 @@ import { marked } from 'marked';
         border-radius: 99px;
         padding: .1rem .4rem;
       }
+
+      .action-card--premium {
+        border-color: rgba(250,204,21,.24);
+        background: rgba(250,204,21,.04);
+      }
+      .action-card--premium:hover {
+        border-color: rgba(250,204,21,.5);
+        box-shadow: 0 10px 22px rgba(250,204,21,.1);
+      }
+      .action-icon--premium {
+        background: rgba(250,204,21,.14);
+        color: #facc15;
+      }
+      .premium-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        font-size: .62rem;
+        font-weight: 900;
+        color: #1c1503;
+        background: #facc15;
+        border-radius: 99px;
+        padding: .1rem .4rem;
+      }
       .queue-live-badge i {
         font-size: .45rem;
         animation: pulse-dot 1.4s ease-in-out infinite;
@@ -1236,6 +1388,82 @@ import { marked } from 'marked';
         padding-bottom: 8px;
       }
 
+      .qr-link-section {
+        background: var(--dm-surface);
+        border: 1px solid rgba(163,230,53,0.12);
+        border-radius: 16px;
+        padding: 1.25rem;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.24);
+      }
+
+      .qr-link-body {
+        display: flex;
+        align-items: center;
+        gap: 1.1rem;
+      }
+
+      .qr-link-shareable {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.4rem;
+        flex-shrink: 0;
+        padding: 10px;
+        background: #ffffff;
+        border-radius: 10px;
+      }
+
+      .qr-link-shareable-caption {
+        margin: 0;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #111827;
+        text-align: center;
+      }
+
+      .qr-link-image {
+        width: 120px;
+        height: 120px;
+        border-radius: 8px;
+        background: #ffffff;
+        object-fit: contain;
+      }
+
+      .qr-link-image--placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(0,0,0,0.35);
+        font-size: 1.4rem;
+      }
+
+      .qr-link-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+
+      .qr-link-desc {
+        margin: 0;
+        font-size: 0.82rem;
+        color: rgba(255,255,255,0.6);
+        line-height: 1.4;
+      }
+
+      .qr-link-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .qr-link-input {
+        flex: 1;
+        min-width: 200px;
+        cursor: text;
+      }
+
       @media (max-width: 640px) {
         .dashboard-shell {
           padding: 0;
@@ -1282,7 +1510,8 @@ import { marked } from 'marked';
         .state-shell,
         .approvals-section,
         .quick-actions,
-        .poster-section {
+        .poster-section,
+        .qr-link-section {
           margin: 0 0.75rem;
           border-radius: 10px;
           padding: 0.85rem;
@@ -1489,6 +1718,30 @@ import { marked } from 'marked';
           width: 100%;
         }
 
+        .qr-link-body {
+          flex-direction: column;
+          align-items: stretch;
+          text-align: center;
+        }
+
+        .qr-link-image {
+          width: 100%;
+          max-width: 160px;
+          height: auto;
+          aspect-ratio: 1 / 1;
+          margin: 0 auto;
+        }
+
+        .qr-link-row {
+          flex-direction: column;
+        }
+
+        .qr-link-input,
+        .qr-link-row .poster-action-btn {
+          width: 100%;
+          min-height: 40px;
+        }
+
         /* Swipeable dashboard cards on phones */
         .stats-grid,
         .action-grid {
@@ -1551,10 +1804,19 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   posterDate = '';
   posterCourt = 1;
   posterSlots: { slot: string; label: string; open: boolean }[] = [];
+  posterHostedPlaySessions: HostedPlaySession[] = [];
   loadingPosterSlots = false;
   uploadingPosterQr = false;
   capturingPoster = false;
   posterCopied = false;
+
+  // ── Booking link QR ──
+  @ViewChild('qrLinkCardRef') qrLinkCardRef!: ElementRef;
+  bookingLinkUrl = '';
+  bookingLinkQrDataUrl: string | null = null;
+  bookingLinkCopied = false;
+  capturingQrLinkImage = false;
+  qrLinkImageCopied = false;
 
   // ── Support chat (club admin only) ──
   messageUnreadCount = 0;
@@ -1570,6 +1832,9 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   }
   get hostedPlayActive() {
     return this.club?.bookingProcess === 'hosted_play' || !!this.club?.hostedPlayEnabled;
+  }
+  get isPureHostedPlayClub() {
+    return this.club?.bookingProcess === 'hosted_play';
   }
 
   // ── Balance alert modal ──
@@ -1598,6 +1863,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     private sound: SoundService,
     private appServicePayments: AppServicePaymentsService,
     private announcementService: AnnouncementService,
+    private hostedPlayService: HostedPlayService,
     private sanitizer: DomSanitizer,
   ) {}
 
@@ -1623,7 +1889,13 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     const clubId = this.authService.user()?.clubId;
     if (clubId) {
       this.clubService.getClub(clubId).subscribe({
-        next: (c) => { this.club = c; this.loadPosterSlots(); this.cdr.detectChanges(); },
+        next: (c) => {
+          this.club = c;
+          if (this.isPureHostedPlayClub) this.loadPosterHostedPlaySessions();
+          else this.loadPosterSlots();
+          this.buildBookingLinkQr();
+          this.cdr.detectChanges();
+        },
       });
     }
 
@@ -1749,7 +2021,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
         const slots: { slot: string; label: string; open: boolean }[] = [];
         const open = this.club!.openingHour ?? 6;
         const close = this.club!.closingHour ?? 22;
-        for (let h = open; h < close; h++) {
+        for (let h = open; h <= close; h++) {
           const key = this.slotKey(h);
           slots.push({ slot: key, label: this.slotLabel(h), open: !bookedSlots.includes(key) });
         }
@@ -1761,6 +2033,84 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
+  loadPosterHostedPlaySessions() {
+    this.loadingPosterSlots = true;
+    this.posterHostedPlaySessions = [];
+    const todayStr = new Date().toISOString().slice(0, 10);
+    this.hostedPlayService.listAll().subscribe({
+      next: (sessions) => {
+        this.posterHostedPlaySessions = sessions
+          .filter((s) => (s.status === 'open' || s.status === 'full' || s.status === 'closed') && s.date?.slice(0, 10) >= todayStr)
+          .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+        this.loadingPosterSlots = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.loadingPosterSlots = false; this.cdr.detectChanges(); },
+    });
+  }
+
+  posterSessionMonthLabel(dateStr: string): string {
+    const d = new Date(dateStr.slice(0, 10) + 'T00:00:00');
+    const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    return months[d.getMonth()];
+  }
+
+  posterSessionDayNumLabel(dateStr: string): string {
+    const d = new Date(dateStr.slice(0, 10) + 'T00:00:00');
+    return String(d.getDate());
+  }
+
+  posterDayBadgeStyle(index: number): Record<string, string> {
+    const light = index % 2 === 0;
+    return {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: '54px',
+      height: '54px',
+      borderRadius: '12px',
+      flexShrink: '0',
+      backgroundColor: light ? '#a3e635' : '#14532d',
+      color: light ? '#111827' : '#ffffff',
+    };
+  }
+
+  private formatClockTime(hhmm: string): string {
+    const [hStr, mStr] = (hhmm || '0:0').split(':');
+    const h = parseInt(hStr, 10) || 0;
+    const m = parseInt(mStr, 10) || 0;
+    const period = h < 12 ? 'AM' : 'PM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+  }
+
+  posterSessionTimeLabel(s: HostedPlaySession): string {
+    return `${this.formatClockTime(s.startTime)} - ${this.formatClockTime(s.endTime)}`;
+  }
+
+  posterSessionVenueLabel(s: HostedPlaySession): string {
+    return this.courtForSession(s)?.name || s.venue || s.court || s.title || 'Venue';
+  }
+
+  private courtForSession(s: HostedPlaySession): Court | undefined {
+    const venue = (s.venue || '').trim().toLowerCase();
+    const court = (s.court || '').trim().toLowerCase();
+    return this.club?.courts?.find((c) => {
+      const name = c.name.trim().toLowerCase();
+      return name === venue || (!!court && name === court);
+    });
+  }
+
+  posterSessionLogo(s: HostedPlaySession): string {
+    return this.courtForSession(s)?.logo || '';
+  }
+
+  loadPosterData() {
+    if (this.isPureHostedPlayClub) this.loadPosterHostedPlaySessions();
+    else this.loadPosterSlots();
+  }
+
   private slotKey(h: number): string {
     if (h === 0) return '12am';
     if (h < 12) return `${h}am`;
@@ -1770,8 +2120,9 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   private slotLabel(h: number): string {
     const fmt = (hr: number) => {
-      const period = hr < 12 ? 'AM' : 'PM';
-      const disp = hr === 0 ? 12 : hr > 12 ? hr - 12 : hr;
+      const h24 = hr % 24;
+      const period = h24 < 12 ? 'AM' : 'PM';
+      const disp = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
       return `${disp}:00${period}`;
     };
     return `${fmt(h)} - ${fmt(h + 1)}`;
@@ -1824,6 +2175,86 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       console.error('Copy poster failed', e);
     } finally {
       this.capturingPoster = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  private buildBookingLinkQr() {
+    if (!this.club) return;
+    const identifier = this.club.slug || this.club._id;
+    this.bookingLinkUrl = `${window.location.origin}/book/${identifier}`;
+
+    const canvas = document.createElement('canvas');
+    QRCode.toCanvas(canvas, this.bookingLinkUrl, {
+      width: 220,
+      margin: 2,
+      errorCorrectionLevel: 'H',
+      color: { dark: '#000000', light: '#ffffff' },
+    })
+      .then(() => this.overlayClubLogo(canvas))
+      .then((dataUrl) => { this.bookingLinkQrDataUrl = dataUrl; this.cdr.detectChanges(); })
+      .catch(() => { this.bookingLinkQrDataUrl = null; this.cdr.detectChanges(); });
+  }
+
+  private overlayClubLogo(canvas: HTMLCanvasElement): Promise<string> {
+    const logoUrl = this.club?.logo;
+    if (!logoUrl) return Promise.resolve(canvas.toDataURL('image/png'));
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(canvas.toDataURL('image/png')); return; }
+
+        const size = canvas.width * 0.22;
+        const x = (canvas.width - size) / 2;
+        const y = (canvas.height - size) / 2;
+        const pad = size * 0.14;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x - pad, y - pad, size + pad * 2, size + pad * 2);
+        ctx.drawImage(img, x, y, size, size);
+
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(canvas.toDataURL('image/png'));
+      img.src = logoUrl;
+    });
+  }
+
+  copyBookingLinkUrl() {
+    if (!this.bookingLinkUrl) return;
+    navigator.clipboard.writeText(this.bookingLinkUrl).then(() => {
+      this.bookingLinkCopied = true;
+      this.cdr.detectChanges();
+      setTimeout(() => { this.bookingLinkCopied = false; this.cdr.detectChanges(); }, 2000);
+    });
+  }
+
+  async copyQrLinkImage() {
+    if (!this.qrLinkCardRef) return;
+    this.capturingQrLinkImage = true;
+    this.qrLinkImageCopied = false;
+    this.cdr.detectChanges();
+    try {
+      const { default: html2canvas } = await import('html2canvas');
+      const canvas = await html2canvas(this.qrLinkCardRef.nativeElement, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      await new Promise<void>((resolve, reject) => {
+        canvas.toBlob(async (blob) => {
+          if (!blob) { reject(new Error('No blob')); return; }
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            resolve();
+          } catch (e) { reject(e); }
+        }, 'image/png');
+      });
+      this.qrLinkImageCopied = true;
+      setTimeout(() => { this.qrLinkImageCopied = false; this.cdr.detectChanges(); }, 2500);
+    } catch (e) {
+      console.error('Copy QR link image failed', e);
+    } finally {
+      this.capturingQrLinkImage = false;
       this.cdr.detectChanges();
     }
   }
@@ -1921,6 +2352,32 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       fontSize: '12px',
       padding: '4px 14px',
       borderRadius: '5px',
+      letterSpacing: '1px',
+      flexShrink: '0',
+    };
+  }
+
+  posterHPOpenBadgeStyle(): Record<string, string> {
+    return {
+      background: '#15803d',
+      color: '#ffffff',
+      fontWeight: '800',
+      fontSize: '15px',
+      padding: '6px 18px',
+      borderRadius: '6px',
+      letterSpacing: '1px',
+      flexShrink: '0',
+    };
+  }
+
+  posterHPTakenBadgeStyle(): Record<string, string> {
+    return {
+      background: '#374151',
+      color: '#9ca3af',
+      fontWeight: '800',
+      fontSize: '15px',
+      padding: '6px 18px',
+      borderRadius: '6px',
       letterSpacing: '1px',
       flexShrink: '0',
     };

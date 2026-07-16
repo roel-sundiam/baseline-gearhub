@@ -55,6 +55,7 @@ export interface AppServicePayment {
   paymentMethod?: 'GCash' | 'QRPh';
   paymentScreenshot?: string | null;
   note?: string;
+  billingKey?: string | null;
   paidBy: { _id: string; name: string; email: string };
   clubId?: { _id: string; name: string } | string;
   createdAt: string;
@@ -80,6 +81,27 @@ export interface ClubServiceSummary {
   totalPaid: number;
   totalWaived: number;
   balance: number;
+  // feesOwed/balance are the grand total owed to CourtGo (convenience fees + add-ons combined).
+  // convenienceFeesOwed is that same total with the Finance Report add-on billing pulled out,
+  // since the add-on fee isn't actually a convenience fee.
+  convenienceFeesOwed: number;
+  financeReportFeesBilled: number;
+  financeReportEnabled: boolean;
+  financeReportSubscribedAt?: string | null;
+  financeReportFeeOverride?: number | null;
+  financeReportMonthlyFee: number;
+}
+
+export interface FeeInfo {
+  convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs';
+  convenienceFeeMonthlyAmount: number;
+  balanceAlertEnabled: boolean;
+  balance: number;
+  convenienceFeesOwed: number;
+  financeReportFeesBilled: number;
+  financeReportEnabled: boolean;
+  financeReportSubscribedAt?: string | null;
+  financeReportMonthlyFee: number;
 }
 
 export interface ServiceSummaryTotals {
@@ -87,6 +109,8 @@ export interface ServiceSummaryTotals {
   totalPaid: number;
   totalWaived: number;
   outstanding: number;
+  convenienceFeesOwed: number;
+  financeReportFeesBilled: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -128,8 +152,8 @@ export class AppServicePaymentsService {
     );
   }
 
-  getFeeInfo(): Observable<{ convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat'; convenienceFeeMonthlyAmount: number; balanceAlertEnabled: boolean; balance: number }> {
-    return this.http.get<{ convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat'; convenienceFeeMonthlyAmount: number; balanceAlertEnabled: boolean; balance: number }>(
+  getFeeInfo(): Observable<FeeInfo> {
+    return this.http.get<FeeInfo>(
       `${environment.apiUrl}/app-service-payments/fee-info`,
     );
   }

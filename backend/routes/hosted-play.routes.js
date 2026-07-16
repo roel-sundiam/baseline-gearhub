@@ -12,6 +12,7 @@ const AppServicePayment = require("../models/AppServicePayment");
 const queue = require("../services/queue-engine");
 const { sendPushToClubAdmins, sendPushToUser } = require("../utils/push");
 const { computePlayerFees } = require("../utils/fees");
+const { resolveGuestFee, countGuests } = require("../utils/guests");
 const { ownsClub } = require("../utils/scope");
 const { getCreditBalance, redeemCredit, refundCredit } = require("../utils/credit");
 
@@ -502,12 +503,23 @@ router.get("/sessions", auth, admin, async (req, res) => {
   }
 });
 
+// Blank/null → null (no guest-specific setting); otherwise a clamped number.
+function normalizeGuestFee(value) {
+  if (value === undefined || value === null || value === "") return null;
+  return Math.max(0, Number(value) || 0);
+}
+function normalizeMaxGuests(value) {
+  if (value === undefined || value === null || value === "") return null;
+  return Math.max(0, Math.floor(Number(value) || 0));
+}
+
 // POST /api/hosted-play/sessions
 router.post("/sessions", auth, admin, async (req, res) => {
   try {
     const {
       title, sport, date, startTime, endTime, venue, court, address,
-      feePerPlayer, maxPlayers, description, numberOfCourts, playersPerCourt, queueMode,
+      feePerPlayer, guestFeePerPlayer, maxPlayers, maxGuests, description,
+      numberOfCourts, playersPerCourt, queueMode,
       minSkillLevel, maxSkillLevel,
     } = req.body;
 
@@ -515,6 +527,11 @@ router.post("/sessions", auth, admin, async (req, res) => {
       return res.status(400).json({
         error: "title, sport, date, startTime, endTime, venue and maxPlayers are required",
       });
+    }
+
+    const normMaxGuests = normalizeMaxGuests(maxGuests);
+    if (normMaxGuests !== null && normMaxGuests > Number(maxPlayers)) {
+      return res.status(400).json({ error: "Max guests cannot exceed maximum players" });
     }
 
     const club = await Club.findById(req.user.clubId).select("hostedPlayQueueEnabled queueManagementFeePerPlayer").lean();
@@ -531,7 +548,9 @@ router.post("/sessions", auth, admin, async (req, res) => {
       court,
       address,
       feePerPlayer: Math.max(0, Number(feePerPlayer ?? 0) || 0),
+      guestFeePerPlayer: normalizeGuestFee(guestFeePerPlayer),
       maxPlayers: Number(maxPlayers),
+      maxGuests: normMaxGuests,
       description,
       numberOfCourts: Math.max(1, Number(numberOfCourts ?? 1) || 1),
       queueManagementEnabled: !!club?.hostedPlayQueueEnabled,
@@ -563,12 +582,23 @@ router.put("/sessions/:id", auth, admin, async (req, res) => {
   try {
     const {
       title, sport, date, startTime, endTime, venue, court, address,
-      feePerPlayer, maxPlayers, description, numberOfCourts, playersPerCourt, queueMode,
+      feePerPlayer, guestFeePerPlayer, maxPlayers, maxGuests, description,
+      numberOfCourts, playersPerCourt, queueMode,
       minSkillLevel, maxSkillLevel,
     } = req.body;
 
     const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId });
     if (!session) return res.status(404).json({ error: "Session not found" });
+
+    if (maxGuests !== undefined) {
+      const normMaxGuests = normalizeMaxGuests(maxGuests);
+      const effectiveMaxPlayers = maxPlayers !== undefined ? Number(maxPlayers) : session.maxPlayers;
+      if (normMaxGuests !== null && normMaxGuests > effectiveMaxPlayers) {
+        return res.status(400).json({ error: "Max guests cannot exceed maximum players" });
+      }
+      session.maxGuests = normMaxGuests;
+    }
+    if (guestFeePerPlayer !== undefined) session.guestFeePerPlayer = normalizeGuestFee(guestFeePerPlayer);
 
     if (numberOfCourts !== undefined) session.numberOfCourts = Math.max(1, Number(numberOfCourts) || 1);
     if (playersPerCourt !== undefined) session.playersPerCourt = Math.max(1, Number(playersPerCourt) || 4);
@@ -778,6 +808,19 @@ function notifyQueueTransitions(session, participants, changed, board, prev) {
   }
 }
 
+// Copy per-player fee figures (member + guest) onto the board's session for UI quotes.
+function decorateBoardFees(board, club, session) {
+  const fees = computePlayerFees(club, session.feePerPlayer);
+  board.session.feePerPlayer = fees.baseFee;
+  board.session.convenienceFeePerPlayer = fees.convenienceFee;
+  board.session.convenienceFeeMode = fees.feeMode;
+  board.session.totalPerPlayer = fees.total;
+  const guestFees = computePlayerFees(club, resolveGuestFee(session));
+  board.session.guestFeePerPlayer = guestFees.baseFee;
+  board.session.guestConvenienceFeePerPlayer = guestFees.convenienceFee;
+  board.session.guestTotalPerPlayer = guestFees.total;
+}
+
 // Persist an engine result (changed participants + optional session update),
 // apply the session update in memory, and respond with the fresh board.
 async function applyAndRespond(res, session, participants, result, club = null, prev = null) {
@@ -801,11 +844,7 @@ async function applyAndRespond(res, session, participants, result, club = null, 
   }
   const board = queue.buildBoard(session, participants);
   if (club) {
-    const fees = computePlayerFees(club, session.feePerPlayer);
-    board.session.feePerPlayer = fees.baseFee;
-    board.session.convenienceFeePerPlayer = fees.convenienceFee;
-    board.session.convenienceFeeMode = fees.feeMode;
-    board.session.totalPerPlayer = fees.total;
+    decorateBoardFees(board, club, session);
   }
   notifyQueueTransitions(session, participants, changed, board, prev);
   return res.json(board);
@@ -817,11 +856,7 @@ router.get("/sessions/:id/queue", auth, admin, async (req, res) => {
     const ctx = await loadQueueContext(req, res);
     if (!ctx) return;
     const board = queue.buildBoard(ctx.session, ctx.participants);
-    const fees = computePlayerFees(ctx.club, ctx.session.feePerPlayer);
-    board.session.feePerPlayer = fees.baseFee;
-    board.session.convenienceFeePerPlayer = fees.convenienceFee;
-    board.session.convenienceFeeMode = fees.feeMode;
-    board.session.totalPerPlayer = fees.total;
+    decorateBoardFees(board, ctx.club, ctx.session);
     res.json(board);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -934,8 +969,16 @@ router.post("/sessions/:id/walkins", auth, admin, async (req, res) => {
     const name = String(req.body.name || "").trim();
     if (!name) return res.status(400).json({ error: "Walk-in name is required" });
 
+    // Walk-ins are guests: enforce the session's guest cap.
+    if (ctx.session.maxGuests != null) {
+      const guests = await countGuests(ctx.session._id);
+      if (guests >= ctx.session.maxGuests) {
+        return res.status(400).json({ error: "Guest spots for this session are full", code: "guest_spots_full" });
+      }
+    }
+
     // Create a cash charge for the walk-in if the session has a fee
-    const { baseFee, convenienceFee, total: amount } = computePlayerFees(ctx.club, ctx.session.feePerPlayer);
+    const { baseFee, convenienceFee, total: amount } = computePlayerFees(ctx.club, resolveGuestFee(ctx.session));
     let chargeId;
     if (amount > 0) {
       const charge = await Charge.create({

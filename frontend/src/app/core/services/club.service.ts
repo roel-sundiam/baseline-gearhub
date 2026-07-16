@@ -52,6 +52,9 @@ export interface Club {
   hostedPlayEnabled?: boolean;
   hostedPlayQueueEnabled?: boolean;
   queueManagementFeePerPlayer?: number;
+  financeReportEnabled?: boolean;
+  financeReportSubscribedAt?: string | null;
+  financeReportFeeOverride?: number | null;
   duprClubId?: string | null;
   courts?: Court[];
 }
@@ -123,6 +126,14 @@ export class ClubService {
 
   patchMyHostedPlayAddon(enabled: boolean) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/hosted-play-addon`, { enabled });
+  }
+
+  patchMyFinanceReportAddon(enabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/finance-report-addon`, { enabled });
+  }
+
+  patchFinanceReportFee(id: string, override: number | null) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/finance-report-fee`, { override });
   }
 
   patchHostedPlayQueue(id: string, enabled: boolean) {

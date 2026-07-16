@@ -305,9 +305,15 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                 <div class="summary-label">Total Court Fees</div>
               </div>
               <div class="summary-item highlight-blue">
-                <div class="summary-value">{{ appServiceTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
-                <div class="summary-label">Conv. Fees Owed</div>
+                <div class="summary-value">{{ convenienceFeesOwedTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
+                <div class="summary-label" title="Convenience fees only — Finance Report add-on billing is shown separately">Conv. Fees Owed</div>
               </div>
+              @if (financeReportBillingTotal > 0) {
+                <div class="summary-item highlight-gold">
+                  <div class="summary-value">{{ financeReportBillingTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
+                  <div class="summary-label">Finance Report Add-on</div>
+                </div>
+              }
               <div class="summary-item">
                 <div class="summary-value">{{ totalPaid | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
                 <div class="summary-label">Paid to Dev</div>
@@ -610,6 +616,10 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                           <span class="method-badge method-waived">
                             <i class="fas fa-hand-holding-usd"></i> Waived
                           </span>
+                        } @else if (p.type === 'billing' && isFinanceReportBilling(p)) {
+                          <span class="method-badge method-finance-report">
+                            <i class="fas fa-chart-line"></i> Finance Report Add-on
+                          </span>
                         } @else if (p.type === 'billing') {
                           <span class="method-badge method-billing">
                             <i class="fas fa-calendar-alt"></i> Monthly Billing
@@ -761,6 +771,9 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .summary-item.highlight-orange { background: rgba(251,146,60,0.14); border-radius: 8px; }
     .summary-item.highlight-orange .summary-value { color: #fdba74; font-size: 1.1rem; }
     .summary-item.highlight-orange .summary-label { color: rgba(253,186,116,0.8); }
+    .summary-item.highlight-gold { background: rgba(250,204,21,0.14); border-radius: 8px; }
+    .summary-item.highlight-gold .summary-value { color: #facc15; font-size: 1.1rem; }
+    .summary-item.highlight-gold .summary-label { color: rgba(250,204,21,0.8); }
     .summary-value { font-size: 1.1rem; font-weight: 700; color: #ffffff; }
     .summary-label { font-size: 0.72rem; color: rgba(255,255,255,0.62); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
 
@@ -942,6 +955,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .method-billing { background: rgba(96,165,250,0.16); color: #93c5fd; display: inline-flex; align-items: center; gap: 4px; }
     .paid-fee-card-billing { border-left: 3px solid rgba(96,165,250,0.4); }
     .paid-fee-icon-billing { background: rgba(96,165,250,0.16) !important; color: #93c5fd !important; }
+    .method-finance-report { background: rgba(250,204,21,0.16); color: #facc15; display: inline-flex; align-items: center; gap: 4px; }
     .waived-total { color: #c4b5fd; }
 
     .filter-bar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: flex-end; }
@@ -1359,7 +1373,8 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .summary-item.highlight-red,
     .summary-item.highlight-green,
     .summary-item.highlight-purple,
-    .summary-item.highlight-orange {
+    .summary-item.highlight-orange,
+    .summary-item.highlight-gold {
       border-radius: 8px;
     }
 
@@ -2100,11 +2115,21 @@ export class FinanceComponent implements OnInit {
   get perGameServiceFee() { return this.allPerGameCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
   get hostedPlayServiceFee() { return this.allHostedPlayCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
   get billingTotal() { return this.appServicePayments.filter(p => p.type === 'billing').reduce((s, p) => s + p.amount, 0); }
+  // Finance Report add-on billing is tagged with billingKey "finance_report:YYYY-MM" — segregate it
+  // out of "Conv. Fees Owed" below, since the add-on fee isn't actually a convenience fee.
+  get financeReportBillingTotal() {
+    return this.appServicePayments
+      .filter(p => p.type === 'billing' && (p.billingKey ?? '').startsWith('finance_report:'))
+      .reduce((s, p) => s + p.amount, 0);
+  }
   get appServiceTotal() {
     return this.isMonthlyFlat
       ? this.convenienceFeeMonthlyAmount
       : this.reservationServiceFee + this.openPlayServiceFee + this.perGameServiceFee + this.hostedPlayServiceFee + this.billingTotal;
   }
+  // appServiceTotal/balance stay the grand total (what's actually owed to CourtGo); this is just
+  // the true convenience-fee portion, with the Finance Report add-on billing pulled out.
+  get convenienceFeesOwedTotal() { return this.appServiceTotal - this.financeReportBillingTotal; }
   get totalPaid() { return this.appServicePayments.filter(p => p.type === 'payment').reduce((s, p) => s + p.amount, 0); }
   get totalWaived() { return this.appServicePayments.filter(p => p.type === 'waiver').reduce((s, p) => s + p.amount, 0); }
   get balance() {
@@ -2291,6 +2316,10 @@ export class FinanceComponent implements OnInit {
       'method-bank-transfer': method === 'Bank Transfer',
       'method-credit': method === 'Credit',
     };
+  }
+
+  isFinanceReportBilling(p: AppServicePayment): boolean {
+    return (p.billingKey ?? '').startsWith('finance_report:');
   }
 
   // True when a charge was paid using a mix of account credit and an external method.

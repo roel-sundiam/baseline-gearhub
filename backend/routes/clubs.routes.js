@@ -5,6 +5,7 @@ const superadmin = require("../middleware/superadmin");
 const Club = require("../models/Club");
 const User = require("../models/User");
 const { ownsClub } = require("../utils/scope");
+const { ensureFinanceReportBilling } = require("../utils/financeReportBilling");
 
 const router = express.Router();
 
@@ -247,6 +248,55 @@ router.patch("/:id/hosted-play-addon", auth, superadmin, async (req, res) => {
     club.hostedPlayEnabled = !!req.body.enabled;
     await club.save();
     res.json(club.toObject());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /api/clubs/me/finance-report-addon — club admin self-subscribe/cancel the Finance Report add-on
+router.patch("/me/finance-report-addon", auth, admin, async (req, res) => {
+  try {
+    const clubId = req.user.clubId;
+    if (!clubId) return res.status(400).json({ error: "No club associated with this account" });
+    const club = await Club.findById(clubId);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+
+    const enabled = !!req.body.enabled;
+    club.financeReportEnabled = enabled;
+    if (enabled) {
+      // Reset the accrual start on every (re)subscribe; gap months are never billed.
+      club.financeReportSubscribedAt = new Date();
+    }
+    await club.save();
+    if (enabled) {
+      // Bill the current month immediately (deduped by billingKey on resubscribe).
+      await ensureFinanceReportBilling(club, req.user.userId);
+    }
+    res.json(club.toObject());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /api/clubs/:id/finance-report-fee — set per-club Finance Report fee override (superadmin only)
+router.patch("/:id/finance-report-fee", auth, superadmin, async (req, res) => {
+  try {
+    const { override } = req.body;
+    if (override !== null) {
+      const amount = Number(override);
+      if (!Number.isFinite(amount) || amount < 0) {
+        return res.status(400).json({ error: "override must be null or a non-negative number" });
+      }
+    }
+    const club = await Club.findByIdAndUpdate(
+      req.params.id,
+      { financeReportFeeOverride: override === null ? null : Number(override) },
+      { new: true },
+    ).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json(club);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

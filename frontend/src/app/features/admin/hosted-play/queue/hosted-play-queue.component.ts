@@ -407,12 +407,12 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                         <i class="fas fa-user-plus"></i> Add
                       </button>
                     </div>
-                    @if ((board.session.totalPerPlayer ?? 0) > 0) {
+                    @if ((board.session.guestTotalPerPlayer ?? board.session.totalPerPlayer ?? 0) > 0) {
                       <p class="walkin-fee-note">
                         <i class="fas fa-coins"></i>
-                        Collect <strong>₱{{ board.session.totalPerPlayer }}</strong> cash
-                        @if ((board.session.convenienceFeePerPlayer ?? 0) > 0) {
-                          <span class="walkin-fee-breakdown">(₱{{ board.session.feePerPlayer }} + ₱{{ board.session.convenienceFeePerPlayer }} service fee)</span>
+                        Collect <strong>₱{{ board.session.guestTotalPerPlayer ?? board.session.totalPerPlayer }}</strong> cash
+                        @if ((board.session.guestConvenienceFeePerPlayer ?? board.session.convenienceFeePerPlayer ?? 0) > 0) {
+                          <span class="walkin-fee-breakdown">(₱{{ board.session.guestFeePerPlayer ?? board.session.feePerPlayer }} + ₱{{ board.session.guestConvenienceFeePerPlayer ?? board.session.convenienceFeePerPlayer }} service fee)</span>
                         }
                         — recorded automatically on Add.
                       </p>
