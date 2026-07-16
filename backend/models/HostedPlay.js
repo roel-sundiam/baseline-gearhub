@@ -12,6 +12,11 @@ const hostedPlaySchema = new mongoose.Schema(
     court: { type: String, trim: true },
     address: { type: String, trim: true },
     feePerPlayer: { type: Number, default: 0, min: 0 },
+    // Billing model, snapshotted from Club.hostedPlayFeeSplitMode at creation and
+    // fixed for the life of the session. split_total ignores feePerPlayer and bills
+    // members sessionFee / (members still joined) once, when the session completes.
+    feeSplitMode: { type: String, enum: ["per_player", "split_total"], default: "per_player" },
+    sessionFee: { type: Number, default: 0, min: 0 },
     // Guest pricing/capacity. guestFeePerPlayer null = guests pay feePerPlayer.
     // maxGuests counts within maxPlayers; null = no guest-specific limit, 0 = no guests.
     guestFeePerPlayer: { type: Number, default: null, min: 0 },

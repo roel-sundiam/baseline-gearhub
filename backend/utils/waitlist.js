@@ -78,7 +78,9 @@ async function promoteFromWaitlist(session, club) {
     return;
   }
 
-  const isPaid = computePlayerFees(club, session.feePerPlayer).total > 0;
+  // Split Session Fee sessions defer payment to session-completion billing, so
+  // a promoted waitlister is always free-to-claim regardless of sessionFee.
+  const isPaid = session.feeSplitMode !== "split_total" && computePlayerFees(club, session.feePerPlayer).total > 0;
 
   while (slots > 0) {
     const next = await HostedPlayParticipant.findOne({
@@ -99,7 +101,9 @@ async function promoteFromWaitlist(session, club) {
         });
       }
     } else {
-      const charge = await Charge.create({
+      // Split Session Fee: no charge yet — billed later, alongside everyone
+      // else still joined, when the session is marked completed.
+      const charge = session.feeSplitMode === "split_total" ? null : await Charge.create({
         clubId: session.clubId,
         playerId: next.memberId,
         hostedPlayId: session._id,
@@ -110,7 +114,7 @@ async function promoteFromWaitlist(session, club) {
         approvalStatus: "none",
       });
       next.waitStatus = "active";
-      next.chargeId = charge._id;
+      if (charge) next.chargeId = charge._id;
       next.offerExpiresAt = null;
       await next.save();
       session.currentPlayers += 1;

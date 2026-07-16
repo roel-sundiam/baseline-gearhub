@@ -30,6 +30,10 @@ const clubSchema = new mongoose.Schema(
     // When a Hosted Play session is full, let players join a waitlist and get
     // auto-promoted (free) / offered the spot to claim (paid) when one frees up.
     hostedPlayWaitlistEnabled: { type: Boolean, default: true },
+    // Billing model for new Hosted Play sessions: per_player charges each joiner
+    // a flat feePerPlayer at join time; split_total divides a session's total fee
+    // among however many members are still joined when the session is completed.
+    hostedPlayFeeSplitMode: { type: String, enum: ['per_player', 'split_total'], default: 'per_player' },
     // Finance Report premium add-on: club admin self-subscribes; the monthly fee
     // accrues as AppServicePayment billing entries while enabled. subscribedAt is
     // kept on cancel (for display); ledger data is always preserved.

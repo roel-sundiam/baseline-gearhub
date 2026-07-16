@@ -52,6 +52,7 @@ export interface Club {
   hostedPlayEnabled?: boolean;
   hostedPlayQueueEnabled?: boolean;
   queueManagementFeePerPlayer?: number;
+  hostedPlayFeeSplitMode?: 'per_player' | 'split_total';
   financeReportEnabled?: boolean;
   financeReportSubscribedAt?: string | null;
   financeReportFeeOverride?: number | null;
@@ -142,6 +143,10 @@ export class ClubService {
 
   patchMyHostedPlayQueue(enabled: boolean) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/hosted-play-queue`, { enabled });
+  }
+
+  patchMyHostedPlayFeeSplitMode(mode: 'per_player' | 'split_total') {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/hosted-play-fee-split-mode`, { mode });
   }
 
   patchQueueManagementFee(id: string, fee: number) {

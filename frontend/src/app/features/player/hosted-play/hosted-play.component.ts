@@ -118,7 +118,11 @@ import { CreditService } from '../../../core/services/credit.service';
                 </div>
                 <div class="detail-item">
                   <i class="fas fa-coins"></i>
-                  <span>{{ (s.totalPerPlayer ?? s.feePerPlayer) | currency: 'PHP' : 'symbol-narrow' }} / player</span>
+                  @if (s.estimatedFee) {
+                    <span>≈ {{ (s.totalPerPlayer ?? s.feePerPlayer) | currency: 'PHP' : 'symbol-narrow' }} / player (est.)</span>
+                  } @else {
+                    <span>{{ (s.totalPerPlayer ?? s.feePerPlayer) | currency: 'PHP' : 'symbol-narrow' }} / player</span>
+                  }
                 </div>
               </div>
 
@@ -198,7 +202,11 @@ import { CreditService } from '../../../core/services/credit.service';
                 }
               </div>
 
-              @if (s.feePerPlayer > 0 && !s.joined && !s.pendingApproval && !s.waitlisted) {
+              @if (s.feeSplitMode === 'split_total' && !s.joined && !s.pendingApproval && !s.waitlisted) {
+                <p class="fee-note"><i class="fas fa-circle-info"></i>
+                  Joining is free. This session's {{ (s.sessionFee || 0) | currency: 'PHP' : 'symbol-narrow' }} total fee is split evenly among everyone still joined once the session ends — your estimated share is ≈ {{ (s.totalPerPlayer ?? s.feePerPlayer) | currency: 'PHP' : 'symbol-narrow' }}, billed to Payments afterward.
+                </p>
+              } @else if (s.feePerPlayer > 0 && !s.joined && !s.pendingApproval && !s.waitlisted) {
                 <p class="fee-note"><i class="fas fa-circle-info"></i>
                   @if (creditBalance >= (s.totalPerPlayer ?? s.feePerPlayer)) {
                     You have enough account credit to join this session for free.
@@ -1115,8 +1123,10 @@ export class PlayerHostedPlayComponent implements OnInit {
     }
     // Full session → join the waitlist (no upfront payment; paid players pay on claim).
     if (s.status === 'full') { this.joinWaitlist(s); return; }
+    // Split Session Fee sessions are billed once, after the session ends — joining
+    // itself is always free, so skip the payment modal regardless of the estimate.
     // Paid session — let the player choose credit vs. club payment methods before joining.
-    if ((s.totalPerPlayer ?? s.feePerPlayer ?? 0) > 0) {
+    if (s.feeSplitMode !== 'split_total' && (s.totalPerPlayer ?? s.feePerPlayer ?? 0) > 0) {
       this.openPaymentModal(s, false);
       return;
     }

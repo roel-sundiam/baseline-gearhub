@@ -339,6 +339,28 @@ router.patch("/:id/hosted-play-queue", auth, superadmin, async (req, res) => {
   }
 });
 
+// PATCH /api/clubs/me/hosted-play-fee-split-mode — club admin self-toggle billing model
+router.patch("/me/hosted-play-fee-split-mode", auth, admin, async (req, res) => {
+  try {
+    const clubId = req.user.clubId;
+    if (!clubId) return res.status(400).json({ error: "No club associated with this account" });
+    const { mode } = req.body;
+    if (!["per_player", "split_total"].includes(mode)) {
+      return res.status(400).json({ error: "mode must be 'per_player' or 'split_total'" });
+    }
+    const club = await Club.findByIdAndUpdate(
+      clubId,
+      { hostedPlayFeeSplitMode: mode },
+      { new: true },
+    ).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json(club);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // PATCH /api/clubs/:id/queue-management-fee — set Queue Management fee per player (superadmin only)
 router.patch("/:id/queue-management-fee", auth, superadmin, async (req, res) => {
   try {

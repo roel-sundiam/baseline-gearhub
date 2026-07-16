@@ -35,6 +35,11 @@ export interface HostedPlaySession {
   court?: string;
   address?: string;
   feePerPlayer: number;
+  // Billing model, fixed at session creation from the club's setting.
+  // split_total ignores feePerPlayer/totalPerPlayer as fixed charges — those
+  // become live estimates (see estimatedFee) until the session completes.
+  feeSplitMode?: 'per_player' | 'split_total';
+  sessionFee?: number;
   guestFeePerPlayer?: number | null;
   maxPlayers: number;
   maxGuests?: number | null;
@@ -66,6 +71,11 @@ export interface HostedPlaySession {
   convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs';
   queueManagementFeePerPlayer?: number;
   totalPerPlayer?: number;
+  // True when feeSplitMode is split_total: feePerPlayer/convenienceFeePerPlayer/
+  // totalPerPlayer above are a live estimate (sessionFee / current headcount),
+  // not a fixed charge — the actual bill is set once the session completes.
+  estimatedFee?: boolean;
+  billedLater?: boolean;
 }
 
 export type QueueStatus = 'not_started' | 'running' | 'paused' | 'ended';
@@ -109,6 +119,7 @@ export interface QueueBoard {
     guestFeePerPlayer?: number;
     guestConvenienceFeePerPlayer?: number;
     guestTotalPerPlayer?: number;
+    estimatedFee?: boolean;
   };
   courts: QueueCourt[];
   waiting: QueuePlayer[];
@@ -162,6 +173,7 @@ export interface HostedPlayInput {
   court?: string;
   address?: string;
   feePerPlayer: number;
+  sessionFee?: number;
   guestFeePerPlayer?: number | null;
   maxPlayers: number;
   maxGuests?: number | null;
@@ -236,7 +248,7 @@ export class HostedPlayService {
     return this.http.put<HostedPlaySession>(`${this.base}/sessions/${id}`, body);
   }
 
-  setStatus(id: string, status: HostedPlayStatus) {
+  setStatus(id: string, status: HostedPlayStatus | 'completed') {
     return this.http.patch<HostedPlaySession>(`${this.base}/sessions/${id}/status`, { status });
   }
 

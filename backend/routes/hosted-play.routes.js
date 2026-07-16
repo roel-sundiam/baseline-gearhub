@@ -15,6 +15,7 @@ const { computePlayerFees } = require("../utils/fees");
 const { resolveGuestFee, countGuests } = require("../utils/guests");
 const { ownsClub } = require("../utils/scope");
 const { getCreditBalance, redeemCredit, refundCredit } = require("../utils/credit");
+const { computeMemberFeeAndCredit, chargeMemberForSession, billSplitSessionFee } = require("../utils/hosted-play-billing");
 
 // Participants that occupy a real spot (excludes waitlist/offer holders). Used
 // to scope every queue read so the engine never sees waitlisted players.
@@ -86,7 +87,11 @@ router.get("/player/sessions", auth, async (req, res) => {
     const pendingSet = new Set(myPendingCharges.map((c) => String(c.hostedPlayId)));
 
     res.json(sessions.map((s) => {
-      const fees = computePlayerFees(club, s.feePerPlayer);
+      // Split Session Fee sessions aren't billed until completion, so this is
+      // only an estimate — it shrinks/grows as members join/leave beforehand.
+      const isSplitTotal = s.feeSplitMode === "split_total";
+      const baseFee = isSplitTotal ? parseFloat((Number(s.sessionFee || 0) / Math.max(1, s.currentPlayers)).toFixed(2)) : s.feePerPlayer;
+      const fees = computePlayerFees(club, baseFee);
       const myStatus = statusBySession.get(String(s._id));
       const joined = myStatus === "active";
       return {
@@ -95,9 +100,11 @@ router.get("/player/sessions", auth, async (req, res) => {
         waitlisted: myStatus === "waitlisted",
         offered: myStatus === "offered",
         pendingApproval: !joined && pendingSet.has(String(s._id)),
+        feePerPlayer: fees.baseFee,
         convenienceFeePerPlayer: fees.convenienceFee,
         convenienceFeeMode: fees.feeMode,
         totalPerPlayer: fees.total,
+        estimatedFee: isSplitTotal,
       };
     }));
   } catch (err) {
@@ -117,7 +124,13 @@ router.get("/player/sessions/:id", auth, async (req, res) => {
       HostedPlayParticipant.findOne({ hostedPlayId: session._id, memberId: req.user.userId })
         .select("waitStatus waitlistOrder offerExpiresAt").lean(),
     ]);
-    const fees = computePlayerFees(club, session.feePerPlayer);
+    // Split Session Fee sessions aren't billed until completion, so this is only
+    // an estimate — it shrinks/grows as members join/leave beforehand.
+    const isSplitTotal = session.feeSplitMode === "split_total";
+    const baseFee = isSplitTotal
+      ? parseFloat((Number(session.sessionFee || 0) / Math.max(1, session.currentPlayers)).toFixed(2))
+      : session.feePerPlayer;
+    const fees = computePlayerFees(club, baseFee);
 
     // If I'm waitlisted, my position = how many waitlisters are ahead of me (inclusive).
     let waitlistPosition = null;
@@ -130,9 +143,11 @@ router.get("/player/sessions/:id", auth, async (req, res) => {
 
     res.json({
       ...session,
+      feePerPlayer: fees.baseFee,
       convenienceFeePerPlayer: fees.convenienceFee,
       convenienceFeeMode: fees.feeMode,
       totalPerPlayer: fees.total,
+      estimatedFee: isSplitTotal,
       participants: participants.map((p) => ({
         _id: p._id,
         memberName: p.memberName,
@@ -203,6 +218,31 @@ router.post("/player/sessions/:id/join", auth, async (req, res) => {
       return res.status(201).json({ success: true, status: "waitlisted", waitlistPosition });
     }
 
+    // Split Session Fee sessions bill members once, after the session is marked
+    // complete (see billSplitSessionFee) — joining itself is free, no Charge yet.
+    if (session.feeSplitMode === "split_total") {
+      const splitUser = await User.findById(memberId).select("name").lean();
+      await HostedPlayParticipant.create({
+        hostedPlayId: session._id,
+        clubId: session.clubId,
+        memberId,
+        memberName: splitUser?.name ?? "Member",
+      });
+      session.currentPlayers += 1;
+      if (session.currentPlayers >= session.maxPlayers) session.status = "full";
+      await session.save();
+      sendPushToClubAdmins(session.clubId, {
+        title: "Hosted Play join",
+        body: `${splitUser?.name ?? "A member"} joined "${session.title}".`,
+      });
+      return res.status(201).json({
+        success: true,
+        currentPlayers: session.currentPlayers,
+        status: session.status,
+        billedLater: true,
+      });
+    }
+
     const { paymentMethod, paymentScreenshot, useCredit } = req.body;
     const validMemberMethods = ["GCash", "Bank Transfer", "GoTyme"];
     if (paymentScreenshot && !String(paymentScreenshot).startsWith("https://")) {
@@ -217,16 +257,9 @@ router.post("/player/sessions/:id/join", auth, async (req, res) => {
       Club.findById(session.clubId).select("convenienceFeeRate convenienceFeeMode").lean(),
     ]);
 
-    const { baseFee, convenienceFee, total: amount, feeMode } = computePlayerFees(club, session.feePerPlayer);
-    const netSessionFee = feeMode === 'club_absorbs' ? baseFee - convenienceFee : baseFee;
-
-    // Apply account credit toward the session fee unless the player opted to pay
-    // through the club's payment methods instead (useCredit: false).
-    const wantsCredit = useCredit !== false;
-    const creditBalance = wantsCredit && amount > 0 ? await getCreditBalance(session.clubId, memberId) : 0;
-    const creditApplied = Math.min(creditBalance, amount);
-    const remaining = amount - creditApplied;
     const hasPaymentProof = !!(paymentScreenshot && paymentMethod);
+    const breakdown = await computeMemberFeeAndCredit({ session, club, memberId, baseFee: session.feePerPlayer, useCredit });
+    const { creditApplied, remaining } = breakdown;
 
     if (remaining > 0 && !hasPaymentProof) {
       return res.status(400).json({ error: "Payment is required to join this session", remaining, creditApplied });
@@ -241,26 +274,7 @@ router.post("/player/sessions/:id/join", auth, async (req, res) => {
       if (pendingCharge) return res.status(400).json({ error: "You already have a pending payment for this session awaiting approval" });
     }
 
-    const charge = await Charge.create({
-      clubId: session.clubId,
-      playerId: memberId,
-      hostedPlayId: session._id,
-      amount,
-      breakdown: { hostedPlayFee: netSessionFee, convenienceFee, convenienceFeeMode: feeMode },
-      chargeType: "hosted_play",
-      status: remaining <= 0 && creditApplied > 0 ? "paid" : "unpaid",
-      approvalStatus: remaining <= 0 ? (creditApplied > 0 ? "approved" : "none") : "pending",
-      creditApplied,
-      ...(remaining <= 0 && creditApplied > 0
-        ? { paymentMethod: "Credit", paidAt: new Date() }
-        : remaining > 0
-          ? { paymentMethod, paymentScreenshot }
-          : {}),
-    });
-
-    if (creditApplied > 0) {
-      await redeemCredit({ clubId: session.clubId, playerId: memberId, amount: creditApplied, chargeId: charge._id, grantedBy: memberId });
-    }
+    const charge = await chargeMemberForSession({ session, memberId, breakdown, paymentMethod, paymentScreenshot });
 
     if (remaining <= 0) {
       // Fully covered (free session, or credit covered it) — join the player immediately.
@@ -518,7 +532,7 @@ router.post("/sessions", auth, admin, async (req, res) => {
   try {
     const {
       title, sport, date, startTime, endTime, venue, court, address,
-      feePerPlayer, guestFeePerPlayer, maxPlayers, maxGuests, description,
+      feePerPlayer, sessionFee, guestFeePerPlayer, maxPlayers, maxGuests, description,
       numberOfCourts, playersPerCourt, queueMode,
       minSkillLevel, maxSkillLevel,
     } = req.body;
@@ -534,7 +548,7 @@ router.post("/sessions", auth, admin, async (req, res) => {
       return res.status(400).json({ error: "Max guests cannot exceed maximum players" });
     }
 
-    const club = await Club.findById(req.user.clubId).select("hostedPlayQueueEnabled queueManagementFeePerPlayer").lean();
+    const club = await Club.findById(req.user.clubId).select("hostedPlayQueueEnabled queueManagementFeePerPlayer hostedPlayFeeSplitMode").lean();
 
     const session = await HostedPlay.create({
       clubId: req.user.clubId,
@@ -547,7 +561,9 @@ router.post("/sessions", auth, admin, async (req, res) => {
       venue,
       court,
       address,
+      feeSplitMode: club?.hostedPlayFeeSplitMode ?? "per_player",
       feePerPlayer: Math.max(0, Number(feePerPlayer ?? 0) || 0),
+      sessionFee: Math.max(0, Number(sessionFee ?? 0) || 0),
       guestFeePerPlayer: normalizeGuestFee(guestFeePerPlayer),
       maxPlayers: Number(maxPlayers),
       maxGuests: normMaxGuests,
@@ -582,7 +598,7 @@ router.put("/sessions/:id", auth, admin, async (req, res) => {
   try {
     const {
       title, sport, date, startTime, endTime, venue, court, address,
-      feePerPlayer, guestFeePerPlayer, maxPlayers, maxGuests, description,
+      feePerPlayer, sessionFee, guestFeePerPlayer, maxPlayers, maxGuests, description,
       numberOfCourts, playersPerCourt, queueMode,
       minSkillLevel, maxSkillLevel,
     } = req.body;
@@ -614,6 +630,7 @@ router.put("/sessions/:id", auth, admin, async (req, res) => {
     if (court !== undefined) session.court = court;
     if (address !== undefined) session.address = address;
     if (feePerPlayer !== undefined) session.feePerPlayer = Math.max(0, Number(feePerPlayer) || 0);
+    if (sessionFee !== undefined) session.sessionFee = Math.max(0, Number(sessionFee) || 0);
     if (description !== undefined) session.description = description;
     if (maxPlayers !== undefined) {
       session.maxPlayers = Number(maxPlayers);
@@ -668,7 +685,7 @@ router.post("/sessions/:id/enable-queue", auth, admin, async (req, res) => {
 router.patch("/sessions/:id/status", auth, admin, async (req, res) => {
   try {
     const { status } = req.body;
-    const valid = ["open", "full", "closed", "cancelled"];
+    const valid = ["open", "full", "closed", "cancelled", "completed"];
     if (!valid.includes(status)) return res.status(400).json({ error: "Invalid status" });
 
     const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId });
@@ -682,6 +699,8 @@ router.patch("/sessions/:id/status", auth, admin, async (req, res) => {
       session.summary = null;
     }
 
+    const wasCompleted = session.status === "completed";
+
     // When reopening, respect the cap
     if (status === "open" && session.currentPlayers >= session.maxPlayers) {
       session.status = "full";
@@ -693,6 +712,13 @@ router.patch("/sessions/:id/status", auth, admin, async (req, res) => {
     // A cancelled session shouldn't leave members owing the fee.
     if (status === "cancelled") {
       await Charge.deleteMany({ hostedPlayId: session._id, chargeType: "hosted_play", status: "unpaid" });
+    }
+
+    // Split Session Fee sessions bill their joined members exactly once, the
+    // first time they're marked completed.
+    if (status === "completed" && !wasCompleted && session.feeSplitMode === "split_total") {
+      const club = await Club.findById(session.clubId).select("convenienceFeeRate convenienceFeeMode").lean();
+      await billSplitSessionFee(session, club);
     }
 
     res.json(session);
@@ -810,11 +836,18 @@ function notifyQueueTransitions(session, participants, changed, board, prev) {
 
 // Copy per-player fee figures (member + guest) onto the board's session for UI quotes.
 function decorateBoardFees(board, club, session) {
-  const fees = computePlayerFees(club, session.feePerPlayer);
+  // Split Session Fee sessions aren't billed until completion, so this is only
+  // an estimate — it shrinks/grows as members join/leave beforehand.
+  const isSplitTotal = session.feeSplitMode === "split_total";
+  const baseFee = isSplitTotal
+    ? parseFloat((Number(session.sessionFee || 0) / Math.max(1, session.currentPlayers)).toFixed(2))
+    : session.feePerPlayer;
+  const fees = computePlayerFees(club, baseFee);
   board.session.feePerPlayer = fees.baseFee;
   board.session.convenienceFeePerPlayer = fees.convenienceFee;
   board.session.convenienceFeeMode = fees.feeMode;
   board.session.totalPerPlayer = fees.total;
+  board.session.estimatedFee = isSplitTotal;
   const guestFees = computePlayerFees(club, resolveGuestFee(session));
   board.session.guestFeePerPlayer = guestFees.baseFee;
   board.session.guestConvenienceFeePerPlayer = guestFees.convenienceFee;
@@ -882,7 +915,14 @@ router.post("/sessions/:id/queue/end", auth, admin, async (req, res) => {
   try {
     const ctx = await loadQueueContext(req, res);
     if (!ctx) return;
-    await applyAndRespond(res, ctx.session, ctx.participants, queue.endQueue(ctx.session, ctx.participants), ctx.club, ctx.prev);
+    const wasCompleted = ctx.session.status === "completed";
+    const result = queue.endQueue(ctx.session, ctx.participants);
+    // Split Session Fee sessions bill their joined members exactly once, the
+    // first time they're marked completed (here, or via PATCH /sessions/:id/status).
+    if (result?.sessionUpdate?.status === "completed" && !wasCompleted && ctx.session.feeSplitMode === "split_total") {
+      await billSplitSessionFee(ctx.session, ctx.club);
+    }
+    await applyAndRespond(res, ctx.session, ctx.participants, result, ctx.club, ctx.prev);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

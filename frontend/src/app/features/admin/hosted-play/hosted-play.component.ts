@@ -52,6 +52,16 @@ type FormModel = HostedPlayInput;
                 <span class="queue-slider"></span>
               </label>
             </div>
+            <div class="queue-setting-row">
+              <div class="queue-setting-copy">
+                <div class="queue-setting-title"><i class="fas fa-coins"></i> Billing Model</div>
+                <div class="queue-setting-desc">Choose how new sessions charge members: a flat fee per player, or a total session fee split among everyone who joins (billed once the session is marked complete).</div>
+              </div>
+              <div class="fee-split-toggle">
+                <button type="button" class="fee-split-opt" [class.fee-split-opt-active]="feeSplitMode() === 'per_player'" [disabled]="savingFeeSplitMode" (click)="setFeeSplitMode('per_player')">Fee Per Player</button>
+                <button type="button" class="fee-split-opt" [class.fee-split-opt-active]="feeSplitMode() === 'split_total'" [disabled]="savingFeeSplitMode" (click)="setFeeSplitMode('split_total')">Split Session Fee</button>
+              </div>
+            </div>
           </section>
 
           <section class="stats-grid" aria-label="Hosted play summary">
@@ -107,7 +117,11 @@ type FormModel = HostedPlayInput;
                     <span><i class="fas fa-calendar-day"></i> {{ s.date | date: 'EEE, MMM d, y' : 'UTC' }}</span>
                     <span><i class="fas fa-clock"></i> {{ s.startTime }} - {{ s.endTime }}</span>
                     <span><i class="fas fa-location-dot"></i> {{ s.venue }}{{ s.court ? ' - ' + s.court : '' }}</span>
-                    <span><i class="fas fa-coins"></i> {{ s.feePerPlayer | currency: 'PHP' : 'symbol-narrow' }} / player</span>
+                    @if (s.feeSplitMode === 'split_total') {
+                      <span><i class="fas fa-coins"></i> {{ (s.sessionFee || 0) | currency: 'PHP' : 'symbol-narrow' }} total, split among joiners</span>
+                    } @else {
+                      <span><i class="fas fa-coins"></i> {{ s.feePerPlayer | currency: 'PHP' : 'symbol-narrow' }} / player</span>
+                    }
                     @if (s.guestFeePerPlayer != null) {
                       <span><i class="fas fa-user-friends"></i> {{ s.guestFeePerPlayer | currency: 'PHP' : 'symbol-narrow' }} / guest</span>
                     }
@@ -142,6 +156,9 @@ type FormModel = HostedPlayInput;
                       <button class="action" (click)="setStatus(s, 'closed')"><i class="fas fa-lock"></i> Close</button>
                     } @else if (s.status === 'closed' || s.status === 'completed') {
                       <button class="action" (click)="setStatus(s, 'open')"><i class="fas fa-lock-open"></i> Reopen</button>
+                    }
+                    @if (s.feeSplitMode === 'split_total' && !(s.queueManagementEnabled ?? queueEnabled()) && s.status !== 'completed' && s.status !== 'cancelled') {
+                      <button class="action primary" [disabled]="markingCompleteId === s._id" (click)="markSessionComplete(s)"><i class="fas fa-flag-checkered"></i> Mark Complete &amp; Bill</button>
                     }
                     <button class="action danger" (click)="confirmDelete(s)"><i class="fas fa-trash"></i> Delete</button>
                   </div>
@@ -232,9 +249,18 @@ type FormModel = HostedPlayInput;
                 <label class="field"><span>Maximum Players *</span>
                   <input type="number" min="2" step="1" [(ngModel)]="form.maxPlayers" />
                 </label>
-                <label class="field"><span>Fee Per Player</span>
-                  <input type="number" min="0" step="1" [(ngModel)]="form.feePerPlayer" />
-                </label>
+                @if (feeSplitMode() === 'split_total') {
+                  <label class="field"><span>Total Session Fee</span>
+                    <input type="number" min="0" step="1" [(ngModel)]="form.sessionFee" />
+                  </label>
+                  @if (form.sessionFee && form.maxPlayers) {
+                    <div class="field-hint wide">≈ {{ (form.sessionFee / form.maxPlayers) | currency: 'PHP' : 'symbol-narrow' }} per player if all {{ form.maxPlayers }} slots fill — split evenly among whoever joins once the session is complete.</div>
+                  }
+                } @else {
+                  <label class="field"><span>Fee Per Player</span>
+                    <input type="number" min="0" step="1" [(ngModel)]="form.feePerPlayer" />
+                  </label>
+                }
                 <label class="field"><span>Max Guests</span>
                   <input type="number" min="0" step="1" [(ngModel)]="form.maxGuests" placeholder="No limit" />
                 </label>
@@ -715,6 +741,7 @@ type FormModel = HostedPlayInput;
     .step-callout strong { color: var(--text); font-size: .78rem; }
     .step-callout span { color: var(--muted); font-size: .72rem; }
     .wide { grid-column: 1 / -1; }
+    .field-hint { color: var(--muted); font-size: .76rem; line-height: 1.4; margin-top: -.4rem; }
     .field { display: flex; flex-direction: column; gap: .35rem; }
     .field span { color: var(--muted); font-size: .78rem; font-weight: 850; }
     .field input, .field select, .field textarea {
@@ -754,7 +781,7 @@ type FormModel = HostedPlayInput;
     .confirm-modal strong { color: var(--text); }
 
     /* Queue Management toggle row */
-    .queue-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .9rem; padding: .85rem 1rem; border: 1px solid rgba(163,230,53,.22); border-radius: 12px; background: rgba(8,25,17,.4); }
+    .queue-setting-row { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .9rem; padding: .85rem 1rem; border: 1px solid rgba(163,230,53,.22); border-radius: 12px; background: rgba(8,25,17,.4); flex-wrap: wrap; }
     .queue-setting-copy { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
     .queue-setting-title { color: var(--text); font-size: .9rem; font-weight: 800; display: flex; align-items: center; gap: .45rem; }
     .queue-setting-title i { color: var(--accent); }
@@ -766,6 +793,12 @@ type FormModel = HostedPlayInput;
     .queue-switch input:checked + .queue-slider { background: var(--accent); }
     .queue-switch input:checked + .queue-slider:before { transform: translateX(20px); }
     .queue-switch input:disabled + .queue-slider { opacity: .5; cursor: not-allowed; }
+
+    .fee-split-toggle { display: flex; gap: .4rem; flex-shrink: 0; }
+    .fee-split-opt { padding: .5rem .85rem; border-radius: 10px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.04); color: var(--muted); font-size: .78rem; font-weight: 700; cursor: pointer; transition: .15s; }
+    .fee-split-opt:hover:not(:disabled) { border-color: rgba(163,230,53,.4); }
+    .fee-split-opt:disabled { opacity: .6; cursor: not-allowed; }
+    .fee-split-opt-active { background: var(--accent); border-color: var(--accent); color: #06210f; }
 
     .participant-list { display: flex; flex-direction: column; gap: .55rem; }
     .participant-row { display: flex; align-items: center; gap: .7rem; padding: .62rem .7rem; border-radius: 8px; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); }
@@ -825,6 +858,9 @@ export class AdminHostedPlayComponent implements OnInit {
   togglingQueue = false;
   showQueueFeeDisclaimer = false;
   clubCourts: Court[] = [];
+  feeSplitMode = signal<'per_player' | 'split_total'>('per_player');
+  savingFeeSplitMode = false;
+  markingCompleteId: string | null = null;
 
   showCourtsModal = false;
   courtsEdit: Court[] = [];
@@ -872,6 +908,7 @@ export class AdminHostedPlayComponent implements OnInit {
         next: (c) => {
           this.queueEnabled.set(!!c.hostedPlayQueueEnabled);
           this.queueFeePerPlayer.set(c.queueManagementFeePerPlayer ?? 0);
+          this.feeSplitMode.set(c.hostedPlayFeeSplitMode ?? 'per_player');
           this.clubCourts = (c.courts ?? []) as Court[];
           this.cdr.detectChanges();
         },
@@ -891,7 +928,7 @@ export class AdminHostedPlayComponent implements OnInit {
   blankForm(): FormModel {
     return {
       title: '', sport: 'pickleball', date: '', startTime: '', endTime: '',
-      venue: '', court: '', address: '', feePerPlayer: 0, guestFeePerPlayer: null,
+      venue: '', court: '', address: '', feePerPlayer: 0, sessionFee: 0, guestFeePerPlayer: null,
       maxPlayers: 8, maxGuests: null, description: '',
       numberOfCourts: 1, queueMode: 'fcfs', minSkillLevel: null, maxSkillLevel: null,
     };
@@ -948,6 +985,32 @@ export class AdminHostedPlayComponent implements OnInit {
     });
   }
 
+  setFeeSplitMode(mode: 'per_player' | 'split_total') {
+    if (mode === this.feeSplitMode() || this.savingFeeSplitMode) return;
+    this.savingFeeSplitMode = true;
+    this.clubService.patchMyHostedPlayFeeSplitMode(mode).subscribe({
+      next: (club) => {
+        this.feeSplitMode.set(club.hostedPlayFeeSplitMode ?? 'per_player');
+        this.savingFeeSplitMode = false;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.savingFeeSplitMode = false; this.cdr.detectChanges(); },
+    });
+  }
+
+  markSessionComplete(s: HostedPlaySession) {
+    if (this.markingCompleteId) return;
+    this.markingCompleteId = s._id;
+    this.hp.setStatus(s._id, 'completed').subscribe({
+      next: (updated) => {
+        this.sessions = this.sessions.map(x => x._id === updated._id ? updated : x);
+        this.markingCompleteId = null;
+        this.cdr.detectChanges();
+      },
+      error: () => { this.markingCompleteId = null; this.cdr.detectChanges(); },
+    });
+  }
+
   fillPct(s: HostedPlaySession): number {
     if (!s.maxPlayers) return 0;
     return Math.min(100, Math.round(((s.currentPlayers || 0) / s.maxPlayers) * 100));
@@ -1000,7 +1063,7 @@ export class AdminHostedPlayComponent implements OnInit {
     this.form = {
       title: s.title, sport: s.sport, date: (s.date || '').slice(0, 10),
       startTime: s.startTime, endTime: s.endTime, venue: s.venue, court: s.court || '',
-      address: s.address || '', feePerPlayer: s.feePerPlayer, guestFeePerPlayer: s.guestFeePerPlayer ?? null,
+      address: s.address || '', feePerPlayer: s.feePerPlayer, sessionFee: s.sessionFee ?? 0, guestFeePerPlayer: s.guestFeePerPlayer ?? null,
       maxPlayers: s.maxPlayers, maxGuests: s.maxGuests ?? null,
       description: s.description || '', numberOfCourts: s.numberOfCourts ?? 1,
       queueMode: s.queueMode || 'fcfs',
@@ -1041,7 +1104,9 @@ export class AdminHostedPlayComponent implements OnInit {
     if (step === 2) {
       if (!this.form.venue?.trim()) return 'Select or enter a venue to continue.';
       if (!this.form.maxPlayers || this.form.maxPlayers < 2) return 'Maximum players must be at least 2.';
-      if (this.form.feePerPlayer < 0) return 'Fee per player cannot be negative.';
+      if (this.feeSplitMode() === 'split_total') {
+        if ((this.form.sessionFee ?? 0) < 0) return 'Total session fee cannot be negative.';
+      } else if (this.form.feePerPlayer < 0) return 'Fee per player cannot be negative.';
       if (this.form.maxGuests != null && this.form.maxGuests < 0) return 'Max guests cannot be negative.';
       if (this.form.maxGuests != null && this.form.maxGuests > this.form.maxPlayers) return 'Max guests cannot exceed maximum players.';
       if (this.form.guestFeePerPlayer != null && this.form.guestFeePerPlayer < 0) return 'Guest fee cannot be negative.';
