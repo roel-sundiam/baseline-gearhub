@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef, ElementRef, ViewChild,
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { UsersService } from '../../../core/services/users.service';
 import { SessionsService } from '../../../core/services/sessions.service';
 import { ChargesService, Charge } from '../../../core/services/charges.service';
@@ -12,14 +13,17 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
 import { AdminMessagesService } from '../../../core/services/admin-messages.service';
 import { AdminChatModalComponent } from '../../../shared/components/admin-chat-modal/admin-chat-modal.component';
 import { BalanceAlertModalComponent } from '../../../shared/components/balance-alert-modal/balance-alert-modal.component';
+import { AnnouncementModalComponent } from '../../../shared/components/announcement-modal/announcement-modal.component';
 import { SoundService } from '../../../core/services/sound.service';
 import { AppServicePaymentsService } from '../../../core/services/app-service-payments.service';
+import { AnnouncementService } from '../../../core/services/announcement.service';
 import { forkJoin, timeout, of, catchError } from 'rxjs';
+import { marked } from 'marked';
 
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, AdminChatModalComponent, BalanceAlertModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, AdminChatModalComponent, BalanceAlertModalComponent, AnnouncementModalComponent],
   template: `
     <section class="dashboard-shell">
       <header class="hero-panel">
@@ -462,6 +466,14 @@ import { forkJoin, timeout, of, catchError } from 'rxjs';
       <app-balance-alert-modal
         [balance]="balanceAlertAmount()"
         (dismissed)="showBalanceAlert.set(false)"
+      />
+    }
+
+    @if (showAnnouncementModal()) {
+      <app-announcement-modal
+        [title]="announcementTitle()"
+        [html]="announcementHtml()"
+        (dismissed)="showAnnouncementModal.set(false)"
       />
     }
   `,
@@ -1564,6 +1576,11 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   showBalanceAlert = signal(false);
   balanceAlertAmount = signal(0);
 
+  // ── Announcement modal ──
+  showAnnouncementModal = signal(false);
+  announcementTitle = signal('');
+  announcementHtml = signal<SafeHtml>('');
+
   // ── App service balance due card ──
   feeInfo = signal<{ balance: number; convenienceFeeMode: string; convenienceFeeMonthlyAmount: number; balanceAlertEnabled: boolean } | null>(null);
   readonly monthEndDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
@@ -1580,6 +1597,8 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     private adminMessages: AdminMessagesService,
     private sound: SoundService,
     private appServicePayments: AppServicePaymentsService,
+    private announcementService: AnnouncementService,
+    private sanitizer: DomSanitizer,
   ) {}
 
   toggleHostedPlayAddon(enabled: boolean) {
@@ -1676,6 +1695,19 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
           }
         },
         error: (err) => console.error('Balance alert check failed:', err),
+      });
+
+      this.announcementService.getAnnouncement().subscribe({
+        next: (announcement) => {
+          if (announcement.enabled) {
+            this.announcementTitle.set(announcement.title || 'Announcement');
+            const html = marked.parse(announcement.text || '') as string;
+            this.announcementHtml.set(this.sanitizer.bypassSecurityTrustHtml(html));
+            this.showAnnouncementModal.set(true);
+            this.cdr.detectChanges();
+          }
+        },
+        error: (err) => console.error('Announcement check failed:', err),
       });
     }
   }

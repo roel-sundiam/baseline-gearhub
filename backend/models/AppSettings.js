@@ -62,9 +62,17 @@ const appSettingsSchema = new mongoose.Schema(
     reviewFormUrl: { type: String, default: "", trim: true },
     adminTermsText: { type: String, default: DEFAULT_ADMIN_TERMS },
     guestTermsText: { type: String, default: DEFAULT_GUEST_TERMS },
+    // Default monthly price of the Finance Report add-on (per-club override on Club).
+    financeReportMonthlyFee: { type: Number, default: 199, min: 0 },
     termsVersion: { type: Number, default: 1 },
     termsUpdatedAt: { type: Date, default: null },
     termsUpdatedBy: { type: String, default: "" },
+    announcementEnabled: { type: Boolean, default: false },
+    announcementTitle: { type: String, default: "", trim: true },
+    announcementText: { type: String, default: "" },
+    announcementVersion: { type: Number, default: 0 },
+    announcementUpdatedAt: { type: Date, default: null },
+    announcementUpdatedBy: { type: String, default: "" },
   },
   { timestamps: true },
 );

@@ -72,6 +72,9 @@ interface AdminUser {
           <a routerLink="/admin/terms-editor" class="btn btn-dev">
             <i class="fas fa-file-contract"></i> T&amp;C Editor
           </a>
+          <a routerLink="/admin/announcement-editor" class="btn btn-dev">
+            <i class="fas fa-bullhorn"></i> Announcements
+          </a>
           <a routerLink="/admin/dev-finance" class="btn btn-dev">
             <i class="fas fa-chart-line"></i> Dev Finance
           </a>

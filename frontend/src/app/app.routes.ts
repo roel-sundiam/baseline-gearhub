@@ -123,6 +123,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'finance-report',
+        loadComponent: () =>
+          import('./features/admin/finance-report/finance-report.component').then(
+            (m) => m.FinanceReportComponent,
+          ),
+      },
+      {
         path: 'tournaments',
         loadComponent: () =>
           import('./features/admin/tournaments/tournaments.component').then(
@@ -171,6 +178,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/dev-finance/dev-finance.component').then(
             (m) => m.DevFinanceComponent,
+          ),
+      },
+      {
+        path: 'finance-reports',
+        loadComponent: () =>
+          import('./features/admin/finance-reports-admin/finance-reports-admin.component').then(
+            (m) => m.FinanceReportsAdminComponent,
           ),
       },
       {
@@ -241,6 +255,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/terms-editor/terms-editor.component').then(
             (m) => m.TermsEditorComponent,
+          ),
+      },
+      {
+        path: 'announcement-editor',
+        loadComponent: () =>
+          import('./features/admin/announcement-editor/announcement-editor.component').then(
+            (m) => m.AnnouncementEditorComponent,
           ),
       },
     ],
