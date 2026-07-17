@@ -1224,7 +1224,9 @@ type UnifiedSession = {
     }
 
     @media (max-width: 480px) {
-      .tab-toggle { display: none; }
+      .nav-left { flex-wrap: wrap; row-gap: 0.6rem; }
+      .tab-toggle { width: 100%; }
+      .tab-btn { flex: 1; text-align: center; }
       .hero { padding: 1.5rem 1rem 0.75rem; }
       .filter-bar { padding: 0 1rem 1rem; }
       .content { padding: 0.5rem 1rem 2rem; }

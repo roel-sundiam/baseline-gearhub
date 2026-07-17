@@ -1741,14 +1741,15 @@ export class GuestBookComponent implements OnInit, OnDestroy {
     }
   }
 
-  submitGuestJoin(session: { _id: string; feePerPlayer: number; title: string }) {
+  submitGuestJoin(session: { _id: string; feePerPlayer: number; guestFeePerPlayer?: number | null; title: string }) {
     const name = this.guestJoinName().trim();
     const email = this.guestJoinEmail().trim();
     const phone = this.guestJoinPhone().trim();
+    const guestFee = session.guestFeePerPlayer ?? session.feePerPlayer ?? 0;
 
     if (!name) { this.guestJoinError.set('Name is required.'); return; }
     if (!email || !email.includes('@')) { this.guestJoinError.set('A valid email address is required.'); return; }
-    if (session.feePerPlayer > 0 && !this.guestJoinScreenshotUrl()) {
+    if (guestFee > 0 && !this.guestJoinScreenshotUrl()) {
       this.guestJoinError.set('Please attach your payment screenshot.');
       return;
     }
@@ -1759,7 +1760,7 @@ export class GuestBookComponent implements OnInit, OnDestroy {
     const payload: { name: string; email: string; phone?: string; paymentMethod?: string; paymentScreenshot?: string } = {
       name, email,
       ...(phone ? { phone } : {}),
-      ...(session.feePerPlayer > 0 ? {
+      ...(guestFee > 0 ? {
         paymentMethod: this.guestJoinPaymentMethod(),
         paymentScreenshot: this.guestJoinScreenshotUrl()!,
       } : {}),
