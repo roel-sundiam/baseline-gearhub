@@ -4,6 +4,7 @@ const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
 const superadmin = require("../middleware/superadmin");
 const User = require("../models/User");
+const ClubMembership = require("../models/ClubMembership");
 const { ownsClub } = require("../utils/scope");
 
 const router = express.Router();
@@ -78,11 +79,24 @@ router.get("/admins", auth, async (req, res) => {
   }
 });
 
+// Players visible to a club: home members plus users whose ClubMembership in
+// this club is active. Union tolerates legacy accounts without membership docs.
+async function activeClubPlayersFilter(clubId) {
+  const memberIds = await ClubMembership.find({ clubId, status: "active" }).distinct("userId");
+  return {
+    role: "player",
+    $or: [
+      { clubId, status: "active" },
+      { _id: { $in: memberIds } },
+    ],
+  };
+}
+
 // GET /api/users/directory/members — list active players for member directory
 router.get("/directory/members", auth, async (req, res) => {
   try {
     const clubId = req.user.clubId;
-    const users = await User.find({ clubId, status: "active", role: "player" })
+    const users = await User.find(await activeClubPlayersFilter(clubId))
       .select("_id name email contactNumber gender profileImage createdAt")
       .sort({ name: 1 });
     res.json(users);
@@ -93,14 +107,35 @@ router.get("/directory/members", auth, async (req, res) => {
 });
 
 // GET /api/users/pending — list pending users (admin)
+// Includes both new registrations (home club pending) and join requests from
+// existing members of other clubs (pending ClubMembership in this club).
 router.get("/pending", auth, admin, async (req, res) => {
   try {
     const clubId = req.query.clubId || req.user.clubId;
     const filter = { status: "pending", ...(clubId ? { clubId } : {}) };
     const users = await User.find(filter)
       .select("-passwordHash")
-      .sort({ createdAt: -1 });
-    res.json(users);
+      .sort({ createdAt: -1 })
+      .lean();
+
+    let joinRequests = [];
+    if (clubId) {
+      const pendingMemberships = await ClubMembership.find({ clubId, status: "pending" })
+        .populate({ path: "userId", select: "-passwordHash" })
+        .sort({ joinedAt: -1 })
+        .lean();
+      joinRequests = pendingMemberships
+        .filter((m) => m.userId && String(m.userId.clubId) !== String(clubId))
+        .map((m) => ({
+          ...m.userId,
+          status: "pending",
+          membershipId: m._id,
+          isJoinRequest: true,
+          membershipJoinedAt: m.joinedAt,
+        }));
+    }
+
+    res.json([...joinRequests, ...users]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -108,13 +143,34 @@ router.get("/pending", auth, admin, async (req, res) => {
 });
 
 // GET /api/users — list all users (admin)
+// Cross-club members appear with `status` reflecting their membership in this
+// club (their User.status belongs to their home club).
 router.get("/", auth, admin, async (req, res) => {
   try {
     const clubId = req.query.clubId || req.user.clubId;
     const users = await User.find(clubId ? { clubId } : {})
       .select("-passwordHash")
-      .sort({ createdAt: -1 });
-    res.json(users);
+      .sort({ createdAt: -1 })
+      .lean();
+
+    let guestMembers = [];
+    if (clubId) {
+      const memberships = await ClubMembership.find({ clubId })
+        .populate({ path: "userId", select: "-passwordHash" })
+        .sort({ joinedAt: -1 })
+        .lean();
+      guestMembers = memberships
+        .filter((m) => m.userId && String(m.userId.clubId) !== String(clubId))
+        .map((m) => ({
+          ...m.userId,
+          status: m.status,
+          membershipId: m._id,
+          isJoinRequest: m.status === "pending",
+          membershipJoinedAt: m.joinedAt,
+        }));
+    }
+
+    res.json([...guestMembers, ...users]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -125,7 +181,7 @@ router.get("/", auth, admin, async (req, res) => {
 router.get("/active-players", auth, async (req, res) => {
   try {
     const clubId = req.user.clubId;
-    const users = await User.find({ clubId, status: "active", role: "player" })
+    const users = await User.find(await activeClubPlayersFilter(clubId))
       .select("_id name email")
       .sort({ name: 1 });
     res.json(users);
@@ -149,6 +205,11 @@ router.put("/:id/approve", auth, admin, async (req, res) => {
     ).select("-passwordHash");
 
     if (!user) return res.status(404).json({ error: "User not found" });
+    // Keep the home-club membership doc in sync with the legacy status field.
+    await ClubMembership.updateOne(
+      { userId: user._id, clubId: target.clubId },
+      { $set: { status: "active", approvedAt: new Date() } },
+    );
     res.json(user);
   } catch (err) {
     console.error(err);
@@ -170,6 +231,10 @@ router.put("/:id/reject", auth, admin, async (req, res) => {
     ).select("-passwordHash");
 
     if (!user) return res.status(404).json({ error: "User not found" });
+    await ClubMembership.updateOne(
+      { userId: user._id, clubId: target.clubId },
+      { $set: { status: "rejected", approvedAt: null } },
+    );
     res.json(user);
   } catch (err) {
     console.error(err);
@@ -177,17 +242,40 @@ router.put("/:id/reject", auth, admin, async (req, res) => {
   }
 });
 
+// Deactivate/reactivate a player. For home-club members this toggles the
+// legacy User.status (and syncs the membership doc); for members whose home is
+// another club, only their ClubMembership in the acting admin's club changes,
+// so it never locks them out of their other clubs.
+async function setPlayerClubStatus(req, res, status) {
+  const user = await User.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  if (user.role !== "player") return res.status(403).json({ error: `Only players can be ${status}` });
+
+  if (ownsClub(req, user.clubId)) {
+    user.status = status;
+    await user.save();
+    if (user.clubId) {
+      await ClubMembership.updateOne(
+        { userId: user._id, clubId: user.clubId },
+        { $set: { status } },
+      );
+    }
+    return res.json(user.toObject({ versionKey: false }));
+  }
+
+  const membership = await ClubMembership.findOne({ userId: user._id, clubId: req.user.clubId });
+  if (!membership) return res.status(403).json({ error: "You can only manage your own club's members" });
+  membership.status = status;
+  await membership.save();
+  const obj = user.toObject({ versionKey: false });
+  delete obj.passwordHash;
+  return res.json({ ...obj, status: membership.status, membershipId: membership._id });
+}
+
 // PUT /api/users/:id/deactivate (admin) — deactivate a player
 router.put("/:id/deactivate", auth, admin, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: "User not found" });
-    if (!ownsClub(req, user.clubId)) return res.status(403).json({ error: "You can only manage your own club's members" });
-    if (user.role !== "player") return res.status(403).json({ error: "Only players can be deactivated" });
-
-    user.status = "deactivated";
-    await user.save();
-    res.json(user.toObject({ versionKey: false }));
+    await setPlayerClubStatus(req, res, "deactivated");
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -197,14 +285,7 @@ router.put("/:id/deactivate", auth, admin, async (req, res) => {
 // PUT /api/users/:id/reactivate (admin) — reactivate a deactivated player
 router.put("/:id/reactivate", auth, admin, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: "User not found" });
-    if (!ownsClub(req, user.clubId)) return res.status(403).json({ error: "You can only manage your own club's members" });
-    if (user.role !== "player") return res.status(403).json({ error: "Only players can be reactivated" });
-
-    user.status = "active";
-    await user.save();
-    res.json(user.toObject({ versionKey: false }));
+    await setPlayerClubStatus(req, res, "active");
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -217,9 +298,12 @@ router.get("/:id/profile", auth, async (req, res) => {
     const user = await User.findById(req.params.id).select("-passwordHash");
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Own profile, or staff (admin/superadmin) of the same club
+    // Own profile, or staff (admin/superadmin) of a club the user belongs to
     const isSelf = req.user.userId === req.params.id;
-    const isClubStaff = (req.user.role === "admin" || req.user.role === "superadmin") && ownsClub(req, user.clubId);
+    let isClubStaff = (req.user.role === "admin" || req.user.role === "superadmin") && ownsClub(req, user.clubId);
+    if (!isSelf && !isClubStaff && req.user.role === "admin") {
+      isClubStaff = !!(await ClubMembership.exists({ userId: user._id, clubId: req.user.clubId }));
+    }
     if (!isSelf && !isClubStaff) return res.status(403).json({ error: "Forbidden" });
 
     res.json(user);

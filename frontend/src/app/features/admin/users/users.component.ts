@@ -2,8 +2,9 @@ import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { forkJoin, Observable } from 'rxjs';
 import { UsersService, User } from '../../../core/services/users.service';
+import { MembershipService } from '../../../core/services/membership.service';
 
 @Component({
   selector: 'app-admin-users',
@@ -65,12 +66,23 @@ import { UsersService, User } from '../../../core/services/users.service';
                   <div class="member-card pending-card">
                     <div class="member-avatar">{{ getInitials(user.name) }}</div>
                     <div class="member-info">
-                      <div class="member-name">{{ user.name }}</div>
+                      <div class="member-name">
+                        {{ user.name }}
+                        @if (user.isJoinRequest) {
+                          <span class="join-request-tag" title="Existing member of another club requesting to join">
+                            <i class="fas fa-right-to-bracket"></i> Joining from another club
+                          </span>
+                        }
+                      </div>
                       <div class="member-email"><i class="fas fa-envelope"></i> {{ user.email }}</div>
                       @if (user.contactNumber) {
                         <div class="member-meta"><i class="fas fa-phone"></i> {{ user.contactNumber }}</div>
                       }
-                      <div class="member-meta"><i class="fas fa-calendar-alt"></i> Registered {{ user.createdAt | date:'MMM d, yyyy' }}</div>
+                      @if (user.isJoinRequest) {
+                        <div class="member-meta"><i class="fas fa-calendar-alt"></i> Requested {{ (user.membershipJoinedAt || user.createdAt) | date:'MMM d, yyyy' }}</div>
+                      } @else {
+                        <div class="member-meta"><i class="fas fa-calendar-alt"></i> Registered {{ user.createdAt | date:'MMM d, yyyy' }}</div>
+                      }
                     </div>
                     <div class="member-actions">
                       <button class="action-btn btn-approve" (click)="approve(user)" [disabled]="processing === user._id" title="Approve member">
@@ -258,6 +270,12 @@ import { UsersService, User } from '../../../core/services/users.service';
     }
     .member-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
     .pending-card { border-left: 4px solid #f59e0b; background: rgba(245,158,11,0.08); }
+    .join-request-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      margin-left: 8px; padding: 2px 8px; border-radius: 999px;
+      font-size: 0.68rem; font-weight: 700;
+      color: #60a5fa; border: 1px solid rgba(96,165,250,0.4); background: rgba(96,165,250,0.1);
+    }
     .member-avatar {
       width: 48px; height: 48px; border-radius: 50%;
       background: rgba(163,230,53,0.12); border: 2px solid rgba(163,230,53,0.24);
@@ -362,6 +380,7 @@ export class AdminUsersComponent implements OnInit {
 
   constructor(
     private usersService: UsersService,
+    private membershipService: MembershipService,
     private cdr: ChangeDetectorRef,
     private router: Router,
   ) {}
@@ -401,9 +420,14 @@ export class AdminUsersComponent implements OnInit {
     return name.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase();
   }
 
+  // Join requests from members of other clubs are approved/rejected on their
+  // ClubMembership doc; home-club registrations use the legacy user endpoints.
   approve(user: User) {
     this.processing = user._id;
-    this.usersService.approveUser(user._id).subscribe({
+    const req: Observable<unknown> = user.membershipId
+      ? this.membershipService.approveMembership(user.membershipId)
+      : this.usersService.approveUser(user._id);
+    req.subscribe({
       next: () => { this.processing = null; this.loadData(); },
       error: () => { this.processing = null; this.cdr.detectChanges(); },
     });
@@ -411,7 +435,10 @@ export class AdminUsersComponent implements OnInit {
 
   reject(user: User) {
     this.processing = user._id;
-    this.usersService.rejectUser(user._id).subscribe({
+    const req: Observable<unknown> = user.membershipId
+      ? this.membershipService.rejectMembership(user.membershipId)
+      : this.usersService.rejectUser(user._id);
+    req.subscribe({
       next: () => { this.processing = null; this.loadData(); },
       error: () => { this.processing = null; this.cdr.detectChanges(); },
     });

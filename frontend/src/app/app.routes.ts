@@ -297,6 +297,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'join-club',
+        loadComponent: () =>
+          import('./features/player/join-club/join-club.component').then(
+            (m) => m.JoinClubComponent,
+          ),
+      },
+      {
         path: 'reserve',
         loadComponent: () =>
           import('./features/player/reserve-court/reserve-court.component').then(

@@ -11,6 +11,11 @@ export interface User {
   contactNumber?: string;
   profileImage?: string;
   createdAt: string;
+  // Present on members whose home is another club: their relationship to the
+  // viewing club lives in a ClubMembership doc, managed via /memberships APIs.
+  membershipId?: string;
+  isJoinRequest?: boolean;
+  membershipJoinedAt?: string;
 }
 
 @Injectable({ providedIn: 'root' })

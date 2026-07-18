@@ -14,6 +14,7 @@ import { AppServicePaymentsService } from '../../../core/services/app-service-pa
 import { SoundService } from '../../../core/services/sound.service';
 import { PerGameService, GameJoin } from '../../../core/services/per-game.service';
 import { HostedPlayService, HostedPlaySession } from '../../../core/services/hosted-play.service';
+import { MembershipService, MembershipClub } from '../../../core/services/membership.service';
 import { forkJoin } from 'rxjs';
 
 @Component({
@@ -267,6 +268,20 @@ import { forkJoin } from 'rxjs';
               <span class="dm-ac-title">Members</span>
               <span class="dm-ac-sub">Club community</span>
             </button>
+            @if (!auth.isAdmin()) {
+              <button class="dm-action-card" (click)="navigateTo('/player/join-club')">
+                <div class="dm-ac-icon dm-ac-purple"><i class="fas fa-plus-circle"></i></div>
+                <span class="dm-ac-title">Join Club</span>
+                <span class="dm-ac-sub">Register to another club</span>
+              </button>
+              @if (memberClubs.length >= 2) {
+                <button class="dm-action-card" [class.dm-ac-active]="showClubSwitcher" (click)="toggleClubSwitcher($event)">
+                  <div class="dm-ac-icon dm-ac-teal"><i class="fas fa-exchange-alt"></i></div>
+                  <span class="dm-ac-title">Switch Club</span>
+                  <span class="dm-ac-sub">{{ clubName }}</span>
+                </button>
+              }
+            }
             <!-- Tournaments & Rankings hidden until feature is ready
             <button class="dm-action-card" (click)="navigateTo('/player/tournaments')">
               <div class="dm-ac-icon dm-ac-yellow"><i class="fas fa-trophy"></i></div>
@@ -310,6 +325,38 @@ import { forkJoin } from 'rxjs';
               <button class="dm-date-picker-go" (click)="goToPerGame()">
                 <i class="fas fa-arrow-right"></i> Continue
               </button>
+            </div>
+          }
+
+          @if (showClubSwitcher) {
+            <div class="dm-club-switch-panel">
+              <div class="dm-date-picker-title"><i class="fas fa-building"></i> Choose your club</div>
+              <div class="dm-club-switch-list">
+                @for (club of memberClubs; track club._id) {
+                  <button
+                    class="dm-club-switch-item"
+                    [class.current]="club._id === auth.user()?.clubId"
+                    [disabled]="club._id === auth.user()?.clubId || switchingClubId !== null"
+                    (click)="switchToClub(club)"
+                  >
+                    <span class="dm-club-switch-logo">
+                      @if (club.logo) {
+                        <img [src]="club.logo" [alt]="club.name" />
+                      } @else {
+                        <i class="fas fa-building"></i>
+                      }
+                    </span>
+                    <span class="dm-club-switch-name">{{ club.name }}</span>
+                    @if (club._id === auth.user()?.clubId) {
+                      <span class="dm-club-current-tag">Current</span>
+                    } @else if (switchingClubId === club._id) {
+                      <i class="fas fa-circle-notch fa-spin"></i>
+                    } @else {
+                      <i class="fas fa-arrow-right dm-club-switch-arrow"></i>
+                    }
+                  </button>
+                }
+              </div>
             </div>
           }
         </div>
@@ -1128,6 +1175,32 @@ import { forkJoin } from 'rxjs';
     .dm-date-picker-go { padding: .45rem 1rem; background: #a3e635; color: #0c1a11; border: none; border-radius: 9px; font-size: .82rem; font-weight: 800; font-family: inherit; cursor: pointer; display: flex; align-items: center; gap: .35rem; white-space: nowrap; }
     .dm-date-picker-go:hover { background: #b8f040; }
 
+    /* ── Club switcher panel ── */
+    .dm-club-switch-panel { background: #1b3028; border: 1px solid rgba(163,230,53,0.2); border-radius: 14px; padding: 1rem 1.1rem; margin-top: .75rem; }
+    .dm-club-switch-list { display: flex; flex-direction: column; gap: .5rem; margin-top: .7rem; }
+    .dm-club-switch-item {
+      display: flex; align-items: center; gap: .7rem; width: 100%;
+      padding: .6rem .75rem; background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.1); border-radius: 10px;
+      color: #e8edf4; font-family: inherit; font-size: .88rem; font-weight: 600;
+      cursor: pointer; text-align: left; transition: background .15s, border-color .15s;
+    }
+    .dm-club-switch-item:not(:disabled):hover { background: rgba(163,230,53,.1); border-color: rgba(163,230,53,.35); }
+    .dm-club-switch-item.current { cursor: default; border-color: rgba(163,230,53,.4); background: rgba(163,230,53,.08); }
+    .dm-club-switch-item:disabled:not(.current) { opacity: .6; cursor: default; }
+    .dm-club-switch-logo {
+      width: 32px; height: 32px; border-radius: 8px; overflow: hidden; flex-shrink: 0;
+      background: rgba(255,255,255,.08); display: flex; align-items: center; justify-content: center;
+      color: rgba(255,255,255,.5);
+    }
+    .dm-club-switch-logo img { width: 100%; height: 100%; object-fit: cover; }
+    .dm-club-switch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dm-club-current-tag {
+      font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+      color: #a3e635; border: 1px solid rgba(163,230,53,.45); border-radius: 999px; padding: .12rem .5rem;
+    }
+    .dm-club-switch-arrow { color: rgba(255,255,255,.4); }
+
     /* ── Playing panel ── */
     .dm-playing-panel {
       background: #1b3028;
@@ -1274,6 +1347,9 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   showJoinedList = false;
   joiningToday = false;
   showDatePicker = false;
+  memberClubs: MembershipClub[] = [];
+  showClubSwitcher = false;
+  switchingClubId: string | null = null;
   todayStr = new Date().toISOString().slice(0, 10);
   pickerDate = this.todayStr;
   nextReservation: Reservation | null = null;
@@ -1421,11 +1497,22 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     private appServicePayments: AppServicePaymentsService,
     private perGameService: PerGameService,
     private hostedPlayService: HostedPlayService,
+    private membershipService: MembershipService,
   ) {}
 
   ngOnInit() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
+
+    if (!this.auth.isAdmin()) {
+      this.membershipService.loadMine().subscribe({
+        next: () => {
+          this.memberClubs = this.membershipService.switchableClubs();
+          this.cdr.detectChanges();
+        },
+        error: () => {},
+      });
+    }
 
     if (this.auth.isAdmin() && !this.auth.isSuperAdmin()) {
       this.appServicePayments.getFeeInfo().subscribe({
@@ -1576,6 +1663,28 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   }
 
   onPickerDateChange(val: string) { if (val) { this.pickerDate = val; this.cdr.detectChanges(); } }
+
+  toggleClubSwitcher(event: MouseEvent) {
+    event.stopPropagation();
+    this.showClubSwitcher = !this.showClubSwitcher;
+    this.cdr.detectChanges();
+  }
+
+  // Token swap + full reload so every club-scoped view refetches under the
+  // new club context.
+  switchToClub(club: MembershipClub) {
+    if (club._id === this.auth.user()?.clubId || this.switchingClubId) return;
+    this.switchingClubId = club._id;
+    this.cdr.detectChanges();
+    this.auth.switchClub(club._id).subscribe({
+      next: () => window.location.assign('/player/dashboard'),
+      error: (err) => {
+        this.switchingClubId = null;
+        this.cdr.detectChanges();
+        alert(err?.error?.error || 'Could not switch club');
+      },
+    });
+  }
 
   goToPerGame() {
     this.showDatePicker = false;

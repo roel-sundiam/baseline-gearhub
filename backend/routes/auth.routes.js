@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Club = require("../models/Club");
+const ClubMembership = require("../models/ClubMembership");
 const Rates = require("../models/Rates");
 const LoginHistory = require("../models/LoginHistory");
 const Notification = require("../models/Notification");
@@ -85,6 +86,13 @@ router.post("/register", async (req, res) => {
       clubId,
     });
 
+    // Home-club membership doc; multi-club joins live in the same collection.
+    try {
+      await ClubMembership.create({ userId: user._id, clubId, status: "pending" });
+    } catch (err) {
+      console.error("home membership create error:", err.message);
+    }
+
     res.status(201).json({
       message: "Your account is pending admin approval",
       userId: user._id,
@@ -125,10 +133,27 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid username or password" });
     }
 
+    // The session's club scope. Normally the home club, but a member of
+    // multiple clubs can still log in when the home club is suspended by
+    // falling back to another active membership.
+    let sessionClubId = user.clubId;
     if (user.clubId && user.role !== "superadmin") {
       const club = await Club.findById(user.clubId).lean();
       if (club?.status === "suspended") {
-        return res.status(403).json({ error: "Your club has been suspended. Please contact support." });
+        let fallbackClubId = null;
+        if (user.role === "player") {
+          const memberships = await ClubMembership.find({
+            userId: user._id,
+            status: "active",
+            clubId: { $ne: user.clubId },
+          }).populate("clubId", "status").lean();
+          const usable = memberships.find((m) => m.clubId && m.clubId.status !== "suspended");
+          if (usable) fallbackClubId = usable.clubId._id;
+        }
+        if (!fallbackClubId) {
+          return res.status(403).json({ error: "Your club has been suspended. Please contact support." });
+        }
+        sessionClubId = fallbackClubId;
       }
     }
 
@@ -138,7 +163,7 @@ router.post("/login", async (req, res) => {
         role: user.role,
         name: user.name,
         username: user.username,
-        clubId: user.clubId,
+        clubId: sessionClubId,
       },
       process.env.JWT_SECRET,
       { expiresIn: "7d" },
@@ -159,7 +184,7 @@ router.post("/login", async (req, res) => {
         username: user.username,
         role: user.role,
         profileImage: user.profileImage || null,
-        clubId: user.clubId,
+        clubId: sessionClubId,
         termsAccepted: !!user.termsAcceptedAt,
       },
     });
@@ -179,6 +204,68 @@ router.post("/accept-terms", authMiddleware, async (req, res) => {
       termsAcceptedVersion: version,
     });
     res.json({ message: "Terms accepted" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/auth/switch-club — reissue the JWT scoped to another club the
+// player actively belongs to. All backend club scoping reads the token's
+// clubId claim, so switching clubs is a token swap.
+router.post("/switch-club", authMiddleware, async (req, res) => {
+  try {
+    const { clubId } = req.body;
+    if (!clubId) return res.status(400).json({ error: "clubId is required" });
+
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (user.role !== "player") {
+      return res.status(403).json({ error: "Only players can switch clubs" });
+    }
+
+    const isHomeClub = user.clubId && String(user.clubId) === String(clubId);
+    if (isHomeClub) {
+      if (user.status !== "active") {
+        return res.status(403).json({ error: "Your membership at this club is not active" });
+      }
+    } else {
+      const membership = await ClubMembership.findOne({ userId: user._id, clubId }).lean();
+      if (!membership || membership.status !== "active") {
+        return res.status(403).json({ error: "You are not an active member of this club" });
+      }
+    }
+
+    const club = await Club.findById(clubId).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    if (club.status === "suspended") {
+      return res.status(403).json({ error: "This club is currently suspended" });
+    }
+
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        role: user.role,
+        name: user.name,
+        username: user.username,
+        clubId: club._id,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        username: user.username,
+        role: user.role,
+        profileImage: user.profileImage || null,
+        clubId: club._id,
+        termsAccepted: !!user.termsAcceptedAt,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

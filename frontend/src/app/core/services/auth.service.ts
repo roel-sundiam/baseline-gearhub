@@ -106,6 +106,24 @@ export class AuthService {
       );
   }
 
+  // Swaps the JWT for one scoped to another club the player belongs to.
+  // Backend club scoping reads the token's clubId claim, so this is the whole
+  // switch — callers should reload club-scoped views afterwards.
+  switchClub(clubId: string) {
+    return this.http
+      .post<{ token: string; user: AuthUser }>(`${environment.apiUrl}/auth/switch-club`, { clubId })
+      .pipe(
+        tap((res) => {
+          try {
+            localStorage.setItem(this.TOKEN_KEY, res.token);
+            localStorage.setItem(this.USER_KEY, JSON.stringify(res.user));
+          } catch {}
+          this._user.set(res.user);
+          if (res.user.clubId) this.clubService.setSelectedClubId(res.user.clubId);
+        }),
+      );
+  }
+
   acceptTerms() {
     return this.http.post<{ message: string }>(`${environment.apiUrl}/auth/accept-terms`, {}).pipe(
       tap(() => {
