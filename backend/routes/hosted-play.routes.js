@@ -497,6 +497,7 @@ router.get("/player/sessions/:id/queue", auth, async (req, res) => {
     if (!(session.queueManagementEnabled ?? club?.hostedPlayQueueEnabled)) return res.status(403).json({ error: "Queue not enabled for this session" });
     const participants = await HostedPlayParticipant.find({ hostedPlayId: session._id, ...ACTIVE_PARTICIPANT })
       .sort({ createdAt: 1 }).lean();
+    await decorateProfileImages(participants);
     res.json(queue.buildBoard(session, participants));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -765,6 +766,18 @@ const QUEUE_FIELDS = [
   "enteredQueueAt", "lastGameEndedAt",
 ];
 
+// Decorate members with their profile image so boards can show real avatars
+// (display-only — never persisted back; see QUEUE_FIELDS).
+async function decorateProfileImages(participants) {
+  const memberIds = [...new Set(participants.filter((p) => p.memberId).map((p) => String(p.memberId)))];
+  if (!memberIds.length) return;
+  const users = await User.find({ _id: { $in: memberIds } }).select("profileImage").lean();
+  const imageById = new Map(users.map((u) => [String(u._id), u.profileImage || null]));
+  for (const p of participants) {
+    if (p.memberId) p.profileImage = imageById.get(String(p.memberId)) ?? null;
+  }
+}
+
 // Load the session (scoped to club), verify Queue Management is enabled, and
 // return { session, participants } — or send an error response and return null.
 async function loadQueueContext(req, res) {
@@ -784,6 +797,7 @@ async function loadQueueContext(req, res) {
   const participants = await HostedPlayParticipant.find({ hostedPlayId: session._id, ...ACTIVE_PARTICIPANT })
     .sort({ createdAt: 1 })
     .lean();
+  await decorateProfileImages(participants);
   const prev = snapshotQueue(session, participants);
   return { session, participants, club, prev };
 }
@@ -1001,11 +1015,19 @@ router.post("/sessions/:id/self-check-in", auth, async (req, res) => {
   }
 });
 
-// POST /api/hosted-play/sessions/:id/walkins — add a walk-in player and record cash charge
+// POST /api/hosted-play/sessions/:id/walkins — add a walk-in player.
+// Guest walk-in ({ name }): guest fee collected as cash on the spot.
+// Member walk-in ({ memberId }): member fee, credit applied first, remainder
+// saved as an unpaid charge the member settles from their Payments page.
 router.post("/sessions/:id/walkins", auth, admin, async (req, res) => {
   try {
     const ctx = await loadQueueContext(req, res);
     if (!ctx) return;
+
+    if (req.body.memberId) {
+      return await addMemberWalkIn(req, res, ctx);
+    }
+
     const name = String(req.body.name || "").trim();
     if (!name) return res.status(400).json({ error: "Walk-in name is required" });
 
@@ -1051,6 +1073,75 @@ router.post("/sessions/:id/walkins", auth, admin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Member walk-in: link the participant to a club member's account. Occupies a
+// member slot (maxPlayers), never the guest cap. Skill-band and guest checks
+// are deliberately skipped — the admin is seating a player standing at the desk.
+async function addMemberWalkIn(req, res, ctx) {
+  const memberId = String(req.body.memberId);
+  const user = await User.findById(memberId).select("name clubId").lean();
+  if (!user) return res.status(404).json({ error: "Member not found" });
+  if (String(user.clubId) !== String(ctx.session.clubId)) {
+    return res.status(400).json({ error: "Member does not belong to this club" });
+  }
+
+  const existing = await HostedPlayParticipant.findOne({ hostedPlayId: ctx.session._id, memberId }).lean();
+  if (existing) {
+    if (existing.waitStatus === "waitlisted") return res.status(400).json({ error: "This member is on the waitlist — promote them instead" });
+    if (existing.waitStatus === "offered") return res.status(400).json({ error: "This member has a pending spot offer" });
+    if (existing.waitStatus === "pending_payment") return res.status(400).json({ error: "This member has a payment awaiting approval for this session" });
+    if (existing.queueStatus !== "done") return res.status(400).json({ error: "This member is already in this session" });
+
+    // Previously removed from the queue — re-enqueue in place. Already paid and
+    // already counted in currentPlayers (removal decrements neither).
+    await HostedPlayParticipant.updateOne({ _id: existing._id }, { $set: { checkedIn: true, checkedInAt: new Date() } });
+    const row = ctx.participants.find((p) => String(p._id) === String(existing._id));
+    if (row) {
+      row.checkedIn = true;
+      row.checkedInAt = new Date();
+    }
+    return applyAndRespond(res, ctx.session, ctx.participants, queue.appendAndAssign(ctx.session, ctx.participants, existing._id), ctx.club, ctx.prev);
+  }
+
+  // No maxPlayers check: like guest walk-ins, an admin add is a deliberate
+  // override — the player is standing at the desk. currentPlayers still
+  // increments below so split-fee estimates and reports stay accurate.
+
+  // Split Session Fee sessions bill members once at completion (billSplitSessionFee);
+  // otherwise charge the member fee now — credit first, remainder left unpaid for
+  // the member to settle from their Payments page.
+  let chargeId;
+  if (ctx.session.feeSplitMode !== "split_total") {
+    const breakdown = await computeMemberFeeAndCredit({ session: ctx.session, club: ctx.club, memberId, baseFee: ctx.session.feePerPlayer });
+    if (breakdown.amount > 0) {
+      const charge = await chargeMemberForSession({ session: ctx.session, memberId, breakdown });
+      chargeId = charge._id;
+    }
+  }
+
+  const walkIn = await HostedPlayParticipant.create({
+    hostedPlayId: ctx.session._id,
+    clubId: ctx.session.clubId,
+    memberId,
+    isWalkIn: true,
+    memberName: user.name,
+    chargeId: chargeId ?? undefined,
+    checkedIn: true,
+    checkedInAt: new Date(),
+    queueStatus: "not_checked_in",
+  });
+
+  ctx.session.currentPlayers += 1;
+  const update = { $inc: { currentPlayers: 1 } };
+  if (ctx.session.currentPlayers >= ctx.session.maxPlayers && ctx.session.status === "open") {
+    update.$set = { status: "full" };
+    ctx.session.status = "full";
+  }
+  await HostedPlay.updateOne({ _id: ctx.session._id }, update);
+
+  ctx.participants.push(walkIn.toObject());
+  return applyAndRespond(res, ctx.session, ctx.participants, queue.appendAndAssign(ctx.session, ctx.participants, walkIn._id), ctx.club, ctx.prev);
+}
 
 // POST /api/hosted-play/sessions/:id/courts/:n/finish
 router.post("/sessions/:id/courts/:n/finish", auth, admin, async (req, res) => {

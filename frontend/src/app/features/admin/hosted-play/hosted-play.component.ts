@@ -95,8 +95,29 @@ type FormModel = HostedPlayInput;
               <button class="primary-action" (click)="openCreate()"><i class="fas fa-plus"></i> Create Session</button>
             </section>
           } @else {
+            <div class="filter-bar" role="tablist" aria-label="Filter sessions">
+              <button type="button" class="filter-chip" [class.active]="sessionFilter() === 'upcoming'" (click)="sessionFilter.set('upcoming')">
+                Upcoming <span class="chip-count">{{ upcomingCount() }}</span>
+              </button>
+              <button type="button" class="filter-chip" [class.active]="sessionFilter() === 'started'" (click)="sessionFilter.set('started')">
+                In Progress <span class="chip-count">{{ startedCount() }}</span>
+              </button>
+              <button type="button" class="filter-chip" [class.active]="sessionFilter() === 'past'" (click)="sessionFilter.set('past')">
+                Past <span class="chip-count">{{ sessions.length - upcomingCount() - startedCount() }}</span>
+              </button>
+              <button type="button" class="filter-chip" [class.active]="sessionFilter() === 'all'" (click)="sessionFilter.set('all')">
+                All <span class="chip-count">{{ sessions.length }}</span>
+              </button>
+            </div>
+            @if (filteredSessions().length === 0) {
+              <section class="empty-panel">
+                <div class="empty-icon"><i class="fas fa-filter"></i></div>
+                <h3>No {{ sessionFilter() === 'started' ? 'in-progress' : sessionFilter() }} sessions</h3>
+                <p>Nothing matches this filter yet.</p>
+              </section>
+            } @else {
             <section class="session-grid">
-              @for (s of sessions; track s._id) {
+              @for (s of filteredSessions(); track s._id) {
                 <article class="session-card">
                   <div class="card-head">
                     <div class="venue-mark">
@@ -107,10 +128,20 @@ type FormModel = HostedPlayInput;
                       }
                     </div>
                     <div class="title-block">
-                      <span class="sport-label">{{ sportLabel(s.sport) }}</span>
+                      <span class="sport-label">
+                        {{ sportLabel(s.sport) }}
+                        <span class="billing-tag" [class.split]="s.feeSplitMode === 'split_total'">
+                          {{ s.feeSplitMode === 'split_total' ? 'Split Session Fee' : 'Fee Per Player' }}
+                        </span>
+                      </span>
                       <h3>{{ s.title }}</h3>
                     </div>
-                    <span class="status-pill" [ngClass]="s.status">{{ statusLabel(s.status) }}</span>
+                    <div class="pill-stack">
+                      <span class="status-pill" [ngClass]="s.status">{{ statusLabel(s.status) }}</span>
+                      @if (isInProgress(s)) {
+                        <span class="status-pill live"><span class="live-dot"></span>In progress</span>
+                      }
+                    </div>
                   </div>
 
                   <div class="detail-grid">
@@ -169,6 +200,7 @@ type FormModel = HostedPlayInput;
                 </article>
               }
             </section>
+            }
           }
         </main>
       }
@@ -249,7 +281,7 @@ type FormModel = HostedPlayInput;
                 <label class="field"><span>Maximum Players *</span>
                   <input type="number" min="2" step="1" [(ngModel)]="form.maxPlayers" />
                 </label>
-                @if (feeSplitMode() === 'split_total') {
+                @if (formFeeSplitMode === 'split_total') {
                   <label class="field"><span>Total Session Fee</span>
                     <input type="number" min="0" step="1" [(ngModel)]="form.sessionFee" />
                   </label>
@@ -639,6 +671,25 @@ type FormModel = HostedPlayInput;
     .stat-value { grid-area: value; color: var(--text); font-size: 1.65rem; line-height: 1; font-weight: 950; }
     .stat-label { grid-area: label; color: var(--muted); font-size: .78rem; font-weight: 800; }
 
+    .filter-bar { display: flex; gap: .45rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .filter-chip {
+      padding: .45rem .95rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: .78rem;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .filter-chip.active {
+      background: rgba(163,230,53,.12);
+      border-color: rgba(163,230,53,.35);
+      color: var(--accent);
+    }
+    .filter-chip .chip-count { opacity: .7; font-weight: 800; margin-left: .25rem; }
+
     .session-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 1rem; align-items: start; }
     .session-card {
       background: var(--panel);
@@ -652,9 +703,26 @@ type FormModel = HostedPlayInput;
     .venue-logo-img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .venue-initials { font-size: .72rem; font-weight: 950; letter-spacing: .02em; text-transform: uppercase; }
     .title-block { min-width: 0; }
-    .sport-label { display: block; color: var(--muted); font-size: .72rem; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; margin-bottom: .18rem; }
+    .sport-label { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; color: var(--muted); font-size: .72rem; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; margin-bottom: .18rem; }
+    .billing-tag {
+      padding: .13rem .5rem;
+      border-radius: 999px;
+      font-size: .6rem;
+      font-weight: 900;
+      letter-spacing: .02em;
+      text-transform: none;
+      color: var(--muted);
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.1);
+      white-space: nowrap;
+    }
+    .billing-tag.split { color: #c4b5fd; background: rgba(139,92,246,.14); border-color: rgba(139,92,246,.28); }
     .title-block h3 { margin: 0; font-size: 1.1rem; line-height: 1.25; overflow-wrap: anywhere; }
+    .pill-stack { display: flex; flex-direction: column; gap: .35rem; align-items: flex-end; }
     .status-pill { white-space: nowrap; font-size: .72rem; font-weight: 950; border-radius: 999px; padding: .32rem .72rem; text-transform: capitalize; }
+    .status-pill.live { color: #5eead4; background: rgba(45,212,191,.12); border: 1px solid rgba(45,212,191,.25); display: inline-flex; align-items: center; gap: .38rem; }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #5eead4; animation: live-pulse 1.6s ease-in-out infinite; }
+    @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
     .status-pill.open { color: var(--accent); background: rgba(163,230,53,.14); border: 1px solid rgba(163,230,53,.18); }
     .status-pill.full { color: var(--amber); background: rgba(245,158,11,.14); border: 1px solid rgba(245,158,11,.18); }
     .status-pill.closed { color: var(--muted); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1); }
@@ -821,7 +889,7 @@ type FormModel = HostedPlayInput;
       .session-grid { grid-template-columns: 1fr; }
       .card-head { grid-template-columns: 42px minmax(0, 1fr); }
       .venue-mark { width: 42px; height: 42px; }
-      .status-pill { grid-column: 1 / -1; justify-self: start; }
+      .pill-stack { grid-column: 1 / -1; justify-self: start; flex-direction: row; flex-wrap: wrap; align-items: center; }
       .detail-grid { grid-template-columns: 1fr; }
       .capacity-line { flex-direction: column; gap: .2rem; }
       .actions { display: grid; grid-template-columns: 1fr 1fr; }
@@ -853,6 +921,8 @@ export class AdminHostedPlayComponent implements OnInit {
   sessions: HostedPlaySession[] = [];
   errorMap: Record<string, string> = {};
   todayStr = new Date().toISOString().slice(0, 10);
+  sessionFilter = signal<'all' | 'upcoming' | 'started' | 'past'>('upcoming');
+  private filterInitialized = false;
   queueEnabled = signal(false);
   queueFeePerPlayer = signal(0);
   togglingQueue = false;
@@ -873,6 +943,7 @@ export class AdminHostedPlayComponent implements OnInit {
 
   showForm = false;
   formStep = 1;
+  formFeeSplitMode: 'per_player' | 'split_total' = 'per_player';
   editingId: string | null = null;
   saving = false;
   formError = '';
@@ -920,9 +991,26 @@ export class AdminHostedPlayComponent implements OnInit {
   load() {
     this.loading = true;
     this.hp.listAll().subscribe({
-      next: (list) => { this.sessions = list; this.loading = false; this.cdr.detectChanges(); },
+      next: (list) => {
+        this.sessions = list;
+        if (!this.filterInitialized) {
+          this.filterInitialized = true;
+          this.sessionFilter.set(this.defaultFilter());
+        }
+        this.loading = false;
+        this.cdr.detectChanges();
+      },
       error: () => { this.loading = false; this.cdr.detectChanges(); },
     });
+  }
+
+  // Land on the first tab that has something to show: In Progress, else
+  // Upcoming, else Past. Only applied once, on the initial load, so reloads
+  // after saving a session keep the admin's chosen tab.
+  private defaultFilter(): 'started' | 'upcoming' | 'past' {
+    if (this.sessions.some(s => this.isInProgress(s))) return 'started';
+    if (this.sessions.some(s => this.isUpcoming(s))) return 'upcoming';
+    return 'past';
   }
 
   blankForm(): FormModel {
@@ -940,6 +1028,41 @@ export class AdminHostedPlayComponent implements OnInit {
     if (s === 'closed') return 'Closed';
     if (s === 'completed') return 'Completed';
     return 'Cancelled';
+  }
+
+  // A session is "in progress" when its queue is live, or (for non-queue
+  // sessions) the clock is inside today's start–end window. Derived only —
+  // nothing in the DB marks a session as started.
+  isInProgress(s: HostedPlaySession): boolean {
+    if (s.status === 'completed' || s.status === 'cancelled') return false;
+    if (s.queueStatus === 'running' || s.queueStatus === 'paused') return true;
+    if (s.queueStatus === 'ended') return false;
+    const now = new Date().toTimeString().slice(0, 5); // HH:mm, same format as startTime/endTime
+    return s.date.slice(0, 10) === this.todayStr && s.startTime <= now && now <= s.endTime;
+  }
+
+  // Upcoming = today or later, still live, and not currently being played;
+  // completed/cancelled sessions are "past" regardless of date.
+  private isUpcoming(s: HostedPlaySession): boolean {
+    return s.date >= this.todayStr
+      && s.status !== 'completed' && s.status !== 'cancelled'
+      && !this.isInProgress(s);
+  }
+
+  upcomingCount(): number {
+    return this.sessions.filter(s => this.isUpcoming(s)).length;
+  }
+
+  startedCount(): number {
+    return this.sessions.filter(s => this.isInProgress(s)).length;
+  }
+
+  filteredSessions(): HostedPlaySession[] {
+    const f = this.sessionFilter();
+    if (f === 'upcoming') return this.sessions.filter(s => this.isUpcoming(s));
+    if (f === 'started') return this.sessions.filter(s => this.isInProgress(s));
+    if (f === 'past') return this.sessions.filter(s => !this.isUpcoming(s) && !this.isInProgress(s));
+    return this.sessions;
   }
 
   openCount(): number {
@@ -1052,6 +1175,8 @@ export class AdminHostedPlayComponent implements OnInit {
     this.editingId = null;
     this.formStep = 1;
     this.form = this.blankForm();
+    // New sessions take the club's current billing model.
+    this.formFeeSplitMode = this.feeSplitMode();
     this.formError = '';
     this.showForm = true;
     this.cdr.detectChanges();
@@ -1060,6 +1185,9 @@ export class AdminHostedPlayComponent implements OnInit {
   openEdit(s: HostedPlaySession) {
     this.editingId = s._id;
     this.formStep = 1;
+    // A session's billing model is fixed at creation — edit with ITS mode, not
+    // the club's current setting (they can differ after the club toggles).
+    this.formFeeSplitMode = s.feeSplitMode ?? 'per_player';
     this.form = {
       title: s.title, sport: s.sport, date: (s.date || '').slice(0, 10),
       startTime: s.startTime, endTime: s.endTime, venue: s.venue, court: s.court || '',
@@ -1104,7 +1232,7 @@ export class AdminHostedPlayComponent implements OnInit {
     if (step === 2) {
       if (!this.form.venue?.trim()) return 'Select or enter a venue to continue.';
       if (!this.form.maxPlayers || this.form.maxPlayers < 2) return 'Maximum players must be at least 2.';
-      if (this.feeSplitMode() === 'split_total') {
+      if (this.formFeeSplitMode === 'split_total') {
         if ((this.form.sessionFee ?? 0) < 0) return 'Total session fee cannot be negative.';
       } else if (this.form.feePerPlayer < 0) return 'Fee per player cannot be negative.';
       if (this.form.maxGuests != null && this.form.maxGuests < 0) return 'Max guests cannot be negative.';

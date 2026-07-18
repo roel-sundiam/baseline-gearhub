@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef, signal } from '@angular/core';
 import QRCode from 'qrcode';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -14,6 +14,7 @@ import {
 } from '../../../../core/services/hosted-play.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { ClubService, Court } from '../../../../core/services/club.service';
+import { CreditService, MemberBalance } from '../../../../core/services/credit.service';
 
 @Component({
   selector: 'app-admin-hosted-play-queue',
@@ -79,7 +80,7 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                 <button class="secondary-btn" (click)="regenerateQr()" [disabled]="qrModal.generating">
                   <i class="fas fa-rotate-right"></i> Regenerate
                 </button>
-                <a class="primary-small qr-download-btn" [href]="qrModal.dataUrl" [download]="'checkin-qr-' + id + '.png'">
+                <a class="primary-small qr-download-btn" [href]="qrModal.downloadUrl || qrModal.dataUrl" [download]="'checkin-qr-' + id + '.png'">
                   <i class="fas fa-download"></i> Download
                 </a>
               </div>
@@ -221,14 +222,14 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                               <button type="button" class="team-block team-a winner-pick" [class.is-winner]="isTeamWinner(teams.teamA)" [disabled]="busy || teams.teamA.length === 0" (click)="toggleTeamWinner(teams.teamA)">
                                 <span class="team-label">Team A <i class="fas" [class.fa-trophy]="isTeamWinner(teams.teamA)"></i></span>
                                 @for (p of teams.teamA; track p._id) {
-                                  <div class="team-player"><div class="avatar">{{ initials(p.memberName) }}</div><span class="player-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span></div>
+                                  <div class="team-player"><div class="avatar">@if (p.profileImage) { <img class="avatar-photo" [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }</div><span class="player-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span></div>
                                 }
                               </button>
                               <span class="vs-divider">VS</span>
                               <button type="button" class="team-block team-b winner-pick" [class.is-winner]="isTeamWinner(teams.teamB)" [disabled]="busy || teams.teamB.length === 0" (click)="toggleTeamWinner(teams.teamB)">
                                 <span class="team-label">Team B <i class="fas" [class.fa-trophy]="isTeamWinner(teams.teamB)"></i></span>
                                 @for (p of teams.teamB; track p._id) {
-                                  <div class="team-player"><div class="avatar">{{ initials(p.memberName) }}</div><span class="player-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span></div>
+                                  <div class="team-player"><div class="avatar">@if (p.profileImage) { <img class="avatar-photo" [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }</div><span class="player-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span></div>
                                 }
                               </button>
                             </div>
@@ -238,7 +239,7 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                                 <span class="team-label">Team A</span>
                                 @for (p of teams.teamA; track p._id) {
                                   <div class="player-chip">
-                                    <div class="avatar">{{ initials(p.memberName) }}</div>
+                                    <div class="avatar">@if (p.profileImage) { <img class="avatar-photo" [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }</div>
                                     <div class="player-main">
                                       <span class="player-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span>
                                       <span class="player-meta">{{ p.gamesPlayed }} games@if ((p.wins ?? 0) + (p.losses ?? 0) > 0) { · {{ p.wins }}W–{{ p.losses }}L }</span>
@@ -255,7 +256,7 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                                 <span class="team-label">Team B</span>
                                 @for (p of teams.teamB; track p._id) {
                                   <div class="player-chip">
-                                    <div class="avatar">{{ initials(p.memberName) }}</div>
+                                    <div class="avatar">@if (p.profileImage) { <img class="avatar-photo" [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }</div>
                                     <div class="player-main">
                                       <span class="player-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span>
                                       <span class="player-meta">{{ p.gamesPlayed }} games@if ((p.wins ?? 0) + (p.losses ?? 0) > 0) { · {{ p.wins }}W–{{ p.losses }}L }</span>
@@ -307,7 +308,7 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                         @for (p of assignablePlayers; track p._id) {
                           <button class="queue-row selectable" [class.selected]="selectedIds.has(p._id)" (click)="toggleSelect(p)">
                             <span class="avatar selectable-avatar">
-                              {{ initials(p.memberName) }}
+                              @if (p.profileImage) { <img class="avatar-photo" [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }
                               @if (selectedIds.has(p._id)) {
                                 <span class="select-badge"><i class="fas fa-check"></i></span>
                               }
@@ -400,22 +401,84 @@ import { ClubService, Court } from '../../../../core/services/club.service';
 
                 @if (board.session.queueStatus !== 'ended') {
                   <div class="walkin-card">
-                    <label for="walkin-name">Walk-in player</label>
-                    <div class="walkin-row">
-                      <input id="walkin-name" type="text" placeholder="Player name" [(ngModel)]="walkInName" (keyup.enter)="addWalkIn()" />
-                      <button class="primary-small" [disabled]="busy || !walkInName.trim()" (click)="addWalkIn()">
-                        <i class="fas fa-user-plus"></i> Add
-                      </button>
+                    <label>Walk-in player</label>
+                    <div class="walkin-mode" role="tablist">
+                      <button type="button" [class.active]="walkInMode() === 'guest'" (click)="setWalkInMode('guest')">Guest</button>
+                      <button type="button" [class.active]="walkInMode() === 'member'" (click)="setWalkInMode('member')">Member</button>
                     </div>
-                    @if ((board.session.guestTotalPerPlayer ?? board.session.totalPerPlayer ?? 0) > 0) {
-                      <p class="walkin-fee-note">
-                        <i class="fas fa-coins"></i>
-                        Collect <strong>₱{{ board.session.guestTotalPerPlayer ?? board.session.totalPerPlayer }}</strong> cash
-                        @if ((board.session.guestConvenienceFeePerPlayer ?? board.session.convenienceFeePerPlayer ?? 0) > 0) {
-                          <span class="walkin-fee-breakdown">(₱{{ board.session.guestFeePerPlayer ?? board.session.feePerPlayer }} + ₱{{ board.session.guestConvenienceFeePerPlayer ?? board.session.convenienceFeePerPlayer }} service fee)</span>
+                    @if (walkInMode() === 'guest') {
+                      <div class="walkin-row">
+                        <input id="walkin-name" type="text" placeholder="Player name" [(ngModel)]="walkInName" (keyup.enter)="addWalkIn()" />
+                        <button class="primary-small" [disabled]="busy || !walkInName.trim()" (click)="addWalkIn()">
+                          <i class="fas fa-user-plus"></i> Add
+                        </button>
+                      </div>
+                      @if ((board.session.guestTotalPerPlayer ?? board.session.totalPerPlayer ?? 0) > 0) {
+                        <p class="walkin-fee-note">
+                          <i class="fas fa-coins"></i>
+                          Collect <strong>₱{{ board.session.guestTotalPerPlayer ?? board.session.totalPerPlayer }}</strong> cash
+                          @if ((board.session.guestConvenienceFeePerPlayer ?? board.session.convenienceFeePerPlayer ?? 0) > 0) {
+                            <span class="walkin-fee-breakdown">(₱{{ board.session.guestFeePerPlayer ?? board.session.feePerPlayer }} + ₱{{ board.session.guestConvenienceFeePerPlayer ?? board.session.convenienceFeePerPlayer }} service fee)</span>
+                          }
+                          — recorded automatically on Add.
+                        </p>
+                      }
+                    } @else {
+                      @if (selectedWalkInMember(); as m) {
+                        <div class="member-selected">
+                          <span class="avatar small">{{ initials(m.name) }}</span>
+                          <span class="member-sel-name">{{ m.name }}</span>
+                          @if (m.balance > 0) { <span class="credit-chip">₱{{ m.balance }} credit</span> }
+                          <button type="button" class="member-clear" (click)="clearWalkInMember()" aria-label="Clear selected member"><i class="fas fa-times"></i></button>
+                          <button class="primary-small" [disabled]="busy" (click)="addWalkIn()">
+                            <i class="fas fa-user-plus"></i> Add
+                          </button>
+                        </div>
+                      } @else {
+                        <div class="walkin-row">
+                          <input type="text" placeholder="Search members by name or email…"
+                                 [ngModel]="memberSearch()" (ngModelChange)="memberSearch.set($event)" />
+                        </div>
+                        @if (membersLoading()) {
+                          <p class="member-hint">Loading members…</p>
+                        } @else if (memberSearch().trim() && filteredWalkInMembers().length === 0) {
+                          <p class="member-hint">No matching members available.</p>
+                        } @else if (filteredWalkInMembers().length) {
+                          <div class="member-results">
+                            @for (m of filteredWalkInMembers(); track m._id) {
+                              <button type="button" class="member-option" (click)="selectWalkInMember(m)">
+                                <span class="avatar small">{{ initials(m.name) }}</span>
+                                <span class="member-opt-main">
+                                  <span class="member-opt-name">{{ m.name }}</span>
+                                  @if (m.email) { <span class="member-opt-meta">{{ m.email }}</span> }
+                                </span>
+                                @if (m.balance > 0) { <span class="credit-chip">₱{{ m.balance }}</span> }
+                              </button>
+                            }
+                          </div>
                         }
-                        — recorded automatically on Add.
-                      </p>
+                      }
+                      @if (board.session.estimatedFee) {
+                        <p class="walkin-fee-note">
+                          <i class="fas fa-coins"></i>
+                          No upfront charge — billed their share (est. <strong>₱{{ board.session.totalPerPlayer }}</strong>) when the session ends.
+                        </p>
+                      } @else if (memberWalkInTotal() > 0) {
+                        <p class="walkin-fee-note">
+                          <i class="fas fa-coins"></i>
+                          @if (selectedWalkInMember()) {
+                            @if (memberWalkInDue() === 0) {
+                              Fully covered by <strong>₱{{ memberWalkInCredit() }}</strong> credit — nothing owed.
+                            } @else if (memberWalkInCredit() > 0) {
+                              <strong>₱{{ memberWalkInCredit() }}</strong> credit applied — <strong>₱{{ memberWalkInDue() }}</strong> billed to their account.
+                            } @else {
+                              <strong>₱{{ memberWalkInTotal() }}</strong> billed to their account — they pay from their Payments page.
+                            }
+                          } @else {
+                            Member fee <strong>₱{{ memberWalkInTotal() }}</strong> — credit applied first, remainder billed to their account.
+                          }
+                        </p>
+                      }
                     }
                   </div>
                 }
@@ -436,7 +499,7 @@ import { ClubService, Court } from '../../../../core/services/club.service';
                         (click)="toggleCheckIn(p)"
                       >
                         <span class="avatar small roster-avatar">
-                          {{ initials(p.memberName) }}
+                          @if (p.profileImage) { <img class="avatar-photo" [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }
                           @if (p.checkedIn) {
                             <span class="select-badge"><i class="fas fa-check"></i></span>
                           }
@@ -730,6 +793,9 @@ import { ClubService, Court } from '../../../../core/services/club.service';
       font-weight: 950;
     }
     .avatar.small { width: 30px; height: 30px; flex-basis: 30px; font-size: .72rem; }
+    /* Rounded on the img itself (not overflow:hidden on .avatar) so the
+       select/check badges can still overhang the circle's edge. */
+    .avatar-photo { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
     .roster-avatar { position: relative; }
     .roster-row.checked .roster-avatar {
       color: #07130d;
@@ -863,6 +929,71 @@ import { ClubService, Court } from '../../../../core/services/club.service';
       border: 1px solid rgba(255,255,255,.08);
     }
     .walkin-card label { display: block; margin-bottom: .45rem; color: var(--muted); font-size: .75rem; font-weight: 900; }
+    .walkin-mode { display: flex; gap: .35rem; margin-bottom: .55rem; }
+    .walkin-mode button {
+      flex: 1;
+      padding: .38rem .6rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: .74rem;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .walkin-mode button.active {
+      background: rgba(163,230,53,.12);
+      border-color: rgba(163,230,53,.35);
+      color: #a3e635;
+    }
+    .member-hint { margin: .5rem 0 0; font-size: .76rem; color: rgba(255,255,255,.45); }
+    .member-results { margin-top: .5rem; display: flex; flex-direction: column; gap: .3rem; max-height: 240px; overflow-y: auto; }
+    .member-option {
+      display: flex; align-items: center; gap: .55rem;
+      padding: .45rem .55rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.03);
+      color: var(--text);
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .member-option:hover { background: rgba(163,230,53,.08); border-color: rgba(163,230,53,.25); }
+    .member-opt-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+    .member-opt-name { font-size: .84rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .member-opt-meta { font-size: .7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .credit-chip {
+      flex-shrink: 0;
+      padding: .18rem .5rem;
+      border-radius: 999px;
+      background: rgba(163,230,53,.12);
+      border: 1px solid rgba(163,230,53,.3);
+      color: #a3e635;
+      font-size: .68rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .member-selected {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .45rem .55rem;
+      border-radius: 8px;
+      border: 1px solid rgba(163,230,53,.25);
+      background: rgba(163,230,53,.07);
+    }
+    .member-sel-name { flex: 1; min-width: 0; font-size: .86rem; font-weight: 800; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .member-clear {
+      flex-shrink: 0;
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: .68rem;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
     .walkin-fee-note { margin: .55rem 0 0; font-size: .76rem; color: rgba(255,255,255,.55); display: flex; align-items: center; flex-wrap: wrap; gap: .3rem; }
     .walkin-fee-note i { color: #a3e635; font-size: .7rem; }
     .walkin-fee-note strong { color: #a3e635; }
@@ -1082,6 +1213,11 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
   error = '';
   busy = false;
   walkInName = '';
+  walkInMode = signal<'guest' | 'member'>('guest');
+  members = signal<MemberBalance[]>([]);
+  membersLoading = signal(false);
+  memberSearch = signal('');
+  selectedWalkInMember = signal<MemberBalance | null>(null);
   confirmingFinishCourt: number | null = null;
   selectingWinnerCourt: number | null = null; // winner_stays / king_of_court: pick the winning side
   winnerIds = new Set<string>();
@@ -1092,7 +1228,7 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
   private readonly POLL_MS = 6000;
 
   modal: { type: 'remove' | 'end'; player?: QueuePlayer } | null = null;
-  qrModal: { generating: boolean; dataUrl?: string } | null = null;
+  qrModal: { generating: boolean; dataUrl?: string; downloadUrl?: string } | null = null;
 
   assigningCourt: number | null = null;
   selectedIds = new Set<string>();
@@ -1104,6 +1240,7 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private auth: AuthService,
     private clubService: ClubService,
+    private credit: CreditService,
   ) {}
 
   ngOnInit() {
@@ -1171,12 +1308,12 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
     this.lastUpdated = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
-  private act(obs: Observable<QueueBoard>) {
+  private act(obs: Observable<QueueBoard>, onSuccess?: () => void) {
     this.busy = true;
     this.error = '';
     this.cdr.detectChanges();
     obs.subscribe({
-      next: (b) => { this.setBoard(b); this.busy = false; this.cdr.detectChanges(); },
+      next: (b) => { this.setBoard(b); this.busy = false; onSuccess?.(); this.cdr.detectChanges(); },
       error: (err) => { this.busy = false; this.error = err?.error?.error || 'Action failed.'; this.cdr.detectChanges(); },
     });
   }
@@ -1244,10 +1381,71 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
   toggleCheckIn(p: QueuePlayer) { this.act(this.hp.checkIn(this.id, p._id, !p.checkedIn)); }
 
   addWalkIn() {
+    if (this.walkInMode() === 'member') {
+      const m = this.selectedWalkInMember();
+      if (!m) return;
+      this.selectedWalkInMember.set(null);
+      this.memberSearch.set('');
+      // Re-fetch balances afterwards — adding may have redeemed credit.
+      this.act(this.hp.addWalkIn(this.id, { memberId: m._id }), () => this.loadMembers());
+      return;
+    }
     const name = this.walkInName.trim();
     if (!name) return;
     this.walkInName = '';
-    this.act(this.hp.addWalkIn(this.id, name));
+    this.act(this.hp.addWalkIn(this.id, { name }));
+  }
+
+  setWalkInMode(mode: 'guest' | 'member') {
+    this.walkInMode.set(mode);
+    if (mode === 'member' && !this.members().length && !this.membersLoading()) this.loadMembers();
+  }
+
+  private loadMembers() {
+    this.membersLoading.set(true);
+    this.credit.getMembersWithBalances().subscribe({
+      next: (list) => { this.members.set(list); this.membersLoading.set(false); this.cdr.detectChanges(); },
+      error: () => { this.membersLoading.set(false); this.cdr.detectChanges(); },
+    });
+  }
+
+  // Plain method (not computed): `board` is a non-signal property, so a computed
+  // would go stale when the roster changes without a signal write.
+  filteredWalkInMembers(): MemberBalance[] {
+    const q = this.memberSearch().trim().toLowerCase();
+    if (!q) return [];
+    const inSession = new Set(
+      (this.board?.roster ?? []).filter((p) => p.memberId).map((p) => String(p.memberId)),
+    );
+    return this.members()
+      .filter((m) => !inSession.has(m._id))
+      .filter((m) =>
+        m.name.toLowerCase().includes(q) ||
+        (m.email ?? '').toLowerCase().includes(q) ||
+        m.username.toLowerCase().includes(q))
+      .slice(0, 8);
+  }
+
+  selectWalkInMember(m: MemberBalance) {
+    this.selectedWalkInMember.set(m);
+    this.memberSearch.set('');
+  }
+
+  clearWalkInMember() {
+    this.selectedWalkInMember.set(null);
+  }
+
+  memberWalkInTotal(): number {
+    return this.board?.session.totalPerPlayer ?? 0;
+  }
+
+  memberWalkInCredit(): number {
+    const balance = this.selectedWalkInMember()?.balance ?? 0;
+    return Math.min(balance, this.memberWalkInTotal());
+  }
+
+  memberWalkInDue(): number {
+    return Math.max(0, this.memberWalkInTotal() - this.memberWalkInCredit());
   }
 
   // Winner-based modes ask the admin to tap the winning side before finishing.
@@ -1401,8 +1599,106 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
       .then((dataUrl: string) => {
         this.qrModal = { generating: false, dataUrl };
         this.cdr.detectChanges();
+        // Compose the download poster (headline + session name + QR) in the
+        // background; the link falls back to the bare QR until it's ready.
+        this.composeQrPoster(dataUrl).then((downloadUrl) => {
+          if (this.qrModal?.dataUrl === dataUrl) {
+            this.qrModal = { ...this.qrModal, downloadUrl };
+            this.cdr.detectChanges();
+          }
+        });
       })
       .catch(() => { this.qrModal = null; this.cdr.detectChanges(); });
+  }
+
+  // Draws a printable poster around the QR: "Scan to Check In" headline and the
+  // session title above the code, on a white background. Resolves to the bare
+  // QR data URL if canvas composition fails for any reason.
+  private composeQrPoster(qrDataUrl: string): Promise<string> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onerror = () => resolve(qrDataUrl);
+      img.onload = () => {
+        try {
+          const W = 600;
+          const qrSize = 440;
+          const titleFont = '900 36px "Segoe UI", Arial, sans-serif';
+          const nameFont = '600 24px "Segoe UI", Arial, sans-serif';
+          const metaFont = '700 21px "Segoe UI", Arial, sans-serif';
+
+          // "Sat, Jul 18, 2026 • 18:00 – 21:00" (UTC date, matching the cards)
+          const s = this.board?.session;
+          const dateLabel = s?.date
+            ? new Date(s.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+            : '';
+          const timeLabel = s?.startTime && s?.endTime ? `${s.startTime} – ${s.endTime}` : '';
+          const metaLine = [dateLabel, timeLabel].filter(Boolean).join('  •  ');
+
+          // Wrap the session name to at most two lines that fit the poster.
+          const scratch = document.createElement('canvas').getContext('2d');
+          if (!scratch) return resolve(qrDataUrl);
+          scratch.font = nameFont;
+          const maxTextWidth = W - 70;
+          let lines: string[] = [];
+          let line = '';
+          for (const word of (this.board?.session?.title || '').trim().split(/\s+/).filter(Boolean)) {
+            const test = line ? line + ' ' + word : word;
+            if (scratch.measureText(test).width > maxTextWidth && line) {
+              lines.push(line);
+              line = word;
+            } else {
+              line = test;
+            }
+          }
+          if (line) lines.push(line);
+          if (lines.length > 2) {
+            lines = lines.slice(0, 2);
+            lines[1] += '…';
+          }
+
+          const topPad = 44;
+          const titleHeight = 44;
+          const nameBlock = lines.length ? lines.length * 32 + 6 : 0;
+          const metaBlock = metaLine ? 34 : 0;
+          const gap = 18;
+          const bottomPad = 44;
+          const canvas = document.createElement('canvas');
+          canvas.width = W;
+          canvas.height = topPad + titleHeight + nameBlock + metaBlock + gap + qrSize + bottomPad;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(qrDataUrl);
+
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+
+          let y = topPad;
+          ctx.fillStyle = '#0f172a';
+          ctx.font = titleFont;
+          ctx.fillText('Scan to Check In', W / 2, y);
+          y += titleHeight;
+          ctx.fillStyle = '#475569';
+          ctx.font = nameFont;
+          for (const l of lines) {
+            ctx.fillText(l, W / 2, y);
+            y += 32;
+          }
+          if (metaLine) {
+            ctx.fillStyle = '#64748b';
+            ctx.font = metaFont;
+            ctx.fillText(metaLine, W / 2, y + 4);
+            y += 34;
+          }
+          y += gap;
+          ctx.drawImage(img, (W - qrSize) / 2, y, qrSize, qrSize);
+          resolve(canvas.toDataURL('image/png'));
+        } catch {
+          resolve(qrDataUrl);
+        }
+      };
+      img.src = qrDataUrl;
+    });
   }
 
   closeQrModal() { this.qrModal = null; this.cdr.detectChanges(); }

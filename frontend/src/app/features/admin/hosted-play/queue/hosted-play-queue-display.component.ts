@@ -64,7 +64,10 @@ const MAX_VISIBLE_WAITING = 9;
                   <div class="lb-card" [class.rank-1]="i === 0" [class.rank-2]="i === 1" [class.rank-3]="i === 2">
                     @if (i === 0) { <span class="lb-trophy"><i class="fas fa-trophy"></i></span> }
                     <span class="lb-rank">{{ i + 1 }}</span>
-                    <span class="lb-name">{{ p.memberName }}</span>
+                    <span class="lb-name">
+                      @if (p.profileImage) { <img class="lb-avatar" [src]="p.profileImage" [alt]="p.memberName" /> }
+                      {{ p.memberName }}
+                    </span>
                     <span class="lb-w">{{ p.wins || 0 }}</span>
                     <span class="lb-l">{{ p.losses || 0 }}</span>
                   </div>
@@ -112,6 +115,9 @@ const MAX_VISIBLE_WAITING = 9;
                           <span class="team-label">Team A</span>
                           @for (p of teams.teamA; track p._id) {
                             <div class="player-row">
+                              <span class="pavatar">
+                                @if (p.profileImage) { <img [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }
+                              </span>
                               <span class="pname">{{ p.memberName }}</span>
                               @if (p.isWalkIn) { <span class="walk-tag">Walk-in</span> }
                             </div>
@@ -122,6 +128,9 @@ const MAX_VISIBLE_WAITING = 9;
                           <span class="team-label">Team B</span>
                           @for (p of teams.teamB; track p._id) {
                             <div class="player-row">
+                              <span class="pavatar">
+                                @if (p.profileImage) { <img [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }
+                              </span>
                               <span class="pname">{{ p.memberName }}</span>
                               @if (p.isWalkIn) { <span class="walk-tag">Walk-in</span> }
                             </div>
@@ -142,7 +151,10 @@ const MAX_VISIBLE_WAITING = 9;
                 <div class="queue-list">
                   @for (p of visibleWaiting(); track p._id; let i = $index) {
                     <div class="queue-row">
-                      <span class="qnum">{{ i + 1 }}</span><span class="avatar">{{ initials(p.memberName) }}</span>
+                      <span class="qnum">{{ i + 1 }}</span>
+                      <span class="avatar">
+                        @if (p.profileImage) { <img [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }
+                      </span>
                       <span class="pname">{{ p.memberName }}<small>{{ i === 0 ? 'Next available court' : 'In queue' }}</small></span>
                       @if (p.isWalkIn) { <span class="walk-tag">Walk-in</span> }
                     </div>
@@ -170,7 +182,10 @@ const MAX_VISIBLE_WAITING = 9;
                       <div class="lb-card" [class.rank-1]="i === 0" [class.rank-2]="i === 1" [class.rank-3]="i === 2">
                         @if (i === 0) { <span class="lb-trophy"><i class="fas fa-trophy"></i></span> }
                         <span class="lb-rank">{{ i + 1 }}</span>
-                        <span class="lb-name">{{ p.memberName }}</span>
+                        <span class="lb-name">
+                      @if (p.profileImage) { <img class="lb-avatar" [src]="p.profileImage" [alt]="p.memberName" /> }
+                      {{ p.memberName }}
+                    </span>
                         <span class="lb-w">{{ p.wins || 0 }}</span>
                         <span class="lb-l">{{ p.losses || 0 }}</span>
                       </div>
@@ -289,7 +304,7 @@ const MAX_VISIBLE_WAITING = 9;
       background: #f5df18; color: #1a1400; display: flex; align-items: center; justify-content: center;
       font-size: .78rem; box-shadow: 0 4px 10px rgba(245,223,24,.4);
     }
-    .lb-name { font-size: 1.15rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-name { display: flex; align-items: center; gap: .5rem; font-size: 1.15rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .lb-w, .lb-l { text-align: center; font-size: 1.2rem; font-weight: 900; font-variant-numeric: tabular-nums; }
     .lb-w { color: #4ade80; }
     .lb-l { color: #f87171; }
@@ -342,7 +357,15 @@ const MAX_VISIBLE_WAITING = 9;
     .avatar {
       width: 40px; height: 40px; flex: 0 0 40px; border-radius: 50%; background: rgba(163,230,53,.16);
       color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 950; font-size: .9rem;
+      overflow: hidden;
     }
+    .avatar img, .pavatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .pavatar {
+      width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; background: rgba(163,230,53,.16);
+      color: var(--accent); display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 950; font-size: .64rem; overflow: hidden;
+    }
+    .lb-avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
     .pname { flex: 1; min-width: 0; font-size: 1.05rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .walk-tag {
       flex-shrink: 0; font-size: .68rem; font-weight: 950; text-transform: uppercase;
@@ -378,7 +401,8 @@ const MAX_VISIBLE_WAITING = 9;
     .lb-mini .lb-card { grid-template-columns: 1.7rem 1fr 2rem 2rem; gap: .5rem; padding: .5rem .65rem; border-radius: 12px; }
     .lb-mini .lb-rank { width: 1.7rem; height: 1.7rem; font-size: .78rem; }
     .lb-mini .lb-trophy { width: 1rem; height: 1rem; font-size: .48rem; top: .25rem; left: 1.85rem; }
-    .lb-mini .lb-name { font-size: .9rem; }
+    .lb-mini .lb-name { font-size: .9rem; gap: .35rem; }
+    .lb-mini .lb-avatar { width: 20px; height: 20px; }
     .lb-mini .lb-w, .lb-mini .lb-l { font-size: .95rem; }
 
     .tv-footer {

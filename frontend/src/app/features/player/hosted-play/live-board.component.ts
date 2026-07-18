@@ -98,7 +98,13 @@ import { ClubService, Court } from '../../../core/services/club.service';
                           <span class="team-label">Team A</span>
                           @for (p of teams.teamA; track p._id) {
                             <div class="player-row" [class.is-me]="isMe(p)">
-                              <div class="avatar" [class.avatar-me]="isMe(p)">{{ initials(p.memberName) }}</div>
+                              <div class="avatar" [class.avatar-me]="isMe(p)">
+                                @if (p.profileImage) {
+                                  <img [src]="p.profileImage" [alt]="p.memberName" />
+                                } @else {
+                                  {{ initials(p.memberName) }}
+                                }
+                              </div>
                               <span class="pname">{{ p.memberName }}@if (isMe(p)) { <span class="you-tag">You</span> }</span>
                               <span class="pgames">{{ p.gamesPlayed }}×</span>
                             </div>
@@ -109,7 +115,13 @@ import { ClubService, Court } from '../../../core/services/club.service';
                           <span class="team-label">Team B</span>
                           @for (p of teams.teamB; track p._id) {
                             <div class="player-row" [class.is-me]="isMe(p)">
-                              <div class="avatar" [class.avatar-me]="isMe(p)">{{ initials(p.memberName) }}</div>
+                              <div class="avatar" [class.avatar-me]="isMe(p)">
+                                @if (p.profileImage) {
+                                  <img [src]="p.profileImage" [alt]="p.memberName" />
+                                } @else {
+                                  {{ initials(p.memberName) }}
+                                }
+                              </div>
                               <span class="pname">{{ p.memberName }}@if (isMe(p)) { <span class="you-tag">You</span> }</span>
                               <span class="pgames">{{ p.gamesPlayed }}×</span>
                             </div>
@@ -286,8 +298,10 @@ import { ClubService, Court } from '../../../core/services/club.service';
     .queue-row { padding: .5rem .6rem; background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 8px; }
     .queue-list { display: flex; flex-direction: column; gap: .4rem; }
 
-    .avatar { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; background: rgba(163,230,53,.14); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 900; }
+    .avatar { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; background: rgba(163,230,53,.14); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 900; overflow: hidden; }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .avatar-me { background: var(--accent); color: #07130d; }
+    .avatar-me img { border: 2px solid var(--accent); border-radius: 50%; }
     .qnum { width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; background: rgba(255,255,255,.08); color: var(--muted); font-size: .72rem; font-weight: 900; display: flex; align-items: center; justify-content: center; }
     .qnum-me { background: rgba(163,230,53,.2); color: var(--accent); }
     .pause-num { color: var(--amber); background: rgba(245,158,11,.14); }

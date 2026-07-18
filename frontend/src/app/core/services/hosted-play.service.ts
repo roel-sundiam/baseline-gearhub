@@ -86,6 +86,7 @@ export interface QueuePlayer {
   _id: string;
   memberId?: string | null;
   memberName: string;
+  profileImage?: string | null;
   isWalkIn: boolean;
   checkedIn: boolean;
   queueStatus: ParticipantQueueStatus;
@@ -109,6 +110,9 @@ export interface QueueBoard {
     status: string;
     venue?: string;
     court?: string;
+    date?: string;
+    startTime?: string;
+    endTime?: string;
     queueStatus: QueueStatus;
     queueMode?: string;
     numberOfCourts: number;
@@ -296,8 +300,8 @@ export class HostedPlayService {
       `${this.base}/sessions/${id}/participants/${participantId}/check-in`, { checkedIn });
   }
 
-  addWalkIn(id: string, name: string) {
-    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/walkins`, { name });
+  addWalkIn(id: string, data: { name?: string; memberId?: string }) {
+    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/walkins`, data);
   }
 
   finishCourt(id: string, courtNumber: number, winnerIds: string[] = []) {
