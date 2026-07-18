@@ -30,9 +30,18 @@ import { Subject } from 'rxjs';
         <div class="widget-content">
           <div *ngIf="allVisitorsHistory.length === 0" class="no-visitors">No visitor records yet</div>
 
+          <div *ngIf="allVisitorsHistory.length > 0" class="columns-header">
+            <span class="visitor-name">User</span>
+            <span class="col-role">Role</span>
+            <span class="club-name">Club</span>
+            <span class="page-name">Page</span>
+            <span class="time-ago">Time</span>
+          </div>
+
           <div *ngFor="let visitor of allVisitorsHistory" class="visitor-item">
             <span class="visitor-name">{{ visitor.username }}</span>
             <span class="visitor-role" [class]="'role-' + visitor.role">{{ visitor.role }}</span>
+            <span class="club-name">{{ visitor.clubName || '—' }}</span>
             <span class="page-icon">📄</span>
             <span class="page-name">{{ visitor.currentPage }}</span>
             <span class="time-ago">{{ formatTimeAgo(visitor.lastActivity) }}</span>
@@ -109,7 +118,8 @@ import { Subject } from 'rxjs';
         position: absolute;
         bottom: 68px;
         right: 0;
-        width: 340px;
+        width: 620px;
+        max-width: calc(100vw - 40px);
         background: #ffffff;
         border: 1px solid rgba(163, 230, 53, 0.25);
         border-radius: 16px;
@@ -185,6 +195,36 @@ import { Subject } from 'rxjs';
         font-size: 12.5px;
       }
 
+      /* ── Column headers ── */
+      .columns-header {
+        padding: 6px 14px 5px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #9ca3af;
+        white-space: nowrap;
+      }
+
+      .columns-header span {
+        color: inherit;
+        font-size: inherit;
+        font-weight: inherit;
+      }
+
+      .columns-header .col-role {
+        flex: 0 0 80px;
+        text-align: center;
+      }
+
+      .columns-header .page-name {
+        padding-left: 18px;
+      }
+
       /* ── Visitor row ── */
       .visitor-item {
         padding: 7px 14px;
@@ -205,10 +245,9 @@ import { Subject } from 'rxjs';
       .visitor-name {
         font-weight: 700;
         color: #111f16;
-        min-width: 90px;
+        flex: 0 0 110px;
         overflow: hidden;
         text-overflow: ellipsis;
-        flex-shrink: 0;
       }
 
       .visitor-role {
@@ -216,9 +255,19 @@ import { Subject } from 'rxjs';
         padding: 2px 6px;
         border-radius: 4px;
         font-weight: 700;
-        flex-shrink: 0;
+        flex: 0 0 80px;
+        text-align: center;
         letter-spacing: 0.02em;
         text-transform: uppercase;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .club-name {
+        color: #6b7280;
+        flex: 0 0 110px;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .role-anonymous { background: #f3f4f6; color: #6b7280; }
@@ -260,12 +309,15 @@ import { Subject } from 'rxjs';
         letter-spacing: 0.02em;
       }
 
-      /* ── Mobile ── */
+      /* ── Mobile: keep the original compact layout ── */
       @media (max-width: 600px) {
         .live-visitors-widget { bottom: 10px; right: 10px; }
         .widget-toggle { width: 50px; height: 50px; }
         .icon { font-size: 19px; }
         .widget-panel { width: 300px; bottom: 62px; }
+        .columns-header, .club-name { display: none; }
+        .visitor-name { flex: 0 0 auto; min-width: 90px; }
+        .visitor-role { flex: 0 0 auto; text-align: left; }
       }
     `,
   ],

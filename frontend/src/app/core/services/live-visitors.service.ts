@@ -14,6 +14,7 @@ export interface LiveVisitor {
   currentPageUrl: string;
   sessionStart: Date;
   lastActivity: Date;
+  clubName?: string | null;
 }
 
 @Injectable({

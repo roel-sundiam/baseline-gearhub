@@ -35,16 +35,9 @@ export class PageTrackingService {
   }
 
   private initializeTracking() {
-    // Initialize current page immediately
-    const currentUrl = this.router.url;
-    this.currentPageName = this.getPageNameFromUrl(currentUrl);
-    this.currentPageUrl = currentUrl;
-    this.currentPageStartTime = Date.now();
-    
-    // Update live visitor on initialization
-    this.updateLiveVisitor(currentUrl, this.currentPageName);
-
-    // Track route changes
+    // Don't snapshot router.url here: the service is constructed before the router's
+    // initial navigation completes, so the URL is always '/' at this point and would
+    // log a bogus 'unknown' page visit. The first NavigationEnd starts tracking instead.
     this.router.events
       .pipe(filter((event) => event instanceof NavigationEnd))
       .subscribe((event: any) => {
@@ -74,22 +67,23 @@ export class PageTrackingService {
   }
 
   private getPageNameFromUrl(url: string): string {
-    // Extract meaningful page name from URL
-    const parts = url.split('/').filter((p) => p);
+    // Extract meaningful page name from URL (ignore query string and fragment)
+    const path = url.split(/[?#]/)[0];
+    const parts = path.split('/').filter((p) => p);
 
-    if (url.includes('/player/dashboard')) return 'player-dashboard';
-    if (url.includes('/player/directory')) return 'member-directory';
-    if (url.includes('/player/profile/edit')) return 'profile-edit';
-    if (url.includes('/admin/dashboard')) return 'admin-dashboard';
-    if (url.includes('/admin/analytics')) return 'site-analytics';
-    if (url.includes('/admin/users')) return 'manage-users';
-    if (url.includes('/admin/rates')) return 'manage-rates';
-    if (url.includes('/admin/sessions'))
-      return url.includes('/new') ? 'record-session' : 'manage-sessions';
-    if (url.includes('/player-login')) return 'login';
-    if (url.includes('/register')) return 'register';
+    if (path.includes('/player/dashboard')) return 'player-dashboard';
+    if (path.includes('/player/directory')) return 'member-directory';
+    if (path.includes('/player/profile/edit')) return 'profile-edit';
+    if (path.includes('/admin/dashboard')) return 'admin-dashboard';
+    if (path.includes('/admin/analytics')) return 'site-analytics';
+    if (path.includes('/admin/users')) return 'manage-users';
+    if (path.includes('/admin/rates')) return 'manage-rates';
+    if (path.includes('/admin/sessions'))
+      return path.includes('/new') ? 'record-session' : 'manage-sessions';
+    if (path.includes('/player-login')) return 'login';
+    if (path.includes('/register')) return 'register';
 
-    return parts[parts.length - 1] || 'unknown';
+    return parts[parts.length - 1] || 'landing';
   }
 
   private logPageVisit(pageName: string, pageUrl: string, timeSpent: number) {

@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const Session = require("../models/Session");
 const LoginHistory = require("../models/LoginHistory");
@@ -279,19 +280,21 @@ router.get("/live-visitors", auth, superadminMiddleware, async (req, res) => {
     const recentPageVisits = await PageVisit.find()
       .sort({ visitTime: -1 })
       .limit(parseInt(limit))
+      .populate({ path: "userId", select: "clubId", populate: { path: "clubId", select: "name" } })
       .lean();
 
     // Transform PageVisits to match LiveVisitor interface
     const pageVisitorsData = recentPageVisits.map((visit) => ({
       _id: visit._id,
       sessionId: visit._id.toString(),
-      userId: visit.userId || null,
+      userId: visit.userId?._id ?? null,
       username: visit.username || 'Anonymous',
       role: visit.role || 'anonymous',
       currentPage: visit.pageName,
       currentPageUrl: visit.pageUrl,
       lastActivity: visit.visitTime,
       sessionStart: visit.visitTime,
+      clubName: visit.userId?.clubId?.name ?? null,
       source: 'pageVisit',
     }));
 
@@ -299,6 +302,24 @@ router.get("/live-visitors", auth, superadminMiddleware, async (req, res) => {
     const liveVisitors = await LiveVisitors.find()
       .sort({ lastActivity: -1 })
       .lean();
+
+    // LiveVisitors.userId is a plain string, so resolve club names with a batch lookup
+    const liveUserIds = [
+      ...new Set(
+        liveVisitors
+          .map((v) => v.userId)
+          .filter((id) => id && mongoose.Types.ObjectId.isValid(id)),
+      ),
+    ];
+    const liveUsers = liveUserIds.length
+      ? await User.find({ _id: { $in: liveUserIds } })
+          .select("clubId")
+          .populate("clubId", "name")
+          .lean()
+      : [];
+    const clubNameByUserId = new Map(
+      liveUsers.map((u) => [String(u._id), u.clubId?.name ?? null]),
+    );
 
     // Transform LiveVisitors
     const liveVisitorsData = liveVisitors.map((visitor) => ({
@@ -311,6 +332,7 @@ router.get("/live-visitors", auth, superadminMiddleware, async (req, res) => {
       currentPageUrl: visitor.currentPageUrl,
       lastActivity: visitor.lastActivity,
       sessionStart: visitor.sessionStart || visitor.lastActivity,
+      clubName: clubNameByUserId.get(String(visitor.userId)) ?? null,
       source: 'liveVisitor',
     }));
 
