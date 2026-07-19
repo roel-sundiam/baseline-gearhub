@@ -74,4 +74,46 @@ async function billSplitSessionFee(session, club) {
   }
 }
 
-module.exports = { computeMemberFeeAndCredit, chargeMemberForSession, billSplitSessionFee };
+// Bills every member still on the roster their share of the flat Hosted Play
+// convenience fee, once, when a session is marked completed and the club is on
+// per_session mode. Independent of feeSplitMode/billSplitSessionFee above, which
+// only concerns the base session fee. Guests are excluded, same reasoning as
+// billSplitSessionFee: no persistent account to bill after they leave.
+async function settleHostedPlayConvenienceFee(session, club) {
+  if (club.hostedPlayConvenienceFeeMode !== "per_session" || !(club.hostedPlayConvenienceFeeAmount > 0)) return;
+
+  const participants = await HostedPlayParticipant.find({
+    hostedPlayId: session._id,
+    memberId: { $ne: null },
+    waitStatus: { $nin: ["waitlisted", "offered", "pending_payment"] },
+  });
+  if (participants.length === 0) return;
+
+  const shareEach = parseFloat((club.hostedPlayConvenienceFeeAmount / participants.length).toFixed(2));
+  if (shareEach <= 0) return;
+
+  for (const participant of participants) {
+    const creditBalance = await getCreditBalance(session.clubId, participant.memberId);
+    const creditApplied = Math.min(creditBalance, shareEach);
+    const remaining = shareEach - creditApplied;
+
+    const charge = await Charge.create({
+      clubId: session.clubId,
+      playerId: participant.memberId,
+      hostedPlayId: session._id,
+      amount: shareEach,
+      breakdown: { convenienceFee: shareEach, convenienceFeeMode: "per_session" },
+      chargeType: "hosted_play",
+      status: remaining <= 0 && creditApplied > 0 ? "paid" : "unpaid",
+      approvalStatus: remaining <= 0 && creditApplied > 0 ? "approved" : "none",
+      creditApplied,
+      ...(remaining <= 0 && creditApplied > 0 ? { paymentMethod: "Credit", paidAt: new Date() } : {}),
+    });
+
+    if (creditApplied > 0) {
+      await redeemCredit({ clubId: session.clubId, playerId: participant.memberId, amount: creditApplied, chargeId: charge._id, grantedBy: participant.memberId });
+    }
+  }
+}
+
+module.exports = { computeMemberFeeAndCredit, chargeMemberForSession, billSplitSessionFee, settleHostedPlayConvenienceFee };

@@ -125,6 +125,42 @@ router.patch("/:id/convenience-fee", auth, superadmin, async (req, res) => {
   }
 });
 
+// PATCH /api/clubs/:id/hosted-play-convenience-fee — set Hosted Play's own app convenience fee, independent of the club-wide convenience fee above (superadmin only)
+router.patch("/:id/hosted-play-convenience-fee", auth, superadmin, async (req, res) => {
+  try {
+    const update = {};
+    if (req.body.hostedPlayConvenienceFeeMode !== undefined) {
+      if (!["per_join", "per_session", "club_absorbs"].includes(req.body.hostedPlayConvenienceFeeMode)) {
+        return res.status(400).json({ error: "hostedPlayConvenienceFeeMode must be 'per_join', 'per_session', or 'club_absorbs'" });
+      }
+      update.hostedPlayConvenienceFeeMode = req.body.hostedPlayConvenienceFeeMode;
+    }
+    if (req.body.hostedPlayConvenienceFeeRate !== undefined) {
+      const rate = Number(req.body.hostedPlayConvenienceFeeRate);
+      if (isNaN(rate) || rate < 0 || rate > 1) {
+        return res.status(400).json({ error: "hostedPlayConvenienceFeeRate must be a number between 0 and 1" });
+      }
+      update.hostedPlayConvenienceFeeRate = rate;
+    }
+    if (req.body.hostedPlayConvenienceFeeAmount !== undefined) {
+      const amount = Number(req.body.hostedPlayConvenienceFeeAmount);
+      if (isNaN(amount) || amount < 0) {
+        return res.status(400).json({ error: "hostedPlayConvenienceFeeAmount must be a non-negative number" });
+      }
+      update.hostedPlayConvenienceFeeAmount = amount;
+    }
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ error: "No valid fields provided" });
+    }
+    const club = await Club.findByIdAndUpdate(req.params.id, update, { new: true }).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json(club);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // PATCH /api/clubs/:id/additional-fees — replace per-club additional fees list (superadmin only)
 router.patch("/:id/additional-fees", auth, superadmin, async (req, res) => {
   try {

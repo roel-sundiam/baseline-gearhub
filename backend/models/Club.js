@@ -34,6 +34,13 @@ const clubSchema = new mongoose.Schema(
     // a flat feePerPlayer at join time; split_total divides a session's total fee
     // among however many members are still joined when the session is completed.
     hostedPlayFeeSplitMode: { type: String, enum: ['per_player', 'split_total'], default: 'per_player' },
+    // App convenience fee for Hosted Play specifically, independent of the club-wide
+    // convenienceFeeRate/convenienceFeeMode above. per_join charges each joiner a
+    // rate-based fee at join time; per_session is a flat amount split evenly among
+    // member participants and billed once the session is completed.
+    hostedPlayConvenienceFeeMode: { type: String, enum: ['per_join', 'per_session', 'club_absorbs'], default: 'per_join' },
+    hostedPlayConvenienceFeeRate: { type: Number, default: 0.05, min: 0, max: 1 },
+    hostedPlayConvenienceFeeAmount: { type: Number, default: 0, min: 0 },
     // Finance Report premium add-on: club admin self-subscribes; the monthly fee
     // accrues as AppServicePayment billing entries while enabled. subscribedAt is
     // kept on cancel (for display); ledger data is always preserved.

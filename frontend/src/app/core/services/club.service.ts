@@ -53,6 +53,9 @@ export interface Club {
   hostedPlayQueueEnabled?: boolean;
   queueManagementFeePerPlayer?: number;
   hostedPlayFeeSplitMode?: 'per_player' | 'split_total';
+  hostedPlayConvenienceFeeMode?: 'per_join' | 'per_session' | 'club_absorbs';
+  hostedPlayConvenienceFeeRate?: number;
+  hostedPlayConvenienceFeeAmount?: number;
   financeReportEnabled?: boolean;
   financeReportSubscribedAt?: string | null;
   financeReportFeeOverride?: number | null;
@@ -99,6 +102,14 @@ export class ClubService {
 
   patchConvenienceFee(id: string, convenienceFeeRate: number, convenienceFeeMode?: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs', convenienceFeeMonthlyAmount?: number) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/convenience-fee`, { convenienceFeeRate, convenienceFeeMode, ...(convenienceFeeMonthlyAmount !== undefined ? { convenienceFeeMonthlyAmount } : {}) });
+  }
+
+  patchHostedPlayConvenienceFee(id: string, hostedPlayConvenienceFeeMode?: 'per_join' | 'per_session' | 'club_absorbs', hostedPlayConvenienceFeeRate?: number, hostedPlayConvenienceFeeAmount?: number) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/hosted-play-convenience-fee`, {
+      ...(hostedPlayConvenienceFeeMode !== undefined ? { hostedPlayConvenienceFeeMode } : {}),
+      ...(hostedPlayConvenienceFeeRate !== undefined ? { hostedPlayConvenienceFeeRate } : {}),
+      ...(hostedPlayConvenienceFeeAmount !== undefined ? { hostedPlayConvenienceFeeAmount } : {}),
+    });
   }
 
   updateAdditionalFees(id: string, additionalFees: AdditionalFee[]) {

@@ -979,7 +979,7 @@ router.post("/:clubId/hosted-play/:sessionId/guest-join", async (req, res) => {
       const pendingCharge = await Charge.findOne({ hostedPlayId: session._id, guestEmail: normalizedEmail, approvalStatus: "pending" });
       if (pendingCharge) return res.status(400).json({ error: "A pending payment for this email already exists" });
 
-      const clubFull = await Club.findById(club._id).select("convenienceFeeRate convenienceFeeMode").lean();
+      const clubFull = await Club.findById(club._id).select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode").lean();
       const { baseFee, convenienceFee, total: amount, feeMode } = computePlayerFees(clubFull, guestFee);
       const netSessionFee = feeMode === "club_absorbs" ? baseFee - convenienceFee : baseFee;
 

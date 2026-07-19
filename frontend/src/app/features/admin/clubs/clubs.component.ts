@@ -700,6 +700,83 @@ interface AdminUser {
                   </div>
                 </div>
 
+                <!-- Hosted Play Convenience Fee Card -->
+                <div class="cfs-card">
+                  <div class="cfs-header">
+                    <div class="cfs-header-left">
+                      <span class="cfs-icon"><i class="fas fa-table-tennis"></i></span>
+                      <div>
+                        <div class="cfs-title">Hosted Play Convenience Fee</div>
+                        <div class="cfs-subtitle">App service fee for Hosted Play, separate from the fee above</div>
+                      </div>
+                    </div>
+                    <span class="cfs-current-badge">
+                      @if (selectedClub?.hostedPlayConvenienceFeeMode === 'per_session') {
+                        Per Session — ₱{{ (selectedClub?.hostedPlayConvenienceFeeAmount ?? 0) | number:'1.0-2' }}
+                      } @else if (selectedClub?.hostedPlayConvenienceFeeMode === 'club_absorbs') {
+                        Club Absorbs {{ ((selectedClub?.hostedPlayConvenienceFeeRate ?? 0.05) * 100) | number:'1.0-1' }}%
+                      } @else {
+                        Currently {{ ((selectedClub?.hostedPlayConvenienceFeeRate ?? 0.05) * 100) | number:'1.0-1' }}%
+                      }
+                    </span>
+                  </div>
+
+                  <div class="cfs-body">
+                    <div class="cfs-field">
+                      <label class="cfs-field-label">Fee Mode</label>
+                      <div class="cfs-mode-grid">
+                        <button type="button" class="cfs-mode-opt" [class.cfs-mode-opt-active]="editHostedPlayConvenienceFeeMode === 'per_join'" (click)="editHostedPlayConvenienceFeeMode = 'per_join'">
+                          <i class="fas fa-user-plus"></i>
+                          <span class="cfs-mode-name">Per Join</span>
+                          <span class="cfs-mode-desc">Each player pays a fee when they join</span>
+                        </button>
+                        <button type="button" class="cfs-mode-opt" [class.cfs-mode-opt-active]="editHostedPlayConvenienceFeeMode === 'per_session'" (click)="editHostedPlayConvenienceFeeMode = 'per_session'">
+                          <i class="fas fa-users"></i>
+                          <span class="cfs-mode-name">Per Session</span>
+                          <span class="cfs-mode-desc">Flat fee split evenly, billed after the session ends</span>
+                        </button>
+                        <button type="button" class="cfs-mode-opt" [class.cfs-mode-opt-active]="editHostedPlayConvenienceFeeMode === 'club_absorbs'" (click)="editHostedPlayConvenienceFeeMode = 'club_absorbs'">
+                          <i class="fas fa-building"></i>
+                          <span class="cfs-mode-name">Club Absorbs</span>
+                          <span class="cfs-mode-desc">Club pays fee, player pays base only</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    @if (editHostedPlayConvenienceFeeMode === 'per_session') {
+                      <div class="cfs-field">
+                        <label class="cfs-field-label">Session Amount (₱)</label>
+                        <div class="cfs-rate-row">
+                          <input type="number" class="cfs-rate-input" [(ngModel)]="editHostedPlayConvenienceFeeAmount" min="0" step="1" />
+                          <span class="cfs-rate-hint">flat pesos per session, split evenly among members who played</span>
+                        </div>
+                      </div>
+                    } @else {
+                      <div class="cfs-field">
+                        <label class="cfs-field-label">Fee Rate</label>
+                        <div class="cfs-rate-row">
+                          <input type="number" class="cfs-rate-input" [(ngModel)]="editHostedPlayConvenienceFeeRate" min="0" max="100" step="0.1" />
+                          <span class="cfs-pct">%</span>
+                          <span class="cfs-rate-hint">{{ editHostedPlayConvenienceFeeMode === 'club_absorbs' ? 'club absorbs this % from the session fee' : "of each player's session fee, charged at join" }}</span>
+                        </div>
+                      </div>
+                    }
+                  </div>
+
+                  <div class="cfs-footer">
+                    @if (hostedPlayFeeModeSaveMsg) {
+                      <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ hostedPlayFeeModeSaveMsg }}</span>
+                    }
+                    <button type="button" class="cfs-save-btn" (click)="saveHostedPlayConvenienceFeeMode()" [disabled]="savingHostedPlayFeeMode">
+                      @if (savingHostedPlayFeeMode) {
+                        <i class="fas fa-circle-notch fa-spin"></i> Saving…
+                      } @else {
+                        <i class="fas fa-save"></i> Save Settings
+                      }
+                    </button>
+                  </div>
+                </div>
+
                 @if (aspLoading) {
                   <p class="state-msg"><i class="fas fa-circle-notch fa-spin"></i> Loading data…</p>
                 } @else if (aspError) {
@@ -4046,6 +4123,12 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   editConvenienceFeeMonthlyAmount = 0;
   savingFeeMode = false;
   feeModeSaveMsg = '';
+
+  editHostedPlayConvenienceFeeMode: 'per_join' | 'per_session' | 'club_absorbs' = 'per_join';
+  editHostedPlayConvenienceFeeRate = 5;
+  editHostedPlayConvenienceFeeAmount = 0;
+  savingHostedPlayFeeMode = false;
+  hostedPlayFeeModeSaveMsg = '';
   billingMonthLoading = false;
   billingMonthMsg = '';
 
@@ -4330,6 +4413,10 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     this.editConvenienceFeeRate = Math.round((club.convenienceFeeRate ?? 0.10) * 1000) / 10;
     this.editConvenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
     this.feeModeSaveMsg = '';
+    this.editHostedPlayConvenienceFeeMode = club.hostedPlayConvenienceFeeMode ?? 'per_join';
+    this.editHostedPlayConvenienceFeeRate = Math.round((club.hostedPlayConvenienceFeeRate ?? 0.05) * 1000) / 10;
+    this.editHostedPlayConvenienceFeeAmount = club.hostedPlayConvenienceFeeAmount ?? 0;
+    this.hostedPlayFeeModeSaveMsg = '';
     this.billingMonthMsg = '';
     this.requireScreenshot = club.requirePaymentScreenshot ?? false;
     this.screenshotSettingSaveMsg = '';
@@ -4569,6 +4656,25 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
         setTimeout(() => { this.feeModeSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
       },
       error: () => { this.savingFeeMode = false; this.feeModeSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
+  saveHostedPlayConvenienceFeeMode() {
+    if (!this.selectedClub?._id) return;
+    this.savingHostedPlayFeeMode = true;
+    this.hostedPlayFeeModeSaveMsg = '';
+    const rate = Math.max(0, Math.min(100, this.editHostedPlayConvenienceFeeRate)) / 100;
+    const amount = Math.max(0, this.editHostedPlayConvenienceFeeAmount);
+    this.clubService.patchHostedPlayConvenienceFee(this.selectedClub._id, this.editHostedPlayConvenienceFeeMode, rate, amount).subscribe({
+      next: (updated) => {
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, hostedPlayConvenienceFeeMode: updated.hostedPlayConvenienceFeeMode, hostedPlayConvenienceFeeRate: updated.hostedPlayConvenienceFeeRate, hostedPlayConvenienceFeeAmount: updated.hostedPlayConvenienceFeeAmount } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, hostedPlayConvenienceFeeMode: updated.hostedPlayConvenienceFeeMode, hostedPlayConvenienceFeeRate: updated.hostedPlayConvenienceFeeRate, hostedPlayConvenienceFeeAmount: updated.hostedPlayConvenienceFeeAmount };
+        this.savingHostedPlayFeeMode = false;
+        this.hostedPlayFeeModeSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.hostedPlayFeeModeSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingHostedPlayFeeMode = false; this.hostedPlayFeeModeSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
     });
   }
 

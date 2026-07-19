@@ -15,7 +15,7 @@ const { computePlayerFees } = require("../utils/fees");
 const { resolveGuestFee, countGuests } = require("../utils/guests");
 const { ownsClub } = require("../utils/scope");
 const { getCreditBalance, redeemCredit, refundCredit } = require("../utils/credit");
-const { computeMemberFeeAndCredit, chargeMemberForSession, billSplitSessionFee } = require("../utils/hosted-play-billing");
+const { computeMemberFeeAndCredit, chargeMemberForSession, billSplitSessionFee, settleHostedPlayConvenienceFee } = require("../utils/hosted-play-billing");
 
 // Participants that occupy a real spot (excludes waitlist/offer holders). Used
 // to scope every queue read so the engine never sees waitlisted players.
@@ -67,7 +67,7 @@ router.get("/player/sessions", auth, async (req, res) => {
       HostedPlay.find({ clubId, status: { $in: ["open", "full"] } })
         .sort({ date: 1, startTime: 1 })
         .lean(),
-      Club.findById(clubId).select("convenienceFeeRate convenienceFeeMode").lean(),
+      Club.findById(clubId).select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode").lean(),
     ]);
 
     const sessionIds = sessions.map((s) => s._id);
@@ -120,7 +120,7 @@ router.get("/player/sessions/:id", auth, async (req, res) => {
 
     const [participants, club, myEntry] = await Promise.all([
       HostedPlayParticipant.find({ hostedPlayId: session._id, ...ACTIVE_PARTICIPANT }).sort({ createdAt: 1 }).lean(),
-      Club.findById(session.clubId).select("convenienceFeeRate convenienceFeeMode").lean(),
+      Club.findById(session.clubId).select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode").lean(),
       HostedPlayParticipant.findOne({ hostedPlayId: session._id, memberId: req.user.userId })
         .select("waitStatus waitlistOrder offerExpiresAt").lean(),
     ]);
@@ -254,7 +254,7 @@ router.post("/player/sessions/:id/join", auth, async (req, res) => {
 
     const [user, club] = await Promise.all([
       User.findById(memberId).select("name").lean(),
-      Club.findById(session.clubId).select("convenienceFeeRate convenienceFeeMode").lean(),
+      Club.findById(session.clubId).select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode").lean(),
     ]);
 
     const hasPaymentProof = !!(paymentScreenshot && paymentMethod);
@@ -376,7 +376,7 @@ router.delete("/player/sessions/:id/join", auth, async (req, res) => {
       if (session.status === "full") session.status = "open";
       await session.save();
       const club = await Club.findById(session.clubId)
-        .select("convenienceFeeRate convenienceFeeMode").lean();
+        .select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode").lean();
       await promoteFromWaitlist(session, club); // may re-fill / offer the freed spot
     }
 
@@ -405,7 +405,7 @@ router.post("/player/sessions/:id/claim", auth, async (req, res) => {
       participant.waitlistOrder = Date.now();
       await participant.save();
       const lapsedClub = await Club.findById(session.clubId)
-        .select("convenienceFeeRate convenienceFeeMode").lean();
+        .select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode").lean();
       await promoteFromWaitlist(session, lapsedClub);
       return res.status(410).json({ error: "Your spot offer has expired" });
     }
@@ -421,7 +421,7 @@ router.post("/player/sessions/:id/claim", auth, async (req, res) => {
 
     const [user, club] = await Promise.all([
       User.findById(memberId).select("name").lean(),
-      Club.findById(session.clubId).select("convenienceFeeRate convenienceFeeMode").lean(),
+      Club.findById(session.clubId).select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode").lean(),
     ]);
     const { baseFee, convenienceFee, total: amount, feeMode } = computePlayerFees(club, session.feePerPlayer);
     const netSessionFee = feeMode === "club_absorbs" ? baseFee - convenienceFee : baseFee;
@@ -716,10 +716,13 @@ router.patch("/sessions/:id/status", auth, admin, async (req, res) => {
     }
 
     // Split Session Fee sessions bill their joined members exactly once, the
-    // first time they're marked completed.
-    if (status === "completed" && !wasCompleted && session.feeSplitMode === "split_total") {
-      const club = await Club.findById(session.clubId).select("convenienceFeeRate convenienceFeeMode").lean();
-      await billSplitSessionFee(session, club);
+    // first time they're marked completed. Same for per_session convenience fee.
+    if (status === "completed" && !wasCompleted) {
+      const club = await Club.findById(session.clubId)
+        .select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount")
+        .lean();
+      if (session.feeSplitMode === "split_total") await billSplitSessionFee(session, club);
+      await settleHostedPlayConvenienceFee(session, club);
     }
 
     res.json(session);
@@ -783,7 +786,7 @@ async function decorateProfileImages(participants) {
 async function loadQueueContext(req, res) {
   const [session, club] = await Promise.all([
     HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId }).lean(),
-    Club.findById(req.user.clubId).select("hostedPlayQueueEnabled convenienceFeeRate convenienceFeeMode").lean(),
+    Club.findById(req.user.clubId).select("hostedPlayQueueEnabled hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount").lean(),
   ]);
   if (!session) {
     res.status(404).json({ error: "Session not found" });
@@ -933,8 +936,10 @@ router.post("/sessions/:id/queue/end", auth, admin, async (req, res) => {
     const result = queue.endQueue(ctx.session, ctx.participants);
     // Split Session Fee sessions bill their joined members exactly once, the
     // first time they're marked completed (here, or via PATCH /sessions/:id/status).
-    if (result?.sessionUpdate?.status === "completed" && !wasCompleted && ctx.session.feeSplitMode === "split_total") {
-      await billSplitSessionFee(ctx.session, ctx.club);
+    // Same for per_session convenience fee.
+    if (result?.sessionUpdate?.status === "completed" && !wasCompleted) {
+      if (ctx.session.feeSplitMode === "split_total") await billSplitSessionFee(ctx.session, ctx.club);
+      await settleHostedPlayConvenienceFee(ctx.session, ctx.club);
     }
     await applyAndRespond(res, ctx.session, ctx.participants, result, ctx.club, ctx.prev);
   } catch (err) {
@@ -1000,7 +1005,7 @@ router.post("/sessions/:id/self-check-in", auth, async (req, res) => {
     if (participant.checkedIn) return res.status(409).json({ error: "already_checked_in" });
 
     const club = await Club.findById(session.clubId)
-      .select("convenienceFeeRate convenienceFeeMode numberOfCourts")
+      .select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode numberOfCourts")
       .lean();
     const participants = await HostedPlayParticipant.find({ hostedPlayId: session._id, ...ACTIVE_PARTICIPANT })
       .sort({ createdAt: 1 })
@@ -1040,7 +1045,7 @@ router.post("/sessions/:id/walkins", auth, admin, async (req, res) => {
     }
 
     // Create a cash charge for the walk-in if the session has a fee
-    const { baseFee, convenienceFee, total: amount } = computePlayerFees(ctx.club, resolveGuestFee(ctx.session));
+    const { baseFee, convenienceFee, total: amount, feeMode } = computePlayerFees(ctx.club, resolveGuestFee(ctx.session));
     let chargeId;
     if (amount > 0) {
       const charge = await Charge.create({
@@ -1048,7 +1053,7 @@ router.post("/sessions/:id/walkins", auth, admin, async (req, res) => {
         guestName: name,
         hostedPlayId: ctx.session._id,
         amount,
-        breakdown: { hostedPlayFee: baseFee, convenienceFee },
+        breakdown: { hostedPlayFee: baseFee, convenienceFee, convenienceFeeMode: feeMode },
         chargeType: "hosted_play",
         status: "paid",
         paymentMethod: "Cash",
