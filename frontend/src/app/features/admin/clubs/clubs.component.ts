@@ -4179,10 +4179,16 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     return this.reservationCharges.reduce((sum, c) => sum + c.amount, 0);
   }
   get appServiceDue(): number {
+    const hostedPlayFees = this.hostedPlayCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0);
+    const billingFees = this.aspPayments.filter(p => p.type === 'billing').reduce((sum, p) => sum + p.amount, 0);
+    // Monthly flat replaces reservation/open-play per-transaction fees, but Hosted Play convenience
+    // fees are billed independently of the plan, on top of the flat amount — mirrors backend /fee-info.
+    if (this.selectedClub?.convenienceFeeMode === 'monthly_flat') {
+      return (this.selectedClub.convenienceFeeMonthlyAmount ?? 0) + hostedPlayFees + billingFees;
+    }
     const chargeFees = this.reservationCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0)
       + this.openPlayCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0)
-      + this.hostedPlayCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0);
-    const billingFees = this.aspPayments.filter(p => p.type === 'billing').reduce((sum, p) => sum + p.amount, 0);
+      + hostedPlayFees;
     return chargeFees + billingFees;
   }
   get aspTotalPaid(): number {

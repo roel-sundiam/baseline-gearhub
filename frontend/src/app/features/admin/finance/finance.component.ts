@@ -344,7 +344,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                   <i class="fas fa-calendar-alt"></i>
                   <div>
                     <div class="monthly-flat-title">Monthly Flat Plan</div>
-                    <div class="monthly-flat-detail">₱{{ convenienceFeeMonthlyAmount | number:'1.0-2' }}/month — outstanding balance due by <strong>{{ endOfMonthLabel }}</strong></div>
+                    <div class="monthly-flat-detail">₱{{ convenienceFeeMonthlyAmount | number:'1.0-2' }}/month + Hosted Play convenience fees — outstanding balance due by <strong>{{ endOfMonthLabel }}</strong></div>
                   </div>
                 </div>
               </div>
@@ -354,7 +354,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
             <div class="pay-action-row">
               <p class="rate-note">
                 @if (isMonthlyFlat) {
-                  App Service Fee = fixed monthly fee remitted to the Developer.
+                  App Service Fee = fixed monthly fee plus Hosted Play convenience fees, remitted to the Developer.
                 } @else {
                   App Service Fee = convenience fee collected from clients per booking, remitted to the Developer.
                 }
@@ -2123,8 +2123,11 @@ export class FinanceComponent implements OnInit {
       .reduce((s, p) => s + p.amount, 0);
   }
   get appServiceTotal() {
+    // Monthly flat replaces reservation/open-play/per-game fees, but Hosted Play convenience fees
+    // are billed per transaction independently of the plan, and billed entries (queue management,
+    // Finance Report add-on, monthly billings) are always owed — mirrors backend /fee-info.
     return this.isMonthlyFlat
-      ? this.convenienceFeeMonthlyAmount
+      ? this.convenienceFeeMonthlyAmount + this.hostedPlayServiceFee + this.billingTotal
       : this.reservationServiceFee + this.openPlayServiceFee + this.perGameServiceFee + this.hostedPlayServiceFee + this.billingTotal;
   }
   // appServiceTotal/balance stay the grand total (what's actually owed to CourtGo); this is just
@@ -2134,7 +2137,7 @@ export class FinanceComponent implements OnInit {
   get totalWaived() { return this.appServicePayments.filter(p => p.type === 'waiver').reduce((s, p) => s + p.amount, 0); }
   get balance() {
     return this.isMonthlyFlat
-      ? Math.max(0, this.appServiceTotal - this.totalPaid)
+      ? Math.max(0, this.appServiceTotal - this.totalPaid - this.totalWaived)
       : this.appServiceTotal - this.totalPaid - this.totalWaived;
   }
 

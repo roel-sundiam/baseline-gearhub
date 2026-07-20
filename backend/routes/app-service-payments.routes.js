@@ -245,14 +245,15 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       const convenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
       const hostedPlayData = hostedPlayMap[id] ?? { convFee: 0, sessionFees: 0 };
       // monthly_flat clubs also owe their billing entries (queue management, finance report add-on)
+      // plus Hosted Play convenience fees, which are billed per transaction independently of the plan
       const feesOwed = convenienceFeeMode === 'monthly_flat'
-        ? parseFloat((convenienceFeeMonthlyAmount + (billingMap[id] ?? 0)).toFixed(2))
+        ? parseFloat((convenienceFeeMonthlyAmount + hostedPlayData.convFee + (billingMap[id] ?? 0)).toFixed(2))
         : parseFloat((chargeData.totalConvenienceFees + (openPlayMap[id] ?? 0) + (perGameMap[id] ?? 0) + hostedPlayData.convFee + (billingMap[id] ?? 0)).toFixed(2));
       const totalPaid = paymentMap[id] || 0;
       const totalWaived = waiverMap[id] || 0;
       const totalHostedPlaySessionFees = parseFloat((hostedPlayData.sessionFees ?? 0).toFixed(2));
       const balance = convenienceFeeMode === 'monthly_flat'
-        ? parseFloat(Math.max(0, feesOwed - totalPaid).toFixed(2))
+        ? parseFloat(Math.max(0, feesOwed - totalPaid - totalWaived).toFixed(2))
         : parseFloat((feesOwed - totalPaid - totalWaived).toFixed(2));
       const financeReportMonthlyFee = typeof club.financeReportFeeOverride === 'number'
         ? club.financeReportFeeOverride
@@ -366,11 +367,17 @@ router.get("/fee-info", auth, admin, async (req, res) => {
         { $match: { $or: [
           { chargeType: "open_play_session" },
           { chargeType: "per_game" },
-          { chargeType: "hosted_play" },
+          { chargeType: "hosted_play", approvalStatus: { $ne: "rejected" } },
           { "reservation.status": "confirmed" },
           { "reservation": { $exists: false }, approvalStatus: "approved" },
         ]}},
-        { $group: { _id: null, totalConvenienceFees: { $sum: "$breakdown.convenienceFee" } } },
+        { $group: {
+          _id: null,
+          totalConvenienceFees: { $sum: "$breakdown.convenienceFee" },
+          hostedPlayConvenienceFees: {
+            $sum: { $cond: [{ $eq: ["$chargeType", "hosted_play"] }, "$breakdown.convenienceFee", 0] },
+          },
+        } },
       ]),
       AppServicePayment.aggregate([
         { $match: { type: "payment", clubId: clubObjId } },
@@ -405,17 +412,18 @@ router.get("/fee-info", auth, admin, async (req, res) => {
     const convenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
     const convenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
     const totalConvenienceFees = chargeAgg[0]?.totalConvenienceFees ?? 0;
+    const hostedPlayConvenienceFees = chargeAgg[0]?.hostedPlayConvenienceFees ?? 0;
     const totalBilled = billingAgg[0]?.totalBilled ?? 0;
     const totalFinanceReportBilled = billingAgg[0]?.totalFinanceReportBilled ?? 0;
     const totalPaid = paymentAgg[0]?.totalPaid ?? 0;
     const totalWaived = waiverAgg[0]?.totalWaived ?? 0;
 
+    // Monthly flat replaces reservation/open-play/per-game per-transaction fees, but Hosted Play
+    // convenience fees are billed per transaction independently of the plan, on top of the flat amount.
     const feesOwed = convenienceFeeMode === 'monthly_flat'
-      ? convenienceFeeMonthlyAmount + totalBilled
+      ? convenienceFeeMonthlyAmount + hostedPlayConvenienceFees + totalBilled
       : totalConvenienceFees + totalBilled;
-    const balance = convenienceFeeMode === 'monthly_flat'
-      ? parseFloat(Math.max(0, feesOwed - totalPaid).toFixed(2))
-      : parseFloat(Math.max(0, feesOwed - totalPaid - totalWaived).toFixed(2));
+    const balance = parseFloat(Math.max(0, feesOwed - totalPaid - totalWaived).toFixed(2));
     // feesOwed/balance stay the grand total (what's actually owed); this is just the true
     // convenience-fee portion, with the Finance Report add-on billing pulled out.
     const convenienceFeesOwed = parseFloat((feesOwed - totalFinanceReportBilled).toFixed(2));
