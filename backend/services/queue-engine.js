@@ -400,6 +400,51 @@ function manualAssign(session, participants, participantIds, courtNumber) {
   return { changed: [...dirty] };
 }
 
+// Admin board rearrange: the two players exchange their exact queue positions
+// (court + slot, or waiting spot). Covers team changes on one court, moving a
+// player between courts, and subbing a waiting player onto a court. Never
+// touches game counters and never auto-fills — the admin is arranging
+// deliberately. Two waiting players is a reorder, not a swap.
+function swapPlayers(session, participants, aId, bId) {
+  const a = find(participants, aId);
+  const b = find(participants, bId);
+  if (!a || !b) return { error: "not_found" };
+  if (String(a._id) === String(b._id)) return { error: "same_player" };
+  const movable = ["playing", "waiting"];
+  if (!movable.includes(a.queueStatus) || !movable.includes(b.queueStatus)) return { error: "not_movable" };
+  if (a.queueStatus === "waiting" && b.queueStatus === "waiting") return { error: "both_waiting" };
+  const pos = (p) => ({
+    queueStatus: p.queueStatus,
+    courtNumber: p.courtNumber,
+    courtSlot: p.courtSlot,
+    queueOrder: p.queueOrder,
+  });
+  const posA = pos(a);
+  Object.assign(a, pos(b));
+  Object.assign(b, posA);
+  return { changed: [a, b] };
+}
+
+// Move a playing or waiting player onto a specific open slot (short court or
+// empty court). The vacated slot stays open — no auto-fill (see swapPlayers).
+function movePlayerToSlot(session, participants, participantId, courtNumber, courtSlot) {
+  const n = session.numberOfCourts || 1;
+  const size = session.playersPerCourt || 4;
+  const p = find(participants, participantId);
+  if (!p) return { error: "not_found" };
+  if (!["playing", "waiting"].includes(p.queueStatus)) return { error: "not_movable" };
+  if (!Number.isInteger(courtNumber) || courtNumber < 1 || courtNumber > n) return { error: "invalid_court" };
+  if (!Number.isInteger(courtSlot) || courtSlot < 1 || courtSlot > size) return { error: "invalid_slot" };
+  const taken = getCourtPlayers(participants, courtNumber)
+    .some((q) => q.courtSlot === courtSlot && String(q._id) !== String(p._id));
+  if (taken) return { error: "slot_taken" };
+  p.queueStatus = "playing";
+  p.courtNumber = courtNumber;
+  p.courtSlot = courtSlot;
+  p.queueOrder = null;
+  return { changed: [p] };
+}
+
 // Append a freshly-created participant (e.g. a walk-in) to the queue and fill
 // any free court. The route creates the participant doc first, then passes the
 // full participant list (including the new one) here.
@@ -436,9 +481,22 @@ function toPublic(p) {
 function buildBoard(session, participants) {
   const n = session.numberOfCourts || 1;
   const size = session.playersPerCourt || 4;
+  const liveScores = session.liveScores || [];
   const courts = [];
   for (let c = 1; c <= n; c++) {
-    courts.push({ courtNumber: c, players: getCourtPlayers(participants, c).map(toPublic) });
+    const live = liveScores.find((s) => s.courtNumber === c);
+    courts.push({
+      courtNumber: c,
+      players: getCourtPlayers(participants, c).map(toPublic),
+      liveScore: live ? {
+        team1Score: live.team1Score,
+        team2Score: live.team2Score,
+        servingTeam: live.servingTeam ?? null,
+        serverNumber: live.serverNumber ?? null,
+        servingPlayerId: live.servingPlayerId ? String(live.servingPlayerId) : null,
+        canUndo: !!live.previousState,
+      } : null,
+    });
   }
   const waiting = getWaiting(participants);
   const paused = getPaused(participants);
@@ -469,6 +527,9 @@ function buildBoard(session, participants) {
       queueMode: session.queueMode || "fcfs",
       numberOfCourts: n,
       playersPerCourt: size,
+      sport: session.sport,
+      scoreTarget: session.scoreTarget ?? null,
+      winByTwo: session.winByTwo !== undefined ? !!session.winByTwo : true,
     },
     courts,
     waiting: waiting.map(toPublic),
@@ -506,6 +567,8 @@ module.exports = {
   removePlayer,
   reorderQueue,
   manualAssign,
+  swapPlayers,
+  movePlayerToSlot,
   appendAndAssign,
   assignFreeCourts,
   // projection

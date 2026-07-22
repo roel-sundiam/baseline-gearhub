@@ -57,6 +57,9 @@ export interface HostedPlaySession {
   // Optional skill band
   minSkillLevel?: SkillLevel | null;
   maxSkillLevel?: SkillLevel | null;
+  // Optional pickleball scoring config (pickleball sessions only; null = free-form scoring)
+  scoreTarget?: 11 | 15 | 21 | null;
+  winByTwo?: boolean;
   // Member-facing extras
   joined?: boolean;
   pendingApproval?: boolean;
@@ -101,6 +104,19 @@ export interface QueuePlayer {
 export interface QueueCourt {
   courtNumber: number;
   players: QueuePlayer[];
+  /** In-progress side-out score kept by the umpire scoring page; null once no game is being scored. */
+  liveScore?: {
+    team1Score: number;
+    team2Score: number;
+    /** Which team is currently serving; null until the umpire picks who serves first. */
+    servingTeam: 1 | 2 | null;
+    /** Which of the serving team's players is up (2 players only); null for singles or before serve starts. */
+    serverNumber: 1 | 2 | null;
+    /** The specific player currently serving; null while servingTeam is set means a side-out just happened and nobody has confirmed who's serving yet. */
+    servingPlayerId: string | null;
+    /** Whether the last rally-won/start-serve/set-server call can be undone. */
+    canUndo: boolean;
+  } | null;
 }
 
 export interface QueueBoard {
@@ -117,6 +133,9 @@ export interface QueueBoard {
     queueMode?: string;
     numberOfCourts: number;
     playersPerCourt: number;
+    sport?: string;
+    scoreTarget?: 11 | 15 | 21 | null;
+    winByTwo?: boolean;
     feePerPlayer?: number;
     convenienceFeePerPlayer?: number;
     totalPerPlayer?: number;
@@ -124,6 +143,8 @@ export interface QueueBoard {
     guestConvenienceFeePerPlayer?: number;
     guestTotalPerPlayer?: number;
     estimatedFee?: boolean;
+    /** Resolved venue/court logo URL, when the club has one configured; null/absent otherwise. */
+    venueLogo?: string | null;
   };
   courts: QueueCourt[];
   waiting: QueuePlayer[];
@@ -138,6 +159,62 @@ export interface QueueBoard {
     paused: number;
     activeGames: number;
   };
+  /** Attached by the finish response only (never by polls) so the UI can offer "Add score". */
+  lastMatch?: HostedPlayMatch;
+}
+
+export interface MatchPlayer {
+  participantId: string;
+  memberId?: string | null;
+  memberName: string;
+  isWalkIn?: boolean;
+}
+
+export interface HostedPlayMatch {
+  _id: string;
+  sessionId: string;
+  courtNumber: number;
+  team1: MatchPlayer[];
+  team2: MatchPlayer[];
+  team1Score: number | null;
+  team2Score: number | null;
+  winnerTeam: 1 | 2 | null;
+  winnerSource?: 'tapped' | 'scores' | null;
+  finishedAt: string;
+}
+
+export interface HostedPlayMatchHistoryItem extends HostedPlayMatch {
+  session: { _id: string; title: string; date: string; venue: string; sport: string } | null;
+}
+
+export interface MatchHistoryPage {
+  matches: HostedPlayMatchHistoryItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface IndividualStanding {
+  memberId: string;
+  memberName: string;
+  wins: number;
+  losses: number;
+  gamesPlayed: number;
+  winPct: number;
+}
+
+export interface PairingStanding {
+  memberIds: string[];
+  players: { memberId: string; memberName: string }[];
+  wins: number;
+  losses: number;
+  gamesPlayed: number;
+  winPct: number;
+}
+
+export interface HostedPlayStandings {
+  individuals: IndividualStanding[];
+  pairings: PairingStanding[];
 }
 
 // Splits a court's players into Team A / Team B for display (e.g. "Team A vs Team B"
@@ -187,6 +264,8 @@ export interface HostedPlayInput {
   queueMode?: string;
   minSkillLevel?: SkillLevel | null;
   maxSkillLevel?: SkillLevel | null;
+  scoreTarget?: 11 | 15 | 21 | null;
+  winByTwo?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -304,13 +383,43 @@ export class HostedPlayService {
     return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/walkins`, data);
   }
 
-  finishCourt(id: string, courtNumber: number, winnerIds: string[] = []) {
-    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/courts/${courtNumber}/finish`, { winnerIds });
+  finishCourt(id: string, courtNumber: number, winnerIds: string[] = [], scores?: { team1Score: number; team2Score: number }) {
+    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/courts/${courtNumber}/finish`, { winnerIds, ...(scores ?? {}) });
+  }
+
+  listMatches(id: string) {
+    return this.http.get<HostedPlayMatch[]>(`${this.base}/sessions/${id}/matches`);
+  }
+
+  updateMatchScore(matchId: string, team1Score: number, team2Score: number) {
+    return this.http.patch<HostedPlayMatch>(`${this.base}/matches/${matchId}/score`, { team1Score, team2Score });
+  }
+
+  // ── Match History & Standings (club-wide, all-time) ──
+  listMatchHistory(params: { page?: number; limit?: number; sessionId?: string } = {}) {
+    return this.http.get<MatchHistoryPage>(`${this.base}/matches`, { params: params as Record<string, string | number> });
+  }
+
+  listPlayerMatchHistory(params: { page?: number; limit?: number; sessionId?: string } = {}) {
+    return this.http.get<MatchHistoryPage>(`${this.base}/player/matches`, { params: params as Record<string, string | number> });
+  }
+
+  getStandings() {
+    return this.http.get<HostedPlayStandings>(`${this.base}/standings`);
+  }
+
+  getPlayerStandings() {
+    return this.http.get<HostedPlayStandings>(`${this.base}/player/standings`);
   }
 
   assignCourt(id: string, courtNumber: number, participantIds: string[]) {
     return this.http.post<QueueBoard>(
       `${this.base}/sessions/${id}/courts/${courtNumber}/assign`, { participantIds });
+  }
+
+  /** Swap two players' positions, or move one player onto an open court slot. */
+  rearrange(id: string, body: { participantId: string; targetParticipantId?: string; courtNumber?: number; courtSlot?: number }) {
+    return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/courts/rearrange`, body);
   }
 
   skipPlayer(id: string, participantId: string) {
@@ -342,5 +451,40 @@ export class HostedPlayService {
   selfCheckIn(sessionId: string, token: string) {
     return this.http.post<QueueBoard>(
       `${this.base}/sessions/${sessionId}/self-check-in`, { token });
+  }
+
+  // ── Umpire Live Scoring (anonymous, per-court token — no login) ──
+  generateUmpireLink(sessionId: string, courtNumber: number) {
+    return this.http.post<{ token: string; url: string }>(
+      `${this.base}/sessions/${sessionId}/courts/${courtNumber}/generate-umpire-link`, {});
+  }
+
+  getUmpireBoard(sessionId: string, courtNumber: number, token: string) {
+    return this.http.get<QueueBoard>(`${this.base}/umpire/${sessionId}/courts/${courtNumber}/board`, { params: { t: token } });
+  }
+
+  startServe(sessionId: string, courtNumber: number, token: string, team: 1 | 2, playerId: string) {
+    return this.http.post<QueueBoard>(
+      `${this.base}/umpire/${sessionId}/courts/${courtNumber}/start-serve`, { team, playerId }, { params: { t: token } });
+  }
+
+  setServer(sessionId: string, courtNumber: number, token: string, playerId: string) {
+    return this.http.post<QueueBoard>(
+      `${this.base}/umpire/${sessionId}/courts/${courtNumber}/set-server`, { playerId }, { params: { t: token } });
+  }
+
+  rallyWon(sessionId: string, courtNumber: number, token: string, team: 1 | 2) {
+    return this.http.post<QueueBoard>(
+      `${this.base}/umpire/${sessionId}/courts/${courtNumber}/rally-won`, { team }, { params: { t: token } });
+  }
+
+  undoLastAction(sessionId: string, courtNumber: number, token: string) {
+    return this.http.post<QueueBoard>(
+      `${this.base}/umpire/${sessionId}/courts/${courtNumber}/undo`, {}, { params: { t: token } });
+  }
+
+  finishUmpireCourt(sessionId: string, courtNumber: number, token: string) {
+    return this.http.post<QueueBoard>(
+      `${this.base}/umpire/${sessionId}/courts/${courtNumber}/finish`, {}, { params: { t: token } });
   }
 }

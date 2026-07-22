@@ -104,34 +104,54 @@ const MAX_VISIBLE_WAITING = 9;
               <div class="section-heading"><h2 class="tv-section-title"><i class="fas fa-table-tennis-paddle-ball"></i> Courts</h2><span>{{ board.counts.activeGames }} active</span></div>
               <div class="courts-grid" [class.dense]="board.courts.length > 4">
                 @for (c of board.courts; track c.courtNumber) {
+                  @let teams = teamsFor(c);
                   <article class="court-card" [class.empty]="c.players.length === 0">
-                    <div class="court-head"><span>Court {{ c.courtNumber }}</span><strong [class.available]="c.players.length === 0">{{ c.players.length === 0 ? 'Available' : 'In play' }}</strong></div>
+                    <div class="court-head">
+                      <span>Court {{ c.courtNumber }}</span>
+                      @if (scoreCall(c.liveScore, teams)) {
+                        <span class="live-score-tag">Live {{ scoreCall(c.liveScore, teams) }}</span>
+                      }
+                      <strong [class.available]="c.players.length === 0">{{ c.players.length === 0 ? 'Available' : 'In play' }}</strong>
+                    </div>
                     @if (c.players.length === 0) {
                       <div class="court-empty"><i class="fas fa-table-tennis-paddle-ball"></i><strong>Court ready</strong><span>Players will be assigned automatically</span></div>
                     } @else {
-                      @let teams = teamsFor(c);
                       <div class="court-teams">
                         <div class="team-block team-a">
-                          <span class="team-label">Team A</span>
+                          <span class="team-label">
+                            Team A
+                            @if (isServingTeam(1, c)) { <span class="team-serving-tag"><i class="fas fa-table-tennis-paddle-ball"></i> Serving</span> }
+                          </span>
                           @for (p of teams.teamA; track p._id) {
-                            <div class="player-row">
+                            <div class="player-row" [class.is-serving]="isServingPlayer(p, c)">
                               <span class="pavatar">
                                 @if (p.profileImage) { <img [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }
                               </span>
                               <span class="pname">{{ p.memberName }}</span>
+                              @if (isServingPlayer(p, c)) { <span class="serving-badge" aria-hidden="true"><i class="fas fa-table-tennis-paddle-ball"></i></span> }
                               @if (p.isWalkIn) { <span class="walk-tag">Walk-in</span> }
                             </div>
                           }
                         </div>
-                        <span class="vs-divider">VS</span>
+                        <div class="score-block">
+                          @if (c.liveScore) {
+                            <span class="score-big">{{ c.liveScore.team1Score }}–{{ c.liveScore.team2Score }}</span>
+                          } @else {
+                            <span class="score-vs">VS</span>
+                          }
+                        </div>
                         <div class="team-block team-b">
-                          <span class="team-label">Team B</span>
+                          <span class="team-label">
+                            Team B
+                            @if (isServingTeam(2, c)) { <span class="team-serving-tag"><i class="fas fa-table-tennis-paddle-ball"></i> Serving</span> }
+                          </span>
                           @for (p of teams.teamB; track p._id) {
-                            <div class="player-row">
+                            <div class="player-row" [class.is-serving]="isServingPlayer(p, c)">
                               <span class="pavatar">
                                 @if (p.profileImage) { <img [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }
                               </span>
                               <span class="pname">{{ p.memberName }}</span>
+                              @if (isServingPlayer(p, c)) { <span class="serving-badge" aria-hidden="true"><i class="fas fa-table-tennis-paddle-ball"></i></span> }
                               @if (p.isWalkIn) { <span class="walk-tag">Walk-in</span> }
                             </div>
                           }
@@ -347,13 +367,18 @@ const MAX_VISIBLE_WAITING = 9;
     .court-empty { flex: 1; display: flex; align-items: center; justify-content: center; gap: .5rem; color: var(--muted); font-size: 1rem; font-weight: 700; }
     .court-players { display: flex; flex-direction: column; gap: .55rem; }
     .player-row { display: flex; align-items: center; gap: .65rem; }
+    .player-row.is-serving { background: rgba(163,230,53,.1); border-radius: 10px; padding: .2rem .35rem; margin: -.2rem -.35rem; }
+    .serving-badge { flex-shrink: 0; color: var(--accent); font-size: .85rem; }
 
     .court-teams { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: .6rem; }
     .team-block { display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
-    .team-label { font-size: .74rem; font-weight: 950; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .team-label { display: flex; align-items: center; gap: .4rem; font-size: .74rem; font-weight: 950; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
     .team-a .team-label { color: #38bdf8; }
     .team-b .team-label { color: #f472b6; }
-    .vs-divider { align-self: center; margin-top: 1.6rem; font-size: .72rem; font-weight: 950; color: var(--muted); background: rgba(255,255,255,.07); border-radius: 999px; padding: .3rem .55rem; white-space: nowrap; }
+    .team-serving-tag { display: inline-flex; align-items: center; gap: .25rem; font-size: .6rem; font-weight: 950; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); background: rgba(163,230,53,.14); border-radius: 999px; padding: .15rem .5rem; }
+    .score-block { display: flex; flex-direction: column; align-items: center; justify-content: center; align-self: center; margin-top: 1.6rem; gap: .25rem; }
+    .score-big { font-size: 1.6rem; font-weight: 950; font-variant-numeric: tabular-nums; color: var(--text); background: rgba(255,255,255,.07); border-radius: 999px; padding: .35rem .8rem; white-space: nowrap; }
+    .score-vs { font-size: .72rem; font-weight: 950; color: var(--muted); background: rgba(255,255,255,.07); border-radius: 999px; padding: .3rem .55rem; white-space: nowrap; }
     .avatar {
       width: 40px; height: 40px; flex: 0 0 40px; border-radius: 50%; background: rgba(163,230,53,.16);
       color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 950; font-size: .9rem;
@@ -444,22 +469,28 @@ const MAX_VISIBLE_WAITING = 9;
     .courts-grid, .courts-grid.dense { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .65rem; }
     .court-card { padding: 0; gap: 0; overflow: hidden; min-height: 190px; border-radius: 9px; border-color: #1f76e8; background: linear-gradient(180deg, rgba(20,79,175,.5), rgba(3,20,58,.92)); }
     .court-card.empty { opacity: 1; border-style: solid; }
-    .court-head { display: flex; align-items: center; justify-content: space-between; padding: .5rem .65rem; color: #fff; background: linear-gradient(180deg, #2187ff, #1261d5); font-size: .86rem; font-weight: 1000; text-transform: uppercase; letter-spacing: .045em; }
+    .court-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .5rem .65rem; color: #fff; background: linear-gradient(180deg, #2187ff, #1261d5); font-size: .86rem; font-weight: 1000; text-transform: uppercase; letter-spacing: .045em; }
     .court-head strong { color: #071431; background: var(--accent); border-radius: 999px; padding: .18rem .45rem; font-size: .58rem; letter-spacing: .05em; }
     .court-head strong.available { background: #7ce848; }
+    .live-score-tag { flex: 1; min-width: 0; text-align: center; color: var(--accent); font-size: .74rem; font-weight: 950; letter-spacing: .03em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .court-empty { flex-direction: column; text-align: center; color: #9bd4ff; }
     .court-empty i { color: var(--accent); font-size: 1.6rem; }
     .court-empty strong { color: #fff; text-transform: uppercase; font-size: .8rem; }
     .court-empty span { max-width: 15rem; font-size: .66rem; }
-    .court-teams { flex: 1; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: 0; }
+    .court-teams { flex: 1; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: .5rem; }
     .team-block { padding: .7rem .55rem; justify-content: center; }
     .team-a { border-bottom: 5px solid #ff426d; }
     .team-b { border-bottom: 5px solid var(--accent); }
-    .team-label, .team-a .team-label, .team-b .team-label { color: #8eb8fb; text-align: center; }
+    .team-label, .team-a .team-label, .team-b .team-label { color: #8eb8fb; justify-content: center; text-align: center; }
+    .team-serving-tag { color: #071431; background: var(--accent); }
     .team-block .player-row { min-height: 43px; justify-content: center; text-align: center; }
+    .team-block .player-row.is-serving { background: rgba(245,223,24,.16); }
+    .team-block .serving-badge { color: var(--accent); }
     .team-block .pname { font-size: clamp(.72rem, 1vw, .92rem); text-transform: uppercase; }
     .team-block .walk-tag { display: none; }
-    .vs-divider { z-index: 1; align-self: center; margin: 0 -.7rem; color: white; background: #07193c; border: 2px solid #244d94; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+    .score-block { z-index: 1; align-self: center; padding: 0 .35rem; }
+    .score-big { color: white; background: #07193c; border: 2px solid #244d94; box-shadow: 0 4px 12px rgba(0,0,0,.4); font-size: clamp(1.5rem, 2.2vw, 2.1rem); padding: .5rem .9rem; border-radius: 14px; white-space: nowrap; }
+    .score-vs { color: white; background: #07193c; border: 2px solid #244d94; box-shadow: 0 4px 12px rgba(0,0,0,.4); border-radius: 999px; }
     .queue-list { gap: .4rem; overflow-y: auto; }
     .queue-row { padding: .55rem; border-radius: 8px; background: rgba(20,65,138,.35); border-color: rgba(77,140,255,.25); }
     .queue-row:first-child { border-color: rgba(245,223,24,.65); background: rgba(245,223,24,.09); }
@@ -486,6 +517,15 @@ const MAX_VISIBLE_WAITING = 9;
       .court-card { min-height: 175px; }
       .tv-courts, .tv-queue { min-height: auto; }
       .tv-footer { flex-wrap: wrap; gap: .35rem; }
+      .court-head { flex-wrap: wrap; row-gap: .3rem; }
+      .live-score-tag { flex-basis: 100%; order: 3; text-align: left; }
+      .court-teams { grid-template-columns: 1fr; gap: 0; }
+      .team-block { padding: .6rem .75rem; }
+      .team-a { border-bottom: 3px solid #ff426d; }
+      .team-b { border-bottom: 3px solid var(--accent); }
+      .team-label { flex-wrap: wrap; justify-content: flex-start; text-align: left; }
+      .team-block .player-row { justify-content: flex-start; text-align: left; }
+      .score-block { margin: .5rem 0; }
       .lb-toolbar-title { font-size: 1.15rem; }
       .lb-header, .lb-card { grid-template-columns: 2.2rem 1fr 2.4rem 2.4rem; gap: .55rem; padding-left: .75rem; padding-right: .75rem; }
       .lb-card { padding-top: .65rem; padding-bottom: .65rem; }
@@ -586,6 +626,27 @@ export class AdminHostedPlayQueueDisplayComponent implements OnInit, OnDestroy {
 
   teamsFor(c: QueueCourt): { teamA: QueuePlayer[]; teamB: QueuePlayer[] } {
     return splitCourtTeams(c.players, this.board?.session?.playersPerCourt ?? 4);
+  }
+
+  isServingTeam(team: 1 | 2, c: QueueCourt): boolean {
+    return !!c.liveScore?.servingPlayerId && c.liveScore.servingTeam === team;
+  }
+
+  isServingPlayer(player: QueuePlayer, c: QueueCourt): boolean {
+    return !!c.liveScore?.servingPlayerId && player._id === c.liveScore.servingPlayerId;
+  }
+
+  // The real pickleball call: serving team's score first, then receiving
+  // team's, then the server number — doubles only (singles never uses a 3rd digit).
+  scoreCall(live: QueueCourt['liveScore'], teams: { teamA: QueuePlayer[]; teamB: QueuePlayer[] }): string {
+    if (!live || !live.servingTeam || !live.servingPlayerId) return '';
+    const servingScore = live.servingTeam === 1 ? live.team1Score : live.team2Score;
+    const receivingScore = live.servingTeam === 1 ? live.team2Score : live.team1Score;
+    const servingTeamPlayers = live.servingTeam === 1 ? teams.teamA : teams.teamB;
+    if (servingTeamPlayers.length >= 2 && live.serverNumber) {
+      return `${servingScore}-${receivingScore}-${live.serverNumber}`;
+    }
+    return `${servingScore}-${receivingScore}`;
   }
 
   private courtForSession(): Court | undefined {

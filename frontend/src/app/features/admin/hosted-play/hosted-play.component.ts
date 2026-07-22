@@ -41,6 +41,7 @@ type FormModel = HostedPlayInput;
             <div class="hero-actions">
               <button class="primary-action" (click)="openCreate()"><i class="fas fa-plus"></i> Create Session</button>
               <button class="secondary-action" (click)="openCourts()"><i class="fas fa-map-marker-alt"></i> Manage Courts</button>
+              <button class="secondary-action" (click)="openHistory()"><i class="fas fa-clock-rotate-left"></i> Match History &amp; Standings</button>
             </div>
             <div class="queue-setting-row">
               <div class="queue-setting-copy">
@@ -328,6 +329,17 @@ type FormModel = HostedPlayInput;
                     <option [ngValue]="null">Any</option><option value="beginner">Beginner</option><option value="novice">Novice</option><option value="lower_intermediate">Lower Intermediate</option><option value="intermediate">Intermediate</option><option value="upper_intermediate">Upper Intermediate</option><option value="advanced">Advanced</option><option value="expert_elite">Expert / Elite</option><option value="professional">Professional</option>
                   </select>
                 </label>
+                @if (form.sport === 'pickleball') {
+                  <label class="field"><span>Game Score Target</span>
+                    <select [(ngModel)]="form.scoreTarget">
+                      <option [ngValue]="11">11 points</option><option [ngValue]="15">15 points</option><option [ngValue]="21">21 points</option>
+                    </select>
+                  </label>
+                  <label class="field"><span>Win by 2</span>
+                    <input type="checkbox" [(ngModel)]="form.winByTwo" />
+                  </label>
+                  <div class="field-hint wide">Used to give a heads-up (not a hard block) if an entered score doesn't reach the target or win margin — short games at session end are still fine.</div>
+                }
                 <label class="field wide"><span>Description</span>
                   <textarea rows="3" [(ngModel)]="form.description" placeholder="Notes for members..."></textarea>
                 </label>
@@ -1019,6 +1031,7 @@ export class AdminHostedPlayComponent implements OnInit {
       venue: '', court: '', address: '', feePerPlayer: 0, sessionFee: 0, guestFeePerPlayer: null,
       maxPlayers: 8, maxGuests: null, description: '',
       numberOfCourts: 1, queueMode: 'fcfs', minSkillLevel: null, maxSkillLevel: null,
+      scoreTarget: 11, winByTwo: true,
     };
   }
 
@@ -1196,6 +1209,7 @@ export class AdminHostedPlayComponent implements OnInit {
       description: s.description || '', numberOfCourts: s.numberOfCourts ?? 1,
       queueMode: s.queueMode || 'fcfs',
       minSkillLevel: s.minSkillLevel ?? null, maxSkillLevel: s.maxSkillLevel ?? null,
+      scoreTarget: s.scoreTarget ?? 11, winByTwo: s.winByTwo ?? true,
     };
     this.formError = '';
     this.showForm = true;
@@ -1358,6 +1372,8 @@ export class AdminHostedPlayComponent implements OnInit {
   closeParticipants() { this.showParticipants = false; this.cdr.detectChanges(); }
 
   openQueue(s: HostedPlaySession) { this.router.navigate(['/admin/hosted-play', s._id, 'queue']); }
+
+  openHistory() { this.router.navigate(['/admin/hosted-play/history']); }
 
   onVenueSelected(name: string) {
     this.form.venue = name;

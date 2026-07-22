@@ -244,6 +244,14 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'hosted-play/history',
+        data: { role: 'admin' },
+        loadComponent: () =>
+          import('./shared/components/hosted-play-history/hosted-play-history.component').then(
+            (m) => m.HostedPlayHistoryComponent,
+          ),
+      },
+      {
         path: 'award-generator',
         loadComponent: () =>
           import('./features/admin/clubs/award-generator-page.component').then(
@@ -339,6 +347,14 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'hosted-play/history',
+        data: { role: 'player' },
+        loadComponent: () =>
+          import('./shared/components/hosted-play-history/hosted-play-history.component').then(
+            (m) => m.HostedPlayHistoryComponent,
+          ),
+      },
+      {
         path: 'reservations',
         loadComponent: () =>
           import('./features/player/my-reservations/my-reservations.component').then(
@@ -396,6 +412,13 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/player/payments/payments.component').then(
         (m) => m.PlayerPaymentsComponent,
+      ),
+  },
+  {
+    path: 'umpire/:sessionId/courts/:courtNumber',
+    loadComponent: () =>
+      import('./features/umpire/umpire-scoring.component').then(
+        (m) => m.UmpireScoringComponent
       ),
   },
   {

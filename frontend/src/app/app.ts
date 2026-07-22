@@ -29,10 +29,13 @@ import { PushNotificationService } from './core/services/push-notification.servi
       </div>
     }
 
-    @if (!isAuthRoute() && !isTvDisplayRoute()) {
+    @if (!isAuthRoute() && !isTvDisplayRoute() && !isUmpireRoute()) {
       <app-navbar />
     }
-    <main class="main-content" [class.full-bleed]="isAuthRoute() || isTvDisplayRoute()">
+    <main
+      class="main-content"
+      [class.full-bleed]="isAuthRoute() || isTvDisplayRoute() || isUmpireRoute() || isPlayerHistoryRoute()"
+    >
       <router-outlet />
     </main>
 
@@ -338,5 +341,13 @@ export class App {
 
   isTvDisplayRoute(): boolean {
     return this.router.url.includes('/queue/display');
+  }
+
+  isUmpireRoute(): boolean {
+    return this.router.url.startsWith('/umpire/');
+  }
+
+  isPlayerHistoryRoute(): boolean {
+    return this.router.url.startsWith('/player/hosted-play/history');
   }
 }

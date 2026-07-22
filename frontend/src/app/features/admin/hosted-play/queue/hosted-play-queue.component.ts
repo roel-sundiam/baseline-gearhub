@@ -7,6 +7,8 @@ import { Observable, Subscription, interval, EMPTY } from 'rxjs';
 import { switchMap, catchError } from 'rxjs/operators';
 import {
   HostedPlayService,
+  HostedPlayMatch,
+  MatchPlayer,
   QueueBoard,
   QueueCourt,
   QueuePlayer,
@@ -85,6 +87,65 @@ import { CreditService, MemberBalance } from '../../../../core/services/credit.s
                 </a>
               </div>
             }
+          </div>
+        </div>
+      }
+
+      @if (umpireLinkModal) {
+        <div class="modal-backdrop" (click)="closeUmpireLinkModal()">
+          <div class="modal-card qr-modal-card" (click)="$event.stopPropagation()">
+            <div class="qr-modal-header">
+              <div>
+                <p class="modal-title">Umpire Link — Court {{ umpireLinkModal.courtNumber }}</p>
+                <p class="modal-msg">Share this with whoever is officiating Court {{ umpireLinkModal.courtNumber }} — they can enter live scores without logging in. This link only scores this court.</p>
+              </div>
+              <button class="qr-close-btn" (click)="closeUmpireLinkModal()" aria-label="Close"><i class="fas fa-times"></i></button>
+            </div>
+            @if (umpireLinkModal.generating) {
+              <div class="qr-loading"><i class="fas fa-circle-notch fa-spin"></i> Generating…</div>
+            } @else if (umpireLinkModal.dataUrl) {
+              <div class="qr-image-wrap">
+                <img [src]="umpireLinkModal.dataUrl" alt="Umpire scoring link QR code" class="qr-image" />
+              </div>
+              <div class="qr-modal-actions">
+                <button class="secondary-btn" (click)="regenerateUmpireLink()" [disabled]="umpireLinkModal.generating">
+                  <i class="fas fa-rotate-right"></i> Regenerate
+                </button>
+                <button class="primary-small" (click)="copyUmpireLink()">
+                  <i class="fas fa-{{ umpireLinkModal.copied ? 'check' : 'copy' }}"></i> {{ umpireLinkModal.copied ? 'Copied' : 'Copy Link' }}
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      @if (scoreModal) {
+        <div class="modal-backdrop" (click)="closeScoreModal()">
+          <div class="modal-card" (click)="$event.stopPropagation()">
+            <div class="modal-body">
+              <p class="modal-title">{{ scoreModal.match.team1Score === null ? 'Add Score' : 'Edit Score' }}</p>
+              <p class="modal-msg">Court {{ scoreModal.match.courtNumber }} · {{ teamNames(scoreModal.match.team1) }} vs {{ teamNames(scoreModal.match.team2) }}</p>
+              <div class="score-fields">
+                <label class="score-field">
+                  <span>{{ teamNames(scoreModal.match.team1) }}</span>
+                  <input type="number" min="0" inputmode="numeric" [(ngModel)]="scoreModal.s1" [disabled]="scoreModal.saving" />
+                </label>
+                <span class="score-dash">–</span>
+                <label class="score-field">
+                  <span>{{ teamNames(scoreModal.match.team2) }}</span>
+                  <input type="number" min="0" inputmode="numeric" [(ngModel)]="scoreModal.s2" [disabled]="scoreModal.saving" />
+                </label>
+              </div>
+              @if (scoreModal.error) { <p class="score-error"><i class="fas fa-exclamation-triangle"></i> {{ scoreModal.error }}</p> }
+              @if (!scoreModal.error && scoreModalAdvisory()) { <p class="score-hint">{{ scoreModalAdvisory() }}</p> }
+            </div>
+            <div class="modal-actions">
+              <button class="modal-cancel" [disabled]="scoreModal.saving" (click)="closeScoreModal()">Cancel</button>
+              <button class="modal-confirm modal-confirm-save" [disabled]="scoreModal.saving" (click)="saveScore()">
+                {{ scoreModal.saving ? 'Saving…' : 'Save Score' }}
+              </button>
+            </div>
           </div>
         </div>
       }
@@ -173,15 +234,39 @@ import { CreditService, MemberBalance } from '../../../../core/services/credit.s
                     <span class="panel-count">{{ board.session.numberOfCourts }} courts</span>
                   </div>
 
+                  @if (scorePrompt) {
+                    <div class="score-prompt">
+                      <i class="fas fa-clipboard-check"></i>
+                      <span class="score-prompt-msg">Game on Court {{ scorePrompt.courtNumber }} recorded.</span>
+                      <button class="text-action" (click)="promptScore()">Add score</button>
+                      <button class="score-prompt-dismiss" title="Dismiss" (click)="dismissScorePrompt()"><i class="fas fa-xmark"></i></button>
+                    </div>
+                  }
+
+                  @if (movingPlayer) {
+                    <div class="move-banner">
+                      <i class="fas fa-right-left"></i>
+                      <span class="move-banner-msg">Moving <strong>{{ movingPlayer.memberName }}</strong> — tap a player to swap, or an open slot to move.</span>
+                      <button class="score-prompt-dismiss" title="Cancel" (click)="cancelMove()"><i class="fas fa-xmark"></i></button>
+                    </div>
+                  }
+
                   <div class="courts-grid">
                     @for (c of board.courts; track c.courtNumber) {
                       <article class="court-card" [class.empty]="c.players.length === 0">
                         <div class="court-top">
-                          <span class="court-title">Court {{ c.courtNumber }}</span>
+                          <span class="court-title">
+                            Court {{ c.courtNumber }}
+                            @if (board.session.sport === 'pickleball') {
+                              <button class="umpire-link-btn" (click)="showUmpireLink(c.courtNumber)" title="Get a link an umpire can use to score this court, no login required">
+                                <i class="fas fa-gavel"></i> Umpire Link
+                              </button>
+                            }
+                          </span>
                           @if (c.players.length > 0 && board.session.queueStatus === 'running') {
                             <div class="court-top-actions">
                               @if (selectingWinnerCourt === c.courtNumber) {
-                                <button class="finish-btn finish-btn--confirm" [disabled]="busy || winnerIds.size === 0" (click)="confirmFinishWinners(c.courtNumber)">
+                                <button class="finish-btn finish-btn--confirm" [disabled]="busy || winnerIds.size === 0 || !!finishScoreHint()" (click)="confirmFinishWinners(c.courtNumber)">
                                   <i class="fas fa-trophy"></i> Finish ({{ winnerIds.size }} won)
                                 </button>
                                 <button class="finish-btn finish-btn--cancel" [disabled]="busy" (click)="cancelFinish()">Cancel</button>
@@ -210,10 +295,19 @@ import { CreditService, MemberBalance } from '../../../../core/services/credit.s
                           <div class="empty-court">
                             <i class="fas fa-hourglass-half"></i>
                             <span>Waiting for players</span>
-                            @if (board.session.queueStatus === 'running') {
+                            @if (board.session.queueStatus === 'running' && !movingPlayer) {
                               <button class="text-action" [disabled]="busy" (click)="beginAssign(c.courtNumber)">Assign manually</button>
                             }
                           </div>
+                          @if (movingPlayer) {
+                            <div class="free-slots">
+                              @for (fs of freeSlotsFor(c); track fs.slot) {
+                                <button class="free-slot-btn" [disabled]="busy" (click)="moveToSlot(c.courtNumber, fs.slot)">
+                                  <i class="fas fa-arrow-right"></i> Team {{ fs.team }} open slot
+                                </button>
+                              }
+                            </div>
+                          }
                         } @else {
                           @let teams = teamsFor(c);
                           @if (selectingWinnerCourt === c.courtNumber) {
@@ -233,6 +327,15 @@ import { CreditService, MemberBalance } from '../../../../core/services/credit.s
                                 }
                               </button>
                             </div>
+                            <div class="score-row">
+                              <span class="score-label">Score <em>(optional)</em></span>
+                              <input type="number" min="0" inputmode="numeric" class="score-input" placeholder="A" [(ngModel)]="finishScoreA" (ngModelChange)="scoreAutoFilled = false" [disabled]="busy" />
+                              <span class="score-dash">–</span>
+                              <input type="number" min="0" inputmode="numeric" class="score-input" placeholder="B" [(ngModel)]="finishScoreB" (ngModelChange)="scoreAutoFilled = false" [disabled]="busy" />
+                            </div>
+                            @if (scoreAutoFilled) { <div class="score-hint score-hint--auto"><i class="fas fa-gavel"></i> Carried over from the umpire's live score — review before finishing.</div> }
+                            @if (finishScoreHint()) { <div class="score-hint">{{ finishScoreHint() }}</div> }
+                            @if (!finishScoreHint() && finishScoreAdvisory()) { <div class="score-hint">{{ finishScoreAdvisory() }}</div> }
                           } @else {
                             <div class="court-teams">
                               <div class="team-block team-a">
@@ -245,8 +348,19 @@ import { CreditService, MemberBalance } from '../../../../core/services/credit.s
                                       <span class="player-meta">{{ p.gamesPlayed }} games@if ((p.wins ?? 0) + (p.losses ?? 0) > 0) { · {{ p.wins }}W–{{ p.losses }}L }</span>
                                     </div>
                                     <div class="row-actions">
-                                      <button class="icon-btn" title="Pause" [disabled]="busy" (click)="pause(p)"><i class="fas fa-pause"></i></button>
-                                      <button class="icon-btn danger" title="Remove" [disabled]="busy" (click)="remove(p)"><i class="fas fa-xmark"></i></button>
+                                      @if (movingPlayer) {
+                                        @if (movingPlayer._id === p._id) {
+                                          <button class="icon-btn moving-src" title="Cancel move" (click)="cancelMove()"><i class="fas fa-xmark"></i></button>
+                                        } @else {
+                                          <button class="icon-btn swap-target" title="Swap positions" [disabled]="busy" (click)="swapWith(p)"><i class="fas fa-right-left"></i></button>
+                                        }
+                                      } @else {
+                                        @if (board.session.queueStatus === 'running') {
+                                          <button class="icon-btn" title="Move / swap" [disabled]="busy" (click)="beginMove(p)"><i class="fas fa-right-left"></i></button>
+                                        }
+                                        <button class="icon-btn" title="Pause" [disabled]="busy" (click)="pause(p)"><i class="fas fa-pause"></i></button>
+                                        <button class="icon-btn danger" title="Remove" [disabled]="busy" (click)="remove(p)"><i class="fas fa-xmark"></i></button>
+                                      }
                                     </div>
                                   </div>
                                 }
@@ -262,18 +376,73 @@ import { CreditService, MemberBalance } from '../../../../core/services/credit.s
                                       <span class="player-meta">{{ p.gamesPlayed }} games@if ((p.wins ?? 0) + (p.losses ?? 0) > 0) { · {{ p.wins }}W–{{ p.losses }}L }</span>
                                     </div>
                                     <div class="row-actions">
-                                      <button class="icon-btn" title="Pause" [disabled]="busy" (click)="pause(p)"><i class="fas fa-pause"></i></button>
-                                      <button class="icon-btn danger" title="Remove" [disabled]="busy" (click)="remove(p)"><i class="fas fa-xmark"></i></button>
+                                      @if (movingPlayer) {
+                                        @if (movingPlayer._id === p._id) {
+                                          <button class="icon-btn moving-src" title="Cancel move" (click)="cancelMove()"><i class="fas fa-xmark"></i></button>
+                                        } @else {
+                                          <button class="icon-btn swap-target" title="Swap positions" [disabled]="busy" (click)="swapWith(p)"><i class="fas fa-right-left"></i></button>
+                                        }
+                                      } @else {
+                                        @if (board.session.queueStatus === 'running') {
+                                          <button class="icon-btn" title="Move / swap" [disabled]="busy" (click)="beginMove(p)"><i class="fas fa-right-left"></i></button>
+                                        }
+                                        <button class="icon-btn" title="Pause" [disabled]="busy" (click)="pause(p)"><i class="fas fa-pause"></i></button>
+                                        <button class="icon-btn danger" title="Remove" [disabled]="busy" (click)="remove(p)"><i class="fas fa-xmark"></i></button>
+                                      }
                                     </div>
                                   </div>
                                 }
                               </div>
                             </div>
+                            @if (movingPlayer && freeSlotsFor(c).length > 0) {
+                              <div class="free-slots">
+                                @for (fs of freeSlotsFor(c); track fs.slot) {
+                                  <button class="free-slot-btn" [disabled]="busy" (click)="moveToSlot(c.courtNumber, fs.slot)">
+                                    <i class="fas fa-arrow-right"></i> Team {{ fs.team }} open slot
+                                  </button>
+                                }
+                              </div>
+                            }
                           }
                         }
                       </article>
                     }
                   </div>
+                </section>
+
+                <section class="panel">
+                  <div class="panel-head">
+                    <div>
+                      <span class="panel-kicker">Results</span>
+                      <h3>Recorded Games</h3>
+                    </div>
+                    <div class="panel-head-right">
+                      <span class="panel-count">{{ matches.length }} games</span>
+                      <button class="match-refresh-btn" title="Refresh games" [disabled]="matchesLoading" (click)="loadMatches()">
+                        <i class="fas fa-rotate-right" [class.fa-spin]="matchesLoading"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  @for (m of matches; track m._id) {
+                    <div class="match-row">
+                      <span class="match-court">C{{ m.courtNumber }}</span>
+                      <div class="match-main">
+                        <span class="match-team" [class.match-winner]="m.winnerTeam === 1">{{ teamNames(m.team1) }}@if (m.winnerTeam === 1) { <i class="fas fa-trophy"></i> }</span>
+                        <span class="match-vs">vs</span>
+                        <span class="match-team" [class.match-winner]="m.winnerTeam === 2">{{ teamNames(m.team2) }}@if (m.winnerTeam === 2) { <i class="fas fa-trophy"></i> }</span>
+                      </div>
+                      @if (m.team1Score !== null) {
+                        <span class="match-score">{{ m.team1Score }}–{{ m.team2Score }}</span>
+                      }
+                      <span class="match-time">{{ m.finishedAt | date:'shortTime' }}</span>
+                      <button class="icon-btn" [title]="m.team1Score === null ? 'Add score' : 'Edit score'" [disabled]="busy" (click)="openScoreModal(m)">
+                        <i class="fas" [class.fa-plus]="m.team1Score === null" [class.fa-pen]="m.team1Score !== null"></i>
+                      </button>
+                    </div>
+                  } @empty {
+                    <div class="match-empty">No games recorded yet — finished games will appear here.</div>
+                  }
                 </section>
 
                 <section class="panel">
@@ -337,6 +506,9 @@ import { CreditService, MemberBalance } from '../../../../core/services/credit.s
                           <span class="q-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span>
                           <span class="q-games">{{ p.gamesPlayed }} games</span>
                           <div class="row-actions">
+                            @if (movingPlayer) {
+                              <button class="icon-btn swap-target" title="Swap onto court" [disabled]="busy" (click)="swapWith(p)"><i class="fas fa-right-left"></i></button>
+                            }
                             <button class="icon-btn" title="Move up" [disabled]="busy || i === 0" (click)="move(p, -1)"><i class="fas fa-chevron-up"></i></button>
                             <button class="icon-btn" title="Move down" [disabled]="busy || i === board.waiting.length - 1" (click)="move(p, 1)"><i class="fas fa-chevron-down"></i></button>
                             <button class="icon-btn" title="Skip to back" [disabled]="busy" (click)="skip(p)"><i class="fas fa-angles-down"></i></button>
@@ -733,9 +905,11 @@ import { CreditService, MemberBalance } from '../../../../core/services/credit.s
       border: 1px solid rgba(255,255,255,.08);
     }
     .court-card.empty { border-style: dashed; }
-    .court-top { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .8rem; }
+    .court-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem .75rem; margin-bottom: .8rem; flex-wrap: wrap; }
     .court-top-actions { display: flex; align-items: center; gap: .4rem; }
-    .court-title { font-size: .95rem; font-weight: 950; }
+    .court-title { font-size: .95rem; font-weight: 950; display: inline-flex; align-items: center; gap: .4rem; }
+    .umpire-link-btn { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .6rem; border-radius: 7px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: var(--muted); font-size: .68rem; font-weight: 800; text-transform: none; letter-spacing: 0; white-space: nowrap; cursor: pointer; font-family: inherit; }
+    .umpire-link-btn:hover { background: rgba(255,255,255,.12); color: #fff; }
     .add-player-btn { display: inline-flex; align-items: center; gap: .35rem; padding: .4rem .65rem; border-radius: 8px; border: 1px solid rgba(163,230,53,.3); background: rgba(163,230,53,.08); color: var(--accent); font-size: .74rem; font-weight: 950; cursor: pointer; font-family: inherit; white-space: nowrap; }
     .add-player-btn:hover:not(:disabled) { background: rgba(163,230,53,.15); }
     .add-player-btn:disabled { opacity: .4; cursor: not-allowed; }
@@ -1101,6 +1275,181 @@ import { CreditService, MemberBalance } from '../../../../core/services/credit.s
     .modal-cancel { color: var(--text); border: 1px solid var(--border); background: rgba(255,255,255,.06); }
     .modal-confirm-danger { color: #fca5a5; border: 1px solid rgba(239,68,68,.32); background: rgba(239,68,68,.16); }
     .modal-confirm-end { color: var(--amber); border: 1px solid rgba(245,158,11,.32); background: rgba(245,158,11,.15); }
+    .modal-confirm-save { color: var(--accent); border: 1px solid rgba(163,230,53,.32); background: rgba(163,230,53,.14); }
+
+    /* ── Match scores ── */
+    .score-row {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-top: .6rem;
+      padding: .5rem .6rem;
+      border-radius: 8px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--border);
+    }
+    .score-label { font-size: .76rem; font-weight: 800; color: var(--muted); }
+    .score-label em { font-style: normal; color: var(--soft); font-weight: 600; }
+    .score-input {
+      width: 64px;
+      min-height: 38px;
+      padding: .35rem .5rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.07);
+      color: var(--text);
+      font-family: inherit;
+      font-size: .95rem;
+      font-weight: 800;
+      text-align: center;
+    }
+    .score-input:focus { outline: none; border-color: rgba(163,230,53,.5); }
+    .score-dash { color: var(--soft); font-weight: 800; }
+    .score-hint {
+      margin-top: .4rem;
+      font-size: .78rem;
+      color: var(--amber);
+    }
+    .score-hint--auto {
+      color: var(--accent);
+    }
+    .score-prompt {
+      display: flex;
+      align-items: center;
+      gap: .55rem;
+      margin-bottom: .8rem;
+      padding: .55rem .7rem;
+      border-radius: 8px;
+      background: rgba(163,230,53,.09);
+      border: 1px solid rgba(163,230,53,.24);
+      font-size: .84rem;
+    }
+    .score-prompt i { color: var(--accent); }
+    .score-prompt-msg { flex: 1; min-width: 0; color: var(--text); }
+    .score-prompt-dismiss {
+      width: 28px; height: 28px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 6px; border: 1px solid var(--border);
+      background: rgba(255,255,255,.06); color: var(--muted); cursor: pointer;
+    }
+    .match-refresh-btn {
+      width: 32px; height: 32px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 8px; border: 1px solid var(--border);
+      background: rgba(255,255,255,.06); color: var(--muted);
+      font-size: .85rem; cursor: pointer;
+    }
+    .match-refresh-btn:hover:not(:disabled) { background: rgba(255,255,255,.12); color: var(--text); }
+    .match-row {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .5rem .35rem;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      font-size: .85rem;
+    }
+    .match-row:last-of-type { border-bottom: none; }
+    .match-court {
+      flex-shrink: 0;
+      min-width: 34px;
+      text-align: center;
+      padding: .18rem .3rem;
+      border-radius: 6px;
+      background: rgba(56,189,248,.12);
+      color: var(--blue);
+      font-size: .74rem;
+      font-weight: 900;
+    }
+    .match-main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+    .match-team { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+    .match-team.match-winner { color: var(--text); font-weight: 800; }
+    .match-team .fa-trophy { color: var(--accent); font-size: .72rem; margin-left: .25rem; }
+    .match-vs { color: var(--soft); font-size: .72rem; font-weight: 800; text-transform: uppercase; }
+    .match-score {
+      flex-shrink: 0;
+      padding: .18rem .45rem;
+      border-radius: 6px;
+      background: rgba(163,230,53,.12);
+      color: var(--accent);
+      font-weight: 900;
+    }
+    .match-time { flex-shrink: 0; color: var(--soft); font-size: .74rem; }
+    .match-empty { padding: .8rem .35rem; color: var(--soft); font-size: .84rem; }
+
+    /* ── Tap-to-swap rearrange ── */
+    .move-banner {
+      display: flex;
+      align-items: center;
+      gap: .55rem;
+      margin-bottom: .8rem;
+      padding: .55rem .7rem;
+      border-radius: 8px;
+      background: rgba(56,189,248,.09);
+      border: 1px solid rgba(56,189,248,.26);
+      font-size: .84rem;
+    }
+    .move-banner i { color: var(--blue); }
+    .move-banner-msg { flex: 1; min-width: 0; color: var(--text); }
+    .icon-btn.swap-target {
+      color: var(--blue);
+      border-color: rgba(56,189,248,.4);
+      background: rgba(56,189,248,.14);
+    }
+    .icon-btn.moving-src {
+      color: var(--amber);
+      border-color: rgba(245,158,11,.4);
+      background: rgba(245,158,11,.14);
+    }
+    .free-slots { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .55rem; }
+    .free-slot-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      min-height: 36px;
+      padding: .35rem .7rem;
+      border-radius: 8px;
+      border: 1px dashed rgba(56,189,248,.45);
+      background: rgba(56,189,248,.08);
+      color: var(--blue);
+      font-family: inherit;
+      font-size: .78rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .free-slot-btn:hover:not(:disabled) { background: rgba(56,189,248,.16); }
+    .score-fields { display: flex; align-items: flex-end; gap: .6rem; margin-top: .8rem; }
+    .score-field { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .3rem; }
+    .score-field span {
+      font-size: .74rem;
+      font-weight: 800;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .score-field input {
+      width: 100%;
+      min-height: 42px;
+      padding: .4rem .5rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.07);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 800;
+      text-align: center;
+    }
+    .score-field input:focus { outline: none; border-color: rgba(163,230,53,.5); }
+    .score-fields .score-dash { padding-bottom: .7rem; }
+    .score-error {
+      margin: .6rem 0 0;
+      font-size: .8rem;
+      color: #fca5a5;
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+    }
 
     .panel-head-right { display: flex; align-items: center; gap: .55rem; }
     .qr-btn {
@@ -1229,6 +1578,16 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
 
   modal: { type: 'remove' | 'end'; player?: QueuePlayer } | null = null;
   qrModal: { generating: boolean; dataUrl?: string; downloadUrl?: string } | null = null;
+  umpireLinkModal: { courtNumber: number; generating: boolean; dataUrl?: string; url?: string; copied?: boolean } | null = null;
+
+  matches: HostedPlayMatch[] = [];
+  matchesLoading = false;
+  finishScoreA: number | null = null; // optional score inputs in winner-picker mode
+  finishScoreB: number | null = null;
+  scoreAutoFilled = false; // true when finishScoreA/B were carried over from the umpire's live score
+  scoreModal: { match: HostedPlayMatch; s1: number | null; s2: number | null; saving: boolean; error: string } | null = null;
+  scorePrompt: HostedPlayMatch | null = null; // "Add score?" banner after a scoreless finish
+  movingPlayer: QueuePlayer | null = null; // tap-to-swap: the selected court player being rearranged
 
   assigningCourt: number | null = null;
   selectedIds = new Set<string>();
@@ -1256,6 +1615,7 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
       next: (b) => { this.setBoard(b); this.loading = false; this.startPolling(); this.cdr.detectChanges(); },
       error: (err) => { this.loading = false; this.error = err?.error?.error || 'Failed to load queue.'; this.cdr.detectChanges(); },
     });
+    this.loadMatches();
   }
 
   ngOnDestroy() {
@@ -1282,6 +1642,8 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
     return !this.busy
       && !this.modal
       && !this.qrModal
+      && !this.scoreModal
+      && !this.movingPlayer
       && this.assigningCourt === null
       && this.confirmingFinishCourt === null
       && this.selectingWinnerCourt === null
@@ -1460,6 +1822,27 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
       if (this.finishConfirmTimer) { clearTimeout(this.finishConfirmTimer); this.finishConfirmTimer = null; }
       this.selectingWinnerCourt = court;
       this.winnerIds.clear();
+      this.finishScoreA = null;
+      this.finishScoreB = null;
+      this.scoreAutoFilled = false;
+
+      // If an umpire has been tracking a live score for this court, carry it
+      // over so the admin doesn't have to ask and retype it — they can just
+      // review and confirm. Only kicks in once a game has actually started
+      // (servingTeam set), not for a court that's merely idle.
+      const courtData = this.board?.courts.find((c) => c.courtNumber === court);
+      const live = courtData?.liveScore;
+      if (courtData && live && live.servingTeam) {
+        this.finishScoreA = live.team1Score;
+        this.finishScoreB = live.team2Score;
+        this.scoreAutoFilled = true;
+        if (live.team1Score !== live.team2Score) {
+          const teams = this.teamsFor(courtData);
+          const winningTeam = live.team1Score > live.team2Score ? teams.teamA : teams.teamB;
+          winningTeam.forEach((p) => this.winnerIds.add(p._id));
+        }
+      }
+
       this.cdr.detectChanges();
       return;
     }
@@ -1476,7 +1859,7 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
   confirmFinish(court: number) {
     if (this.finishConfirmTimer) { clearTimeout(this.finishConfirmTimer); this.finishConfirmTimer = null; }
     this.confirmingFinishCourt = null;
-    this.act(this.hp.finishCourt(this.id, court));
+    this.act(this.hp.finishCourt(this.id, court), () => this.afterFinish());
   }
 
   toggleWinner(id: string) {
@@ -1505,10 +1888,15 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
 
   confirmFinishWinners(court: number) {
     if (this.winnerIds.size === 0) return;
+    const scores = this.parseFinishScores();
+    if (scores === 'invalid' || this.finishScoreHint()) return;
     const ids = [...this.winnerIds];
     this.selectingWinnerCourt = null;
     this.winnerIds.clear();
-    this.act(this.hp.finishCourt(this.id, court, ids));
+    this.finishScoreA = null;
+    this.finishScoreB = null;
+    this.scoreAutoFilled = false;
+    this.act(this.hp.finishCourt(this.id, court, ids, scores ?? undefined), () => this.afterFinish());
   }
 
   cancelFinish() {
@@ -1516,7 +1904,136 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
     this.confirmingFinishCourt = null;
     this.selectingWinnerCourt = null;
     this.winnerIds.clear();
+    this.finishScoreA = null;
+    this.finishScoreB = null;
+    this.scoreAutoFilled = false;
     this.cdr.detectChanges();
+  }
+
+  // ── Match records (scores) ──
+
+  // Both empty = no scores (the common, zero-friction path); anything else must
+  // be a complete pair of non-negative integers.
+  private parseFinishScores(): { team1Score: number; team2Score: number } | null | 'invalid' {
+    const a = this.finishScoreA;
+    const b = this.finishScoreB;
+    if (a === null && b === null) return null;
+    if (a === null || b === null) return 'invalid';
+    if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0) return 'invalid';
+    return { team1Score: a, team2Score: b };
+  }
+
+  // Mirrors the backend validation so the Finish button blocks bad input early.
+  finishScoreHint(): string {
+    const p = this.parseFinishScores();
+    if (p === 'invalid') return 'Enter both scores as whole numbers';
+    if (p && this.board && this.selectingWinnerCourt !== null) {
+      const court = this.board.courts.find((c) => c.courtNumber === this.selectingWinnerCourt);
+      if (court) {
+        const teams = this.teamsFor(court);
+        const aWon = this.isTeamWinner(teams.teamA);
+        const bWon = this.isTeamWinner(teams.teamB);
+        if (aWon && !bWon && p.team1Score <= p.team2Score) return "The winner's score must be higher";
+        if (bWon && !aWon && p.team2Score <= p.team1Score) return "The winner's score must be higher";
+      }
+    }
+    return '';
+  }
+
+  // Advisory-only (never blocks saving): flags a score that doesn't match the
+  // session's configured pickleball target/win-by-2, in case it was mistyped.
+  // Real games legitimately end short at session time, so this never hard-blocks.
+  private pickleballScoreAdvisory(s1: number, s2: number): string {
+    const session = this.board?.session;
+    if (!session || session.sport !== 'pickleball' || !session.scoreTarget) return '';
+    const winning = Math.max(s1, s2);
+    const margin = Math.abs(s1 - s2);
+    if (winning < session.scoreTarget) return `Below the target of ${session.scoreTarget} points`;
+    if (session.winByTwo !== false && margin < 2) return 'Win margin is less than 2 points';
+    return '';
+  }
+
+  finishScoreAdvisory(): string {
+    const p = this.parseFinishScores();
+    if (!p || p === 'invalid') return '';
+    return this.pickleballScoreAdvisory(p.team1Score, p.team2Score);
+  }
+
+  scoreModalAdvisory(): string {
+    const sm = this.scoreModal;
+    if (!sm || sm.s1 === null || sm.s2 === null || !Number.isInteger(sm.s1) || !Number.isInteger(sm.s2)) return '';
+    return this.pickleballScoreAdvisory(sm.s1, sm.s2);
+  }
+
+  private afterFinish() {
+    this.loadMatches();
+    const m = this.board?.lastMatch;
+    this.scorePrompt = m && m.team1Score === null ? m : null;
+    this.cdr.detectChanges();
+  }
+
+  teamNames(t: MatchPlayer[]): string {
+    return t.map((p) => p.memberName || 'Player').join(' & ');
+  }
+
+  loadMatches() {
+    this.matchesLoading = true;
+    this.cdr.detectChanges();
+    this.hp.listMatches(this.id).subscribe({
+      next: (list) => { this.matches = list; this.matchesLoading = false; this.cdr.detectChanges(); },
+      error: () => { this.matchesLoading = false; this.cdr.detectChanges(); },
+    });
+  }
+
+  openScoreModal(m: HostedPlayMatch) {
+    this.scoreModal = { match: m, s1: m.team1Score, s2: m.team2Score, saving: false, error: '' };
+    this.cdr.detectChanges();
+  }
+
+  closeScoreModal() {
+    if (this.scoreModal?.saving) return;
+    this.scoreModal = null;
+    this.cdr.detectChanges();
+  }
+
+  saveScore() {
+    const sm = this.scoreModal;
+    if (!sm) return;
+    const s1 = sm.s1;
+    const s2 = sm.s2;
+    if (s1 === null || s2 === null || !Number.isInteger(s1) || !Number.isInteger(s2) || s1 < 0 || s2 < 0) {
+      sm.error = 'Enter both scores as whole numbers';
+      this.cdr.detectChanges();
+      return;
+    }
+    sm.saving = true;
+    sm.error = '';
+    this.cdr.detectChanges();
+    this.hp.updateMatchScore(sm.match._id, s1, s2).subscribe({
+      next: (updated) => {
+        this.matches = this.matches.map((x) => (x._id === updated._id ? updated : x));
+        if (this.scorePrompt?._id === updated._id) this.scorePrompt = null;
+        this.scoreModal = null;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        sm.saving = false;
+        sm.error = err?.error?.error || 'Failed to save score.';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  dismissScorePrompt() {
+    this.scorePrompt = null;
+    this.cdr.detectChanges();
+  }
+
+  promptScore() {
+    if (!this.scorePrompt) return;
+    const m = this.scorePrompt;
+    this.scorePrompt = null;
+    this.openScoreModal(m);
   }
 
   pause(p: QueuePlayer) { this.act(this.hp.pausePlayer(this.id, p._id)); }
@@ -1550,6 +2067,43 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
     return this.board.roster.filter(
       (p) => p.checkedIn && ['waiting', 'paused', 'done'].includes(p.queueStatus),
     );
+  }
+
+  // ── Tap-to-swap rearrange ──
+
+  beginMove(p: QueuePlayer) {
+    this.movingPlayer = p;
+    this.cdr.detectChanges();
+  }
+
+  cancelMove() {
+    this.movingPlayer = null;
+    this.cdr.detectChanges();
+  }
+
+  swapWith(target: QueuePlayer) {
+    const src = this.movingPlayer;
+    if (!src || src._id === target._id) return;
+    this.movingPlayer = null;
+    this.act(this.hp.rearrange(this.id, { participantId: src._id, targetParticipantId: target._id }));
+  }
+
+  moveToSlot(courtNumber: number, courtSlot: number) {
+    const src = this.movingPlayer;
+    if (!src) return;
+    this.movingPlayer = null;
+    this.act(this.hp.rearrange(this.id, { participantId: src._id, courtNumber, courtSlot }));
+  }
+
+  freeSlotsFor(c: QueueCourt): { slot: number; team: 'A' | 'B' }[] {
+    const size = this.board?.session?.playersPerCourt ?? 4;
+    const half = Math.ceil(size / 2);
+    const taken = new Set(c.players.map((p) => p.courtSlot));
+    const out: { slot: number; team: 'A' | 'B' }[] = [];
+    for (let s = 1; s <= size; s++) {
+      if (!taken.has(s)) out.push({ slot: s, team: s <= half ? 'A' : 'B' });
+    }
+    return out;
   }
 
   beginAssign(court: number) { this.assigningCourt = court; this.selectedIds.clear(); this.cdr.detectChanges(); }
@@ -1702,6 +2256,49 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
   }
 
   closeQrModal() { this.qrModal = null; this.cdr.detectChanges(); }
+
+  showUmpireLink(courtNumber: number) {
+    this.umpireLinkModal = { courtNumber, generating: true };
+    this.cdr.detectChanges();
+    this.hp.generateUmpireLink(this.id, courtNumber).subscribe({
+      next: ({ url }) => this.renderUmpireLink(courtNumber, url),
+      error: () => { this.umpireLinkModal = null; this.cdr.detectChanges(); },
+    });
+  }
+
+  regenerateUmpireLink() {
+    if (!this.umpireLinkModal) return;
+    const courtNumber = this.umpireLinkModal.courtNumber;
+    this.umpireLinkModal = { courtNumber, generating: true };
+    this.cdr.detectChanges();
+    this.hp.generateUmpireLink(this.id, courtNumber).subscribe({
+      next: ({ url }) => this.renderUmpireLink(courtNumber, url),
+      error: () => { this.umpireLinkModal = null; this.cdr.detectChanges(); },
+    });
+  }
+
+  private renderUmpireLink(courtNumber: number, url: string) {
+    QRCode.toDataURL(url, { width: 440, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
+      .then((dataUrl: string) => {
+        this.umpireLinkModal = { courtNumber, generating: false, dataUrl, url };
+        this.cdr.detectChanges();
+      });
+  }
+
+  copyUmpireLink() {
+    const url = this.umpireLinkModal?.url;
+    if (!url || !this.umpireLinkModal) return;
+    navigator.clipboard.writeText(url).then(() => {
+      if (!this.umpireLinkModal) return;
+      this.umpireLinkModal = { ...this.umpireLinkModal, copied: true };
+      this.cdr.detectChanges();
+      setTimeout(() => {
+        if (this.umpireLinkModal) { this.umpireLinkModal = { ...this.umpireLinkModal, copied: false }; this.cdr.detectChanges(); }
+      }, 2000);
+    });
+  }
+
+  closeUmpireLinkModal() { this.umpireLinkModal = null; this.cdr.detectChanges(); }
 
   goBack() { this.router.navigate(['/admin/hosted-play']); }
 

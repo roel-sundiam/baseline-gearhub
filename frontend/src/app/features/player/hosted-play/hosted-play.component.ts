@@ -7,11 +7,12 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ClubService, Court } from '../../../core/services/club.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
 import { CreditService } from '../../../core/services/credit.service';
+import { QrScannerModalComponent } from './qr-scanner-modal.component';
 
 @Component({
   selector: 'app-player-hosted-play',
   standalone: true,
-  imports: [CommonModule, CurrencyPipe, DatePipe, FormsModule],
+  imports: [CommonModule, CurrencyPipe, DatePipe, FormsModule, QrScannerModalComponent],
   template: `
     <div class="hp-shell">
       <header class="hp-topbar">
@@ -44,6 +45,7 @@ import { CreditService } from '../../../core/services/credit.service';
             <span class="eyebrow"><i class="fas fa-calendar-days"></i> Member events</span>
             <h1>Hosted Play</h1>
             <p>Reserve your spot in club-hosted tennis and pickleball sessions.</p>
+            <button class="hero-history-btn" (click)="openHistory()"><i class="fas fa-trophy"></i> History &amp; Standings</button>
           </div>
           <div class="hero-stats" aria-label="Hosted play summary">
             <div class="stat">
@@ -167,6 +169,11 @@ import { CreditService } from '../../../core/services/credit.service';
               <div class="action-area">
                 @if (s.joined) {
                   <div class="joined-note"><i class="fas fa-circle-check"></i> You're in for this session.</div>
+                  @if (canScanCheckIn(s)) {
+                    <button class="btn-scan" (click)="openScanner()">
+                      <i class="fas fa-qrcode"></i> Scan to Check In
+                    </button>
+                  }
                   @if (s.queueStatus === 'running') {
                     <button class="btn-live" (click)="openLiveBoard(s)">
                       <i class="fas fa-signal"></i> View Live Board
@@ -220,6 +227,10 @@ import { CreditService } from '../../../core/services/credit.service';
             </article>
           }
         </main>
+      }
+
+      @if (showScanner) {
+        <app-qr-scanner-modal (scanned)="onScanned($event)" (closed)="showScanner = false" />
       }
 
       @if (showPaymentModal && pendingSession) {
@@ -463,6 +474,22 @@ import { CreditService } from '../../../core/services/credit.service';
       line-height: 1.55;
       font-size: .98rem;
     }
+
+    .hero-history-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      margin-top: 1rem;
+      padding: .5rem 1rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      font-size: .82rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .hero-history-btn:hover { background: rgba(255,255,255,.14); border-color: var(--accent); color: var(--accent); }
 
     .hero-stats {
       display: grid;
@@ -738,7 +765,8 @@ import { CreditService } from '../../../core/services/credit.service';
 
     .btn-join,
     .btn-cancel,
-    .btn-live {
+    .btn-live,
+    .btn-scan {
       width: 100%;
       min-height: 46px;
       padding: .85rem;
@@ -759,6 +787,8 @@ import { CreditService } from '../../../core/services/credit.service';
     .btn-cancel { background: rgba(255,255,255,.08); color: var(--text); border: 1px solid var(--border); }
     .btn-live { background: rgba(56,189,248,.12); color: #38bdf8; border: 1px solid rgba(56,189,248,.3); }
     .btn-live:hover { background: rgba(56,189,248,.2); border-color: rgba(56,189,248,.45); transform: translateY(-1px); }
+    .btn-scan { background: rgba(163,230,53,.12); color: var(--accent); border: 1px solid rgba(163,230,53,.3); }
+    .btn-scan:hover { background: rgba(163,230,53,.2); border-color: rgba(163,230,53,.45); transform: translateY(-1px); }
     .btn-join:hover:not(:disabled), .btn-cancel:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
     .btn-join:disabled { opacity: .45; cursor: not-allowed; }
     .btn-cancel:disabled { opacity: .5; cursor: not-allowed; }
@@ -882,6 +912,7 @@ export class PlayerHostedPlayComponent implements OnInit {
   clubPaymentAccounts: Record<string, string> = {};
   clubPaymentQrCodes: Record<string, string> = {};
 
+  showScanner = false; // in-app QR scanner for self-check-in
   showPaymentModal = false;
   claimMode = false; // payment modal is claiming an offered waitlist spot vs a normal join
   pendingSession: HostedPlaySession | null = null;
@@ -1335,5 +1366,26 @@ export class PlayerHostedPlayComponent implements OnInit {
     this.router.navigate(['/player/hosted-play', s._id, 'live']);
   }
 
+  // ── In-app QR check-in ──
+
+  // Scanning makes sense while the session can still take check-ins.
+  canScanCheckIn(s: HostedPlaySession): boolean {
+    return s.status !== 'completed' && s.status !== 'cancelled' && s.queueStatus !== 'ended';
+  }
+
+  openScanner() {
+    this.showScanner = true;
+    this.cdr.detectChanges();
+  }
+
+  // The QR encodes the same URL the phone-camera path uses, so both flows land
+  // on the existing self-check-in page (validation + success/error states).
+  onScanned(payload: { s: string; t: string }) {
+    this.showScanner = false;
+    this.router.navigate(['/player/hosted-play/check-in'], { queryParams: { s: payload.s, t: payload.t } });
+  }
+
   goBack() { this.router.navigate(['/player/dashboard']); }
+
+  openHistory() { this.router.navigate(['/player/hosted-play/history']); }
 }

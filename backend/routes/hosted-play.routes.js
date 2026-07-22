@@ -1,10 +1,12 @@
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 const { randomUUID } = require("crypto");
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
 const HostedPlay = require("../models/HostedPlay");
 const HostedPlayParticipant = require("../models/HostedPlayParticipant");
+const HostedPlayMatch = require("../models/HostedPlayMatch");
 const User = require("../models/User");
 const Club = require("../models/Club");
 const Charge = require("../models/Charge");
@@ -528,6 +530,14 @@ function normalizeMaxGuests(value) {
   return Math.max(0, Math.floor(Number(value) || 0));
 }
 
+const VALID_SCORE_TARGETS = [11, 15, 21];
+// Pickleball-only config; any other sport is stored as unset regardless of input.
+function normalizeScoreTarget(sport, value) {
+  if (sport !== "pickleball" || value === undefined || value === null || value === "") return null;
+  const num = Number(value);
+  return VALID_SCORE_TARGETS.includes(num) ? num : null;
+}
+
 // POST /api/hosted-play/sessions
 router.post("/sessions", auth, admin, async (req, res) => {
   try {
@@ -535,13 +545,16 @@ router.post("/sessions", auth, admin, async (req, res) => {
       title, sport, date, startTime, endTime, venue, court, address,
       feePerPlayer, sessionFee, guestFeePerPlayer, maxPlayers, maxGuests, description,
       numberOfCourts, playersPerCourt, queueMode,
-      minSkillLevel, maxSkillLevel,
+      minSkillLevel, maxSkillLevel, scoreTarget, winByTwo,
     } = req.body;
 
     if (!title || !sport || !date || !startTime || !endTime || !venue || !maxPlayers) {
       return res.status(400).json({
         error: "title, sport, date, startTime, endTime, venue and maxPlayers are required",
       });
+    }
+    if (scoreTarget !== undefined && scoreTarget !== null && scoreTarget !== "" && !VALID_SCORE_TARGETS.includes(Number(scoreTarget))) {
+      return res.status(400).json({ error: "scoreTarget must be 11, 15, or 21" });
     }
 
     const normMaxGuests = normalizeMaxGuests(maxGuests);
@@ -575,6 +588,8 @@ router.post("/sessions", auth, admin, async (req, res) => {
       ...(queueMode !== undefined ? { queueMode } : {}),
       ...(minSkillLevel ? { minSkillLevel } : {}),
       ...(maxSkillLevel ? { maxSkillLevel } : {}),
+      scoreTarget: normalizeScoreTarget(sport, scoreTarget),
+      ...(winByTwo !== undefined ? { winByTwo: !!winByTwo } : {}),
     });
 
     // Auto-bill the club the Queue Management fee when a session is created with queue enabled
@@ -601,8 +616,11 @@ router.put("/sessions/:id", auth, admin, async (req, res) => {
       title, sport, date, startTime, endTime, venue, court, address,
       feePerPlayer, sessionFee, guestFeePerPlayer, maxPlayers, maxGuests, description,
       numberOfCourts, playersPerCourt, queueMode,
-      minSkillLevel, maxSkillLevel,
+      minSkillLevel, maxSkillLevel, scoreTarget, winByTwo,
     } = req.body;
+    if (scoreTarget !== undefined && scoreTarget !== null && scoreTarget !== "" && !VALID_SCORE_TARGETS.includes(Number(scoreTarget))) {
+      return res.status(400).json({ error: "scoreTarget must be 11, 15, or 21" });
+    }
 
     const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId });
     if (!session) return res.status(404).json({ error: "Session not found" });
@@ -624,6 +642,14 @@ router.put("/sessions/:id", auth, admin, async (req, res) => {
     if (maxSkillLevel !== undefined) session.maxSkillLevel = maxSkillLevel || null;
     if (title !== undefined) session.title = title;
     if (sport !== undefined) session.sport = sport;
+    // Scoring config only applies to pickleball — force-clear on any sport
+    // that isn't pickleball so stale values don't resurface if it's switched back.
+    if (session.sport !== "pickleball") {
+      session.scoreTarget = null;
+    } else if (scoreTarget !== undefined) {
+      session.scoreTarget = normalizeScoreTarget(session.sport, scoreTarget);
+    }
+    if (winByTwo !== undefined) session.winByTwo = !!winByTwo;
     if (date !== undefined) session.date = date;
     if (startTime !== undefined) session.startTime = startTime;
     if (endTime !== undefined) session.endTime = endTime;
@@ -781,6 +807,17 @@ async function decorateProfileImages(participants) {
   }
 }
 
+// Shared tail of loadQueueContext/loadUmpireContext once session+club are
+// resolved and Queue Management is confirmed enabled.
+async function loadParticipantsContext(session, club) {
+  const participants = await HostedPlayParticipant.find({ hostedPlayId: session._id, ...ACTIVE_PARTICIPANT })
+    .sort({ createdAt: 1 })
+    .lean();
+  await decorateProfileImages(participants);
+  const prev = snapshotQueue(session, participants);
+  return { session, participants, club, prev };
+}
+
 // Load the session (scoped to club), verify Queue Management is enabled, and
 // return { session, participants } — or send an error response and return null.
 async function loadQueueContext(req, res) {
@@ -797,12 +834,40 @@ async function loadQueueContext(req, res) {
     res.status(403).json({ error: "Queue Management is not enabled for this session" });
     return null;
   }
-  const participants = await HostedPlayParticipant.find({ hostedPlayId: session._id, ...ACTIVE_PARTICIPANT })
-    .sort({ createdAt: 1 })
+  return loadParticipantsContext(session, club);
+}
+
+// Anonymous, per-court token equivalent of loadQueueContext for the umpire
+// scoring page — no req.user, no club scoping; access is proven solely by a
+// token matching the SPECIFIC court in the URL. A token minted for one court
+// simply has no matching entry when looked up under another court's number,
+// which is what actually prevents one link from scoring more than one court.
+async function loadUmpireContext(req, res) {
+  const session = await HostedPlay.findById(req.params.sessionId).lean();
+  if (!session) {
+    res.status(404).json({ error: "Session not found" });
+    return null;
+  }
+  const courtNumber = Number(req.params.n);
+  const token = req.query.t;
+  const entry = (session.courtUmpireTokens || []).find((c) => c.courtNumber === courtNumber);
+  if (!token || !entry || entry.token !== token) {
+    res.status(403).json({ error: "invalid_token" });
+    return null;
+  }
+  if (["cancelled", "completed"].includes(session.status) || session.queueStatus === "ended") {
+    res.status(409).json({ error: "session_ended" });
+    return null;
+  }
+  const club = await Club.findById(session.clubId)
+    .select("hostedPlayQueueEnabled hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount logo courts")
     .lean();
-  await decorateProfileImages(participants);
-  const prev = snapshotQueue(session, participants);
-  return { session, participants, club, prev };
+  const queueAllowed = session.queueManagementEnabled ?? !!club?.hostedPlayQueueEnabled;
+  if (!queueAllowed) {
+    res.status(403).json({ error: "Queue Management is not enabled for this session" });
+    return null;
+  }
+  return loadParticipantsContext(session, club);
 }
 
 // Snapshot the pre-mutation queue state so applyAndRespond can diff transitions
@@ -851,7 +916,22 @@ function notifyQueueTransitions(session, participants, changed, board, prev) {
   }
 }
 
-// Copy per-player fee figures (member + guest) onto the board's session for UI quotes.
+// Match the session's venue/court name against the club's courts (same logic
+// the admin/player boards already do client-side via ClubService) and return
+// that court's logo, falling back to the club's own logo, else null. Safe to
+// call with a club doc that never selected `logo`/`courts` — just resolves null.
+function resolveVenueLogo(club, session) {
+  const venue = (session.venue || "").trim().toLowerCase();
+  const court = (session.court || "").trim().toLowerCase();
+  const match = (club?.courts || []).find((c) => {
+    const name = (c.name || "").trim().toLowerCase();
+    return name === venue || (!!court && name === court);
+  });
+  return match?.logo || club?.logo || null;
+}
+
+// Copy per-player fee figures (member + guest) and the resolved venue logo
+// onto the board's session for UI display.
 function decorateBoardFees(board, club, session) {
   // Split Session Fee sessions aren't billed until completion, so this is only
   // an estimate — it shrinks/grows as members join/leave beforehand.
@@ -869,11 +949,12 @@ function decorateBoardFees(board, club, session) {
   board.session.guestFeePerPlayer = guestFees.baseFee;
   board.session.guestConvenienceFeePerPlayer = guestFees.convenienceFee;
   board.session.guestTotalPerPlayer = guestFees.total;
+  board.session.venueLogo = resolveVenueLogo(club, session);
 }
 
 // Persist an engine result (changed participants + optional session update),
 // apply the session update in memory, and respond with the fresh board.
-async function applyAndRespond(res, session, participants, result, club = null, prev = null) {
+async function applyAndRespond(res, session, participants, result, club = null, prev = null, extra = null) {
   if (result?.error) {
     return res.status(400).json({ error: result.error });
   }
@@ -897,7 +978,7 @@ async function applyAndRespond(res, session, participants, result, club = null, 
     decorateBoardFees(board, club, session);
   }
   notifyQueueTransitions(session, participants, changed, board, prev);
-  return res.json(board);
+  return res.json(extra ? { ...board, ...extra } : board);
 }
 
 // GET /api/hosted-play/sessions/:id/queue — live board (polling target)
@@ -976,6 +1057,34 @@ router.post("/sessions/:id/generate-qr", auth, admin, async (req, res) => {
     const appUrl = process.env.APP_URL || "https://courtgo.club";
     const url = `${appUrl}/player/hosted-play/check-in?s=${session._id}&t=${qrToken}`;
     res.json({ qrToken, url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/courts/:n/generate-umpire-link — admin
+// generates/regenerates the anonymous, token-only link an umpire uses to enter
+// live scores for ONE specific court, without logging in. Regenerating only
+// invalidates that court's previous link — other courts' links are untouched.
+router.post("/sessions/:id/courts/:n/generate-umpire-link", auth, admin, async (req, res) => {
+  try {
+    const session = await HostedPlay.findById(req.params.id).lean();
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (!ownsClub(req, session.clubId)) return res.status(403).json({ error: "Access denied" });
+
+    const courtNumber = Number(req.params.n);
+    if (!Number.isInteger(courtNumber) || courtNumber < 1 || courtNumber > (session.numberOfCourts || 1)) {
+      return res.status(400).json({ error: "Invalid court" });
+    }
+
+    const token = randomUUID();
+    const courtUmpireTokens = (session.courtUmpireTokens || []).filter((c) => c.courtNumber !== courtNumber);
+    courtUmpireTokens.push({ courtNumber, token, generatedAt: new Date() });
+    await HostedPlay.findByIdAndUpdate(session._id, { courtUmpireTokens });
+
+    const appUrl = process.env.APP_URL || "https://courtgo.club";
+    const url = `${appUrl}/umpire/${session._id}/courts/${courtNumber}?t=${token}`;
+    res.json({ token, url });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1148,6 +1257,114 @@ async function addMemberWalkIn(req, res, ctx) {
   return applyAndRespond(res, ctx.session, ctx.participants, queue.appendAndAssign(ctx.session, ctx.participants, walkIn._id), ctx.club, ctx.prev);
 }
 
+// ── Match records (per finished game, optional scores) ────────────────────────
+
+// Server mirror of the frontend splitCourtTeams helper (hosted-play.service.ts):
+// low courtSlot half = team 1 ("Team A"), high half = team 2; array-order
+// fallback for participants that predate slot tracking.
+function splitTeamsBySlot(players, playersPerCourt) {
+  const half = Math.ceil((playersPerCourt || 4) / 2);
+  const hasSlots = players.length > 0 && players.every((p) => typeof p.courtSlot === "number");
+  if (hasSlots) {
+    const sorted = [...players].sort((a, b) => (a.courtSlot ?? 0) - (b.courtSlot ?? 0));
+    return { team1: sorted.filter((p) => p.courtSlot <= half), team2: sorted.filter((p) => p.courtSlot > half) };
+  }
+  return { team1: players.slice(0, half), team2: players.slice(half) };
+}
+
+// Optional score pair from a request body. Returns null when neither score is
+// provided, { team1Score, team2Score } when both are valid, or { error }.
+// Ties are allowed (no winner derived from them).
+function parseMatchScores(body) {
+  const given = (v) => v !== undefined && v !== null && v !== "";
+  const has1 = given(body.team1Score);
+  const has2 = given(body.team2Score);
+  if (!has1 && !has2) return null;
+  if (!has1 || !has2) return { error: "Enter both scores or neither" };
+  const team1Score = Number(body.team1Score);
+  const team2Score = Number(body.team2Score);
+  if (!Number.isInteger(team1Score) || !Number.isInteger(team2Score) || team1Score < 0 || team2Score < 0) {
+    return { error: "Scores must be non-negative whole numbers" };
+  }
+  return { team1Score, team2Score };
+}
+
+// Winner resolution at finish time. A tapped winner (admin picked the side) is
+// authoritative; otherwise unequal scores decide. Tapped winner + scores that
+// don't back it up is an input error surfaced as { error }.
+function deriveWinnerTeam(team1, team2, winnerSet, scores) {
+  if (winnerSet.size && team1.length && team2.length) {
+    const allIn = (team) => team.every((p) => winnerSet.has(String(p.participantId)));
+    const t1Won = allIn(team1);
+    const t2Won = allIn(team2);
+    if (t1Won !== t2Won) {
+      const winnerTeam = t1Won ? 1 : 2;
+      if (scores) {
+        const winnerScore = winnerTeam === 1 ? scores.team1Score : scores.team2Score;
+        const loserScore = winnerTeam === 1 ? scores.team2Score : scores.team1Score;
+        if (winnerScore <= loserScore) return { error: "Scores contradict the selected winner" };
+      }
+      return { winnerTeam, winnerSource: "tapped" };
+    }
+  }
+  if (scores && scores.team1Score !== scores.team2Score) {
+    return { winnerTeam: scores.team1Score > scores.team2Score ? 1 : 2, winnerSource: "scores" };
+  }
+  return { winnerTeam: null, winnerSource: null };
+}
+
+// Snapshot a court's players into embedded HostedPlayMatch player records.
+// Must run BEFORE queue.finishGame — finishGame nulls courtNumber/courtSlot
+// on players it requeues.
+function snapshotCourtTeams(participants, courtNumber, playersPerCourt) {
+  const courtPlayers = queue.getCourtPlayers(participants, courtNumber);
+  const { team1, team2 } = splitTeamsBySlot(courtPlayers, playersPerCourt || 4);
+  const toSnapshot = (p) => ({
+    participantId: p._id,
+    memberId: p.memberId ?? null,
+    memberName: p.memberName ?? "",
+    isWalkIn: !!p.isWalkIn,
+  });
+  return { team1Players: team1.map(toSnapshot), team2Players: team2.map(toSnapshot) };
+}
+
+// Run the queue engine's finishGame and, on success, record a HostedPlayMatch
+// from the pre-snapshotted teams. Shared by the admin finish route (tapped
+// winner is authoritative) and the anonymous umpire finish route (winner is
+// derived purely from the live score) — each resolves its own winner before
+// calling this.
+async function finishCourtAndRecordMatch(ctx, courtNumber, teams, { winnerIds = [], scores = null, winnerTeam = null, winnerSource = null, recordedBy = null }) {
+  const result = queue.finishGame(ctx.session, ctx.participants, courtNumber, winnerIds);
+
+  // Record the match only when the finish itself succeeded. A failed insert
+  // must never fail the finish — court rotation is the primary flow.
+  let match = null;
+  if (!result?.error) {
+    try {
+      match = await HostedPlayMatch.create({
+        sessionId: ctx.session._id,
+        clubId: ctx.session.clubId,
+        sport: ctx.session.sport,
+        queueMode: ctx.session.queueMode,
+        courtNumber,
+        team1: teams.team1Players,
+        team2: teams.team2Players,
+        team1Score: scores?.team1Score ?? null,
+        team2Score: scores?.team2Score ?? null,
+        winnerTeam,
+        winnerSource,
+        finishedAt: new Date(),
+        recordedBy,
+        scoreEnteredBy: scores ? recordedBy : null,
+        scoreEnteredAt: scores ? new Date() : null,
+      });
+    } catch (e) {
+      console.error("hosted-play: failed to record match", e);
+    }
+  }
+  return { result, match };
+}
+
 // POST /api/hosted-play/sessions/:id/courts/:n/finish
 router.post("/sessions/:id/courts/:n/finish", auth, admin, async (req, res) => {
   try {
@@ -1155,7 +1372,544 @@ router.post("/sessions/:id/courts/:n/finish", auth, admin, async (req, res) => {
     if (!ctx) return;
     const courtNumber = Number(req.params.n);
     const winnerIds = Array.isArray(req.body.winnerIds) ? req.body.winnerIds : [];
-    await applyAndRespond(res, ctx.session, ctx.participants, queue.finishGame(ctx.session, ctx.participants, courtNumber, winnerIds), ctx.club, ctx.prev);
+
+    const scores = parseMatchScores(req.body);
+    if (scores?.error) return res.status(400).json({ error: scores.error });
+
+    // Snapshot the court BEFORE finishGame — re-queue nulls courtNumber/courtSlot.
+    const teams = snapshotCourtTeams(ctx.participants, courtNumber, ctx.session.playersPerCourt);
+
+    const winnerSet = new Set(winnerIds.map(String));
+    const derived = deriveWinnerTeam(teams.team1Players, teams.team2Players, winnerSet, scores);
+    if (derived.error) return res.status(400).json({ error: derived.error });
+
+    const { result, match } = await finishCourtAndRecordMatch(ctx, courtNumber, teams, {
+      winnerIds, scores, winnerTeam: derived.winnerTeam, winnerSource: derived.winnerSource, recordedBy: req.user.userId,
+    });
+    await applyAndRespond(res, ctx.session, ctx.participants, result, ctx.club, ctx.prev,
+      match ? { lastMatch: match.toObject() } : null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Umpire Live Scoring — anonymous, per-court token access (no login) ──────
+
+// GET /api/hosted-play/umpire/:sessionId/courts/:n/board?t=<courtToken>
+router.get("/umpire/:sessionId/courts/:n/board", async (req, res) => {
+  try {
+    const ctx = await loadUmpireContext(req, res);
+    if (!ctx) return;
+    const board = queue.buildBoard(ctx.session, ctx.participants);
+    decorateBoardFees(board, ctx.club, ctx.session);
+    res.json(board);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Persist a court's updated liveScores entry and respond with the fresh board.
+// Shared by start-serve/rally-won/undo — the only three ways a liveScores
+// entry changes outside of finish (which clears it entirely).
+async function saveLiveScoreAndRespond(res, ctx, courtNumber, updatedEntry) {
+  const liveScores = ctx.session.liveScores || [];
+  ctx.session.liveScores = [...liveScores.filter((s) => s.courtNumber !== courtNumber), updatedEntry];
+  await HostedPlay.updateOne({ _id: ctx.session._id }, { $set: { liveScores: ctx.session.liveScores } });
+  const board = queue.buildBoard(ctx.session, ctx.participants);
+  decorateBoardFees(board, ctx.club, ctx.session);
+  res.json(board);
+}
+
+// A team's players as snapshotCourtTeams returns them (participantId is p._id).
+function teamPlayers(teams, team) {
+  return team === 1 ? teams.team1Players : teams.team2Players;
+}
+
+// POST /api/hosted-play/umpire/:sessionId/courts/:n/start-serve?t=<courtToken>
+// Body: { team: 1 | 2, playerId }. Picks who serves first for a fresh game on
+// this court — team and player in one call. Only allowed before any point has
+// been played, so a wrong pick can be corrected freely up until scoring starts.
+router.post("/umpire/:sessionId/courts/:n/start-serve", async (req, res) => {
+  try {
+    const ctx = await loadUmpireContext(req, res);
+    if (!ctx) return;
+    const courtNumber = Number(req.params.n);
+    const team = Number(req.body.team);
+    const playerId = req.body.playerId ? String(req.body.playerId) : "";
+    if (![1, 2].includes(team)) {
+      return res.status(400).json({ error: "Invalid team" });
+    }
+    if (queue.getCourtPlayers(ctx.participants, courtNumber).length === 0) {
+      return res.status(400).json({ error: "Court is empty" });
+    }
+
+    const existing = (ctx.session.liveScores || []).find((s) => s.courtNumber === courtNumber);
+    if (existing && (existing.team1Score > 0 || existing.team2Score > 0)) {
+      return res.status(400).json({ error: "Scoring has already started for this game" });
+    }
+
+    // Doubles' opening turn only gets one server (the official "0-0-2" handicap);
+    // a singles side has no partner to skip, so it just starts at server 1.
+    const teams = snapshotCourtTeams(ctx.participants, courtNumber, ctx.session.playersPerCourt);
+    const chosenTeam = teamPlayers(teams, team);
+    if (!chosenTeam.some((p) => String(p.participantId) === playerId)) {
+      return res.status(400).json({ error: "That player is not on this team" });
+    }
+
+    // The chosen first server is, by rule, the right-side player for their
+    // team (labeled server "2" only due to the opening handicap above — they
+    // physically start on the right). Recording it here is what lets THIS
+    // team's later side-outs resolve their server automatically. A fresh game
+    // means fresh positions for both teams, so the other team's is cleared.
+    await saveLiveScoreAndRespond(res, ctx, courtNumber, {
+      courtNumber,
+      team1Score: 0,
+      team2Score: 0,
+      servingTeam: team,
+      serverNumber: chosenTeam.length >= 2 ? 2 : 1,
+      servingPlayerId: playerId,
+      team1RightPlayerId: team === 1 ? playerId : null,
+      team2RightPlayerId: team === 2 ? playerId : null,
+      previousState: null,
+      updatedAt: new Date(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/umpire/:sessionId/courts/:n/set-server?t=<courtToken>
+// Body: { playerId }. Resolves who's serving for the current serving team —
+// either their first-ever side-out this game (the app can't derive that on
+// its own yet), or a manual correction/override at any later point, since
+// real casual play doesn't always follow textbook court positioning. Doesn't
+// touch scores. Whatever is picked here becomes the recorded court position
+// for that team going forward, so it's what future side-outs derive from.
+router.post("/umpire/:sessionId/courts/:n/set-server", async (req, res) => {
+  try {
+    const ctx = await loadUmpireContext(req, res);
+    if (!ctx) return;
+    const courtNumber = Number(req.params.n);
+    const playerId = req.body.playerId ? String(req.body.playerId) : "";
+
+    const existing = (ctx.session.liveScores || []).find((s) => s.courtNumber === courtNumber);
+    if (!existing || !existing.servingTeam) {
+      return res.status(400).json({ error: "Choose who serves first" });
+    }
+
+    const teams = snapshotCourtTeams(ctx.participants, courtNumber, ctx.session.playersPerCourt);
+    const servingTeamPlayers = teamPlayers(teams, existing.servingTeam);
+    if (!servingTeamPlayers.some((p) => String(p.participantId) === playerId)) {
+      return res.status(400).json({ error: "That player is not on the serving team" });
+    }
+
+    const previousState = {
+      team1Score: existing.team1Score,
+      team2Score: existing.team2Score,
+      servingTeam: existing.servingTeam,
+      serverNumber: existing.serverNumber,
+      servingPlayerId: existing.servingPlayerId,
+      team1RightPlayerId: existing.team1RightPlayerId,
+      team2RightPlayerId: existing.team2RightPlayerId,
+    };
+
+    // The right-side player is whoever's server-1-equivalent right now: if
+    // this is for server 1, they ARE the right-side player; if it's for
+    // server 2, their partner (who never moved) is the one on the right —
+    // server 2 just continues from wherever server 1 left off, unchanged.
+    let rightPlayerId = playerId;
+    if (existing.serverNumber === 2) {
+      const partner = servingTeamPlayers.find((p) => String(p.participantId) !== playerId);
+      rightPlayerId = partner ? partner.participantId : playerId;
+    }
+    const rightPlayerField = existing.servingTeam === 1 ? "team1RightPlayerId" : "team2RightPlayerId";
+
+    await saveLiveScoreAndRespond(res, ctx, courtNumber, {
+      courtNumber,
+      team1Score: existing.team1Score,
+      team2Score: existing.team2Score,
+      servingTeam: existing.servingTeam,
+      serverNumber: existing.serverNumber,
+      servingPlayerId: playerId,
+      team1RightPlayerId: existing.team1RightPlayerId,
+      team2RightPlayerId: existing.team2RightPlayerId,
+      [rightPlayerField]: rightPlayerId,
+      previousState,
+      updatedAt: new Date(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/umpire/:sessionId/courts/:n/rally-won?t=<courtToken>
+// Body: { team: 1 | 2 } — the team that just won the rally. The umpire always
+// taps this same pair of buttons regardless of who's serving; whether that's a
+// point or a side-out (and whether the serve just rotates to the server's
+// partner or passes to the other team) is derived here, not chosen by the umpire.
+router.post("/umpire/:sessionId/courts/:n/rally-won", async (req, res) => {
+  try {
+    const ctx = await loadUmpireContext(req, res);
+    if (!ctx) return;
+    const courtNumber = Number(req.params.n);
+    const team = Number(req.body.team);
+    if (![1, 2].includes(team)) {
+      return res.status(400).json({ error: "Invalid team" });
+    }
+
+    const existing = (ctx.session.liveScores || []).find((s) => s.courtNumber === courtNumber);
+    if (!existing || !existing.servingTeam) {
+      return res.status(400).json({ error: "Choose who serves first" });
+    }
+    if (!existing.servingPlayerId) {
+      return res.status(400).json({ error: "Choose who's serving" });
+    }
+
+    const previousState = {
+      team1Score: existing.team1Score,
+      team2Score: existing.team2Score,
+      servingTeam: existing.servingTeam,
+      serverNumber: existing.serverNumber,
+      servingPlayerId: existing.servingPlayerId,
+      team1RightPlayerId: existing.team1RightPlayerId,
+      team2RightPlayerId: existing.team2RightPlayerId,
+    };
+    let { team1Score, team2Score, servingTeam, serverNumber, servingPlayerId, team1RightPlayerId, team2RightPlayerId } = existing;
+    const teams = snapshotCourtTeams(ctx.participants, courtNumber, ctx.session.playersPerCourt);
+
+    if (team === servingTeam) {
+      // Server won the rally — a point. Server keeps serving, but the pair
+      // swaps court sides, so the right-side record flips to the partner.
+      if (servingTeam === 1) team1Score += 1; else team2Score += 1;
+      const servingTeamPlayers = teamPlayers(teams, servingTeam);
+      const partner = servingTeamPlayers.find((p) => String(p.participantId) !== String(servingPlayerId));
+      const newRightPlayerId = partner ? partner.participantId : servingPlayerId;
+      if (servingTeam === 1) team1RightPlayerId = newRightPlayerId; else team2RightPlayerId = newRightPlayerId;
+    } else {
+      // Receiver won the rally — no score change. The serve rotates to the
+      // server's partner (doubles, still on server 1), or is a full side-out.
+      const servingTeamPlayers = teamPlayers(teams, servingTeam);
+      if (servingTeamPlayers.length >= 2 && serverNumber === 1) {
+        // Partner rotation is unambiguous — a doubles team only has two
+        // players, so "whoever isn't currently serving" is the only answer.
+        // No position change: server 2 just continues from wherever server 1
+        // already was.
+        serverNumber = 2;
+        const partner = servingTeamPlayers.find((p) => String(p.participantId) !== String(servingPlayerId));
+        servingPlayerId = partner ? partner.participantId : servingPlayerId;
+      } else {
+        // Full side-out. Positions don't change — server numbers are just
+        // reassigned based on wherever the new serving team already is:
+        // whoever's on the right becomes server 1. Once that's known for this
+        // team (from an earlier turn), it resolves automatically; only a
+        // team's very first side-out of the game needs the umpire to pick it.
+        servingTeam = team;
+        serverNumber = 1;
+        const winningTeamPlayers = teamPlayers(teams, team);
+        const knownRightPlayerId = team === 1 ? team1RightPlayerId : team2RightPlayerId;
+        if (winningTeamPlayers.length === 1) {
+          servingPlayerId = winningTeamPlayers[0].participantId;
+        } else if (knownRightPlayerId) {
+          servingPlayerId = knownRightPlayerId;
+        } else {
+          servingPlayerId = null;
+        }
+      }
+    }
+
+    await saveLiveScoreAndRespond(res, ctx, courtNumber, {
+      courtNumber, team1Score, team2Score, servingTeam, serverNumber, servingPlayerId,
+      team1RightPlayerId, team2RightPlayerId, previousState, updatedAt: new Date(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/umpire/:sessionId/courts/:n/undo?t=<courtToken>
+// Reverts the last rally-won call (or start-serve pick) for this court.
+// Single level only — matches the page's otherwise-simple interaction model.
+router.post("/umpire/:sessionId/courts/:n/undo", async (req, res) => {
+  try {
+    const ctx = await loadUmpireContext(req, res);
+    if (!ctx) return;
+    const courtNumber = Number(req.params.n);
+
+    const existing = (ctx.session.liveScores || []).find((s) => s.courtNumber === courtNumber);
+    if (!existing || !existing.previousState) {
+      return res.status(400).json({ error: "Nothing to undo" });
+    }
+
+    await saveLiveScoreAndRespond(res, ctx, courtNumber, {
+      courtNumber,
+      team1Score: existing.previousState.team1Score,
+      team2Score: existing.previousState.team2Score,
+      servingTeam: existing.previousState.servingTeam,
+      serverNumber: existing.previousState.serverNumber,
+      servingPlayerId: existing.previousState.servingPlayerId ?? null,
+      team1RightPlayerId: existing.previousState.team1RightPlayerId ?? null,
+      team2RightPlayerId: existing.previousState.team2RightPlayerId ?? null,
+      previousState: null,
+      updatedAt: new Date(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/umpire/:sessionId/courts/:n/finish?t=<courtToken>
+// The winner is always derived from the live score (winnerSource: "scores")
+// — there's no tap-a-winner step for the umpire, unlike the admin finish route.
+router.post("/umpire/:sessionId/courts/:n/finish", async (req, res) => {
+  try {
+    const ctx = await loadUmpireContext(req, res);
+    if (!ctx) return;
+    const courtNumber = Number(req.params.n);
+
+    const live = (ctx.session.liveScores || []).find((s) => s.courtNumber === courtNumber);
+    if (!live || (live.team1Score === 0 && live.team2Score === 0)) {
+      return res.status(400).json({ error: "No score recorded yet" });
+    }
+    if (live.team1Score === live.team2Score) {
+      return res.status(400).json({ error: "Scores are tied — enter the final point before finishing" });
+    }
+
+    const winnerTeam = live.team1Score > live.team2Score ? 1 : 2;
+    const teams = snapshotCourtTeams(ctx.participants, courtNumber, ctx.session.playersPerCourt);
+    const winnerIds = (winnerTeam === 1 ? teams.team1Players : teams.team2Players).map((p) => String(p.participantId));
+
+    const { result, match } = await finishCourtAndRecordMatch(ctx, courtNumber, teams, {
+      winnerIds,
+      scores: { team1Score: live.team1Score, team2Score: live.team2Score },
+      winnerTeam,
+      winnerSource: "scores",
+      recordedBy: ctx.session.createdBy,
+    });
+
+    if (!result?.error) {
+      ctx.session.liveScores = (ctx.session.liveScores || []).filter((s) => s.courtNumber !== courtNumber);
+      await HostedPlay.updateOne({ _id: ctx.session._id }, { $pull: { liveScores: { courtNumber } } });
+    }
+    await applyAndRespond(res, ctx.session, ctx.participants, result, ctx.club, ctx.prev,
+      match ? { lastMatch: match.toObject() } : null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/courts/rearrange — tap-to-swap board edits.
+// Body: { participantId, targetParticipantId } to swap two players' positions,
+// or { participantId, courtNumber, courtSlot } to move onto an open slot.
+router.post("/sessions/:id/courts/rearrange", auth, admin, async (req, res) => {
+  try {
+    const ctx = await loadQueueContext(req, res);
+    if (!ctx) return;
+    const { participantId, targetParticipantId, courtNumber, courtSlot } = req.body;
+    const result = targetParticipantId
+      ? queue.swapPlayers(ctx.session, ctx.participants, participantId, targetParticipantId)
+      : queue.movePlayerToSlot(ctx.session, ctx.participants, participantId, Number(courtNumber), Number(courtSlot));
+    if (result.error) {
+      const messages = {
+        not_found: "Participant not found",
+        same_player: "Pick two different players",
+        not_movable: "Only playing or waiting players can be moved",
+        both_waiting: "Use the queue arrows to reorder waiting players",
+        invalid_court: "Invalid court",
+        invalid_slot: "Invalid slot",
+        slot_taken: "That slot is already taken",
+      };
+      return res.status(result.error === "not_found" ? 404 : 400).json({ error: messages[result.error] || result.error });
+    }
+    await applyAndRespond(res, ctx.session, ctx.participants, result, ctx.club, ctx.prev);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/hosted-play/sessions/:id/matches — recorded games, newest first.
+// Player names come from the embedded snapshots (guests included) — no populate.
+router.get("/sessions/:id/matches", auth, admin, async (req, res) => {
+  try {
+    const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId }).select("_id").lean();
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    const matches = await HostedPlayMatch.find({ sessionId: session._id }).sort({ finishedAt: -1 }).lean();
+    res.json(matches);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/hosted-play/matches, /api/hosted-play/player/matches — club-wide,
+// all-time match history (every finished game across every session), newest
+// first. Guests are included as-is (name snapshots) — this is a raw list, not
+// a standings view.
+async function listClubMatchHistory(req, res, clubId) {
+  try {
+    if (!clubId) return res.status(400).json({ error: "You are not assigned to a club" });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 25));
+    const filter = { clubId };
+    if (req.query.sessionId) filter.sessionId = req.query.sessionId;
+
+    const [matches, total] = await Promise.all([
+      HostedPlayMatch.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      HostedPlayMatch.countDocuments(filter),
+    ]);
+
+    const sessionIds = [...new Set(matches.map((m) => String(m.sessionId)))];
+    const sessions = await HostedPlay.find({ _id: { $in: sessionIds } }).select("title date venue sport").lean();
+    const sessionMap = new Map(sessions.map((s) => [String(s._id), s]));
+
+    res.json({
+      matches: matches.map((m) => ({ ...m, session: sessionMap.get(String(m.sessionId)) || null })),
+      total,
+      page,
+      limit,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+router.get("/matches", auth, admin, (req, res) => listClubMatchHistory(req, res, req.user.clubId));
+router.get("/player/matches", auth, (req, res) => listClubMatchHistory(req, res, req.query.clubId || req.user.clubId));
+
+// GET /api/hosted-play/standings, /api/hosted-play/player/standings —
+// club-wide, all-time win/loss standings. Only matches with a decided winner
+// count. Guests (no memberId) never get their own row and are excluded from
+// pairing stats for the side they were on, but a member paired with a guest
+// still gets individual credit for that game.
+async function computeStandings(clubId) {
+  const clubObjectId = new mongoose.Types.ObjectId(clubId);
+  const individuals = await HostedPlayMatch.aggregate([
+    { $match: { clubId: clubObjectId, winnerTeam: { $in: [1, 2] } } },
+    {
+      $project: {
+        winnerTeam: 1,
+        players: {
+          $concatArrays: [
+            { $map: { input: "$team1", as: "p", in: { memberId: "$$p.memberId", memberName: "$$p.memberName", team: 1 } } },
+            { $map: { input: "$team2", as: "p", in: { memberId: "$$p.memberId", memberName: "$$p.memberName", team: 2 } } },
+          ],
+        },
+      },
+    },
+    { $unwind: "$players" },
+    { $match: { "players.memberId": { $ne: null } } },
+    {
+      $group: {
+        _id: "$players.memberId",
+        memberName: { $last: "$players.memberName" },
+        wins: { $sum: { $cond: [{ $eq: ["$players.team", "$winnerTeam"] }, 1, 0] } },
+        losses: { $sum: { $cond: [{ $eq: ["$players.team", "$winnerTeam"] }, 0, 1] } },
+      },
+    },
+    { $addFields: { gamesPlayed: { $add: ["$wins", "$losses"] } } },
+    { $addFields: { winPct: { $cond: [{ $eq: ["$gamesPlayed", 0] }, 0, { $divide: ["$wins", "$gamesPlayed"] }] } } },
+    { $sort: { wins: -1, winPct: -1, gamesPlayed: -1 } },
+    { $project: { _id: 0, memberId: "$_id", memberName: 1, wins: 1, losses: 1, gamesPlayed: 1, winPct: 1 } },
+  ]);
+
+  // Pairing stats are built in JS rather than via a Mongo aggregation
+  // ($sortArray) to avoid depending on a specific MongoDB server version —
+  // this dataset (decided matches for one club) is small enough that this is
+  // cheap and keeps the grouping logic easy to follow.
+  const decidedMatches = await HostedPlayMatch.find({ clubId, winnerTeam: { $in: [1, 2] } })
+    .select("team1 team2 winnerTeam")
+    .lean();
+
+  const pairingMap = new Map();
+  for (const match of decidedMatches) {
+    const sides = [
+      { players: match.team1, won: match.winnerTeam === 1 },
+      { players: match.team2, won: match.winnerTeam === 2 },
+    ];
+    for (const side of sides) {
+      if (!side.players || side.players.length < 2) continue;
+      if (side.players.some((p) => !p.memberId)) continue; // any guest on this side excludes it
+
+      const sortedIds = side.players.map((p) => String(p.memberId)).sort();
+      const key = sortedIds.join("|");
+      if (!pairingMap.has(key)) {
+        pairingMap.set(key, {
+          memberIds: sortedIds,
+          players: side.players.map((p) => ({ memberId: p.memberId, memberName: p.memberName })),
+          wins: 0,
+          losses: 0,
+        });
+      }
+      const entry = pairingMap.get(key);
+      entry.players = side.players.map((p) => ({ memberId: p.memberId, memberName: p.memberName }));
+      if (side.won) entry.wins += 1;
+      else entry.losses += 1;
+    }
+  }
+
+  const pairings = [...pairingMap.values()]
+    .map((entry) => {
+      const gamesPlayed = entry.wins + entry.losses;
+      return { ...entry, gamesPlayed, winPct: gamesPlayed === 0 ? 0 : entry.wins / gamesPlayed };
+    })
+    .sort((a, b) => b.wins - a.wins || b.winPct - a.winPct || b.gamesPlayed - a.gamesPlayed);
+
+  return { individuals, pairings };
+}
+router.get("/standings", auth, admin, async (req, res) => {
+  try {
+    res.json(await computeStandings(req.user.clubId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+router.get("/player/standings", auth, async (req, res) => {
+  try {
+    const clubId = req.query.clubId || req.user.clubId;
+    if (!clubId) return res.status(400).json({ error: "You are not assigned to a club" });
+    res.json(await computeStandings(clubId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/hosted-play/matches/:matchId/score — add/correct scores after the
+// fact. Never retro-adjusts participant wins/losses — those were settled by the
+// queue engine at finish time; scores are record-keeping only.
+router.patch("/matches/:matchId/score", auth, admin, async (req, res) => {
+  try {
+    const match = await HostedPlayMatch.findOne({ _id: req.params.matchId, clubId: req.user.clubId });
+    if (!match) return res.status(404).json({ error: "Match not found" });
+
+    // Both explicitly null clears the scores (and a score-derived winner).
+    if (req.body.team1Score === null && req.body.team2Score === null) {
+      match.team1Score = null;
+      match.team2Score = null;
+      if (match.winnerSource === "scores") {
+        match.winnerTeam = null;
+        match.winnerSource = null;
+      }
+    } else {
+      const scores = parseMatchScores(req.body);
+      if (!scores || scores.error) return res.status(400).json({ error: scores?.error || "Both scores are required" });
+
+      if (match.winnerSource === "tapped") {
+        // The tapped winner is authoritative — scores must agree.
+        const winnerScore = match.winnerTeam === 1 ? scores.team1Score : scores.team2Score;
+        const loserScore = match.winnerTeam === 1 ? scores.team2Score : scores.team1Score;
+        if (winnerScore <= loserScore) return res.status(400).json({ error: "Scores contradict the recorded winner" });
+      } else {
+        match.winnerTeam = scores.team1Score === scores.team2Score ? null : scores.team1Score > scores.team2Score ? 1 : 2;
+        match.winnerSource = match.winnerTeam ? "scores" : null;
+      }
+      match.team1Score = scores.team1Score;
+      match.team2Score = scores.team2Score;
+    }
+    match.scoreEnteredBy = req.user.userId;
+    match.scoreEnteredAt = new Date();
+    await match.save();
+    res.json(match.toObject());
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

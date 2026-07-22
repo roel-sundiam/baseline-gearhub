@@ -110,7 +110,9 @@ import { ClubService, Court } from '../../../core/services/club.service';
                             </div>
                           }
                         </div>
-                        <span class="vs-divider">VS</span>
+                        <span class="vs-divider">
+                          @if (c.liveScore) { {{ c.liveScore.team1Score }}–{{ c.liveScore.team2Score }} } @else { VS }
+                        </span>
                         <div class="team-block team-b">
                           <span class="team-label">Team B</span>
                           @for (p of teams.teamB; track p._id) {
