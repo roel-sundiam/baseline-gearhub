@@ -1,13 +1,15 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReservationService, Reservation } from '../../../core/services/reservation.service';
 import { ClubService } from '../../../core/services/club.service';
+import { ChargesService, Charge } from '../../../core/services/charges.service';
 import { CalendarViewComponent } from '../../../shared/components/calendar-view/calendar-view.component';
 
 const LIGHT_SLOTS = new Set(['5am', '6pm', '7pm', '8pm', '9pm']);
 
 function slotToHour(slot: string): number {
+  if (!slot) return 0;
   const m = slot.match(/^(\d+)(am|pm)$/);
   if (!m) return 0;
   const h = parseInt(m[1], 10);
@@ -27,70 +29,161 @@ function hoursToSlots(opening: number, closing: number): string[] {
   return slots;
 }
 
+interface MemberSummary {
+  key: string;
+  name: string;
+  email: string;
+  count: number;
+  bookings: Reservation[];
+  isGuest: boolean;
+}
+
+interface DateSummary {
+  key: string;
+  date: string;
+  count: number;
+  bookings: Reservation[];
+}
+
 @Component({
   selector: 'app-admin-reservations',
   standalone: true,
   imports: [CommonModule, FormsModule, CalendarViewComponent],
+  styleUrls: ['./admin-reservations-modern.scss'],
   template: `
     <div class="res-shell">
 
-      <!-- Header -->
-      <div class="res-header">
-        <p class="res-kicker"><i class="fas fa-calendar-check"></i> Admin</p>
-        <h2 class="res-title">Court Reservations</h2>
-        <p class="res-subtitle">View, edit, and manage all court bookings</p>
-      </div>
+      <header class="res-header">
+        <div class="hero-copy">
+          <p class="res-kicker"><i class="fas fa-calendar-check" aria-hidden="true"></i> Reservations workspace</p>
+          <h1 class="res-title">Court reservations</h1>
+          <p class="res-subtitle">Review bookings, verify payment status, and keep every court schedule running smoothly.</p>
+        </div>
 
-      <!-- View toggle + filters -->
-      <div class="toolbar">
-        <div class="view-toggle">
-          <button class="view-btn" [class.active]="viewMode === 'table'" (click)="setView('table')">
-            <i class="fas fa-table"></i> Table
+        <div class="hero-stats" aria-label="Reservation summary">
+          <div class="hero-stat">
+            <span class="hero-stat-icon"><i class="fas fa-calendar-day" aria-hidden="true"></i></span>
+            <span>
+              <strong>{{ visibleReservations.length }}</strong>
+              <small>{{ showPast ? 'Visible bookings' : 'Upcoming bookings' }}</small>
+            </span>
+          </div>
+          <div class="hero-stat">
+            <span class="hero-stat-icon confirmed"><i class="fas fa-circle-check" aria-hidden="true"></i></span>
+            <span>
+              <strong>{{ confirmedCount }}</strong>
+              <small>Confirmed</small>
+            </span>
+          </div>
+          <div class="hero-stat">
+            <span class="hero-stat-icon pending"><i class="fas fa-clock" aria-hidden="true"></i></span>
+            <span>
+              <strong>{{ pendingCount }}</strong>
+              <small>Pending payment</small>
+            </span>
+          </div>
+          <div class="hero-stat">
+            <span class="hero-stat-icon courts"><i class="fas fa-table-tennis-paddle-ball" aria-hidden="true"></i></span>
+            <span>
+              <strong>{{ courtCount }}</strong>
+              <small>Active courts</small>
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <section class="toolbar" aria-label="Reservation views and filters">
+        <div class="toolbar-top">
+          <div>
+            <p class="toolbar-eyebrow">Workspace view</p>
+            <h2>Manage bookings</h2>
+          </div>
+          @if (viewMode !== 'calendar') {
+            <span class="result-count">{{ visibleReservations.length }} result{{ visibleReservations.length === 1 ? '' : 's' }}</span>
+          }
+        </div>
+
+        <div class="view-toggle" role="group" aria-label="Choose reservation view">
+          <button type="button" class="view-btn" [class.active]="viewMode === 'table'" [attr.aria-pressed]="viewMode === 'table'" (click)="setView('table')">
+            <i class="fas fa-table-list" aria-hidden="true"></i><span>All bookings</span>
           </button>
-          <button class="view-btn" [class.active]="viewMode === 'calendar'" (click)="setView('calendar')">
-            <i class="fas fa-calendar-alt"></i> Calendar
+          <button type="button" class="view-btn" [class.active]="viewMode === 'member'" [attr.aria-pressed]="viewMode === 'member'" (click)="setView('member')">
+            <i class="fas fa-users" aria-hidden="true"></i><span>By member</span>
+          </button>
+          <button type="button" class="view-btn" [class.active]="viewMode === 'date'" [attr.aria-pressed]="viewMode === 'date'" (click)="setView('date')">
+            <i class="fas fa-calendar-day" aria-hidden="true"></i><span>By date</span>
+          </button>
+          <button type="button" class="view-btn" [class.active]="viewMode === 'calendar'" [attr.aria-pressed]="viewMode === 'calendar'" (click)="setView('calendar')">
+            <i class="fas fa-calendar-alt" aria-hidden="true"></i><span>Calendar</span>
           </button>
         </div>
 
-        @if (viewMode === 'table') {
+        @if (viewMode === 'table' || viewMode === 'member' || viewMode === 'date') {
           <div class="filters">
-            <span class="filter-label">From</span>
-            <input type="date" class="filter-input" [(ngModel)]="filterDateFrom" (change)="load()" />
-            <span class="filter-label">To</span>
-            <input type="date" class="filter-input" [(ngModel)]="filterDateTo" (change)="load()" />
-            <select class="filter-input" [(ngModel)]="filterCourt" (change)="load()">
-              <option value="">All Courts</option>
-              @for (c of courtNumbers; track c) {
-                <option [value]="c">Court {{ c }}</option>
-              }
-            </select>
-            <button class="clear-btn" (click)="clearFilters()">
-              <i class="fas fa-times"></i> Clear
-            </button>
-            <button class="toggle-past-btn" [class.active]="showPast" (click)="togglePast()">
-              <i class="fas fa-history"></i>
-              {{ showPast ? 'Hiding past' : 'Show past' }}
-            </button>
+            <div class="filter-field">
+              <label for="reservation-date-from">From date</label>
+              <input id="reservation-date-from" type="date" class="filter-input" [(ngModel)]="filterDateFrom" (change)="load()" />
+            </div>
+            <div class="filter-field">
+              <label for="reservation-date-to">To date</label>
+              <input id="reservation-date-to" type="date" class="filter-input" [(ngModel)]="filterDateTo" (change)="load()" />
+            </div>
+            <div class="filter-field">
+              <label for="reservation-court">Court</label>
+              <select id="reservation-court" class="filter-input" [(ngModel)]="filterCourt" (change)="load()">
+                <option value="">All courts</option>
+                @for (c of courtNumbers; track c) {
+                  <option [value]="c">Court {{ c }}</option>
+                }
+              </select>
+            </div>
+            <div class="filter-actions">
+              <button type="button" class="toggle-past-btn" [class.active]="showPast" [attr.aria-pressed]="showPast" (click)="togglePast()">
+                <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+                {{ showPast ? 'Past included' : 'Include past' }}
+              </button>
+              <button type="button" class="clear-btn" [disabled]="activeFilterCount === 0" (click)="clearFilters()">
+                <i class="fas fa-filter-circle-xmark" aria-hidden="true"></i>
+                Clear filters
+              </button>
+            </div>
           </div>
         }
-      </div>
+      </section>
 
       <!-- Calendar view -->
       @if (viewMode === 'calendar') {
-        @if (calLoading) {
-          <div class="res-loading"><i class="fas fa-circle-notch fa-spin"></i> Loading…</div>
-        } @else {
-          <app-calendar-view [reservations]="calendarReservations" theme="light" [courtCount]="courtCount" />
-        }
+        <section class="calendar-panel" aria-label="Reservation calendar">
+          @if (calLoading) {
+            <div class="res-loading" role="status"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i> Loading calendar...</div>
+          } @else if (calendarError) {
+            <div class="res-empty res-error" role="alert">
+              <i class="fas fa-cloud-arrow-down res-empty-icon" aria-hidden="true"></i>
+              <h3>Calendar could not be loaded</h3>
+              <p>{{ calendarError }}</p>
+              <button type="button" class="state-action" (click)="loadAllForCalendar()">Try again</button>
+            </div>
+          } @else {
+            <app-calendar-view [reservations]="calendarReservations" theme="dark" [courtCount]="courtCount" />
+          }
+        </section>
       }
 
       <!-- Table view -->
       @if (viewMode === 'table') {
         @if (loading) {
-          <div class="res-loading"><i class="fas fa-circle-notch fa-spin"></i> Loading…</div>
+          <div class="res-loading" role="status"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i> Loading reservations...</div>
+        } @else if (loadError) {
+          <div class="res-empty res-error" role="alert">
+            <i class="fas fa-cloud-arrow-down res-empty-icon" aria-hidden="true"></i>
+            <h3>Reservations could not be loaded</h3>
+            <p>{{ loadError }}</p>
+            <button type="button" class="state-action" (click)="load()">Try again</button>
+          </div>
         } @else if (visibleReservations.length === 0) {
           <div class="res-empty">
-            <i class="fas fa-calendar-xmark res-empty-icon"></i>
+            <i class="fas fa-calendar-xmark res-empty-icon" aria-hidden="true"></i>
+            <h3>No matching reservations</h3>
             <p>{{ reservations.length > 0 ? 'No upcoming reservations. Toggle "Show past" to see older bookings.' : 'No reservations found.' }}</p>
           </div>
         } @else {
@@ -106,6 +199,7 @@ function hoursToSlots(opening: number, closing: number): string[] {
                   <th>Time</th>
                   <th>Add-ons</th>
                   <th>Status</th>
+                  <th>Payment</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -121,10 +215,10 @@ function hoursToSlots(opening: number, closing: number): string[] {
                     <td class="cell-time">{{ timeRangeLabel(r) }}</td>
                     <td>
                       <div class="addons">
-                        @if (r.hasLights) { <span class="addon-chip">💡 Lights</span> }
-                        @if (r.ballBoy) { <span class="addon-chip">🎾 Ball Boy</span> }
-                        @if (r.guestCount && r.guestCount > 0) { <span class="addon-chip">👥 {{ r.guestCount }}</span> }
-                        @if (r.coachingRequested) { <span class="addon-chip">🎓 Coaching{{ r.coachingPax ? ' (' + r.coachingPax + ')' : '' }}</span> }
+                        @if (r.hasLights) { <span class="addon-chip"><i class="fas fa-lightbulb" aria-hidden="true"></i> Lights</span> }
+                        @if (r.ballBoy) { <span class="addon-chip"><i class="fas fa-baseball" aria-hidden="true"></i> Ball boy</span> }
+                        @if (r.guestCount && r.guestCount > 0) { <span class="addon-chip"><i class="fas fa-user-group" aria-hidden="true"></i> {{ r.guestCount }} guest{{ r.guestCount === 1 ? '' : 's' }}</span> }
+                        @if (r.coachingRequested) { <span class="addon-chip"><i class="fas fa-graduation-cap" aria-hidden="true"></i> Coaching{{ r.coachingPax ? ' (' + r.coachingPax + ')' : '' }}</span> }
                       </div>
                     </td>
                     <td>
@@ -132,18 +226,22 @@ function hoursToSlots(opening: number, closing: number): string[] {
                         {{ r.status === 'pending_payment' ? 'Pending' : r.status | titlecase }}
                       </span>
                     </td>
+                    <td>
+                      <span class="status-badge" [class]="paymentBadgeClass(r)">{{ paymentStatusLabel(r) }}</span>
+                      @if (paymentMethodLabel(r)) { <div class="payment-method">{{ paymentMethodLabel(r) }}</div> }
+                    </td>
                     <td class="cell-actions">
                       @if (r.status !== 'cancelled') {
-                        <button class="btn-action btn-edit" [disabled]="acting === r._id" (click)="openEditModal(r)">
-                          <i class="fas fa-pen"></i> Edit
+                        <button type="button" class="btn-action btn-edit" [disabled]="acting === r._id" (click)="openEditModal(r)" [attr.aria-label]="'Edit reservation for ' + playerName(r)">
+                          <i class="fas fa-pen" aria-hidden="true"></i> Edit
                         </button>
                       }
                       @if (r.status === 'confirmed' || r.status === 'pending_payment') {
-                        <button class="btn-action btn-cancel-res" [disabled]="acting === r._id" (click)="cancel(r)">
+                        <button type="button" class="btn-action btn-cancel-res" [disabled]="acting === r._id" (click)="cancel(r)" [attr.aria-label]="'Cancel reservation for ' + playerName(r)">
                           {{ acting === r._id ? '…' : 'Cancel' }}
                         </button>
                       }
-                      <button class="btn-action btn-delete" [disabled]="acting === r._id" (click)="deleteRes(r)">
+                      <button type="button" class="btn-action btn-delete" [disabled]="acting === r._id" (click)="deleteRes(r)" [attr.aria-label]="'Delete reservation for ' + playerName(r)">
                         {{ acting === r._id ? '…' : 'Delete' }}
                       </button>
                     </td>
@@ -167,27 +265,315 @@ function hoursToSlots(opening: number, closing: number): string[] {
                   </span>
                 </div>
                 <div class="card-meta">
-                  <span><i class="fas fa-calendar-day"></i> {{ r.date | date: 'MMM d, y' : 'UTC' }}</span>
-                  <span><i class="fas fa-table-tennis-paddle-ball"></i> Court {{ r.court }}</span>
-                  <span><i class="fas fa-clock"></i> {{ timeRangeLabel(r) }}</span>
-                  @if (r.hasLights) { <span>💡 Lights</span> }
-                  @if (r.ballBoy) { <span>🎾 Ball Boy</span> }
-                  @if (r.coachingRequested) { <span>🎓 Coaching{{ r.coachingPax ? ' (' + r.coachingPax + ')' : '' }}</span> }
+                  <span><i class="fas fa-calendar-day" aria-hidden="true"></i> {{ r.date | date: 'MMM d, y' : 'UTC' }}</span>
+                  <span><i class="fas fa-table-tennis-paddle-ball" aria-hidden="true"></i> Court {{ r.court }}</span>
+                  <span><i class="fas fa-clock" aria-hidden="true"></i> {{ timeRangeLabel(r) }}</span>
+                  @if (r.hasLights) { <span><i class="fas fa-lightbulb" aria-hidden="true"></i> Lights</span> }
+                  @if (r.ballBoy) { <span><i class="fas fa-baseball" aria-hidden="true"></i> Ball boy</span> }
+                  @if (r.coachingRequested) { <span><i class="fas fa-graduation-cap" aria-hidden="true"></i> Coaching{{ r.coachingPax ? ' (' + r.coachingPax + ')' : '' }}</span> }
+                </div>
+                <div class="card-payment">
+                  <span>Payment</span>
+                  <span class="status-badge" [class]="paymentBadgeClass(r)">{{ paymentStatusLabel(r) }}</span>
+                  @if (paymentMethodLabel(r)) { <small>{{ paymentMethodLabel(r) }}</small> }
                 </div>
                 <div class="card-actions">
                   @if (r.status !== 'cancelled') {
-                    <button class="btn-action btn-edit" [disabled]="acting === r._id" (click)="openEditModal(r)">
-                      <i class="fas fa-pen"></i> Edit
+                    <button type="button" class="btn-action btn-edit" [disabled]="acting === r._id" (click)="openEditModal(r)">
+                      <i class="fas fa-pen" aria-hidden="true"></i> Edit
                     </button>
                   }
-                  @if (r.status === 'confirmed') {
-                    <button class="btn-action btn-cancel-res" [disabled]="acting === r._id" (click)="cancel(r)">
+                  @if (r.status === 'confirmed' || r.status === 'pending_payment') {
+                    <button type="button" class="btn-action btn-cancel-res" [disabled]="acting === r._id" (click)="cancel(r)">
                       {{ acting === r._id ? '…' : 'Cancel' }}
                     </button>
                   }
-                  <button class="btn-action btn-delete" [disabled]="acting === r._id" (click)="deleteRes(r)">
+                  <button type="button" class="btn-action btn-delete" [disabled]="acting === r._id" (click)="deleteRes(r)">
                     {{ acting === r._id ? '…' : 'Delete' }}
                   </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      }
+
+      <!-- By Member view -->
+      @if (viewMode === 'member') {
+        @if (loading) {
+          <div class="res-loading" role="status"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i> Loading member groups...</div>
+        } @else if (loadError) {
+          <div class="res-empty res-error" role="alert">
+            <i class="fas fa-cloud-arrow-down res-empty-icon" aria-hidden="true"></i>
+            <h3>Reservations could not be loaded</h3>
+            <p>{{ loadError }}</p>
+            <button type="button" class="state-action" (click)="load()">Try again</button>
+          </div>
+        } @else if (visibleReservations.length === 0) {
+          <div class="res-empty">
+            <i class="fas fa-calendar-xmark res-empty-icon" aria-hidden="true"></i>
+            <h3>No matching reservations</h3>
+            <p>{{ reservations.length > 0 ? 'No upcoming reservations. Toggle "Show past" to see older bookings.' : 'No reservations found.' }}</p>
+          </div>
+        } @else {
+
+          <!-- Summary strip -->
+          <div class="summary-bar">
+            <div class="stat-pill">
+              <span class="stat-count">{{ memberCount }}</span>
+              <span class="stat-label">Members</span>
+            </div>
+            <div class="stat-pill pill-guest">
+              <span class="stat-count">{{ guestGroupCount }}</span>
+              <span class="stat-label">Guest Parties</span>
+            </div>
+            <div class="stat-pill">
+              <span class="stat-count">{{ visibleReservations.length }}</span>
+              <span class="stat-label">Total Bookings</span>
+            </div>
+          </div>
+
+          <!-- Desktop table -->
+          <div class="table-wrap desktop-only">
+            <table class="res-table member-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Member</th>
+                  <th>Email</th>
+                  <th>Bookings</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (m of memberSummaries; track m.key) {
+                  <tr class="member-row" [class.row-guest]="m.isGuest" tabindex="0" role="button"
+                    [attr.aria-expanded]="isMemberExpanded(m.key)"
+                    (click)="toggleMemberExpanded(m.key)"
+                    (keydown.enter)="toggleMemberExpanded(m.key)"
+                    (keydown.space)="$event.preventDefault(); toggleMemberExpanded(m.key)">
+                    <td class="cell-expand">
+                      <i class="fas" [class.fa-chevron-right]="!isMemberExpanded(m.key)" [class.fa-chevron-down]="isMemberExpanded(m.key)"></i>
+                    </td>
+                    <td>
+                      <div class="player-name">{{ m.name }}</div>
+                      @if (m.isGuest) { <span class="addon-chip chip-guest">Guest</span> }
+                    </td>
+                    <td class="player-email">{{ m.email || '—' }}</td>
+                    <td><span class="member-count-badge">{{ m.count }}</span></td>
+                  </tr>
+                  @if (isMemberExpanded(m.key)) {
+                    <tr class="member-detail-row">
+                      <td colspan="4">
+                        <table class="member-bookings-table">
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th>Court</th>
+                              <th>Time</th>
+                              <th>Status</th>
+                              <th>Court Fee</th>
+                              <th>Payment</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (b of m.bookings; track b._id) {
+                              <tr [class.row-cancelled]="b.status === 'cancelled'">
+                                <td>{{ b.date | date: 'MMM d, y' : 'UTC' }}</td>
+                                <td>Court {{ b.court }}</td>
+                                <td>{{ timeRangeLabel(b) }}</td>
+                                <td>
+                                  <span class="status-badge" [class]="'status-' + b.status">
+                                    {{ b.status === 'pending_payment' ? 'Pending' : b.status | titlecase }}
+                                  </span>
+                                </td>
+                                <td>{{ (b.courtFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                                <td>
+                                  <span class="status-badge" [class]="paymentBadgeClass(b)">{{ paymentStatusLabel(b) }}</span>
+                                  @if (paymentMethodLabel(b)) { <div class="payment-method">{{ paymentMethodLabel(b) }}</div> }
+                                </td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile cards -->
+          <div class="mobile-only res-cards">
+            @for (m of memberSummaries; track m.key) {
+              <div class="res-card member-card" [class.card-guest]="m.isGuest" tabindex="0" role="button"
+                [attr.aria-expanded]="isMemberExpanded(m.key)"
+                (click)="toggleMemberExpanded(m.key)"
+                (keydown.enter)="toggleMemberExpanded(m.key)"
+                (keydown.space)="$event.preventDefault(); toggleMemberExpanded(m.key)">
+                <div class="card-top">
+                  <div>
+                    <div class="player-name">{{ m.name }}</div>
+                    <div class="player-email">{{ m.email || '—' }}</div>
+                  </div>
+                  <span class="member-count-badge">{{ m.count }}</span>
+                </div>
+                @if (isMemberExpanded(m.key)) {
+                  <div class="member-bookings-list">
+                    @for (b of m.bookings; track b._id) {
+                      <div class="member-booking-line" [class.row-cancelled]="b.status === 'cancelled'">
+                        <span>{{ b.date | date: 'MMM d, y' : 'UTC' }}</span>
+                        <span>Court {{ b.court }}</span>
+                        <span>{{ timeRangeLabel(b) }}</span>
+                        <span class="status-badge" [class]="'status-' + b.status">
+                          {{ b.status === 'pending_payment' ? 'Pending' : b.status | titlecase }}
+                        </span>
+                        <span>{{ (b.courtFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</span>
+                        <span class="status-badge" [class]="paymentBadgeClass(b)">{{ paymentStatusLabel(b) }}{{ paymentMethodLabel(b) ? ' · ' + paymentMethodLabel(b) : '' }}</span>
+                      </div>
+                    }
+                  </div>
+                }
+                <div class="card-expand-hint">
+                  <i class="fas" [class.fa-chevron-right]="!isMemberExpanded(m.key)" [class.fa-chevron-down]="isMemberExpanded(m.key)"></i>
+                  {{ isMemberExpanded(m.key) ? 'Hide bookings' : 'Show bookings' }}
+                </div>
+              </div>
+            }
+          </div>
+        }
+      }
+
+      <!-- By Date view -->
+      @if (viewMode === 'date') {
+        @if (loading) {
+          <div class="res-loading" role="status"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i> Loading date groups...</div>
+        } @else if (loadError) {
+          <div class="res-empty res-error" role="alert">
+            <i class="fas fa-cloud-arrow-down res-empty-icon" aria-hidden="true"></i>
+            <h3>Reservations could not be loaded</h3>
+            <p>{{ loadError }}</p>
+            <button type="button" class="state-action" (click)="load()">Try again</button>
+          </div>
+        } @else if (visibleReservations.length === 0) {
+          <div class="res-empty">
+            <i class="fas fa-calendar-xmark res-empty-icon" aria-hidden="true"></i>
+            <h3>No matching reservations</h3>
+            <p>{{ reservations.length > 0 ? 'No upcoming reservations. Toggle "Show past" to see older bookings.' : 'No reservations found.' }}</p>
+          </div>
+        } @else {
+
+          <!-- Summary strip -->
+          <div class="summary-bar">
+            <div class="stat-pill">
+              <span class="stat-count">{{ dateSummaries.length }}</span>
+              <span class="stat-label">Dates</span>
+            </div>
+            <div class="stat-pill">
+              <span class="stat-count">{{ visibleReservations.length }}</span>
+              <span class="stat-label">Total Bookings</span>
+            </div>
+          </div>
+
+          <!-- Desktop table -->
+          <div class="table-wrap desktop-only">
+            <table class="res-table date-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Date</th>
+                  <th>Bookings</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (d of dateSummaries; track d.key) {
+                  <tr class="member-row" tabindex="0" role="button"
+                    [attr.aria-expanded]="isDateExpanded(d.key)"
+                    (click)="toggleDateExpanded(d.key)"
+                    (keydown.enter)="toggleDateExpanded(d.key)"
+                    (keydown.space)="$event.preventDefault(); toggleDateExpanded(d.key)">
+                    <td class="cell-expand">
+                      <i class="fas" [class.fa-chevron-right]="!isDateExpanded(d.key)" [class.fa-chevron-down]="isDateExpanded(d.key)"></i>
+                    </td>
+                    <td class="player-name">{{ d.date | date: 'EEE, MMM d, y' : 'UTC' }}</td>
+                    <td><span class="member-count-badge">{{ d.count }}</span></td>
+                  </tr>
+                  @if (isDateExpanded(d.key)) {
+                    <tr class="member-detail-row">
+                      <td colspan="3">
+                        <table class="member-bookings-table">
+                          <thead>
+                            <tr>
+                              <th>Member / Guest</th>
+                              <th>Court</th>
+                              <th>Time</th>
+                              <th>Status</th>
+                              <th>Court Fee</th>
+                              <th>Payment</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (b of d.bookings; track b._id) {
+                              <tr [class.row-cancelled]="b.status === 'cancelled'">
+                                <td>
+                                  <div class="player-name">{{ playerName(b) }}</div>
+                                  <div class="player-email">{{ playerEmail(b) }}</div>
+                                </td>
+                                <td>Court {{ b.court }}</td>
+                                <td>{{ timeRangeLabel(b) }}</td>
+                                <td>
+                                  <span class="status-badge" [class]="'status-' + b.status">
+                                    {{ b.status === 'pending_payment' ? 'Pending' : b.status | titlecase }}
+                                  </span>
+                                </td>
+                                <td>{{ (b.courtFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                                <td>
+                                  <span class="status-badge" [class]="paymentBadgeClass(b)">{{ paymentStatusLabel(b) }}</span>
+                                  @if (paymentMethodLabel(b)) { <div class="payment-method">{{ paymentMethodLabel(b) }}</div> }
+                                </td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile cards -->
+          <div class="mobile-only res-cards">
+            @for (d of dateSummaries; track d.key) {
+              <div class="res-card member-card" tabindex="0" role="button"
+                [attr.aria-expanded]="isDateExpanded(d.key)"
+                (click)="toggleDateExpanded(d.key)"
+                (keydown.enter)="toggleDateExpanded(d.key)"
+                (keydown.space)="$event.preventDefault(); toggleDateExpanded(d.key)">
+                <div class="card-top">
+                  <div class="player-name">{{ d.date | date: 'EEE, MMM d, y' : 'UTC' }}</div>
+                  <span class="member-count-badge">{{ d.count }}</span>
+                </div>
+                @if (isDateExpanded(d.key)) {
+                  <div class="member-bookings-list">
+                    @for (b of d.bookings; track b._id) {
+                      <div class="member-booking-line" [class.row-cancelled]="b.status === 'cancelled'">
+                        <span>{{ playerName(b) }}</span>
+                        <span>Court {{ b.court }}</span>
+                        <span>{{ timeRangeLabel(b) }}</span>
+                        <span class="status-badge" [class]="'status-' + b.status">
+                          {{ b.status === 'pending_payment' ? 'Pending' : b.status | titlecase }}
+                        </span>
+                        <span>{{ (b.courtFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</span>
+                        <span class="status-badge" [class]="paymentBadgeClass(b)">{{ paymentStatusLabel(b) }}{{ paymentMethodLabel(b) ? ' · ' + paymentMethodLabel(b) : '' }}</span>
+                      </div>
+                    }
+                  </div>
+                }
+                <div class="card-expand-hint">
+                  <i class="fas" [class.fa-chevron-right]="!isDateExpanded(d.key)" [class.fa-chevron-down]="isDateExpanded(d.key)"></i>
+                  {{ isDateExpanded(d.key) ? 'Hide bookings' : 'Show bookings' }}
                 </div>
               </div>
             }
@@ -198,16 +584,16 @@ function hoursToSlots(opening: number, closing: number): string[] {
 
     <!-- ── Confirm modal ────────────────────────────────────────── -->
     @if (confirmModal) {
-      <div class="modal-backdrop" (click)="dismissConfirm()"></div>
-      <div class="modal confirm-modal">
+      <div class="modal-backdrop" aria-hidden="true" (click)="dismissConfirm()"></div>
+      <div class="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-description">
         <div class="confirm-icon" [class.icon-danger]="confirmModal.danger">
-          <i class="fas" [class.fa-triangle-exclamation]="confirmModal.danger" [class.fa-circle-question]="!confirmModal.danger"></i>
+          <i class="fas" aria-hidden="true" [class.fa-triangle-exclamation]="confirmModal.danger" [class.fa-circle-question]="!confirmModal.danger"></i>
         </div>
-        <h3 class="confirm-title">{{ confirmModal.title }}</h3>
-        <p class="confirm-body">{{ confirmModal.message }}</p>
+        <h3 id="confirm-modal-title" class="confirm-title">{{ confirmModal.title }}</h3>
+        <p id="confirm-modal-description" class="confirm-body">{{ confirmModal.message }}</p>
         <div class="confirm-actions">
-          <button class="btn-secondary" (click)="dismissConfirm()">Keep it</button>
-          <button class="btn-confirm" [class.btn-confirm-danger]="confirmModal.danger" [disabled]="acting !== ''" (click)="confirmModal.onConfirm()">
+          <button type="button" class="btn-secondary" (click)="dismissConfirm()">Keep reservation</button>
+          <button type="button" class="btn-confirm" [class.btn-confirm-danger]="confirmModal.danger" [disabled]="acting !== ''" (click)="confirmModal.onConfirm()">
             {{ confirmModal.confirmLabel }}
           </button>
         </div>
@@ -216,11 +602,16 @@ function hoursToSlots(opening: number, closing: number): string[] {
 
     <!-- ── Edit modal ────────────────────────────────────────── -->
     @if (editingReservation) {
-      <div class="modal-backdrop" (click)="closeEditModal()"></div>
-      <div class="modal">
+      <div class="modal-backdrop" aria-hidden="true" (click)="closeEditModal()"></div>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-reservation-title">
         <div class="modal-header">
-          <h3>Edit Reservation</h3>
-          <button class="modal-close" (click)="closeEditModal()">✕</button>
+          <div>
+            <p class="modal-kicker">Booking details</p>
+            <h3 id="edit-reservation-title">Edit reservation</h3>
+          </div>
+          <button type="button" class="modal-close" aria-label="Close edit reservation dialog" (click)="closeEditModal()">
+            <span aria-hidden="true">&times;</span>
+          </button>
         </div>
         <div class="modal-body">
 
@@ -249,7 +640,7 @@ function hoursToSlots(opening: number, closing: number): string[] {
             <label>Court</label>
             <div class="court-row">
               @for (c of courtNumbers; track c) {
-                <button class="court-btn" [class.active]="editCourt === c" (click)="setEditCourt(c)">
+                <button type="button" class="court-btn" [class.active]="editCourt === c" [attr.aria-pressed]="editCourt === c" (click)="setEditCourt(c)">
                   Court {{ c }}
                 </button>
               }
@@ -268,10 +659,11 @@ function hoursToSlots(opening: number, closing: number): string[] {
             } @else {
               <div class="slot-grid">
                 @for (slot of allSlots; track slot) {
-                  <button class="slot-btn"
+                  <button type="button" class="slot-btn"
                     [class.booked]="editBookedSlots.has(slot)"
                     [class.selected]="editSlot === slot"
                     [class.in-range]="isEditInRange(slot)"
+                    [attr.aria-pressed]="editSlot === slot"
                     [disabled]="editBookedSlots.has(slot) || isEditInRange(slot)"
                     (click)="selectEditSlot(slot)">
                     {{ slot }}
@@ -339,19 +731,19 @@ function hoursToSlots(opening: number, closing: number): string[] {
 
           <!-- Admin Notes -->
           <div class="m-divider"></div>
-          <div class="m-section-label"><i class="fas fa-note-sticky"></i> Admin Notes <span class="m-note-hint">(internal only — not visible to guests)</span></div>
+          <div class="m-section-label"><i class="fas fa-note-sticky" aria-hidden="true"></i> Admin Notes <span class="m-note-hint">(internal only — not visible to guests)</span></div>
           <div class="m-field">
             <textarea class="m-input m-notes" rows="3" [(ngModel)]="editAdminNote" placeholder="e.g. Payment collected weekly, confirmed arrangement"></textarea>
           </div>
 
           @if (editError) {
-            <div class="m-error"><i class="fas fa-exclamation-triangle"></i> {{ editError }}</div>
+            <div class="m-error" role="alert"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i> {{ editError }}</div>
           }
         </div>
 
         <div class="modal-footer">
-          <button class="btn-secondary" (click)="closeEditModal()">Cancel</button>
-          <button class="btn-primary" [disabled]="editSaving || !editSlot" (click)="saveEdit()">
+          <button type="button" class="btn-secondary" (click)="closeEditModal()">Cancel</button>
+          <button type="button" class="btn-primary" [disabled]="editSaving || !editSlot" (click)="saveEdit()">
             {{ editSaving ? 'Saving…' : 'Save Changes' }}
           </button>
         </div>
@@ -535,6 +927,89 @@ function hoursToSlots(opening: number, closing: number): string[] {
       border-radius: 6px;
     }
 
+    /* ── By Member view ── */
+    .summary-bar { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1.25rem; }
+    .stat-pill {
+      padding: .75rem 1.25rem;
+      min-width: 90px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      gap: .1rem;
+    }
+    .stat-count { font-size: 1.6rem; font-weight: 800; color: var(--accent); line-height: 1.1; }
+    .stat-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .pill-guest { border-color: rgba(255,255,255,.15); }
+    .pill-guest .stat-count { color: var(--muted); }
+
+    .member-row { cursor: pointer; }
+    .member-row:hover td { background: var(--surface-hover); }
+    .member-row.row-guest .player-name { color: var(--muted); }
+    .cell-expand { width: 2rem; color: var(--muted); text-align: center; }
+    .chip-guest { background: rgba(255,255,255,.06); color: var(--muted); border-color: var(--border); margin-left: .4rem; }
+
+    .member-count-badge {
+      display: inline-block;
+      min-width: 1.6rem;
+      padding: .2rem .55rem;
+      border-radius: 8px;
+      background: rgba(163,230,53,.12);
+      color: var(--accent);
+      font-weight: 700;
+      font-size: .8rem;
+      text-align: center;
+    }
+
+    .member-detail-row td { padding: 0; border-bottom: 1px solid var(--border); }
+    .member-bookings-table { width: 100%; border-collapse: collapse; background: rgba(255,255,255,.02); }
+    .member-bookings-table th {
+      padding: .5rem 1rem .5rem 3rem;
+      font-size: .68rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--muted);
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .member-bookings-table td {
+      padding: .55rem 1rem .55rem 3rem;
+      font-size: .84rem;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+    }
+    .member-bookings-table tr:last-child td { border-bottom: none; }
+    .member-bookings-table tr.row-cancelled td { opacity: .45; }
+
+    .member-card { cursor: pointer; }
+    .member-card.card-guest { border-left-color: rgba(255,255,255,.15); }
+    .card-expand-hint {
+      margin-top: .6rem;
+      font-size: .78rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: .35rem;
+    }
+    .member-bookings-list {
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+      margin-top: .6rem;
+      padding-top: .6rem;
+      border-top: 1px solid var(--border);
+    }
+    .member-booking-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      align-items: center;
+      font-size: .8rem;
+      color: var(--muted);
+    }
+    .member-booking-line.row-cancelled { opacity: .5; }
+
     /* Status badges */
     .status-badge {
       display: inline-block;
@@ -549,6 +1024,12 @@ function hoursToSlots(opening: number, closing: number): string[] {
     .status-confirmed      { background: rgba(163,230,53,.12); color: var(--accent); }
     .status-cancelled      { background: rgba(255,255,255,.07); color: var(--muted); }
     .status-pending_payment { background: rgba(245,158,11,.15); color: #fcd34d; }
+    .status-paid            { background: rgba(163,230,53,.12); color: var(--accent); }
+    .status-unpaid          { background: rgba(239,68,68,.12); color: #fca5a5; }
+    .status-pending-approval { background: rgba(245,158,11,.15); color: #fcd34d; }
+    .status-rejected        { background: rgba(239,68,68,.15); color: #fca5a5; }
+    .status-none            { background: rgba(255,255,255,.07); color: var(--muted); }
+    .payment-method { font-size: .72rem; color: var(--muted); margin-top: .2rem; }
 
     /* Action buttons */
     .cell-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
@@ -820,19 +1301,127 @@ export class AdminReservationsComponent implements OnInit {
   calendarReservations: Reservation[] = [];
   loading = true;
   calLoading = false;
+  loadError = '';
+  calendarError = '';
   acting = '';
   filterDateFrom = '';
   filterDateTo = '';
   filterCourt = '';
   showPast = false;
-  viewMode: 'table' | 'calendar' = 'table';
+  viewMode: 'table' | 'calendar' | 'member' | 'date' = 'table';
+  expandedMemberKeys = new Set<string>();
+  expandedDateKeys = new Set<string>();
 
   togglePast() { this.showPast = !this.showPast; this.cdr.detectChanges(); }
 
   get visibleReservations(): Reservation[] {
     if (this.showPast) return this.reservations;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const todayStr = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0'),
+    ].join('-');
     return this.reservations.filter(r => r.date && r.date.split('T')[0] >= todayStr);
+  }
+
+  get confirmedCount(): number {
+    return this.visibleReservations.filter(r => r.status === 'confirmed').length;
+  }
+
+  get pendingCount(): number {
+    return this.visibleReservations.filter(r => r.status === 'pending_payment').length;
+  }
+
+  get activeFilterCount(): number {
+    return [this.filterDateFrom, this.filterDateTo, this.filterCourt].filter(Boolean).length;
+  }
+
+  get memberSummaries(): MemberSummary[] {
+    const map = new Map<string, MemberSummary>();
+
+    for (const r of this.visibleReservations) {
+      let key: string;
+      let name: string;
+      let email: string;
+      let isGuest = false;
+
+      if (typeof r.player === 'object' && r.player) {
+        key = r.player._id;
+        name = r.player.name;
+        email = r.player.email;
+      } else if (r.guestInfo?.name || r.guestInfo?.email) {
+        const identity = (r.guestInfo.email || r.guestInfo.name || '').trim().toLowerCase();
+        key = `guest:${identity}`;
+        name = `${r.guestInfo.name} (Guest)`;
+        email = r.guestInfo.email ?? '';
+        isGuest = true;
+      } else {
+        key = 'unknown';
+        name = 'Unknown';
+        email = '';
+        isGuest = true;
+      }
+
+      let entry = map.get(key);
+      if (!entry) {
+        entry = { key, name, email, count: 0, bookings: [], isGuest };
+        map.set(key, entry);
+      }
+      entry.count++;
+      entry.bookings.push(r);
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.isGuest !== b.isGuest) return a.isGuest ? 1 : -1;
+      return b.count - a.count || a.name.localeCompare(b.name);
+    });
+  }
+
+  get memberCount(): number { return this.memberSummaries.filter(m => !m.isGuest).length; }
+  get guestGroupCount(): number { return this.memberSummaries.filter(m => m.isGuest).length; }
+
+  toggleMemberExpanded(key: string) {
+    if (this.expandedMemberKeys.has(key)) this.expandedMemberKeys.delete(key);
+    else this.expandedMemberKeys.add(key);
+    this.cdr.detectChanges();
+  }
+
+  isMemberExpanded(key: string): boolean {
+    return this.expandedMemberKeys.has(key);
+  }
+
+  get dateSummaries(): DateSummary[] {
+    const map = new Map<string, DateSummary>();
+
+    for (const r of this.visibleReservations) {
+      const key = r.date ? r.date.split('T')[0] : 'unknown';
+      let entry = map.get(key);
+      if (!entry) {
+        entry = { key, date: r.date, count: 0, bookings: [] };
+        map.set(key, entry);
+      }
+      entry.count++;
+      entry.bookings.push(r);
+    }
+
+    for (const entry of map.values()) {
+      entry.bookings.sort((a, b) => slotToHour(a.timeSlot) - slotToHour(b.timeSlot) || a.court - b.court);
+    }
+
+    return Array.from(map.values()).sort((a, b) =>
+      this.showPast ? b.key.localeCompare(a.key) : a.key.localeCompare(b.key)
+    );
+  }
+
+  toggleDateExpanded(key: string) {
+    if (this.expandedDateKeys.has(key)) this.expandedDateKeys.delete(key);
+    else this.expandedDateKeys.add(key);
+    this.cdr.detectChanges();
+  }
+
+  isDateExpanded(key: string): boolean {
+    return this.expandedDateKeys.has(key);
   }
 
   // Confirm modal state
@@ -866,17 +1455,29 @@ export class AdminReservationsComponent implements OnInit {
   allSlots: string[] = hoursToSlots(5, 22);
   readonly lightSlots = LIGHT_SLOTS;
   courtCount = 2;
+  chargesByReservationId = new Map<string, Charge>();
 
   get courtNumbers(): number[] { return Array.from({ length: this.courtCount }, (_, i) => i + 1); }
 
   constructor(
     private reservationService: ReservationService,
     private clubService: ClubService,
+    private chargesService: ChargesService,
     private cdr: ChangeDetectorRef,
   ) {}
 
+  @HostListener('document:keydown.escape')
+  handleEscape() {
+    if (this.confirmModal) {
+      this.dismissConfirm();
+    } else if (this.editingReservation && !this.editSaving) {
+      this.closeEditModal();
+    }
+  }
+
   ngOnInit() {
     this.load();
+    this.loadCharges();
     const clubId = this.clubService.getSelectedClubId();
     if (clubId) {
       this.clubService.getClub(clubId).subscribe({
@@ -890,15 +1491,63 @@ export class AdminReservationsComponent implements OnInit {
     }
   }
 
+  loadCharges() {
+    this.chargesService.getAllCharges().subscribe({
+      next: (charges) => {
+        this.chargesByReservationId.clear();
+        for (const c of charges) {
+          if (c.chargeType !== 'reservation' || !c.reservationId) continue;
+          const resId = typeof c.reservationId === 'object' ? c.reservationId._id : c.reservationId;
+          this.chargesByReservationId.set(resId, c);
+        }
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
+  }
+
+  chargeFor(r: Reservation): Charge | undefined {
+    return this.chargesByReservationId.get(r._id);
+  }
+
+  paymentStatusLabel(r: Reservation): string {
+    const c = this.chargeFor(r);
+    if (!c) return '—';
+    if (c.status === 'paid') return 'Paid';
+    if (c.approvalStatus === 'pending') return 'Pending Approval';
+    if (c.approvalStatus === 'rejected') return 'Rejected';
+    return 'Unpaid';
+  }
+
+  paymentBadgeClass(r: Reservation): string {
+    const c = this.chargeFor(r);
+    if (!c) return 'status-none';
+    if (c.status === 'paid') return 'status-paid';
+    if (c.approvalStatus === 'pending') return 'status-pending-approval';
+    if (c.approvalStatus === 'rejected') return 'status-rejected';
+    return 'status-unpaid';
+  }
+
+  paymentMethodLabel(r: Reservation): string {
+    return this.chargeFor(r)?.paymentMethod ?? '';
+  }
+
   load() {
     this.loading = true;
+    this.loadError = '';
+    this.expandedMemberKeys.clear();
+    this.expandedDateKeys.clear();
     const filters: { startDate?: string; endDate?: string; court?: string } = {};
     if (this.filterDateFrom) filters.startDate = this.filterDateFrom;
     if (this.filterDateTo) filters.endDate = this.filterDateTo;
     if (this.filterCourt) filters.court = this.filterCourt;
     this.reservationService.getAll(filters).subscribe({
       next: (res) => { this.reservations = res; this.loading = false; this.cdr.detectChanges(); },
-      error: () => { this.loading = false; this.cdr.detectChanges(); },
+      error: () => {
+        this.loading = false;
+        this.loadError = 'Check your connection and try loading the reservation list again.';
+        this.cdr.detectChanges();
+      },
     });
   }
 
@@ -909,7 +1558,7 @@ export class AdminReservationsComponent implements OnInit {
     this.load();
   }
 
-  setView(mode: 'table' | 'calendar') {
+  setView(mode: 'table' | 'calendar' | 'member' | 'date') {
     this.viewMode = mode;
     if (mode === 'calendar' && this.calendarReservations.length === 0) {
       this.loadAllForCalendar();
@@ -919,9 +1568,14 @@ export class AdminReservationsComponent implements OnInit {
 
   loadAllForCalendar() {
     this.calLoading = true;
+    this.calendarError = '';
     this.reservationService.getAll().subscribe({
       next: (res) => { this.calendarReservations = res; this.calLoading = false; this.cdr.detectChanges(); },
-      error: () => { this.calLoading = false; this.cdr.detectChanges(); },
+      error: () => {
+        this.calLoading = false;
+        this.calendarError = 'Check your connection and try loading the calendar again.';
+        this.cdr.detectChanges();
+      },
     });
   }
 
@@ -953,7 +1607,17 @@ export class AdminReservationsComponent implements OnInit {
         this.cdr.detectChanges();
         this.reservationService.cancel(r._id).subscribe({
           next: () => { this.acting = ''; this.load(); },
-          error: () => { this.acting = ''; this.cdr.detectChanges(); },
+          error: () => {
+            this.acting = '';
+            this.confirmModal = {
+              title: 'Cancellation failed',
+              message: 'The reservation was not changed. Please check your connection and try again.',
+              confirmLabel: 'Close',
+              danger: false,
+              onConfirm: () => this.dismissConfirm(),
+            };
+            this.cdr.detectChanges();
+          },
         });
       },
     };
@@ -1032,7 +1696,11 @@ export class AdminReservationsComponent implements OnInit {
         this.computeEditAvailableDurations();
         this.cdr.detectChanges();
       },
-      error: () => { this.editLoadingSlots = false; this.cdr.detectChanges(); },
+      error: () => {
+        this.editLoadingSlots = false;
+        this.editError = 'Available time slots could not be loaded. Please try another date or court.';
+        this.cdr.detectChanges();
+      },
     });
   }
 
