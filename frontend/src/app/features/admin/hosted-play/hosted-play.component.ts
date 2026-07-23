@@ -8,6 +8,7 @@ import {
   HostedPlayInput,
   HostedPlayParticipant,
   HostedPlayWaitlistEntry,
+  HostedPlayRefundRow,
 } from '../../../core/services/hosted-play.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ClubService, Court } from '../../../core/services/club.service';
@@ -19,6 +20,7 @@ type FormModel = HostedPlayInput;
   selector: 'app-admin-hosted-play',
   standalone: true,
   imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe],
+  styleUrls: ['./hosted-play-cancel-modal.scss'],
   template: `
     <div class="hp-shell">
       <header class="topbar">
@@ -105,7 +107,10 @@ type FormModel = HostedPlayInput;
                 In Progress <span class="chip-count">{{ startedCount() }}</span>
               </button>
               <button type="button" class="filter-chip" [class.active]="sessionFilter() === 'past'" (click)="sessionFilter.set('past')">
-                Past <span class="chip-count">{{ sessions.length - upcomingCount() - startedCount() }}</span>
+                Past <span class="chip-count">{{ pastCount() }}</span>
+              </button>
+              <button type="button" class="filter-chip" [class.active]="sessionFilter() === 'cancelled'" (click)="sessionFilter.set('cancelled')">
+                Cancelled <span class="chip-count">{{ cancelledCount() }}</span>
               </button>
               <button type="button" class="filter-chip" [class.active]="sessionFilter() === 'all'" (click)="sessionFilter.set('all')">
                 All <span class="chip-count">{{ sessions.length }}</span>
@@ -197,6 +202,9 @@ type FormModel = HostedPlayInput;
                     }
                     @if (s.feeSplitMode === 'split_total' && !(s.queueManagementEnabled ?? queueEnabled()) && s.status !== 'completed' && s.status !== 'cancelled') {
                       <button class="action primary" [disabled]="markingCompleteId === s._id" (click)="markSessionComplete(s)"><i class="fas fa-flag-checkered"></i> Mark Complete &amp; Bill</button>
+                    }
+                    @if (s.status !== 'cancelled' && s.status !== 'completed') {
+                      <button class="action danger" (click)="openCancelSession(s)"><i class="fas fa-ban"></i> Cancel Session</button>
                     }
                     <button class="action danger" (click)="confirmDelete(s)"><i class="fas fa-trash"></i> Delete</button>
                   </div>
@@ -458,6 +466,146 @@ type FormModel = HostedPlayInput;
             </button>
           </div>
         </div>
+      </div>
+    }
+
+    @if (cancelModalSession(); as cs) {
+      <div class="modal-backdrop cancel-refund-backdrop" (click)="closeCancelSession()">
+        <section class="modal cancel-refund-modal" role="dialog" aria-modal="true"
+          aria-labelledby="cancel-session-title" aria-describedby="cancel-session-description"
+          (click)="$event.stopPropagation()">
+          <header class="modal-head cancel-refund-head">
+            <div class="cancel-title-wrap">
+              <span class="cancel-title-icon" aria-hidden="true"><i class="fas fa-ban"></i></span>
+              <div>
+                <span class="modal-kicker">Cancel session</span>
+                <h3 id="cancel-session-title">Cancel “{{ cs.title }}”?</h3>
+              </div>
+            </div>
+            <button type="button" class="x cancel-close" [disabled]="cancelSubmitting()"
+              (click)="closeCancelSession()" aria-label="Close cancellation dialog">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </header>
+
+          <div class="modal-body cancel-refund-body">
+            <div class="cancel-explainer" id="cancel-session-description">
+              <i class="fas fa-circle-info" aria-hidden="true"></i>
+              @if (cancelCreditsEnabled()) {
+                <div>
+                  <strong>Choose how much account credit each member receives</strong>
+                  <p>Convenience fees are excluded. Guests and players without credits must be refunded separately outside CourtGo.</p>
+                </div>
+              } @else {
+                <div>
+                  <strong>Account credits are disabled for this club</strong>
+                  <p>No credit will be issued on cancellation. Refund every paid participant separately outside CourtGo.</p>
+                </div>
+              }
+            </div>
+
+            @if (cancelPreviewLoading()) {
+              <div class="cancel-loading" role="status">
+                <span class="cancel-loading-icon"><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i></span>
+                <div>
+                  <strong>Preparing refund details</strong>
+                  <span>Loading paid participants...</span>
+                </div>
+              </div>
+            } @else if (cancelRefundRows().length === 0) {
+              <div class="cancel-empty">
+                <span><i class="fas fa-circle-check" aria-hidden="true"></i></span>
+                <strong>No participant credits needed</strong>
+                <p>This session has no paid participants. You can cancel it immediately.</p>
+              </div>
+            } @else {
+              <div class="cancel-summary" aria-label="Cancellation summary">
+                <div class="cancel-summary-item">
+                  <span>Paid participants</span>
+                  <strong>{{ cancelRefundRows().length }}</strong>
+                </div>
+                @if (cancelCreditsEnabled()) {
+                  <div class="cancel-summary-item credit">
+                    <span>Account credits</span>
+                    <strong>{{ cancelCreditTotal() | currency:'PHP':'symbol-narrow':'1.0-2' }}</strong>
+                  </div>
+                }
+                <div class="cancel-summary-item external">
+                  <span>Outside-app refunds</span>
+                  <strong>{{ cancelExternalRefundCount() }}</strong>
+                </div>
+              </div>
+
+              <div class="refund-list">
+                @for (row of cancelRefundRows(); track row.chargeId; let rowIndex = $index) {
+                  <article class="refund-card" [class.external-refund]="row.isGuest || !cancelCreditsEnabled()">
+                    <div class="refund-person">
+                      <span class="refund-avatar" aria-hidden="true">{{ refundInitials(row.name) }}</span>
+                      <div class="refund-person-copy">
+                        <strong>{{ row.name }}</strong>
+                        <span>
+                          Paid {{ row.amountPaid | currency:'PHP':'symbol-narrow':'1.2-2' }}
+                          @if (row.convenienceFee > 0) {
+                            <small>Excludes {{ row.convenienceFee | currency:'PHP':'symbol-narrow':'1.2-2' }} convenience fee</small>
+                          }
+                        </span>
+                      </div>
+                    </div>
+
+                    @if (row.isGuest || !cancelCreditsEnabled()) {
+                      <div class="external-refund-callout">
+                        <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                        <div>
+                          <strong>Refund outside CourtGo</strong>
+                          <span>{{ row.isGuest ? 'Guest booking has no linked account' : 'Account credits are disabled for this club' }}</span>
+                        </div>
+                      </div>
+                    } @else {
+                      <label class="refund-credit-field" [for]="'refund-credit-' + rowIndex">
+                        <span class="refund-field-label">Account credit</span>
+                        <span class="refund-input-wrap">
+                          <span class="refund-currency" aria-hidden="true">₱</span>
+                          <input [id]="'refund-credit-' + rowIndex" class="refund-amount-input"
+                            [class.invalid]="!isRefundAmountValid(row)"
+                            type="number" inputmode="decimal" min="0" [max]="row.amountPaid" step="1"
+                            [(ngModel)]="row.refundAmount"
+                            [attr.aria-describedby]="'refund-limit-' + rowIndex" />
+                        </span>
+                        @if (isRefundAmountValid(row)) {
+                          <small [id]="'refund-limit-' + rowIndex">Maximum {{ row.amountPaid | currency:'PHP':'symbol-narrow':'1.2-2' }}</small>
+                        } @else {
+                          <small [id]="'refund-limit-' + rowIndex" class="invalid">Enter an amount from ₱0 to {{ row.amountPaid | number:'1.2-2' }}</small>
+                        }
+                      </label>
+                    }
+                  </article>
+                }
+              </div>
+            }
+
+            @if (cancelError()) {
+              <div class="alert cancel-refund-error" role="alert">
+                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i> {{ cancelError() }}
+              </div>
+            }
+          </div>
+
+          <footer class="modal-foot cancel-refund-foot">
+            <p><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> This action cannot be undone.</p>
+            <div class="cancel-refund-actions">
+              <button type="button" class="secondary-btn" (click)="closeCancelSession()" [disabled]="cancelSubmitting()">Keep session</button>
+              <button type="button" class="danger-action cancel-confirm-btn"
+                [disabled]="cancelSubmitting() || cancelPreviewLoading() || !cancelRefundsValid()" (click)="confirmCancelSession()">
+                @if (cancelSubmitting()) {
+                  <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i> Cancelling...
+                } @else {
+                  <i class="fas fa-ban" aria-hidden="true"></i>
+                  {{ cancelCreditsEnabled() && cancelCreditTotal() > 0 ? 'Cancel & issue credits' : 'Cancel session' }}
+                }
+              </button>
+            </div>
+          </footer>
+        </section>
       </div>
     }
 
@@ -989,7 +1137,7 @@ export class AdminHostedPlayComponent implements OnInit {
   sessions: HostedPlaySession[] = [];
   errorMap: Record<string, string> = {};
   todayStr = new Date().toISOString().slice(0, 10);
-  sessionFilter = signal<'all' | 'upcoming' | 'started' | 'past'>('upcoming');
+  sessionFilter = signal<'all' | 'upcoming' | 'started' | 'past' | 'cancelled'>('upcoming');
   private filterInitialized = false;
   queueEnabled = signal(false);
   queueFeePerPlayer = signal(0);
@@ -1029,6 +1177,13 @@ export class AdminHostedPlayComponent implements OnInit {
   showDeleteConfirm = false;
   deletingSession: HostedPlaySession | null = null;
   deleting = false;
+
+  cancelModalSession = signal<HostedPlaySession | null>(null);
+  cancelRefundRows = signal<(HostedPlayRefundRow & { refundAmount: number })[]>([]);
+  cancelCreditsEnabled = signal(true);
+  cancelPreviewLoading = signal(false);
+  cancelSubmitting = signal(false);
+  cancelError = signal('');
 
   showEnableQueue = false;
   enablingQueueSession: HostedPlaySession | null = null;
@@ -1138,11 +1293,20 @@ export class AdminHostedPlayComponent implements OnInit {
     return this.sessions.filter(s => this.isInProgress(s)).length;
   }
 
+  pastCount(): number {
+    return this.sessions.filter(s => !this.isUpcoming(s) && !this.isInProgress(s) && s.status !== 'cancelled').length;
+  }
+
+  cancelledCount(): number {
+    return this.sessions.filter(s => s.status === 'cancelled').length;
+  }
+
   filteredSessions(): HostedPlaySession[] {
     const f = this.sessionFilter();
     if (f === 'upcoming') return this.sessions.filter(s => this.isUpcoming(s));
     if (f === 'started') return this.sessions.filter(s => this.isInProgress(s));
-    if (f === 'past') return this.sessions.filter(s => !this.isUpcoming(s) && !this.isInProgress(s));
+    if (f === 'past') return this.sessions.filter(s => !this.isUpcoming(s) && !this.isInProgress(s) && s.status !== 'cancelled');
+    if (f === 'cancelled') return this.sessions.filter(s => s.status === 'cancelled');
     return this.sessions;
   }
 
@@ -1392,6 +1556,91 @@ export class AdminHostedPlayComponent implements OnInit {
         this.showDeleteConfirm = false;
         this.deletingSession = null;
         this.deleting = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  refundInitials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '?';
+    return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+  }
+
+  isRefundAmountValid(row: HostedPlayRefundRow & { refundAmount: number }): boolean {
+    const amount = Number(row.refundAmount);
+    return Number.isFinite(amount) && amount >= 0 && amount <= row.amountPaid;
+  }
+
+  cancelRefundsValid(): boolean {
+    if (!this.cancelCreditsEnabled()) return true;
+    return this.cancelRefundRows()
+      .filter((row) => !row.isGuest && row.playerId)
+      .every((row) => this.isRefundAmountValid(row));
+  }
+
+  cancelCreditTotal(): number {
+    if (!this.cancelCreditsEnabled()) return 0;
+    return this.cancelRefundRows()
+      .filter((row) => !row.isGuest && row.playerId && this.isRefundAmountValid(row))
+      .reduce((total, row) => total + Number(row.refundAmount), 0);
+  }
+
+  cancelExternalRefundCount(): number {
+    return this.cancelRefundRows()
+      .filter((row) => row.isGuest || !this.cancelCreditsEnabled())
+      .length;
+  }
+
+  openCancelSession(s: HostedPlaySession) {
+    this.cancelModalSession.set(s);
+    this.cancelError.set('');
+    this.cancelRefundRows.set([]);
+    this.cancelPreviewLoading.set(true);
+    this.hp.getRefundPreview(s._id).subscribe({
+      next: (res) => {
+        this.cancelCreditsEnabled.set(res.creditsEnabled);
+        this.cancelRefundRows.set(res.rows.map((r) => ({ ...r, refundAmount: r.suggestedRefund })));
+        this.cancelPreviewLoading.set(false);
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.cancelError.set(err?.error?.error || 'Failed to load refund preview.');
+        this.cancelPreviewLoading.set(false);
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  closeCancelSession() {
+    if (this.cancelSubmitting()) return;
+    this.cancelModalSession.set(null);
+    this.cancelRefundRows.set([]);
+    this.cancelError.set('');
+  }
+
+  confirmCancelSession() {
+    const s = this.cancelModalSession();
+    if (!s) return;
+    const refunds = this.cancelCreditsEnabled()
+      ? this.cancelRefundRows()
+          .filter((r) => !r.isGuest && r.playerId)
+          .map((r) => ({ chargeId: r.chargeId, playerId: r.playerId as string, amount: Number(r.refundAmount) || 0 }))
+      : [];
+
+    this.cancelSubmitting.set(true);
+    this.cancelError.set('');
+    this.hp.cancelWithRefunds(s._id, refunds).subscribe({
+      next: (res) => {
+        const idx = this.sessions.findIndex((x) => x._id === s._id);
+        if (idx !== -1) this.sessions[idx] = { ...this.sessions[idx], ...res.session };
+        this.cancelSubmitting.set(false);
+        this.closeCancelSession();
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.cancelError.set(err?.error?.error || 'Failed to cancel session.');
+        this.cancelSubmitting.set(false);
         this.cdr.detectChanges();
       },
     });

@@ -375,6 +375,42 @@ router.patch("/:id/hosted-play-queue", auth, superadmin, async (req, res) => {
   }
 });
 
+// PATCH /api/clubs/me/hosted-play-credits — club admin self-toggle Hosted Play credit usage
+router.patch("/me/hosted-play-credits", auth, admin, async (req, res) => {
+  try {
+    const clubId = req.user.clubId;
+    if (!clubId) return res.status(400).json({ error: "No club associated with this account" });
+    const { enabled } = req.body;
+    const club = await Club.findByIdAndUpdate(
+      clubId,
+      { hostedPlayCreditsEnabled: !!enabled },
+      { new: true },
+    ).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json(club);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /api/clubs/:id/hosted-play-credits — enable/disable Hosted Play credit usage (superadmin only)
+router.patch("/:id/hosted-play-credits", auth, superadmin, async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const club = await Club.findByIdAndUpdate(
+      req.params.id,
+      { hostedPlayCreditsEnabled: !!enabled },
+      { new: true },
+    ).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json(club);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // PATCH /api/clubs/me/hosted-play-fee-split-mode — club admin self-toggle billing model
 router.patch("/me/hosted-play-fee-split-mode", auth, admin, async (req, res) => {
   try {

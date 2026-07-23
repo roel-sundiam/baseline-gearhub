@@ -294,7 +294,7 @@ async function joinSessionAsParticipant({ session, memberId, paymentMethod, paym
 
   const [user, club] = await Promise.all([
     User.findById(memberId).select("name").lean(),
-    Club.findById(session.clubId).select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode").lean(),
+    Club.findById(session.clubId).select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayCreditsEnabled").lean(),
   ]);
 
   const hasPaymentProof = !!(paymentScreenshot && paymentMethod);
@@ -752,12 +752,134 @@ router.post("/sessions/:id/enable-queue", auth, admin, async (req, res) => {
   }
 });
 
-// PATCH /api/hosted-play/sessions/:id/status — manual close / cancel / reopen
+// GET /api/hosted-play/sessions/:id/refund-preview — paid participants + amounts
+// for the admin "Cancel Session" refund modal, read-only.
+router.get("/sessions/:id/refund-preview", auth, admin, async (req, res) => {
+  try {
+    const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId }).lean();
+    if (!session) return res.status(404).json({ error: "Session not found" });
+
+    const [participants, club] = await Promise.all([
+      HostedPlayParticipant.find({ hostedPlayId: session._id, chargeId: { $ne: null } })
+        .populate({ path: "chargeId", match: { status: "paid" } })
+        .populate("memberId", "name email")
+        .lean(),
+      Club.findById(session.clubId).select("hostedPlayCreditsEnabled").lean(),
+    ]);
+
+    const rows = participants
+      .filter((p) => p.chargeId)
+      .map((p) => {
+        const charge = p.chargeId;
+        const convenienceFee = charge.breakdown?.convenienceFee || 0;
+        return {
+          participantId: p._id,
+          chargeId: charge._id,
+          playerId: p.memberId ? p.memberId._id : null,
+          isGuest: !p.memberId,
+          name: p.memberId?.name || p.memberName || p.guestEmail || "Guest",
+          amountPaid: charge.amount,
+          convenienceFee,
+          suggestedRefund: Math.max(0, charge.amount - convenienceFee),
+          creditApplied: charge.creditApplied,
+          paymentMethod: charge.paymentMethod,
+        };
+      });
+
+    res.json({
+      session: { _id: session._id, title: session.title, status: session.status },
+      creditsEnabled: club?.hostedPlayCreditsEnabled !== false,
+      rows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/cancel-with-refunds — cancel a session,
+// granting each paid participant admin-reviewed credit back and waiving any
+// still-unpaid charges. Refund amounts are never trusted verbatim from the
+// client: charges are re-fetched by id/status and each amount is clamped to
+// what was actually paid.
+router.post("/sessions/:id/cancel-with-refunds", auth, admin, async (req, res) => {
+  try {
+    const { refunds } = req.body;
+    if (!Array.isArray(refunds)) return res.status(400).json({ error: "refunds must be an array" });
+
+    const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId });
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (session.status === "cancelled") return res.status(400).json({ error: "Session already cancelled" });
+    if (session.status === "completed") return res.status(400).json({ error: "Cannot cancel a completed session" });
+
+    const club = await Club.findById(session.clubId).select("hostedPlayCreditsEnabled").lean();
+    const creditsEnabled = club?.hostedPlayCreditsEnabled !== false;
+    if (!creditsEnabled && refunds.length > 0) {
+      return res.status(400).json({ error: "Hosted Play credits are disabled for this club" });
+    }
+
+    for (const r of refunds) {
+      if (!r.chargeId || !r.playerId) return res.status(400).json({ error: "chargeId and playerId are required per refund row" });
+      if (!(Number(r.amount) >= 0)) return res.status(400).json({ error: "refund amount must be a non-negative number" });
+    }
+
+    const chargeIds = refunds.map((r) => r.chargeId);
+    const charges = await Charge.find({
+      _id: { $in: chargeIds }, hostedPlayId: session._id, chargeType: "hosted_play", status: "paid",
+    });
+    const chargeById = new Map(charges.map((c) => [String(c._id), c]));
+
+    const grantedBy = req.user.userId;
+    const refunded = [];
+    for (const r of refunds) {
+      const charge = chargeById.get(String(r.chargeId));
+      if (!charge) continue;
+      const amount = Math.min(Number(r.amount), charge.amount);
+      if (amount > 0) {
+        await refundCredit({
+          clubId: session.clubId,
+          playerId: r.playerId,
+          amount,
+          chargeId: charge._id,
+          grantedBy,
+          reason: `Hosted Play cancelled: ${session.title}`,
+        });
+      }
+      refunded.push({ chargeId: charge._id, playerId: r.playerId, amount });
+    }
+
+    await Charge.deleteMany({ hostedPlayId: session._id, chargeType: "hosted_play", status: "unpaid" });
+
+    session.status = "cancelled";
+    await session.save();
+
+    for (const r of refunded) {
+      if (r.amount > 0) {
+        sendPushToUser(r.playerId, {
+          title: "Session Cancelled — Credit Issued",
+          body: `${session.title} was cancelled. ₱${r.amount.toLocaleString()} was added to your account credit.`,
+          url: "/player/payments",
+          tag: "hosted-play-cancel-refund",
+        }).catch(() => {});
+      }
+    }
+
+    res.json({ session, refunded });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/hosted-play/sessions/:id/status — manual close / reopen / complete.
+// Cancellation goes through POST /sessions/:id/cancel-with-refunds instead, so
+// paid participants are never silently left un-refunded.
 router.patch("/sessions/:id/status", auth, admin, async (req, res) => {
   try {
     const { status } = req.body;
     const valid = ["open", "full", "closed", "cancelled", "completed"];
     if (!valid.includes(status)) return res.status(400).json({ error: "Invalid status" });
+    if (status === "cancelled") {
+      return res.status(400).json({ error: "Use POST /sessions/:id/cancel-with-refunds to cancel a session" });
+    }
 
     const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId });
     if (!session) return res.status(404).json({ error: "Session not found" });
@@ -780,16 +902,11 @@ router.patch("/sessions/:id/status", auth, admin, async (req, res) => {
     }
     await session.save();
 
-    // A cancelled session shouldn't leave members owing the fee.
-    if (status === "cancelled") {
-      await Charge.deleteMany({ hostedPlayId: session._id, chargeType: "hosted_play", status: "unpaid" });
-    }
-
     // Split Session Fee sessions bill their joined members exactly once, the
     // first time they're marked completed. Same for per_session convenience fee.
     if (status === "completed" && !wasCompleted) {
       const club = await Club.findById(session.clubId)
-        .select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount")
+        .select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount hostedPlayCreditsEnabled")
         .lean();
       if (session.feeSplitMode === "split_total") await billSplitSessionFee(session, club);
       await settleHostedPlayConvenienceFee(session, club);
@@ -882,7 +999,7 @@ router.post("/sessions/:id/waitlist/:pid/promote", auth, admin, async (req, res)
       await participant.save();
     } else {
       const club = await Club.findById(session.clubId)
-        .select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode").lean();
+        .select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayCreditsEnabled").lean();
       const breakdown = await computeMemberFeeAndCredit({
         session, club, memberId: participant.memberId, baseFee: session.feePerPlayer,
       });
@@ -970,7 +1087,7 @@ async function loadParticipantsContext(session, club) {
 async function loadQueueContext(req, res) {
   const [session, club] = await Promise.all([
     HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId }).lean(),
-    Club.findById(req.user.clubId).select("hostedPlayQueueEnabled hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount").lean(),
+    Club.findById(req.user.clubId).select("hostedPlayQueueEnabled hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount hostedPlayCreditsEnabled").lean(),
   ]);
   if (!session) {
     res.status(404).json({ error: "Session not found" });

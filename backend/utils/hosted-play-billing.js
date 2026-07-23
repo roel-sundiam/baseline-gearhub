@@ -12,7 +12,7 @@ const { getCreditBalance, redeemCredit } = require("./credit");
 async function computeMemberFeeAndCredit({ session, club, memberId, baseFee, useCredit }) {
   const { baseFee: fee, convenienceFee, total: amount, feeMode } = computePlayerFees(club, baseFee);
   const netSessionFee = feeMode === "club_absorbs" ? fee - convenienceFee : fee;
-  const wantsCredit = useCredit !== false;
+  const wantsCredit = useCredit !== false && club?.hostedPlayCreditsEnabled !== false;
   const creditBalance = wantsCredit && amount > 0 ? await getCreditBalance(session.clubId, memberId) : 0;
   const creditApplied = Math.min(creditBalance, amount);
   const remaining = amount - creditApplied;
@@ -93,7 +93,9 @@ async function settleHostedPlayConvenienceFee(session, club) {
   if (shareEach <= 0) return;
 
   for (const participant of participants) {
-    const creditBalance = await getCreditBalance(session.clubId, participant.memberId);
+    const creditBalance = club?.hostedPlayCreditsEnabled !== false
+      ? await getCreditBalance(session.clubId, participant.memberId)
+      : 0;
     const creditApplied = Math.min(creditBalance, shareEach);
     const remaining = shareEach - creditApplied;
 

@@ -1122,6 +1122,25 @@ interface AdminUser {
                             }
                           </div>
                         }
+
+                        <div class="hpq-toggle-row">
+                          <div class="hpq-toggle-copy">
+                            <div class="hpq-toggle-title"><i class="fas fa-coins"></i> Hosted Play Credits</div>
+                            <div class="hpq-toggle-desc">Lets members use app credit to cover Hosted Play join fees and cancellation refunds. Turn off if this club settles Hosted Play outside the app credit ledger.</div>
+                          </div>
+                          <label class="hpq-switch">
+                            <input type="checkbox" [(ngModel)]="hostedPlayCreditsEnabled" />
+                            <span class="hpq-slider"></span>
+                          </label>
+                        </div>
+                        <div class="cfs-actions xfee-actions">
+                          <button type="button" class="cfs-save-btn" (click)="saveHostedPlayCredits()" [disabled]="savingHostedPlayCredits">
+                            @if (savingHostedPlayCredits) { <i class="fas fa-circle-notch fa-spin"></i> } Save Credits Setting
+                          </button>
+                          @if (hostedPlayCreditsSaveMsg) {
+                            <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ hostedPlayCreditsSaveMsg }}</span>
+                          }
+                        </div>
                       }
 
                       <div class="hpq-fee-row">
@@ -4151,6 +4170,9 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   editQueueManagementFee = 0;
   savingQueueManagementFee = false;
   queueManagementFeeSaveMsg = '';
+  hostedPlayCreditsEnabled = true;
+  savingHostedPlayCredits = false;
+  hostedPlayCreditsSaveMsg = '';
   editDuprClubId = '';
   savingDuprClubId = false;
   duprClubIdSaveMsg = '';
@@ -4436,6 +4458,8 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     this.hostedPlayQueueSaveMsg = '';
     this.editQueueManagementFee = club.queueManagementFeePerPlayer ?? 0;
     this.queueManagementFeeSaveMsg = '';
+    this.hostedPlayCreditsEnabled = club.hostedPlayCreditsEnabled ?? true;
+    this.hostedPlayCreditsSaveMsg = '';
     this.editDuprClubId = club.duprClubId ?? '';
     this.duprClubIdSaveMsg = '';
     this.editingExtraFees = (club.additionalFees ?? []).map(f => ({ ...f }));
@@ -4784,6 +4808,23 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
         setTimeout(() => { this.hostedPlayQueueSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
       },
       error: () => { this.savingHostedPlayQueue = false; this.hostedPlayQueueSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
+  saveHostedPlayCredits() {
+    if (!this.selectedClub?._id) return;
+    this.savingHostedPlayCredits = true;
+    this.hostedPlayCreditsSaveMsg = '';
+    this.clubService.patchHostedPlayCredits(this.selectedClub._id, this.hostedPlayCreditsEnabled).subscribe({
+      next: (updated) => {
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, hostedPlayCreditsEnabled: updated.hostedPlayCreditsEnabled } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, hostedPlayCreditsEnabled: updated.hostedPlayCreditsEnabled };
+        this.savingHostedPlayCredits = false;
+        this.hostedPlayCreditsSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.hostedPlayCreditsSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingHostedPlayCredits = false; this.hostedPlayCreditsSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
     });
   }
 

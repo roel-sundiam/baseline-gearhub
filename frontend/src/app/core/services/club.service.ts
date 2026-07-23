@@ -51,6 +51,7 @@ export interface Club {
   bookingProcess?: 'reservation' | 'per_game' | 'hosted_play';
   hostedPlayEnabled?: boolean;
   hostedPlayQueueEnabled?: boolean;
+  hostedPlayCreditsEnabled?: boolean;
   queueManagementFeePerPlayer?: number;
   hostedPlayFeeSplitMode?: 'per_player' | 'split_total';
   hostedPlayConvenienceFeeMode?: 'per_join' | 'per_session' | 'club_absorbs';
@@ -154,6 +155,14 @@ export class ClubService {
 
   patchMyHostedPlayQueue(enabled: boolean) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/hosted-play-queue`, { enabled });
+  }
+
+  patchHostedPlayCredits(id: string, enabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/hosted-play-credits`, { enabled });
+  }
+
+  patchMyHostedPlayCredits(enabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/hosted-play-credits`, { enabled });
   }
 
   patchMyHostedPlayFeeSplitMode(mode: 'per_player' | 'split_total') {

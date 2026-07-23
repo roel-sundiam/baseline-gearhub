@@ -20,11 +20,13 @@ import { AuthService } from '../../../core/services/auth.service';
 
 type MainTab = 'history' | 'standings';
 type StandingsTab = 'individual' | 'pairs';
+type HistoryFilter = 'all' | 'wins' | 'losses' | 'scored' | 'unscored';
 
 @Component({
   selector: 'app-hosted-play-history',
   standalone: true,
   imports: [CommonModule],
+  styleUrls: ['./hosted-play-history-modern.scss'],
   template: `
     <div class="history-page" [class.admin-view]="role === 'admin'">
       <div class="page-shell">
@@ -172,9 +174,46 @@ type StandingsTab = 'individual' | 'pairs';
                   </button>
                 </div>
               } @else {
-                <div class="match-grid">
-                  @for (match of matches(); track match._id) {
-                    <article
+                <div class="results-toolbar">
+                  <div class="result-filters" role="group" aria-label="Filter displayed matches">
+                    <button type="button" [class.active]="historyFilter() === 'all'"
+                      [attr.aria-pressed]="historyFilter() === 'all'" (click)="historyFilter.set('all')">
+                      All <span>{{ matches().length }}</span>
+                    </button>
+                    @if (role === 'player') {
+                      <button type="button" [class.active]="historyFilter() === 'wins'"
+                        [attr.aria-pressed]="historyFilter() === 'wins'" (click)="historyFilter.set('wins')">
+                        Wins <span>{{ historyFilterCount('wins') }}</span>
+                      </button>
+                      <button type="button" [class.active]="historyFilter() === 'losses'"
+                        [attr.aria-pressed]="historyFilter() === 'losses'" (click)="historyFilter.set('losses')">
+                        Losses <span>{{ historyFilterCount('losses') }}</span>
+                      </button>
+                    } @else {
+                      <button type="button" [class.active]="historyFilter() === 'scored'"
+                        [attr.aria-pressed]="historyFilter() === 'scored'" (click)="historyFilter.set('scored')">
+                        Scored <span>{{ historyFilterCount('scored') }}</span>
+                      </button>
+                    }
+                    <button type="button" [class.active]="historyFilter() === 'unscored'"
+                      [attr.aria-pressed]="historyFilter() === 'unscored'" (click)="historyFilter.set('unscored')">
+                      No score <span>{{ historyFilterCount('unscored') }}</span>
+                    </button>
+                  </div>
+                  <span class="filtered-count">{{ filteredMatches().length }} shown</span>
+                </div>
+
+                @if (filteredMatches().length === 0) {
+                  <div class="state-card filtered-empty">
+                    <span class="state-icon"><i class="fas fa-filter-circle-xmark" aria-hidden="true"></i></span>
+                    <h3>No matches in this view</h3>
+                    <p>Try another result filter to see the matches on this page.</p>
+                    <button type="button" class="state-action" (click)="historyFilter.set('all')">Show all matches</button>
+                  </div>
+                } @else {
+                  <div class="match-grid">
+                    @for (match of filteredMatches(); track match._id) {
+                      <article
                       class="match-card"
                       [class.my-match]="isMyMatch(match)"
                       [attr.aria-label]="matchAriaLabel(match)"
@@ -264,9 +303,10 @@ type StandingsTab = 'individual' | 'pairs';
                           <span class="final-score-label">Final {{ match.team1Score }}–{{ match.team2Score }}</span>
                         }
                       </footer>
-                    </article>
-                  }
-                </div>
+                      </article>
+                    }
+                  </div>
+                }
 
                 @if (totalPages() > 1) {
                   <nav class="pagination" aria-label="Match history pages">
@@ -373,8 +413,10 @@ type StandingsTab = 'individual' | 'pairs';
                     <div class="standing-table-head" aria-hidden="true">
                       <span>Rank</span>
                       <span>Player</span>
-                      <span>Record</span>
-                      <span>Win rate</span>
+                      <span class="record-heading">Record</span>
+                      <span class="wins-heading">Wins</span>
+                      <span class="losses-heading">Losses</span>
+                      <span class="rate-heading">Win rate</span>
                     </div>
                     @for (row of individuals(); track row.memberId; let index = $index) {
                       <article
@@ -426,8 +468,10 @@ type StandingsTab = 'individual' | 'pairs';
                     <div class="standing-table-head" aria-hidden="true">
                       <span>Rank</span>
                       <span>Pairing</span>
-                      <span>Record</span>
-                      <span>Win rate</span>
+                      <span class="record-heading">Record</span>
+                      <span class="wins-heading">Wins</span>
+                      <span class="losses-heading">Losses</span>
+                      <span class="rate-heading">Win rate</span>
                     </div>
                     @for (row of pairings(); track row.memberIds.join('|'); let index = $index) {
                       <article
@@ -1893,8 +1937,10 @@ export class HostedPlayHistoryComponent implements OnInit, OnDestroy {
 
   tab = signal<MainTab>('history');
   standingsTab = signal<StandingsTab>('individual');
+  historyFilter = signal<HistoryFilter>('all');
 
   matches = signal<HostedPlayMatchHistoryItem[]>([]);
+  filteredMatches = computed(() => this.matchesForFilter(this.historyFilter()));
   total = signal(0);
   page = signal(1);
   readonly limit = 25;
@@ -2025,6 +2071,19 @@ export class HostedPlayHistoryComponent implements OnInit, OnDestroy {
 
   hasScore(match: HostedPlayMatchHistoryItem): boolean {
     return match.team1Score !== null && match.team2Score !== null;
+  }
+
+  historyFilterCount(filter: HistoryFilter): number {
+    return this.matchesForFilter(filter).length;
+  }
+
+  private matchesForFilter(filter: HistoryFilter): HostedPlayMatchHistoryItem[] {
+    const matches = this.matches();
+    if (filter === 'all') return matches;
+    if (filter === 'wins') return matches.filter((match) => this.playerOutcome(match) === 'Win');
+    if (filter === 'losses') return matches.filter((match) => this.playerOutcome(match) === 'Loss');
+    if (filter === 'scored') return matches.filter((match) => this.hasScore(match));
+    return matches.filter((match) => !this.hasScore(match));
   }
 
   isMe(memberId?: string | null): boolean {

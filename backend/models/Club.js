@@ -26,6 +26,9 @@ const clubSchema = new mongoose.Schema(
     bookingProcess: { type: String, enum: ['reservation', 'per_game', 'hosted_play'], default: 'reservation' },
     hostedPlayEnabled: { type: Boolean, default: false },
     hostedPlayQueueEnabled: { type: Boolean, default: false },
+    // Whether Hosted Play join payments/cancellation refunds can use the app credit
+    // ledger for this club. Defaults true to preserve existing behavior.
+    hostedPlayCreditsEnabled: { type: Boolean, default: true },
     queueManagementFeePerPlayer: { type: Number, default: 0, min: 0 },
     // When a Hosted Play session is full, let players join a waitlist and get
     // auto-promoted (free) / offered the spot to claim (paid) when one frees up.

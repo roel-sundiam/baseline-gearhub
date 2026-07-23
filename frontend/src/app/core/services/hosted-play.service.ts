@@ -83,6 +83,25 @@ export interface HostedPlaySession {
   billedLater?: boolean;
 }
 
+export interface HostedPlayRefundRow {
+  participantId: string;
+  chargeId: string;
+  playerId: string | null;
+  isGuest: boolean;
+  name: string;
+  amountPaid: number;
+  convenienceFee: number;
+  suggestedRefund: number;
+  creditApplied: number;
+  paymentMethod?: string;
+}
+
+export interface HostedPlayRefundPreview {
+  session: { _id: string; title: string; status: string };
+  creditsEnabled: boolean;
+  rows: HostedPlayRefundRow[];
+}
+
 export type QueueStatus = 'not_started' | 'running' | 'paused' | 'ended';
 export type ParticipantQueueStatus =
   'not_checked_in' | 'waiting' | 'playing' | 'paused' | 'done';
@@ -458,6 +477,15 @@ export class HostedPlayService {
 
   setStatus(id: string, status: HostedPlayStatus | 'completed') {
     return this.http.patch<HostedPlaySession>(`${this.base}/sessions/${id}/status`, { status });
+  }
+
+  getRefundPreview(id: string) {
+    return this.http.get<HostedPlayRefundPreview>(`${this.base}/sessions/${id}/refund-preview`);
+  }
+
+  cancelWithRefunds(id: string, refunds: { chargeId: string; playerId: string; amount: number }[]) {
+    return this.http.post<{ session: HostedPlaySession; refunded: unknown[] }>(
+      `${this.base}/sessions/${id}/cancel-with-refunds`, { refunds });
   }
 
   remove(id: string) {
