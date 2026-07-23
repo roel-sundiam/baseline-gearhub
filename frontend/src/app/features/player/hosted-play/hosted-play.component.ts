@@ -174,7 +174,11 @@ import { QrScannerModalComponent } from './qr-scanner-modal.component';
                       <i class="fas fa-qrcode"></i> Scan to Check In
                     </button>
                   }
-                  @if (s.queueStatus === 'running') {
+                  @if (s.queueMode === 'fixed_doubles_rotation') {
+                    <button class="btn-live" (click)="openSchedule(s)">
+                      <i class="fas fa-people-group"></i> Teams & Schedule
+                    </button>
+                  } @else if (s.queueStatus === 'running') {
                     <button class="btn-live" (click)="openLiveBoard(s)">
                       <i class="fas fa-signal"></i> View Live Board
                     </button>
@@ -1364,6 +1368,10 @@ export class PlayerHostedPlayComponent implements OnInit {
 
   openLiveBoard(s: HostedPlaySession) {
     this.router.navigate(['/player/hosted-play', s._id, 'live']);
+  }
+
+  openSchedule(s: HostedPlaySession) {
+    this.router.navigate(['/player/hosted-play', s._id, 'schedule']);
   }
 
   // ── In-app QR check-in ──

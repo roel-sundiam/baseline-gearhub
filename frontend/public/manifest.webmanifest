@@ -2,7 +2,6 @@
   "name": "CourtGo",
   "short_name": "CourtGo",
   "description": "Tennis court reservation and gear management",
-  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

@@ -178,7 +178,12 @@ type FormModel = HostedPlayInput;
 
                   <div class="actions">
                     @if (s.queueManagementEnabled ?? queueEnabled()) {
-                      <button class="action primary" (click)="openQueue(s)"><i class="fas fa-list-ol"></i> Queue</button>
+                      @if (s.queueMode === 'fixed_doubles_rotation') {
+                        <button class="action primary" (click)="openTeams(s)"><i class="fas fa-people-group"></i> Teams</button>
+                        <button class="action" (click)="openSchedule(s)"><i class="fas fa-calendar-days"></i> Schedule</button>
+                      } @else {
+                        <button class="action primary" (click)="openQueue(s)"><i class="fas fa-list-ol"></i> Queue</button>
+                      }
                     } @else if ((s.status === 'open' || s.status === 'full' || s.status === 'closed') && s.date >= todayStr) {
                       <button class="action" (click)="openEnableQueue(s)"><i class="fas fa-list-ol"></i> Enable Queue</button>
                     }
@@ -316,8 +321,16 @@ type FormModel = HostedPlayInput;
                       <option value="fcfs">First come, first served</option>
                       <option value="winner_stays">Winner stays (challenge court)</option>
                       <option value="king_of_court">King of the court</option>
+                      <option value="fixed_doubles_rotation">Fixed doubles rotation (round robin)</option>
                     </select>
                   </label>
+                  @if (form.queueMode === 'fixed_doubles_rotation') {
+                    <div class="step-callout wide"><i class="fas fa-people-group"></i><div><strong>Fixed Doubles Rotation</strong><span>Players register as permanent pairs; a full round-robin schedule is generated once registration closes. Match duration is calculated automatically to fit the session's start/end time.</span></div></div>
+                    <label class="field"><span>Number of Pairs *</span>
+                      <input type="number" min="2" step="1" [ngModel]="form.fixedDoubles?.pairCount" (ngModelChange)="setFixedDoublesField('pairCount', $event)" />
+                    </label>
+                    <div class="field-hint wide">Maximum Players (set in the previous step) must equal Number of Pairs × 2.</div>
+                  }
                 }
                 <label class="field"><span>Min Skill Level</span>
                   <select [(ngModel)]="form.minSkillLevel">
@@ -1030,9 +1043,16 @@ export class AdminHostedPlayComponent implements OnInit {
       title: '', sport: 'pickleball', date: '', startTime: '', endTime: '',
       venue: '', court: '', address: '', feePerPlayer: 0, sessionFee: 0, guestFeePerPlayer: null,
       maxPlayers: 8, maxGuests: null, description: '',
-      numberOfCourts: 1, queueMode: 'fcfs', minSkillLevel: null, maxSkillLevel: null,
+      numberOfCourts: 1, queueMode: 'fcfs',
+      fixedDoubles: { pairCount: 4 },
+      minSkillLevel: null, maxSkillLevel: null,
       scoreTarget: 11, winByTwo: true,
     };
+  }
+
+  /** Updates a single field of form.fixedDoubles, creating the object if needed (ngModel needs it to exist to bind into). */
+  setFixedDoublesField(field: 'pairCount', value: number | null) {
+    this.form.fixedDoubles = { ...(this.form.fixedDoubles ?? {}), [field]: value === null ? null : Number(value) };
   }
 
   statusLabel(s: string): string {
@@ -1208,6 +1228,7 @@ export class AdminHostedPlayComponent implements OnInit {
       maxPlayers: s.maxPlayers, maxGuests: s.maxGuests ?? null,
       description: s.description || '', numberOfCourts: s.numberOfCourts ?? 1,
       queueMode: s.queueMode || 'fcfs',
+      fixedDoubles: { pairCount: s.fixedDoubles?.pairCount ?? 4 },
       minSkillLevel: s.minSkillLevel ?? null, maxSkillLevel: s.maxSkillLevel ?? null,
       scoreTarget: s.scoreTarget ?? 11, winByTwo: s.winByTwo ?? true,
     };
@@ -1255,6 +1276,11 @@ export class AdminHostedPlayComponent implements OnInit {
     }
     if (step === 3 && this.queueEnabled() && (!this.form.numberOfCourts || this.form.numberOfCourts < 1)) {
       return 'Number of courts must be at least 1.';
+    }
+    if (step === 3 && this.queueEnabled() && this.form.queueMode === 'fixed_doubles_rotation') {
+      const fd = this.form.fixedDoubles;
+      if (!fd?.pairCount || fd.pairCount < 2) return 'Number of pairs must be at least 2.';
+      if (this.form.maxPlayers !== fd.pairCount * 2) return `Maximum players must equal ${fd.pairCount * 2} (Number of Pairs × 2) — update it in the Venue step.`;
     }
     return '';
   }
@@ -1372,6 +1398,8 @@ export class AdminHostedPlayComponent implements OnInit {
   closeParticipants() { this.showParticipants = false; this.cdr.detectChanges(); }
 
   openQueue(s: HostedPlaySession) { this.router.navigate(['/admin/hosted-play', s._id, 'queue']); }
+  openTeams(s: HostedPlaySession) { this.router.navigate(['/admin/hosted-play', s._id, 'teams']); }
+  openSchedule(s: HostedPlaySession) { this.router.navigate(['/admin/hosted-play', s._id, 'schedule']); }
 
   openHistory() { this.router.navigate(['/admin/hosted-play/history']); }
 

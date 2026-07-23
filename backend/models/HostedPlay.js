@@ -34,10 +34,11 @@ const hostedPlaySchema = new mongoose.Schema(
     // ── Queue Management ──
     queueManagementEnabled: { type: Boolean, default: false },
     numberOfCourts: { type: Number, default: 1, min: 1 },
+    // Unused by fixed_doubles_rotation — that format always plays 2v2 fixed pairs.
     playersPerCourt: { type: Number, default: 4, min: 1 }, // future-proof; V1 keeps 4
     queueMode: {
       type: String,
-      enum: ["fcfs", "winner_stays", "king_of_court", "skill_rotation"],
+      enum: ["fcfs", "winner_stays", "king_of_court", "skill_rotation", "fixed_doubles_rotation"],
       default: "fcfs",
     },
     queueStatus: {
@@ -51,6 +52,23 @@ const hostedPlaySchema = new mongoose.Schema(
       totalParticipants: { type: Number },
       totalCheckedIn: { type: Number },
       totalGamesPlayed: { type: Number },
+    },
+
+    // ── Fixed Doubles Rotation — round-robin schedule config, only meaningful
+    // when queueMode === "fixed_doubles_rotation" ──
+    fixedDoubles: {
+      pairCount: { type: Number, default: null, min: 2 },
+      // Auto-computed at schedule generation time from the session's start/end
+      // window and actual confirmed pair count — never organizer-entered.
+      matchDurationMinutes: { type: Number, default: null, min: 1 },
+      restBetweenMatchesMinutes: { type: Number, default: 0, min: 0 },
+      scheduleGeneratedAt: { type: Date, default: null },
+      // Bumped every (re)generate — lets stale fixture reads/pollers detect a
+      // schedule change without a separate "version" field on every fixture read.
+      scheduleGenerationBatch: { type: Number, default: 0 },
+      // Bumped on any pair edit/swap/withdraw — drives a "schedule out of date"
+      // banner in the admin UI once a schedule already exists.
+      pairsUpdatedAt: { type: Date, default: null },
     },
 
     // ── QR Self-Check-In ──

@@ -2285,16 +2285,50 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
       });
   }
 
+  // navigator.clipboard is only defined in secure contexts (HTTPS, or
+  // localhost) — on mobile, opening this over a plain-HTTP LAN IP (e.g.
+  // testing on a phone against http://192.168.x.x:4200) leaves it undefined,
+  // which throws synchronously before any .then() ever runs. Fall back to
+  // the classic hidden-textarea + execCommand('copy') technique, which
+  // works without a secure context.
+  private copyTextToClipboard(text: string): Promise<void> {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise((resolve, reject) => {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.top = '0';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, text.length);
+      try {
+        const ok = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        ok ? resolve() : reject(new Error('execCommand copy failed'));
+      } catch (err) {
+        document.body.removeChild(textarea);
+        reject(err);
+      }
+    });
+  }
+
   copyUmpireLink() {
     const url = this.umpireLinkModal?.url;
     if (!url || !this.umpireLinkModal) return;
-    navigator.clipboard.writeText(url).then(() => {
+    this.copyTextToClipboard(url).then(() => {
       if (!this.umpireLinkModal) return;
       this.umpireLinkModal = { ...this.umpireLinkModal, copied: true };
       this.cdr.detectChanges();
       setTimeout(() => {
         if (this.umpireLinkModal) { this.umpireLinkModal = { ...this.umpireLinkModal, copied: false }; this.cdr.detectChanges(); }
       }, 2000);
+    }).catch(() => {
+      this.cdr.detectChanges();
     });
   }
 

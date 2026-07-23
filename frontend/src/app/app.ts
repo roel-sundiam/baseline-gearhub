@@ -340,7 +340,7 @@ export class App {
   }
 
   isTvDisplayRoute(): boolean {
-    return this.router.url.includes('/queue/display');
+    return this.router.url.includes('/queue/display') || this.router.url.includes('/schedule/display');
   }
 
   isUmpireRoute(): boolean {

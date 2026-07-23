@@ -54,6 +54,8 @@ export interface HostedPlaySession {
   playersPerCourt?: number;
   queueMode?: string;
   queueStatus?: QueueStatus;
+  // Fixed Doubles Rotation config — only meaningful when queueMode === 'fixed_doubles_rotation'
+  fixedDoubles?: FixedDoublesConfig;
   // Optional skill band
   minSkillLevel?: SkillLevel | null;
   maxSkillLevel?: SkillLevel | null;
@@ -262,10 +264,124 @@ export interface HostedPlayInput {
   numberOfCourts?: number;
   playersPerCourt?: number;
   queueMode?: string;
+  fixedDoubles?: FixedDoublesConfig;
   minSkillLevel?: SkillLevel | null;
   maxSkillLevel?: SkillLevel | null;
   scoreTarget?: 11 | 15 | 21 | null;
   winByTwo?: boolean;
+}
+
+// ── Fixed Doubles Rotation ────────────────────────────────────────────────────
+// Structurally different from the live-queue formats above: pairs register
+// upfront and a full round-robin schedule is generated once, rather than
+// players rotating dynamically through open courts. See
+// hosted-play-format-registry.js (backend) for the shared "five concerns"
+// framing this and the live-queue formats both implement.
+
+/** Which engine renders/manages a given queueMode — drives which admin/player component to show. */
+export const HOSTED_PLAY_FORMAT_KIND: Record<string, 'live-queue' | 'fixed-schedule'> = {
+  fcfs: 'live-queue',
+  winner_stays: 'live-queue',
+  king_of_court: 'live-queue',
+  skill_rotation: 'live-queue',
+  fixed_doubles_rotation: 'fixed-schedule',
+};
+
+export interface FixedDoublesConfig {
+  pairCount?: number | null;
+  matchDurationMinutes?: number | null;
+  restBetweenMatchesMinutes?: number | null;
+  scheduleGeneratedAt?: string | null;
+  scheduleGenerationBatch?: number;
+  pairsUpdatedAt?: string | null;
+}
+
+export type PairStatus = 'pending_partner' | 'confirmed' | 'withdrawn';
+
+export interface HostedPlayPair {
+  _id: string;
+  hostedPlayId: string;
+  pairLabel: string;
+  status: PairStatus;
+  source: 'player_invite' | 'organizer_assigned';
+  inviteStatus: 'none' | 'pending' | 'accepted' | 'declined';
+  participantAId: string | null;
+  participantBId: string | null;
+  invitedMemberId?: string | null;
+  createdAt?: string;
+}
+
+export type FixtureStatus = 'scheduled' | 'in_progress' | 'completed';
+
+export interface FixturePairSnapshot {
+  pairId: string;
+  pairLabel: string;
+  players: { participantId: string; memberId: string | null; memberName: string }[];
+}
+
+export interface FixedDoublesFixture {
+  _id: string;
+  matchNumber: number;
+  roundNumber: number;
+  courtNumber: number;
+  scheduledStart: string;
+  scheduledEnd: string;
+  actualStart?: string | null;
+  actualEnd?: string | null;
+  status: FixtureStatus;
+  pair1: FixturePairSnapshot;
+  pair2: FixturePairSnapshot;
+  pair1Id: string;
+  pair2Id: string;
+  pair1Score: number | null;
+  pair2Score: number | null;
+  winnerPairId: string | null;
+  /** Umpire live-scoring side-out state (pickleball) — set while in_progress once a first server is picked. */
+  servingPair?: 1 | 2 | null;
+  serverNumber?: 1 | 2 | null;
+  servingParticipantId?: string | null;
+}
+
+export interface FixedDoublesStanding {
+  rank: number;
+  pairId: string;
+  pairLabel: string;
+  wins: number;
+  losses: number;
+  winPct: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  pointDiff: number;
+}
+
+export interface FixedDoublesBoard {
+  session: {
+    _id: string;
+    title: string;
+    status: string;
+    venue?: string;
+    court?: string;
+    date?: string;
+    startTime?: string;
+    endTime?: string;
+    queueMode?: string;
+    numberOfCourts: number;
+    sport?: string;
+    fixedDoubles?: FixedDoublesConfig | null;
+    feePerPlayer?: number;
+    convenienceFeePerPlayer?: number;
+    totalPerPlayer?: number;
+    venueLogo?: string | null;
+  };
+  pairs: HostedPlayPair[];
+  currentMatches: FixedDoublesFixture[];
+  nextMatches: FixedDoublesFixture[];
+  upcomingMatches: FixedDoublesFixture[];
+  completedMatches: FixedDoublesFixture[];
+  standings: FixedDoublesStanding[];
+  byesThisRound: { roundNumber: number; pairId: string }[];
+  locked: boolean;
+  warnings?: string[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -486,5 +602,83 @@ export class HostedPlayService {
   finishUmpireCourt(sessionId: string, courtNumber: number, token: string) {
     return this.http.post<QueueBoard>(
       `${this.base}/umpire/${sessionId}/courts/${courtNumber}/finish`, {}, { params: { t: token } });
+  }
+
+  // ── Fixed Doubles Rotation — pairs/registration ──
+  listPairs(id: string) {
+    return this.http.get<HostedPlayPair[]>(`${this.base}/sessions/${id}/pairs`);
+  }
+
+  listPlayerPairs(id: string) {
+    return this.http.get<HostedPlayPair[]>(`${this.base}/player/sessions/${id}/pairs`);
+  }
+
+  /** Method 2: organizer manually pairs two already-registered participants. */
+  organizerAssignPair(id: string, participantAId: string, participantBId: string, pairLabel?: string) {
+    return this.http.post<HostedPlayPair>(`${this.base}/sessions/${id}/pairs`, { participantAId, participantBId, pairLabel });
+  }
+
+  /** Method 1 step 1: invite a partner by member id. */
+  invitePartner(id: string, partnerMemberId: string) {
+    return this.http.post<HostedPlayPair>(`${this.base}/sessions/${id}/pairs/invite`, { partnerMemberId });
+  }
+
+  /** Invitee accepts/declines; accepting may require payment like a normal join. */
+  respondToInvite(id: string, pairId: string, accept: boolean, payment?: HostedPlayJoinPayload) {
+    return this.http.post<HostedPlayPair>(`${this.base}/sessions/${id}/pairs/${pairId}/respond`, { accept, ...(payment ?? {}) });
+  }
+
+  cancelInvite(id: string, pairId: string) {
+    return this.http.delete<{ success: boolean }>(`${this.base}/sessions/${id}/pairs/${pairId}/invite`);
+  }
+
+  updatePair(id: string, pairId: string, body: { participantAId?: string; participantBId?: string; pairLabel?: string }) {
+    return this.http.patch<HostedPlayPair>(`${this.base}/sessions/${id}/pairs/${pairId}`, body);
+  }
+
+  swapPairPlayers(id: string, body: { pairAId: string; slotA: 'A' | 'B'; pairBId: string; slotB: 'A' | 'B' }) {
+    return this.http.post<{ pairA: HostedPlayPair; pairB: HostedPlayPair }>(`${this.base}/sessions/${id}/pairs/swap-players`, body);
+  }
+
+  withdrawPair(id: string, pairId: string) {
+    return this.http.delete<{ success: boolean }>(`${this.base}/sessions/${id}/pairs/${pairId}`);
+  }
+
+  // ── Fixed Doubles Rotation — schedule / live match queue ──
+  generateFixedDoublesSchedule(id: string) {
+    return this.http.post<FixedDoublesBoard>(`${this.base}/sessions/${id}/fixed-doubles/generate-schedule`, {});
+  }
+
+  getFixedDoublesBoard(id: string) {
+    return this.http.get<FixedDoublesBoard>(`${this.base}/sessions/${id}/fixed-doubles/board`);
+  }
+
+  getPlayerFixedDoublesBoard(id: string) {
+    return this.http.get<FixedDoublesBoard>(`${this.base}/player/sessions/${id}/fixed-doubles/board`);
+  }
+
+  pollFixedDoublesBoard(id: string, ms = 5000) {
+    return interval(ms).pipe(switchMap(() => this.getFixedDoublesBoard(id)));
+  }
+
+  pollPlayerFixedDoublesBoard(id: string, ms = 6000) {
+    return interval(ms).pipe(switchMap(() => this.getPlayerFixedDoublesBoard(id)));
+  }
+
+  startFixture(id: string, fixtureId: string) {
+    return this.http.post<FixedDoublesBoard>(`${this.base}/sessions/${id}/fixed-doubles/matches/${fixtureId}/start`, {});
+  }
+
+  finishFixture(id: string, fixtureId: string, pair1Score: number, pair2Score: number, winnerPairId?: string) {
+    return this.http.post<FixedDoublesBoard>(`${this.base}/sessions/${id}/fixed-doubles/matches/${fixtureId}/finish`, { pair1Score, pair2Score, winnerPairId });
+  }
+
+  updateFixtureScore(id: string, fixtureId: string, pair1Score: number, pair2Score: number, winnerPairId?: string) {
+    return this.http.patch<FixedDoublesBoard>(`${this.base}/sessions/${id}/fixed-doubles/matches/${fixtureId}/score`, { pair1Score, pair2Score, winnerPairId });
+  }
+
+  /** Swaps two not-yet-completed matches' court + time slot. Not blocked by the roster lock. */
+  swapFixtures(id: string, fixtureAId: string, fixtureBId: string) {
+    return this.http.post<FixedDoublesBoard>(`${this.base}/sessions/${id}/fixed-doubles/matches/swap`, { fixtureAId, fixtureBId });
   }
 }

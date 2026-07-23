@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnDestroy, OnInit, AfterViewInit, ChangeDetectorRef, ElementRef, ViewChild, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -13,7 +13,8 @@ const MAX_VISIBLE_WAITING = 9;
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="tv-shell">
+    <div class="tv-viewport">
+    <div class="tv-shell" #shell>
       <header class="tv-topbar">
         <div class="brand">
           <div class="brand-mark">
@@ -226,6 +227,7 @@ const MAX_VISIBLE_WAITING = 9;
         @if (lastUpdated) { <span class="tv-updated">Last synced {{ lastUpdated }}</span> }
       </footer>
     </div>
+    </div>
   `,
   styles: [`
     :host {
@@ -242,9 +244,18 @@ const MAX_VISIBLE_WAITING = 9;
       --amber: #f59e0b;
     }
 
+    /* This page is meant to be cast to a TV, not viewed directly on the
+       device opening it. .tv-shell is a fixed 16:9-ish "design canvas" (not
+       viewport-relative) — the component JS scales that whole canvas with a
+       CSS transform to exactly fill whatever screen it's actually on
+       (landscape phone or a real TV), with no scrolling and no reflow. */
+    .tv-viewport {
+      width: 100vw; height: 100vh; height: 100dvh; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      background: #020817;
+    }
     .tv-shell {
-      min-height: 100vh;
-      width: 100%;
+      width: 1600px; height: 900px; flex: 0 0 auto;
       display: flex;
       flex-direction: column;
       color: var(--text);
@@ -253,7 +264,7 @@ const MAX_VISIBLE_WAITING = 9;
         radial-gradient(circle at 100% 100%, rgba(56,189,248,.08), transparent 45rem),
         linear-gradient(180deg, #081b12 0%, var(--bg) 40rem);
       padding: 1.75rem 2.5rem 1rem;
-      overflow: hidden;
+      overflow: hidden; position: relative;
     }
 
     .tv-topbar { display: flex; align-items: center; gap: 1.25rem; position: relative; }
@@ -268,7 +279,7 @@ const MAX_VISIBLE_WAITING = 9;
     .brand-initials { font-size: 1.5rem; font-weight: 950; letter-spacing: .02em; }
     .brand-copy { min-width: 0; }
     .brand-kicker { display: block; color: var(--accent); font-size: .95rem; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; margin-bottom: .2rem; }
-    .brand-copy h1 { margin: 0; font-size: clamp(1.6rem, 2.6vw, 2.4rem); line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .brand-copy h1 { margin: 0; font-size: 2.2rem; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 560px; }
 
     .tv-status { display: flex; align-items: center; gap: 1.25rem; flex-shrink: 0; }
     .status-pill {
@@ -336,7 +347,7 @@ const MAX_VISIBLE_WAITING = 9;
       background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
       padding: 1.1rem 1rem; text-align: center; box-shadow: 0 12px 30px rgba(0,0,0,.18);
     }
-    .stat-value { display: block; font-size: clamp(2rem, 3.4vw, 3rem); font-weight: 950; line-height: 1; }
+    .stat-value { display: block; font-size: 2.4rem; font-weight: 950; line-height: 1; }
     .stat-value.lime { color: var(--accent); }
     .stat-value.teal { color: var(--teal); }
     .stat-value.blue { color: var(--blue); }
@@ -352,7 +363,7 @@ const MAX_VISIBLE_WAITING = 9;
     .tv-section-title { display: flex; align-items: center; gap: .6rem; margin: 0 0 1rem; font-size: 1.15rem; font-weight: 900; }
     .tv-section-title i { color: var(--accent); }
 
-    .courts-grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); grid-auto-rows: min-content; gap: .9rem; align-content: start; }
+    .courts-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); grid-auto-rows: min-content; gap: .9rem; align-content: start; }
     .courts-grid.dense { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
     .court-card {
       background: rgba(255,255,255,.045); border: 1px solid var(--border); border-radius: 14px;
@@ -402,7 +413,7 @@ const MAX_VISIBLE_WAITING = 9;
       display: flex; align-items: center; gap: .5rem; color: var(--muted); font-size: 1rem; font-weight: 700;
       padding: .6rem 0;
     }
-    .queue-list { display: flex; flex-direction: column; gap: .55rem; overflow: hidden; }
+    .queue-list { display: flex; flex-direction: column; gap: .55rem; overflow-y: auto; flex: 1 1 0; min-height: 40px; }
     .queue-row {
       display: flex; align-items: center; gap: .65rem; padding: .65rem .75rem;
       background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: 12px;
@@ -419,10 +430,10 @@ const MAX_VISIBLE_WAITING = 9;
     .standings-heading { margin-top: 1.1rem; padding-top: .9rem; border-top: 1px solid var(--border); }
 
     /* Compact leaderboard-card variant for the narrow stacked panel */
-    .lb-mini { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .lb-mini { display: flex; flex-direction: column; flex: 1 1 0; min-height: 40px; overflow: hidden; }
     .lb-mini .lb-header { grid-template-columns: 1.7rem 1fr 2rem 2rem; gap: .5rem; padding: 0 .65rem; margin-bottom: .65rem; }
     .lb-mini .lb-col-label { font-size: .6rem; }
-    .lb-mini .lb-list { gap: .4rem; overflow: hidden; }
+    .lb-mini .lb-list { gap: .4rem; overflow-y: auto; min-height: 0; flex: 1 1 auto; }
     .lb-mini .lb-card { grid-template-columns: 1.7rem 1fr 2rem 2rem; gap: .5rem; padding: .5rem .65rem; border-radius: 12px; }
     .lb-mini .lb-rank { width: 1.7rem; height: 1.7rem; font-size: .78rem; }
     .lb-mini .lb-trophy { width: 1rem; height: 1rem; font-size: .48rem; top: .25rem; left: 1.85rem; }
@@ -441,25 +452,25 @@ const MAX_VISIBLE_WAITING = 9;
     :host { --bg: #020817; --surface: #071a3d; --surface-2: #0b2452; --accent: #f5df18; --blue: #2384ff; --teal: #49df9b; }
     .tv-shell {
       background: radial-gradient(circle at 15% 5%, rgba(28,111,255,.24), transparent 32rem), linear-gradient(145deg, #031b4b 0%, #020817 48%, #06183b 100%);
-      padding: clamp(1rem, 2.2vw, 2rem) clamp(.85rem, 2.8vw, 2.75rem) 1rem;
+      padding: 1.75rem 2.25rem 1rem;
     }
-    .tv-shell::before { content: ''; position: fixed; inset: 0; pointer-events: none; opacity: .18; background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px); background-size: 36px 36px; }
+    .tv-shell::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .18; background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px); background-size: 36px 36px; }
     .brand-mark { border-radius: 50%; background: rgba(245,223,24,.13); border-color: rgba(245,223,24,.5); color: var(--accent); box-shadow: 0 0 30px rgba(245,223,24,.1); }
     .brand-kicker { color: #90b9ff; font-size: .78rem; }
-    .brand-copy h1 { font-size: clamp(1.8rem, 4vw, 3.5rem); text-transform: uppercase; font-weight: 1000; letter-spacing: -.045em; }
+    .brand-copy h1 { font-size: 2.6rem; text-transform: uppercase; font-weight: 1000; letter-spacing: -.045em; }
     .brand-copy h1 em { color: var(--accent); font-style: normal; }
-    .brand-copy p { margin: .15rem 0 0; color: var(--muted); font-size: clamp(.72rem, 1.3vw, .95rem); font-weight: 700; }
+    .brand-copy p { margin: .15rem 0 0; color: var(--muted); font-size: .85rem; font-weight: 700; }
     .brand-copy p span { color: var(--accent); padding: 0 .25rem; }
     .time-block { display: flex; flex-direction: column; align-items: flex-end; }
-    .tv-clock { color: var(--accent); font-size: clamp(1.3rem, 2.4vw, 2rem); }
+    .tv-clock { color: var(--accent); font-size: 1.7rem; }
     .date-label { color: var(--muted); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
     .status-pill.running { color: var(--accent); background: rgba(245,223,24,.1); border-color: rgba(245,223,24,.3); }
     .tv-main { gap: 1rem; margin-top: 1.25rem; }
     .tv-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .65rem; }
     .stat-tile { display: flex; align-items: baseline; justify-content: center; gap: .6rem; padding: .65rem; border-radius: 10px; background: rgba(7,26,61,.8); border-color: rgba(65,132,255,.25); box-shadow: none; }
-    .stat-value { font-size: clamp(1.45rem, 2.6vw, 2.2rem); }
+    .stat-value { font-size: 1.9rem; }
     .stat-value.lime, .stat-value.amber { color: var(--accent); }
-    .stat-label { margin: 0; font-size: clamp(.6rem, 1vw, .78rem); }
+    .stat-label { margin: 0; font-size: .72rem; }
     .tv-columns { grid-template-columns: minmax(0, 2.25fr) minmax(260px, .75fr); gap: .85rem; }
     .tv-courts, .tv-queue { padding: .85rem; border-radius: 12px; background: rgba(4,18,48,.86); border-color: rgba(65,132,255,.3); box-shadow: 0 22px 50px rgba(0,0,0,.25); }
     .section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: .7rem; }
@@ -486,10 +497,10 @@ const MAX_VISIBLE_WAITING = 9;
     .team-block .player-row { min-height: 43px; justify-content: center; text-align: center; }
     .team-block .player-row.is-serving { background: rgba(245,223,24,.16); }
     .team-block .serving-badge { color: var(--accent); }
-    .team-block .pname { font-size: clamp(.72rem, 1vw, .92rem); text-transform: uppercase; }
+    .team-block .pname { font-size: .85rem; text-transform: uppercase; }
     .team-block .walk-tag { display: none; }
     .score-block { z-index: 1; align-self: center; padding: 0 .35rem; }
-    .score-big { color: white; background: #07193c; border: 2px solid #244d94; box-shadow: 0 4px 12px rgba(0,0,0,.4); font-size: clamp(1.5rem, 2.2vw, 2.1rem); padding: .5rem .9rem; border-radius: 14px; white-space: nowrap; }
+    .score-big { color: white; background: #07193c; border: 2px solid #244d94; box-shadow: 0 4px 12px rgba(0,0,0,.4); font-size: 1.7rem; padding: .5rem .9rem; border-radius: 14px; white-space: nowrap; }
     .score-vs { color: white; background: #07193c; border: 2px solid #244d94; box-shadow: 0 4px 12px rgba(0,0,0,.4); border-radius: 999px; }
     .queue-list { gap: .4rem; overflow-y: auto; }
     .queue-row { padding: .55rem; border-radius: 8px; background: rgba(20,65,138,.35); border-color: rgba(77,140,255,.25); }
@@ -500,46 +511,9 @@ const MAX_VISIBLE_WAITING = 9;
     .queue-row:first-child .pname small { color: var(--accent); }
     .qnum { width: 24px; height: 24px; flex-basis: 24px; font-size: .7rem; }
     .tv-footer { border-color: rgba(65,132,255,.2); font-size: .72rem; }
-
-    @media (max-width: 760px) {
-      .tv-shell { min-height: 100dvh; overflow: visible; }
-      .tv-topbar { align-items: flex-start; }
-      .brand-mark { width: 48px; height: 48px; flex-basis: 48px; border-radius: 12px; }
-      .brand-copy h1 { white-space: normal; line-height: .95; }
-      .brand-copy p { display: none; }
-      .tv-status { flex-direction: column-reverse; align-items: flex-end; gap: .35rem; }
-      .status-pill { padding: .3rem .55rem; font-size: .58rem; }
-      .date-label { display: none; }
-      .tv-stats { grid-template-columns: repeat(2, 1fr); }
-      .stat-tile { justify-content: flex-start; }
-      .tv-columns { grid-template-columns: 1fr; }
-      .courts-grid, .courts-grid.dense { grid-template-columns: 1fr; }
-      .court-card { min-height: 175px; }
-      .tv-courts, .tv-queue { min-height: auto; }
-      .tv-footer { flex-wrap: wrap; gap: .35rem; }
-      .court-head { flex-wrap: wrap; row-gap: .3rem; }
-      .live-score-tag { flex-basis: 100%; order: 3; text-align: left; }
-      .court-teams { grid-template-columns: 1fr; gap: 0; }
-      .team-block { padding: .6rem .75rem; }
-      .team-a { border-bottom: 3px solid #ff426d; }
-      .team-b { border-bottom: 3px solid var(--accent); }
-      .team-label { flex-wrap: wrap; justify-content: flex-start; text-align: left; }
-      .team-block .player-row { justify-content: flex-start; text-align: left; }
-      .score-block { margin: .5rem 0; }
-      .lb-toolbar-title { font-size: 1.15rem; }
-      .lb-header, .lb-card { grid-template-columns: 2.2rem 1fr 2.4rem 2.4rem; gap: .55rem; padding-left: .75rem; padding-right: .75rem; }
-      .lb-card { padding-top: .65rem; padding-bottom: .65rem; }
-      .lb-rank { width: 2rem; height: 2rem; font-size: .95rem; }
-      .lb-name { font-size: .95rem; }
-      .lb-w, .lb-l { font-size: 1rem; }
-    }
-
-    @media (max-width: 1100px) {
-      .tv-columns { grid-template-columns: 1fr; }
-    }
   `],
 })
-export class AdminHostedPlayQueueDisplayComponent implements OnInit, OnDestroy {
+export class AdminHostedPlayQueueDisplayComponent implements OnInit, AfterViewInit, OnDestroy {
   id = '';
   board: QueueBoard | null = null;
   loading = true;
@@ -550,8 +524,12 @@ export class AdminHostedPlayQueueDisplayComponent implements OnInit, OnDestroy {
   clubCourts: Court[] = [];
   maxVisible = MAX_VISIBLE_WAITING;
 
+  @ViewChild('shell') private shellRef?: ElementRef<HTMLElement>;
+
   private pollSub?: Subscription;
   private clockTimer?: ReturnType<typeof setInterval>;
+  private resizeObserver?: ResizeObserver;
+  private orientationTimer?: ReturnType<typeof setTimeout>;
 
   constructor(
     private hp: HostedPlayService,
@@ -582,9 +560,45 @@ export class AdminHostedPlayQueueDisplayComponent implements OnInit, OnDestroy {
     this.pollSub = this.hp.pollQueue(this.id, 6000).subscribe({ next: onBoard, error: onError });
   }
 
+  ngAfterViewInit() {
+    const el = this.shellRef?.nativeElement;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.fitToViewport());
+      this.resizeObserver.observe(el);
+    }
+    this.fitToViewport();
+  }
+
   ngOnDestroy() {
     this.pollSub?.unsubscribe();
     if (this.clockTimer) clearInterval(this.clockTimer);
+    if (this.orientationTimer) clearTimeout(this.orientationTimer);
+    this.resizeObserver?.disconnect();
+  }
+
+  @HostListener('window:resize')
+  onWindowResize() {
+    this.fitToViewport();
+  }
+
+  @HostListener('window:orientationchange')
+  onOrientationChange() {
+    if (this.orientationTimer) clearTimeout(this.orientationTimer);
+    this.orientationTimer = setTimeout(() => this.fitToViewport(), 200);
+  }
+
+  // Scales the fixed-size .tv-shell "canvas" with a CSS transform so it
+  // always exactly fills whatever screen it's actually on — landscape phone
+  // or a real TV — with no scrolling and no responsive reflow. See the same
+  // pattern on the Fixed Doubles TV Display for the full rationale.
+  private fitToViewport() {
+    const el = this.shellRef?.nativeElement;
+    if (!el) return;
+    const naturalWidth = el.offsetWidth;
+    const naturalHeight = el.offsetHeight;
+    if (!naturalWidth || !naturalHeight) return;
+    const scale = Math.min(window.innerWidth / naturalWidth, window.innerHeight / naturalHeight);
+    el.style.transform = `scale(${scale})`;
   }
 
   private setBoard(b: QueueBoard) {

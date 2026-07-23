@@ -244,6 +244,27 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'hosted-play/:id/teams',
+        loadComponent: () =>
+          import('./features/admin/hosted-play/fixed-doubles/hosted-play-teams.component').then(
+            (m) => m.AdminHostedPlayTeamsComponent,
+          ),
+      },
+      {
+        path: 'hosted-play/:id/schedule',
+        loadComponent: () =>
+          import('./features/admin/hosted-play/fixed-doubles/hosted-play-schedule.component').then(
+            (m) => m.AdminHostedPlayScheduleComponent,
+          ),
+      },
+      {
+        path: 'hosted-play/:id/schedule/display',
+        loadComponent: () =>
+          import('./features/admin/hosted-play/fixed-doubles/hosted-play-schedule-display.component').then(
+            (m) => m.AdminHostedPlayScheduleDisplayComponent,
+          ),
+      },
+      {
         path: 'hosted-play/history',
         data: { role: 'admin' },
         loadComponent: () =>
@@ -344,6 +365,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/player/hosted-play/self-check-in.component').then(
             (m) => m.SelfCheckInComponent,
+          ),
+      },
+      {
+        path: 'hosted-play/:id/schedule',
+        loadComponent: () =>
+          import('./features/player/hosted-play/fixed-doubles/schedule-board.component').then(
+            (m) => m.PlayerHostedPlayScheduleBoardComponent,
           ),
       },
       {

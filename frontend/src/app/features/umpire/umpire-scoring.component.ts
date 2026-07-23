@@ -1,10 +1,13 @@
 import {
+  AfterViewInit,
   ChangeDetectorRef,
   Component,
+  ElementRef,
   HostListener,
   OnDestroy,
   OnInit,
   Renderer2,
+  ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
@@ -47,7 +50,8 @@ const EMPTY_LIVE_SCORE: LiveScore = {
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="umpire-page">
+    <div class="umpire-viewport" [class.active]="isMobileFit">
+    <div class="umpire-page" #pageEl [class.fit-canvas]="isMobileFit">
       @if (state === 'loading') {
         <section class="state-screen" aria-live="polite">
           <div class="state-visual state-visual-loading">
@@ -534,6 +538,7 @@ const EMPTY_LIVE_SCORE: LiveScore = {
         </div>
       }
     </div>
+    </div>
   `,
   styles: [`
     :host {
@@ -601,6 +606,84 @@ const EMPTY_LIVE_SCORE: LiveScore = {
         linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
       background-size: 46px 46px;
       mask-image: linear-gradient(to bottom, black, transparent 82%);
+    }
+
+    /* ── Mobile-only "fit everything, no scroll" mode ──────────────────────
+       Below the tablet/desktop breakpoint (see @media min-width: 760px
+       above), the page is instead rendered as a fixed-size design canvas
+       and scaled with a CSS transform (in JS) to exactly fill the actual
+       phone screen — no scrolling, whatever orientation it's held in.
+       Desktop/tablet behavior above 760px is completely untouched: the
+       .fit-canvas class is only ever added below that width (see
+       updateMobileFit() in the component). */
+    .umpire-viewport { display: contents; }
+    .umpire-viewport.active {
+      display: flex; align-items: center; justify-content: center;
+      width: 100vw; height: 100vh; height: 100dvh; overflow: hidden;
+      background: var(--page-bg);
+    }
+    .umpire-page.fit-canvas {
+      width: 420px; flex: 0 0 auto; height: auto; min-height: 0;
+    }
+    .umpire-page.fit-canvas::before { position: absolute; }
+    .umpire-page.fit-canvas .score-header h1 { font-size: 1.15rem; }
+    .umpire-page.fit-canvas .score-value { font-size: 5.25rem; }
+    .umpire-page.fit-canvas .state-screen h1 { font-size: 1.6rem; }
+
+    /* Landscape phones: a content-driven height (however wide the canvas)
+       stays roughly square, while the actual screen is a short, wide
+       rectangle — scaling a near-square box to fit that shape wastes most
+       of the width. Give the canvas a fixed, phone-landscape-shaped
+       footprint instead (matching real device aspect ratios ~2:1) and
+       tighten spacing so the core controls fit inside it without needing to
+       scroll; overflow-y stays as a safety net for taller edge states
+       (long names, notices, the finish dialog). */
+    @media (orientation: landscape) {
+      .umpire-page.fit-canvas {
+        width: 1180px;
+        height: 540px;
+        padding: 0.6rem 0.9rem 0.75rem;
+        overflow-y: auto;
+      }
+      .umpire-page.fit-canvas .score-header {
+        padding: 0.2rem 0 0.4rem;
+      }
+      .umpire-page.fit-canvas .match-overview {
+        padding: 0.5rem 0.7rem;
+        margin-bottom: 0.5rem;
+      }
+      .umpire-page.fit-canvas .scoreboard-heading {
+        margin: 0.5rem 0 0.4rem;
+      }
+      .umpire-page.fit-canvas .now-serving-banner,
+      .umpire-page.fit-canvas .game-decided-banner {
+        margin: 0.3rem 0 0.5rem;
+        padding: 0.4rem 0.8rem;
+      }
+      .umpire-page.fit-canvas .team-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.6rem;
+      }
+      .umpire-page.fit-canvas .team-card {
+        padding: 0.6rem;
+      }
+      .umpire-page.fit-canvas .players {
+        margin-top: 0.4rem;
+      }
+      .umpire-page.fit-canvas .score-value {
+        font-size: 3.2rem;
+        margin-top: 0.3rem;
+      }
+      .umpire-page.fit-canvas .rally-btn {
+        min-height: 44px;
+      }
+      .umpire-page.fit-canvas .game-actions {
+        margin-top: 0.5rem;
+        padding: 0.5rem 0.7rem;
+      }
+      .umpire-page.fit-canvas .page-footer {
+        margin-top: 0.5rem;
+      }
     }
 
     .score-shell {
@@ -1988,7 +2071,7 @@ const EMPTY_LIVE_SCORE: LiveScore = {
     }
   `],
 })
-export class UmpireScoringComponent implements OnInit, OnDestroy {
+export class UmpireScoringComponent implements OnInit, AfterViewInit, OnDestroy {
   state: PageState = 'loading';
   board: QueueBoard | null = null;
   error = '';
@@ -2001,12 +2084,23 @@ export class UmpireScoringComponent implements OnInit, OnDestroy {
   manualPickTeam: 1 | 2 | null = null;
   readonly emptyLiveScore = EMPTY_LIVE_SCORE;
 
+  // Below this width, the page renders as a fixed-size canvas scaled with a
+  // transform to exactly fill the screen with no scrolling (see .fit-canvas
+  // in styles) — matches the breakpoint the page's own desktop/tablet
+  // enhancements (@media min-width: 760px) already use, just from below.
+  private static readonly MOBILE_FIT_BREAKPOINT = 760;
+  isMobileFit = false;
+
+  @ViewChild('pageEl') private pageRef?: ElementRef<HTMLElement>;
+
   private sessionId = '';
   courtNumber = 0;
   private token = '';
   private pollSub?: Subscription;
   private successTimer?: ReturnType<typeof setTimeout>;
   private readonly POLL_MS = 5000;
+  private resizeObserver?: ResizeObserver;
+  private orientationTimer?: ReturnType<typeof setTimeout>;
 
   constructor(
     private route: ActivatedRoute,
@@ -2030,11 +2124,62 @@ export class UmpireScoringComponent implements OnInit, OnDestroy {
     this.load();
   }
 
+  ngAfterViewInit() {
+    const el = this.pageRef?.nativeElement;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.updateMobileFit());
+      this.resizeObserver.observe(el);
+    }
+    this.updateMobileFit();
+  }
+
   ngOnDestroy() {
     this.pollSub?.unsubscribe();
     if (this.successTimer) clearTimeout(this.successTimer);
+    if (this.orientationTimer) clearTimeout(this.orientationTimer);
+    this.resizeObserver?.disconnect();
     this.renderer.removeClass(document.documentElement, 'dark-player-page');
     this.renderer.removeClass(document.body, 'dark-player-page');
+  }
+
+  @HostListener('window:resize')
+  onWindowResize() {
+    this.updateMobileFit();
+  }
+
+  @HostListener('window:orientationchange')
+  onOrientationChange() {
+    if (this.orientationTimer) clearTimeout(this.orientationTimer);
+    this.orientationTimer = setTimeout(() => this.updateMobileFit(), 200);
+  }
+
+  // Decides whether the mobile "fit everything, no scroll" canvas mode
+  // should be active, and if so scales it to exactly fill the screen. Above
+  // the breakpoint this fully resets the page back to its normal
+  // desktop/tablet flow (natural size, scrollable, transform cleared).
+  //
+  // Uses the SMALLER of the two viewport dimensions, not just width — a
+  // phone's short side stays roughly constant across rotation (~360-430px),
+  // whereas its width alone swings from ~400px in portrait to ~700-930px in
+  // landscape on many modern phones, which would otherwise fall above a
+  // plain width check and wrongly fall back to the desktop layout.
+  private updateMobileFit() {
+    const shouldFit = Math.min(window.innerWidth, window.innerHeight) < UmpireScoringComponent.MOBILE_FIT_BREAKPOINT;
+    if (shouldFit !== this.isMobileFit) {
+      this.isMobileFit = shouldFit;
+      this.cdr.detectChanges();
+    }
+    const el = this.pageRef?.nativeElement;
+    if (!el) return;
+    if (!shouldFit) {
+      el.style.transform = 'none';
+      return;
+    }
+    const naturalWidth = el.offsetWidth;
+    const naturalHeight = el.offsetHeight;
+    if (!naturalWidth || !naturalHeight) return;
+    const scale = Math.min(window.innerWidth / naturalWidth, window.innerHeight / naturalHeight);
+    el.style.transform = `scale(${scale})`;
   }
 
   @HostListener('document:keydown.escape')

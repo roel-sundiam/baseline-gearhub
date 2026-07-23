@@ -7,11 +7,14 @@ const admin = require("../middleware/admin");
 const HostedPlay = require("../models/HostedPlay");
 const HostedPlayParticipant = require("../models/HostedPlayParticipant");
 const HostedPlayMatch = require("../models/HostedPlayMatch");
+const HostedPlayPair = require("../models/HostedPlayPair");
+const HostedPlayFixture = require("../models/HostedPlayFixture");
 const User = require("../models/User");
 const Club = require("../models/Club");
 const Charge = require("../models/Charge");
 const AppServicePayment = require("../models/AppServicePayment");
 const queue = require("../services/queue-engine");
+const fixedDoubles = require("../services/fixed-doubles-engine");
 const { sendPushToClubAdmins, sendPushToUser } = require("../utils/push");
 const { computePlayerFees } = require("../utils/fees");
 const { resolveGuestFee, countGuests } = require("../utils/guests");
@@ -246,82 +249,27 @@ router.post("/player/sessions/:id/join", auth, async (req, res) => {
     }
 
     const { paymentMethod, paymentScreenshot, useCredit } = req.body;
-    const validMemberMethods = ["GCash", "Bank Transfer", "GoTyme"];
-    if (paymentScreenshot && !String(paymentScreenshot).startsWith("https://")) {
-      return res.status(400).json({ error: "paymentScreenshot must be a secure HTTPS URL" });
-    }
-    if (paymentMethod && !validMemberMethods.includes(paymentMethod)) {
-      return res.status(400).json({ error: "Invalid paymentMethod" });
+    const result = await joinSessionAsParticipant({ session, memberId, paymentMethod, paymentScreenshot, useCredit });
+    if (result.error) {
+      return res.status(result.status || 400).json({ error: result.error, remaining: result.remaining, creditApplied: result.creditApplied });
     }
 
-    const [user, club] = await Promise.all([
-      User.findById(memberId).select("name").lean(),
-      Club.findById(session.clubId).select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode").lean(),
-    ]);
-
-    const hasPaymentProof = !!(paymentScreenshot && paymentMethod);
-    const breakdown = await computeMemberFeeAndCredit({ session, club, memberId, baseFee: session.feePerPlayer, useCredit });
-    const { creditApplied, remaining } = breakdown;
-
-    if (remaining > 0 && !hasPaymentProof) {
-      return res.status(400).json({ error: "Payment is required to join this session", remaining, creditApplied });
-    }
-
-    if (remaining > 0 && hasPaymentProof) {
-      const pendingCharge = await Charge.findOne({
-        hostedPlayId: session._id,
-        playerId: memberId,
-        approvalStatus: "pending",
-      }).lean();
-      if (pendingCharge) return res.status(400).json({ error: "You already have a pending payment for this session awaiting approval" });
-    }
-
-    const charge = await chargeMemberForSession({ session, memberId, breakdown, paymentMethod, paymentScreenshot });
-
-    if (remaining <= 0) {
-      // Fully covered (free session, or credit covered it) — join the player immediately.
-      await HostedPlayParticipant.create({
-        hostedPlayId: session._id,
-        clubId: session.clubId,
-        memberId,
-        memberName: user?.name ?? "Member",
-        chargeId: charge._id,
+    if (!result.pendingApproval) {
+      return res.status(201).json({
+        success: true,
+        currentPlayers: session.currentPlayers,
+        status: session.status,
+        chargeId: result.charge._id,
+        creditApplied: result.creditApplied,
       });
-      session.currentPlayers += 1;
-      if (session.currentPlayers >= session.maxPlayers) session.status = "full";
-      await session.save();
-      sendPushToClubAdmins(session.clubId, {
-        title: "Hosted Play join",
-        body: `${user?.name ?? "A member"} joined "${session.title}".`,
-      });
-      return res.status(201).json({ success: true, currentPlayers: session.currentPlayers, status: session.status, chargeId: charge._id, creditApplied });
     }
-
-    // Still owes a remainder — reserve the slot now, held pending admin approval.
-    await HostedPlayParticipant.create({
-      hostedPlayId: session._id,
-      clubId: session.clubId,
-      memberId,
-      memberName: user?.name ?? "Member",
-      chargeId: charge._id,
-      waitStatus: "pending_payment",
-      offerExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    });
-    session.currentPlayers += 1;
-    if (session.currentPlayers >= session.maxPlayers) session.status = "full";
-    await session.save();
-
-    sendPushToClubAdmins(session.clubId, {
-      title: "Hosted Play payment pending",
-      body: `${user?.name ?? "A member"} submitted payment for "${session.title}". Please review and approve.`,
-    });
 
     res.status(201).json({
       success: true,
       status: "pending_approval",
-      chargeId: charge._id,
-      creditApplied,
-      remaining,
+      chargeId: result.charge._id,
+      creditApplied: result.creditApplied,
+      remaining: result.remaining,
       currentPlayers: session.currentPlayers,
       sessionStatus: session.status,
     });
@@ -329,6 +277,67 @@ router.post("/player/sessions/:id/join", auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Payment + participant-creation core of a member join, shared by the direct
+// join route above and the fixed-doubles partner-invite-accept flow below —
+// both need a member to go through the identical fee/credit/proof rules.
+// Caller is responsible for pre-checks (duplicate join, skill band, capacity/
+// waitlist) — this only handles "charge them and create the participant."
+async function joinSessionAsParticipant({ session, memberId, paymentMethod, paymentScreenshot, useCredit }) {
+  const validMemberMethods = ["GCash", "Bank Transfer", "GoTyme"];
+  if (paymentScreenshot && !String(paymentScreenshot).startsWith("https://")) {
+    return { error: "paymentScreenshot must be a secure HTTPS URL", status: 400 };
+  }
+  if (paymentMethod && !validMemberMethods.includes(paymentMethod)) {
+    return { error: "Invalid paymentMethod", status: 400 };
+  }
+
+  const [user, club] = await Promise.all([
+    User.findById(memberId).select("name").lean(),
+    Club.findById(session.clubId).select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode").lean(),
+  ]);
+
+  const hasPaymentProof = !!(paymentScreenshot && paymentMethod);
+  const breakdown = await computeMemberFeeAndCredit({ session, club, memberId, baseFee: session.feePerPlayer, useCredit });
+  const { creditApplied, remaining } = breakdown;
+
+  if (remaining > 0 && !hasPaymentProof) {
+    return { error: "Payment is required to join this session", status: 400, remaining, creditApplied };
+  }
+
+  if (remaining > 0 && hasPaymentProof) {
+    const pendingCharge = await Charge.findOne({
+      hostedPlayId: session._id,
+      playerId: memberId,
+      approvalStatus: "pending",
+    }).lean();
+    if (pendingCharge) return { error: "You already have a pending payment for this session awaiting approval", status: 400 };
+  }
+
+  const charge = await chargeMemberForSession({ session, memberId, breakdown, paymentMethod, paymentScreenshot });
+  const pendingApproval = remaining > 0;
+
+  const participant = await HostedPlayParticipant.create({
+    hostedPlayId: session._id,
+    clubId: session.clubId,
+    memberId,
+    memberName: user?.name ?? "Member",
+    chargeId: charge._id,
+    ...(pendingApproval
+      ? { waitStatus: "pending_payment", offerExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) }
+      : {}),
+  });
+
+  session.currentPlayers += 1;
+  if (session.currentPlayers >= session.maxPlayers) session.status = "full";
+  await session.save();
+
+  sendPushToClubAdmins(session.clubId, pendingApproval
+    ? { title: "Hosted Play payment pending", body: `${user?.name ?? "A member"} submitted payment for "${session.title}". Please review and approve.` }
+    : { title: "Hosted Play join", body: `${user?.name ?? "A member"} joined "${session.title}".` });
+
+  return { participant, charge, creditApplied, remaining, pendingApproval };
+}
 
 // DELETE /api/hosted-play/player/sessions/:id/join — cancel before the event starts
 router.delete("/player/sessions/:id/join", auth, async (req, res) => {
@@ -538,13 +547,33 @@ function normalizeScoreTarget(sport, value) {
   return VALID_SCORE_TARGETS.includes(num) ? num : null;
 }
 
+// Only meaningful when queueMode === "fixed_doubles_rotation". Returns
+// { fixedDoubles } on success or { error } — maxPlayers must exactly cover
+// pairCount pairs (2 players each) since this format has no individual seats.
+// matchDurationMinutes is NOT collected here — it's auto-computed at schedule
+// generation time from the session's start/end window and the actual number
+// of confirmed pairs (see fixedDoubles.computeMatchDuration), since the real
+// pair count is only known then, not at session creation.
+function normalizeFixedDoubles(queueMode, input, maxPlayers) {
+  if (queueMode !== "fixed_doubles_rotation") return { fixedDoubles: undefined };
+  const pairCount = Number(input?.pairCount);
+  if (!Number.isInteger(pairCount) || pairCount < 2) {
+    return { error: "Number of pairs must be at least 2" };
+  }
+  if (Number(maxPlayers) !== pairCount * 2) {
+    return { error: "Maximum players must equal number of pairs × 2 for Fixed Doubles Rotation" };
+  }
+  const restBetweenMatchesMinutes = Math.max(0, Number(input?.restBetweenMatchesMinutes ?? 0) || 0);
+  return { fixedDoubles: { pairCount, restBetweenMatchesMinutes } };
+}
+
 // POST /api/hosted-play/sessions
 router.post("/sessions", auth, admin, async (req, res) => {
   try {
     const {
       title, sport, date, startTime, endTime, venue, court, address,
       feePerPlayer, sessionFee, guestFeePerPlayer, maxPlayers, maxGuests, description,
-      numberOfCourts, playersPerCourt, queueMode,
+      numberOfCourts, playersPerCourt, queueMode, fixedDoubles: fixedDoublesInput,
       minSkillLevel, maxSkillLevel, scoreTarget, winByTwo,
     } = req.body;
 
@@ -556,6 +585,8 @@ router.post("/sessions", auth, admin, async (req, res) => {
     if (scoreTarget !== undefined && scoreTarget !== null && scoreTarget !== "" && !VALID_SCORE_TARGETS.includes(Number(scoreTarget))) {
       return res.status(400).json({ error: "scoreTarget must be 11, 15, or 21" });
     }
+    const normFixedDoubles = normalizeFixedDoubles(queueMode, fixedDoublesInput, maxPlayers);
+    if (normFixedDoubles.error) return res.status(400).json({ error: normFixedDoubles.error });
 
     const normMaxGuests = normalizeMaxGuests(maxGuests);
     if (normMaxGuests !== null && normMaxGuests > Number(maxPlayers)) {
@@ -586,6 +617,7 @@ router.post("/sessions", auth, admin, async (req, res) => {
       queueManagementEnabled: !!club?.hostedPlayQueueEnabled,
       ...(playersPerCourt !== undefined ? { playersPerCourt: Math.max(1, Number(playersPerCourt) || 4) } : {}),
       ...(queueMode !== undefined ? { queueMode } : {}),
+      ...(normFixedDoubles.fixedDoubles ? { fixedDoubles: normFixedDoubles.fixedDoubles } : {}),
       ...(minSkillLevel ? { minSkillLevel } : {}),
       ...(maxSkillLevel ? { maxSkillLevel } : {}),
       scoreTarget: normalizeScoreTarget(sport, scoreTarget),
@@ -615,7 +647,7 @@ router.put("/sessions/:id", auth, admin, async (req, res) => {
     const {
       title, sport, date, startTime, endTime, venue, court, address,
       feePerPlayer, sessionFee, guestFeePerPlayer, maxPlayers, maxGuests, description,
-      numberOfCourts, playersPerCourt, queueMode,
+      numberOfCourts, playersPerCourt, queueMode, fixedDoubles: fixedDoublesInput,
       minSkillLevel, maxSkillLevel, scoreTarget, winByTwo,
     } = req.body;
     if (scoreTarget !== undefined && scoreTarget !== null && scoreTarget !== "" && !VALID_SCORE_TARGETS.includes(Number(scoreTarget))) {
@@ -624,6 +656,18 @@ router.put("/sessions/:id", auth, admin, async (req, res) => {
 
     const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId });
     if (!session) return res.status(404).json({ error: "Session not found" });
+
+    const effectiveQueueMode = queueMode !== undefined ? queueMode : session.queueMode;
+    if (effectiveQueueMode === "fixed_doubles_rotation" && (fixedDoublesInput !== undefined || queueMode !== undefined)) {
+      const effectiveMaxPlayers = maxPlayers !== undefined ? Number(maxPlayers) : session.maxPlayers;
+      const normFixedDoubles = normalizeFixedDoubles(
+        effectiveQueueMode,
+        fixedDoublesInput || session.fixedDoubles,
+        effectiveMaxPlayers,
+      );
+      if (normFixedDoubles.error) return res.status(400).json({ error: normFixedDoubles.error });
+      if (normFixedDoubles.fixedDoubles) session.fixedDoubles = normFixedDoubles.fixedDoubles;
+    }
 
     if (maxGuests !== undefined) {
       const normMaxGuests = normalizeMaxGuests(maxGuests);
@@ -867,7 +911,91 @@ async function loadUmpireContext(req, res) {
     res.status(403).json({ error: "Queue Management is not enabled for this session" });
     return null;
   }
-  return loadParticipantsContext(session, club);
+
+  if (session.queueMode === "fixed_doubles_rotation") {
+    const fixture = await findCurrentFixtureForCourt(session._id, courtNumber);
+    return { session, club, courtNumber, kind: "fixed-schedule", fixture };
+  }
+  return { ...(await loadParticipantsContext(session, club)), kind: "live-queue", courtNumber };
+}
+
+// The match "currently on" a given court for umpire purposes: whichever
+// fixture is in_progress there, else the earliest still-scheduled one. null
+// when nothing is queued up for that court (matches "Court is empty").
+async function findCurrentFixtureForCourt(hostedPlayId, courtNumber) {
+  const inProgress = await HostedPlayFixture.findOne({ hostedPlayId, courtNumber, status: "in_progress" });
+  if (inProgress) return inProgress;
+  return HostedPlayFixture.findOne({ hostedPlayId, courtNumber, status: "scheduled" }).sort({ matchNumber: 1 });
+}
+
+// Synthesizes a QueueBoard-shaped response for a fixed-doubles fixture so the
+// SAME anonymous umpire scoring page (built for the live-queue formats) works
+// unchanged: one court, four players (courtSlot 1-2 = pair1, 3-4 = pair2),
+// liveScore null until start-serve is called (mirrors "no liveScores entry
+// yet" for that court in the live-queue system).
+function toPublicUmpirePlayer(p, courtNumber, courtSlot) {
+  return {
+    _id: String(p.participantId),
+    memberId: p.memberId ? String(p.memberId) : null,
+    memberName: p.memberName || "Member",
+    profileImage: null,
+    isWalkIn: false,
+    checkedIn: true,
+    queueStatus: "playing",
+    queueOrder: null,
+    courtNumber,
+    courtSlot,
+    gamesPlayed: 0,
+    wins: 0,
+    losses: 0,
+  };
+}
+
+function buildFixedDoublesUmpireBoard(session, club, courtNumber, fixture) {
+  const players = fixture
+    ? [
+        ...(fixture.pair1Snapshot.players || []).map((p, i) => toPublicUmpirePlayer(p, courtNumber, i + 1)),
+        ...(fixture.pair2Snapshot.players || []).map((p, i) => toPublicUmpirePlayer(p, courtNumber, i + 3)),
+      ]
+    : [];
+  const board = {
+    session: {
+      _id: session._id,
+      title: session.title,
+      status: session.status,
+      venue: session.venue,
+      court: session.court,
+      date: session.date,
+      startTime: session.startTime,
+      endTime: session.endTime,
+      queueStatus: session.queueStatus,
+      queueMode: session.queueMode,
+      numberOfCourts: session.numberOfCourts || 1,
+      playersPerCourt: 4,
+      sport: session.sport,
+      scoreTarget: session.scoreTarget ?? null,
+      winByTwo: session.winByTwo !== undefined ? !!session.winByTwo : true,
+    },
+    courts: [{
+      courtNumber,
+      players,
+      liveScore: fixture?.servingPair ? {
+        team1Score: fixture.pair1Score ?? 0,
+        team2Score: fixture.pair2Score ?? 0,
+        servingTeam: fixture.servingPair,
+        serverNumber: fixture.serverNumber ?? null,
+        servingPlayerId: fixture.servingParticipantId ? String(fixture.servingParticipantId) : null,
+        canUndo: !!fixture.previousLiveState,
+      } : null,
+    }],
+    waiting: [],
+    paused: [],
+    nextGroup: [],
+    roster: [],
+    counts: { checkedIn: 0, waiting: 0, playing: players.length ? 1 : 0, paused: 0, activeGames: players.length ? 1 : 0 },
+  };
+  decorateBoardFees(board, club, session);
+  return board;
 }
 
 // Snapshot the pre-mutation queue state so applyAndRespond can diff transitions
@@ -1400,6 +1528,9 @@ router.get("/umpire/:sessionId/courts/:n/board", async (req, res) => {
   try {
     const ctx = await loadUmpireContext(req, res);
     if (!ctx) return;
+    if (ctx.kind === "fixed-schedule") {
+      return res.json(buildFixedDoublesUmpireBoard(ctx.session, ctx.club, ctx.courtNumber, ctx.fixture));
+    }
     const board = queue.buildBoard(ctx.session, ctx.participants);
     decorateBoardFees(board, ctx.club, ctx.session);
     res.json(board);
@@ -1433,9 +1564,22 @@ router.post("/umpire/:sessionId/courts/:n/start-serve", async (req, res) => {
   try {
     const ctx = await loadUmpireContext(req, res);
     if (!ctx) return;
-    const courtNumber = Number(req.params.n);
     const team = Number(req.body.team);
     const playerId = req.body.playerId ? String(req.body.playerId) : "";
+    if (ctx.kind === "fixed-schedule") {
+      if (!ctx.fixture) return res.status(400).json({ error: "Court is empty" });
+      const patch = fixedDoubles.startFixtureServe({ fixture: ctx.fixture, pair: team, participantId: playerId });
+      if (patch.error) return res.status(400).json({ error: patch.error });
+      Object.assign(ctx.fixture, patch);
+      if (ctx.fixture.status === "scheduled") {
+        ctx.fixture.status = "in_progress";
+        ctx.fixture.actualStart = new Date();
+      }
+      await ctx.fixture.save();
+      return res.json(buildFixedDoublesUmpireBoard(ctx.session, ctx.club, ctx.courtNumber, ctx.fixture));
+    }
+
+    const courtNumber = Number(req.params.n);
     if (![1, 2].includes(team)) {
       return res.status(400).json({ error: "Invalid team" });
     }
@@ -1489,9 +1633,17 @@ router.post("/umpire/:sessionId/courts/:n/set-server", async (req, res) => {
   try {
     const ctx = await loadUmpireContext(req, res);
     if (!ctx) return;
-    const courtNumber = Number(req.params.n);
     const playerId = req.body.playerId ? String(req.body.playerId) : "";
+    if (ctx.kind === "fixed-schedule") {
+      if (!ctx.fixture) return res.status(400).json({ error: "Court is empty" });
+      const patch = fixedDoubles.setFixtureServer({ fixture: ctx.fixture, participantId: playerId });
+      if (patch.error) return res.status(400).json({ error: patch.error });
+      Object.assign(ctx.fixture, patch);
+      await ctx.fixture.save();
+      return res.json(buildFixedDoublesUmpireBoard(ctx.session, ctx.club, ctx.courtNumber, ctx.fixture));
+    }
 
+    const courtNumber = Number(req.params.n);
     const existing = (ctx.session.liveScores || []).find((s) => s.courtNumber === courtNumber);
     if (!existing || !existing.servingTeam) {
       return res.status(400).json({ error: "Choose who serves first" });
@@ -1551,12 +1703,20 @@ router.post("/umpire/:sessionId/courts/:n/rally-won", async (req, res) => {
   try {
     const ctx = await loadUmpireContext(req, res);
     if (!ctx) return;
-    const courtNumber = Number(req.params.n);
     const team = Number(req.body.team);
     if (![1, 2].includes(team)) {
       return res.status(400).json({ error: "Invalid team" });
     }
+    if (ctx.kind === "fixed-schedule") {
+      if (!ctx.fixture) return res.status(400).json({ error: "Court is empty" });
+      const patch = fixedDoubles.fixtureRallyWon({ fixture: ctx.fixture, pair: team });
+      if (patch.error) return res.status(400).json({ error: patch.error });
+      Object.assign(ctx.fixture, patch);
+      await ctx.fixture.save();
+      return res.json(buildFixedDoublesUmpireBoard(ctx.session, ctx.club, ctx.courtNumber, ctx.fixture));
+    }
 
+    const courtNumber = Number(req.params.n);
     const existing = (ctx.session.liveScores || []).find((s) => s.courtNumber === courtNumber);
     if (!existing || !existing.servingTeam) {
       return res.status(400).json({ error: "Choose who serves first" });
@@ -1633,8 +1793,16 @@ router.post("/umpire/:sessionId/courts/:n/undo", async (req, res) => {
   try {
     const ctx = await loadUmpireContext(req, res);
     if (!ctx) return;
-    const courtNumber = Number(req.params.n);
+    if (ctx.kind === "fixed-schedule") {
+      if (!ctx.fixture) return res.status(400).json({ error: "Court is empty" });
+      const patch = fixedDoubles.undoFixtureLiveState(ctx.fixture);
+      if (patch.error) return res.status(400).json({ error: patch.error });
+      Object.assign(ctx.fixture, patch);
+      await ctx.fixture.save();
+      return res.json(buildFixedDoublesUmpireBoard(ctx.session, ctx.club, ctx.courtNumber, ctx.fixture));
+    }
 
+    const courtNumber = Number(req.params.n);
     const existing = (ctx.session.liveScores || []).find((s) => s.courtNumber === courtNumber);
     if (!existing || !existing.previousState) {
       return res.status(400).json({ error: "Nothing to undo" });
@@ -1664,8 +1832,26 @@ router.post("/umpire/:sessionId/courts/:n/finish", async (req, res) => {
   try {
     const ctx = await loadUmpireContext(req, res);
     if (!ctx) return;
-    const courtNumber = Number(req.params.n);
+    if (ctx.kind === "fixed-schedule") {
+      if (!ctx.fixture) return res.status(400).json({ error: "Court is empty" });
+      const pair1Score = ctx.fixture.pair1Score || 0;
+      const pair2Score = ctx.fixture.pair2Score || 0;
+      if (!ctx.fixture.servingPair || (pair1Score === 0 && pair2Score === 0)) {
+        return res.status(400).json({ error: "No score recorded yet" });
+      }
+      if (pair1Score === pair2Score) {
+        return res.status(400).json({ error: "Scores are tied — enter the final point before finishing" });
+      }
+      const winnerPairId = pair1Score > pair2Score ? String(ctx.fixture.pair1Id) : String(ctx.fixture.pair2Id);
+      await finishFixtureAndRecordMatch(ctx.session, ctx.fixture, {
+        pair1Score, pair2Score, winnerPairId, winnerSource: "scores", recordedBy: ctx.session.createdBy,
+      });
+      // The court may already have a next scheduled match lined up.
+      const next = await findCurrentFixtureForCourt(ctx.session._id, ctx.courtNumber);
+      return res.json(buildFixedDoublesUmpireBoard(ctx.session, ctx.club, ctx.courtNumber, next));
+    }
 
+    const courtNumber = Number(req.params.n);
     const live = (ctx.session.liveScores || []).find((s) => s.courtNumber === courtNumber);
     if (!live || (live.team1Score === 0 && live.team2Score === 0)) {
       return res.status(400).json({ error: "No score recorded yet" });
@@ -1877,35 +2063,44 @@ router.get("/player/standings", auth, async (req, res) => {
 // PATCH /api/hosted-play/matches/:matchId/score — add/correct scores after the
 // fact. Never retro-adjusts participant wins/losses — those were settled by the
 // queue engine at finish time; scores are record-keeping only.
+// Mutates `match`'s team1Score/team2Score/winnerTeam/winnerSource in place per
+// the correction rules; returns {} on success or {error}. Caller saves.
+function correctMatchScore(match, body) {
+  // Both explicitly null clears the scores (and a score-derived winner).
+  if (body.team1Score === null && body.team2Score === null) {
+    match.team1Score = null;
+    match.team2Score = null;
+    if (match.winnerSource === "scores") {
+      match.winnerTeam = null;
+      match.winnerSource = null;
+    }
+    return {};
+  }
+  const scores = parseMatchScores(body);
+  if (!scores || scores.error) return { error: scores?.error || "Both scores are required" };
+
+  if (match.winnerSource === "tapped") {
+    // The tapped winner is authoritative — scores must agree.
+    const winnerScore = match.winnerTeam === 1 ? scores.team1Score : scores.team2Score;
+    const loserScore = match.winnerTeam === 1 ? scores.team2Score : scores.team1Score;
+    if (winnerScore <= loserScore) return { error: "Scores contradict the recorded winner" };
+  } else {
+    match.winnerTeam = scores.team1Score === scores.team2Score ? null : scores.team1Score > scores.team2Score ? 1 : 2;
+    match.winnerSource = match.winnerTeam ? "scores" : null;
+  }
+  match.team1Score = scores.team1Score;
+  match.team2Score = scores.team2Score;
+  return {};
+}
+
 router.patch("/matches/:matchId/score", auth, admin, async (req, res) => {
   try {
     const match = await HostedPlayMatch.findOne({ _id: req.params.matchId, clubId: req.user.clubId });
     if (!match) return res.status(404).json({ error: "Match not found" });
 
-    // Both explicitly null clears the scores (and a score-derived winner).
-    if (req.body.team1Score === null && req.body.team2Score === null) {
-      match.team1Score = null;
-      match.team2Score = null;
-      if (match.winnerSource === "scores") {
-        match.winnerTeam = null;
-        match.winnerSource = null;
-      }
-    } else {
-      const scores = parseMatchScores(req.body);
-      if (!scores || scores.error) return res.status(400).json({ error: scores?.error || "Both scores are required" });
+    const result = correctMatchScore(match, req.body);
+    if (result.error) return res.status(400).json({ error: result.error });
 
-      if (match.winnerSource === "tapped") {
-        // The tapped winner is authoritative — scores must agree.
-        const winnerScore = match.winnerTeam === 1 ? scores.team1Score : scores.team2Score;
-        const loserScore = match.winnerTeam === 1 ? scores.team2Score : scores.team1Score;
-        if (winnerScore <= loserScore) return res.status(400).json({ error: "Scores contradict the recorded winner" });
-      } else {
-        match.winnerTeam = scores.team1Score === scores.team2Score ? null : scores.team1Score > scores.team2Score ? 1 : 2;
-        match.winnerSource = match.winnerTeam ? "scores" : null;
-      }
-      match.team1Score = scores.team1Score;
-      match.team2Score = scores.team2Score;
-    }
     match.scoreEnteredBy = req.user.userId;
     match.scoreEnteredAt = new Date();
     await match.save();
@@ -1964,6 +2159,672 @@ router.put("/sessions/:id/queue/order", auth, admin, async (req, res) => {
     if (!ctx) return;
     const ids = Array.isArray(req.body.orderedParticipantIds) ? req.body.orderedParticipantIds : [];
     await applyAndRespond(res, ctx.session, ctx.participants, queue.reorderQueue(ctx.session, ctx.participants, ids), ctx.club, ctx.prev);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Fixed Doubles Rotation (admin + player; requires club.hostedPlayQueueEnabled) ──
+// Structurally separate from queue-engine.js: a complete round-robin schedule
+// is generated upfront for fixed pairs, rather than players dynamically
+// rotating through open courts. See services/fixed-doubles-engine.js and
+// services/hosted-play-format-registry.js for the architecture note.
+
+// Load a session scoped to clubId and confirm it's using this format and the
+// club has Queue Management enabled (same gate the other formats use).
+// Returns a full mongoose document (not .lean()) so callers can session.save().
+async function loadFixedDoublesSession(sessionId, clubId) {
+  const [session, club] = await Promise.all([
+    HostedPlay.findOne({ _id: sessionId, clubId }),
+    Club.findById(clubId)
+      .select("hostedPlayQueueEnabled hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount logo courts")
+      .lean(),
+  ]);
+  if (!session) return { error: "Session not found", status: 404 };
+  if (session.queueMode !== "fixed_doubles_rotation") {
+    return { error: "This session is not using Fixed Doubles Rotation", status: 400 };
+  }
+  const allowed = session.queueManagementEnabled ?? !!club?.hostedPlayQueueEnabled;
+  if (!allowed) return { error: "Queue Management is not enabled for this session", status: 403 };
+  return { session, club };
+}
+
+function combineDateTime(date, timeStr) {
+  const d = new Date(date);
+  const [h, m] = String(timeStr || "0:0").split(":").map(Number);
+  d.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
+  return d;
+}
+
+async function findExistingPairForParticipant(hostedPlayId, participantId, excludePairId = null) {
+  return HostedPlayPair.findOne({
+    hostedPlayId,
+    status: { $in: ["pending_partner", "confirmed"] },
+    ...(excludePairId ? { _id: { $ne: excludePairId } } : {}),
+    $or: [{ participantAId: participantId }, { participantBId: participantId }],
+  }).lean();
+}
+
+function countActivePairs(hostedPlayId) {
+  return HostedPlayPair.countDocuments({ hostedPlayId, status: { $in: ["pending_partner", "confirmed"] } });
+}
+
+async function respondFixedDoublesBoard(res, session, club, extra = null) {
+  const pairs = await HostedPlayPair.find({ hostedPlayId: session._id, status: { $ne: "withdrawn" } })
+    .sort({ createdAt: 1 })
+    .lean();
+  const fixtures = await HostedPlayFixture.find({ hostedPlayId: session._id }).lean();
+  const board = fixedDoubles.buildBoard(session, pairs, fixtures);
+  if (club) decorateBoardFees(board, club, session);
+  res.json(extra ? { ...board, ...extra } : board);
+}
+
+// Marks a fixture completed and mirrors it into HostedPlayMatch (club-wide
+// history/standings). Shared by the admin "Record Score" route (tapped/typed
+// scores) and the anonymous umpire finish route (winner always score-derived) —
+// each resolves its own winner before calling this. Saves the fixture.
+async function finishFixtureAndRecordMatch(session, fixture, { pair1Score, pair2Score, winnerPairId, winnerSource, recordedBy }) {
+  fixture.status = "completed";
+  fixture.actualStart = fixture.actualStart || fixture.scheduledStart;
+  fixture.actualEnd = new Date();
+  fixture.pair1Score = pair1Score;
+  fixture.pair2Score = pair2Score;
+  fixture.winnerPairId = winnerPairId;
+  fixture.winnerSource = winnerSource;
+  fixture.recordedBy = recordedBy;
+  fixture.scoreEnteredBy = recordedBy;
+  fixture.scoreEnteredAt = new Date();
+  // Clear umpire live-scoring transient state now that the match is over.
+  fixture.servingPair = null;
+  fixture.serverNumber = null;
+  fixture.servingParticipantId = null;
+  fixture.pair1RightParticipantId = null;
+  fixture.pair2RightParticipantId = null;
+  fixture.previousLiveState = null;
+
+  const toMatchPlayers = (snapshot) => (snapshot.players || []).map((pl) => ({
+    participantId: pl.participantId,
+    memberId: pl.memberId ?? null,
+    memberName: pl.memberName ?? "",
+    isWalkIn: false,
+  }));
+  try {
+    const match = await HostedPlayMatch.create({
+      sessionId: session._id,
+      clubId: session.clubId,
+      sport: session.sport,
+      queueMode: session.queueMode,
+      courtNumber: fixture.courtNumber,
+      team1: toMatchPlayers(fixture.pair1Snapshot),
+      team2: toMatchPlayers(fixture.pair2Snapshot),
+      team1Score: pair1Score,
+      team2Score: pair2Score,
+      winnerTeam: String(winnerPairId) === String(fixture.pair1Id) ? 1 : 2,
+      winnerSource,
+      finishedAt: new Date(),
+      recordedBy,
+      scoreEnteredBy: recordedBy,
+      scoreEnteredAt: new Date(),
+    });
+    fixture.matchRecordId = match._id;
+  } catch (e) {
+    console.error("hosted-play: failed to record fixed-doubles match", e);
+  }
+
+  await fixture.save();
+}
+
+// ── Pairs / registration ─────────────────────────────────────────────────────
+
+// GET /api/hosted-play/sessions/:id/pairs (admin) / player/sessions/:id/pairs
+async function listPairs(req, res, clubId) {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+    const pairs = await HostedPlayPair.find({ hostedPlayId: ctx.session._id, status: { $ne: "withdrawn" } })
+      .sort({ createdAt: 1 })
+      .lean();
+    res.json(pairs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+router.get("/sessions/:id/pairs", auth, admin, (req, res) => listPairs(req, res, req.user.clubId));
+router.get("/player/sessions/:id/pairs", auth, (req, res) => listPairs(req, res, req.user.clubId));
+
+// POST /api/hosted-play/sessions/:id/pairs — Method 2: organizer manually
+// pairs two already-registered/walked-in participants.
+router.post("/sessions/:id/pairs", auth, admin, async (req, res) => {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, req.user.clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+    const { participantAId, participantBId, pairLabel } = req.body;
+    if (!participantAId || !participantBId) return res.status(400).json({ error: "Both players are required" });
+    if (String(participantAId) === String(participantBId)) return res.status(400).json({ error: "Choose two different players" });
+
+    const participants = await HostedPlayParticipant.find({
+      _id: { $in: [participantAId, participantBId] },
+      hostedPlayId: ctx.session._id,
+      ...ACTIVE_PARTICIPANT,
+    }).lean();
+    if (participants.length !== 2) return res.status(400).json({ error: "Both players must be active participants in this session" });
+
+    for (const pid of [participantAId, participantBId]) {
+      if (await findExistingPairForParticipant(ctx.session._id, pid)) {
+        return res.status(400).json({ error: "One of these players is already paired or has a pending invite" });
+      }
+    }
+
+    const activeCount = await countActivePairs(ctx.session._id);
+    if (ctx.session.fixedDoubles?.pairCount && activeCount >= ctx.session.fixedDoubles.pairCount) {
+      return res.status(400).json({ error: "All pair spots are filled for this session" });
+    }
+
+    const pair = await HostedPlayPair.create({
+      hostedPlayId: ctx.session._id,
+      clubId: ctx.session.clubId,
+      pairLabel: (pairLabel || `Pair ${activeCount + 1}`).trim(),
+      participantAId,
+      participantBId,
+      status: "confirmed",
+      source: "organizer_assigned",
+    });
+    res.status(201).json(pair.toObject());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/pairs/invite — Method 1 step 1
+router.post("/sessions/:id/pairs/invite", auth, async (req, res) => {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, req.user.clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+    if (!["open", "full"].includes(ctx.session.status)) {
+      return res.status(400).json({ error: "This session is no longer open for registration" });
+    }
+
+    const partnerMemberId = req.body.partnerMemberId;
+    if (!partnerMemberId) return res.status(400).json({ error: "partnerMemberId is required" });
+    if (String(partnerMemberId) === String(req.user.userId)) return res.status(400).json({ error: "You can't invite yourself" });
+
+    const requesterParticipant = await HostedPlayParticipant.findOne({
+      hostedPlayId: ctx.session._id,
+      memberId: req.user.userId,
+      ...ACTIVE_PARTICIPANT,
+    }).lean();
+    if (!requesterParticipant) return res.status(400).json({ error: "Join the session before inviting a partner" });
+    if (await findExistingPairForParticipant(ctx.session._id, requesterParticipant._id)) {
+      return res.status(400).json({ error: "You're already paired or have a pending invite" });
+    }
+
+    const partnerParticipant = await HostedPlayParticipant.findOne({
+      hostedPlayId: ctx.session._id,
+      memberId: partnerMemberId,
+      ...ACTIVE_PARTICIPANT,
+    }).lean();
+    if (partnerParticipant && (await findExistingPairForParticipant(ctx.session._id, partnerParticipant._id))) {
+      return res.status(400).json({ error: "That player is already paired or has a pending invite" });
+    }
+
+    const activeCount = await countActivePairs(ctx.session._id);
+    if (ctx.session.fixedDoubles?.pairCount && activeCount >= ctx.session.fixedDoubles.pairCount) {
+      return res.status(400).json({ error: "All pair spots are filled for this session" });
+    }
+
+    const pair = await HostedPlayPair.create({
+      hostedPlayId: ctx.session._id,
+      clubId: ctx.session.clubId,
+      participantAId: requesterParticipant._id,
+      invitedMemberId: partnerMemberId,
+      inviteStatus: "pending",
+      invitedAt: new Date(),
+      status: "pending_partner",
+      source: "player_invite",
+    });
+
+    const inviter = await User.findById(req.user.userId).select("name").lean();
+    sendPushToUser(String(partnerMemberId), {
+      title: "Doubles partner invite 🎾",
+      body: `${inviter?.name ?? "A member"} invited you to team up for "${ctx.session.title}".`,
+      url: `/player/hosted-play/${ctx.session._id}`,
+      tag: `hp-pair-invite-${pair._id}`,
+    });
+
+    res.status(201).json(pair.toObject());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/pairs/:pairId/respond — invitee accepts/declines
+router.post("/sessions/:id/pairs/:pairId/respond", auth, async (req, res) => {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, req.user.clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+    const pair = await HostedPlayPair.findOne({ _id: req.params.pairId, hostedPlayId: ctx.session._id });
+    if (!pair) return res.status(404).json({ error: "Invite not found" });
+    if (String(pair.invitedMemberId) !== String(req.user.userId)) return res.status(403).json({ error: "This invite is not yours to respond to" });
+    if (pair.inviteStatus !== "pending") return res.status(400).json({ error: "This invite is no longer pending" });
+
+    if (!req.body.accept) {
+      pair.inviteStatus = "declined";
+      pair.status = "withdrawn";
+      pair.inviteRespondedAt = new Date();
+      await pair.save();
+      return res.json(pair.toObject());
+    }
+
+    let participant = await HostedPlayParticipant.findOne({
+      hostedPlayId: ctx.session._id,
+      memberId: req.user.userId,
+      ...ACTIVE_PARTICIPANT,
+    }).lean();
+
+    if (!participant) {
+      if (ctx.session.currentPlayers >= ctx.session.maxPlayers) {
+        return res.status(400).json({ error: "This session is full — no spots left for a partner" });
+      }
+      const me = await User.findById(req.user.userId).select("skillLevel").lean();
+      const bandErr = skillBandError(ctx.session, me?.skillLevel || "novice");
+      if (bandErr) return res.status(403).json({ error: bandErr });
+
+      const { paymentMethod, paymentScreenshot, useCredit } = req.body;
+      const result = await joinSessionAsParticipant({ session: ctx.session, memberId: req.user.userId, paymentMethod, paymentScreenshot, useCredit });
+      if (result.error) {
+        return res.status(result.status || 400).json({ error: result.error, remaining: result.remaining, creditApplied: result.creditApplied });
+      }
+      participant = result.participant.toObject();
+    }
+
+    pair.participantBId = participant._id;
+    pair.inviteStatus = "accepted";
+    pair.inviteRespondedAt = new Date();
+    pair.status = "confirmed";
+    await pair.save();
+    res.json(pair.toObject());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/hosted-play/sessions/:id/pairs/:pairId/invite — inviter cancels a pending invite
+router.delete("/sessions/:id/pairs/:pairId/invite", auth, async (req, res) => {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, req.user.clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+    const pair = await HostedPlayPair.findOne({ _id: req.params.pairId, hostedPlayId: ctx.session._id });
+    if (!pair) return res.status(404).json({ error: "Invite not found" });
+    const inviterParticipant = await HostedPlayParticipant.findById(pair.participantAId).select("memberId").lean();
+    if (!inviterParticipant || String(inviterParticipant.memberId) !== String(req.user.userId)) {
+      return res.status(403).json({ error: "This invite is not yours to cancel" });
+    }
+    if (pair.inviteStatus !== "pending") return res.status(400).json({ error: "This invite is no longer pending" });
+
+    await HostedPlayPair.deleteOne({ _id: pair._id });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/hosted-play/sessions/:id/pairs/:pairId — Edit Teams (admin, pre-lock only)
+router.patch("/sessions/:id/pairs/:pairId", auth, admin, async (req, res) => {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, req.user.clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+    const fixtures = await HostedPlayFixture.find({ hostedPlayId: ctx.session._id }).select("status").lean();
+    if (fixtures.length && fixedDoubles.isLocked(fixtures)) {
+      return res.status(409).json({ error: "Teams are locked — a match has already started" });
+    }
+
+    const pair = await HostedPlayPair.findOne({ _id: req.params.pairId, hostedPlayId: ctx.session._id });
+    if (!pair) return res.status(404).json({ error: "Pair not found" });
+
+    const { participantAId, participantBId, pairLabel } = req.body;
+    for (const [field, value] of [["participantAId", participantAId], ["participantBId", participantBId]]) {
+      if (value === undefined) continue;
+      const p = await HostedPlayParticipant.findOne({ _id: value, hostedPlayId: ctx.session._id, ...ACTIVE_PARTICIPANT }).lean();
+      if (!p) return res.status(400).json({ error: "Selected player is not an active participant in this session" });
+      if (await findExistingPairForParticipant(ctx.session._id, value, pair._id)) {
+        return res.status(400).json({ error: "Selected player is already paired elsewhere" });
+      }
+      pair[field] = value;
+    }
+    if (pairLabel !== undefined) pair.pairLabel = String(pairLabel).trim();
+    if (pair.participantAId && pair.participantBId) pair.status = "confirmed";
+    await pair.save();
+
+    ctx.session.fixedDoubles.pairsUpdatedAt = new Date();
+    await ctx.session.save();
+    res.json(pair.toObject());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/pairs/swap-players — Swap Players (admin, pre-lock only)
+router.post("/sessions/:id/pairs/swap-players", auth, admin, async (req, res) => {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, req.user.clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+    const fixtures = await HostedPlayFixture.find({ hostedPlayId: ctx.session._id }).select("status").lean();
+    if (fixtures.length && fixedDoubles.isLocked(fixtures)) {
+      return res.status(409).json({ error: "Teams are locked — a match has already started" });
+    }
+
+    const { pairAId, slotA, pairBId, slotB } = req.body;
+    if (!pairAId || !pairBId || String(pairAId) === String(pairBId)) {
+      return res.status(400).json({ error: "Choose two different pairs" });
+    }
+    const [pairA, pairB] = await Promise.all([
+      HostedPlayPair.findOne({ _id: pairAId, hostedPlayId: ctx.session._id }),
+      HostedPlayPair.findOne({ _id: pairBId, hostedPlayId: ctx.session._id }),
+    ]);
+    if (!pairA || !pairB) return res.status(404).json({ error: "Pair not found" });
+
+    const fieldA = slotA === "B" ? "participantBId" : "participantAId";
+    const fieldB = slotB === "B" ? "participantBId" : "participantAId";
+    const tmp = pairA[fieldA];
+    pairA[fieldA] = pairB[fieldB];
+    pairB[fieldB] = tmp;
+    await Promise.all([pairA.save(), pairB.save()]);
+
+    ctx.session.fixedDoubles.pairsUpdatedAt = new Date();
+    await ctx.session.save();
+    res.json({ pairA: pairA.toObject(), pairB: pairB.toObject() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/hosted-play/sessions/:id/pairs/:pairId — withdraw a pair (admin, pre-lock only)
+router.delete("/sessions/:id/pairs/:pairId", auth, admin, async (req, res) => {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, req.user.clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+    const fixtures = await HostedPlayFixture.find({ hostedPlayId: ctx.session._id }).select("status").lean();
+    if (fixtures.length && fixedDoubles.isLocked(fixtures)) {
+      return res.status(409).json({ error: "Teams are locked — a match has already started" });
+    }
+
+    const pair = await HostedPlayPair.findOneAndUpdate(
+      { _id: req.params.pairId, hostedPlayId: ctx.session._id },
+      { $set: { status: "withdrawn" } },
+      { new: true },
+    );
+    if (!pair) return res.status(404).json({ error: "Pair not found" });
+
+    ctx.session.fixedDoubles.pairsUpdatedAt = new Date();
+    await ctx.session.save();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Schedule / live match queue ──────────────────────────────────────────────
+
+// POST /api/hosted-play/sessions/:id/fixed-doubles/generate-schedule — Generate & Regenerate
+router.post("/sessions/:id/fixed-doubles/generate-schedule", auth, admin, async (req, res) => {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, req.user.clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+    const existingFixtures = await HostedPlayFixture.find({ hostedPlayId: ctx.session._id }).select("status").lean();
+    if (existingFixtures.length && fixedDoubles.isLocked(existingFixtures)) {
+      return res.status(409).json({ error: "Schedule is locked — a match has already started" });
+    }
+
+    const pairs = await HostedPlayPair.find({ hostedPlayId: ctx.session._id, status: "confirmed" }).lean();
+    if (pairs.length < 2) return res.status(400).json({ error: "At least 2 confirmed pairs are required to generate a schedule" });
+
+    const participantIds = pairs.flatMap((p) => [p.participantAId, p.participantBId]);
+    const participants = await HostedPlayParticipant.find({ _id: { $in: participantIds } }).select("memberId memberName").lean();
+    const participantsById = new Map(participants.map((p) => [String(p._id), p]));
+    const pairsById = new Map(pairs.map((p) => [String(p._id), p]));
+    const buildSnapshot = (pairId) => {
+      const pair = pairsById.get(String(pairId));
+      const players = [pair.participantAId, pair.participantBId].filter(Boolean).map((pid) => {
+        const part = participantsById.get(String(pid));
+        return { participantId: pid, memberId: part?.memberId ?? null, memberName: part?.memberName ?? "" };
+      });
+      return { pairId: pair._id, pairLabel: pair.pairLabel || "", players };
+    };
+
+    const { rounds } = fixedDoubles.generateRoundRobin(pairs.map((p) => p._id));
+    const sessionStart = combineDateTime(ctx.session.date, ctx.session.startTime);
+    const sessionEnd = combineDateTime(ctx.session.date, ctx.session.endTime);
+    const numberOfCourts = ctx.session.numberOfCourts || 1;
+    const restBetweenMatchesMinutes = ctx.session.fixedDoubles.restBetweenMatchesMinutes || 0;
+    // Auto-fit the match duration to the session's actual time window and the
+    // real confirmed pair count — not a value the organizer had to guess.
+    const matchDurationMinutes = fixedDoubles.computeMatchDuration({
+      pairCount: pairs.length, numberOfCourts, sessionStart, sessionEnd, restBetweenMatchesMinutes,
+    });
+    const { fixtures: mapped, warnings } = fixedDoubles.mapScheduleToCourtsAndTimes({
+      rounds,
+      numberOfCourts,
+      matchDurationMinutes,
+      restBetweenMatchesMinutes,
+      sessionStart,
+      sessionEnd,
+    });
+
+    ctx.session.fixedDoubles.matchDurationMinutes = matchDurationMinutes;
+    const batch = (ctx.session.fixedDoubles.scheduleGenerationBatch || 0) + 1;
+    await HostedPlayFixture.deleteMany({ hostedPlayId: ctx.session._id });
+    await HostedPlayFixture.insertMany(
+      mapped.map((f) => ({
+        hostedPlayId: ctx.session._id,
+        clubId: ctx.session.clubId,
+        matchNumber: f.matchNumber,
+        roundNumber: f.roundNumber,
+        pair1Id: f.pair1Id,
+        pair2Id: f.pair2Id,
+        pair1Snapshot: buildSnapshot(f.pair1Id),
+        pair2Snapshot: buildSnapshot(f.pair2Id),
+        courtNumber: f.courtNumber,
+        scheduledStart: f.scheduledStart,
+        scheduledEnd: f.scheduledEnd,
+        generationBatch: batch,
+      })),
+    );
+
+    ctx.session.fixedDoubles.scheduleGeneratedAt = new Date();
+    ctx.session.fixedDoubles.scheduleGenerationBatch = batch;
+    await ctx.session.save();
+
+    await respondFixedDoublesBoard(res, ctx.session, ctx.club, { warnings });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/hosted-play/sessions/:id/fixed-doubles/board (admin) / player/.../board
+async function getFixedDoublesBoard(req, res, clubId) {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+    await respondFixedDoublesBoard(res, ctx.session, ctx.club);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+router.get("/sessions/:id/fixed-doubles/board", auth, admin, (req, res) => getFixedDoublesBoard(req, res, req.user.clubId));
+router.get("/player/sessions/:id/fixed-doubles/board", auth, (req, res) => getFixedDoublesBoard(req, res, req.user.clubId));
+
+// POST /api/hosted-play/sessions/:id/fixed-doubles/matches/:fixtureId/start
+router.post("/sessions/:id/fixed-doubles/matches/:fixtureId/start", auth, admin, async (req, res) => {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, req.user.clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+    const fixture = await HostedPlayFixture.findOne({ _id: req.params.fixtureId, hostedPlayId: ctx.session._id });
+    if (!fixture) return res.status(404).json({ error: "Match not found" });
+    if (fixture.status !== "scheduled") return res.status(400).json({ error: "This match has already started or finished" });
+
+    fixture.status = "in_progress";
+    fixture.actualStart = new Date();
+    await fixture.save();
+
+    await respondFixedDoublesBoard(res, ctx.session, ctx.club);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/fixed-doubles/matches/:fixtureId/finish — Record Scores
+router.post("/sessions/:id/fixed-doubles/matches/:fixtureId/finish", auth, admin, async (req, res) => {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, req.user.clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+    const fixture = await HostedPlayFixture.findOne({ _id: req.params.fixtureId, hostedPlayId: ctx.session._id });
+    if (!fixture) return res.status(404).json({ error: "Match not found" });
+    if (fixture.status === "completed") return res.status(400).json({ error: "This match has already been recorded" });
+
+    const pair1Score = Number(req.body.pair1Score);
+    const pair2Score = Number(req.body.pair2Score);
+    const derived = fixedDoubles.deriveFixtureWinner({
+      pair1Score, pair2Score, winnerPairId: req.body.winnerPairId || null,
+      pair1Id: fixture.pair1Id, pair2Id: fixture.pair2Id,
+    });
+    if (derived.error) return res.status(400).json({ error: derived.error });
+
+    await finishFixtureAndRecordMatch(ctx.session, fixture, {
+      pair1Score, pair2Score, winnerPairId: derived.winnerPairId, winnerSource: derived.winnerSource, recordedBy: req.user.userId,
+    });
+    await respondFixedDoublesBoard(res, ctx.session, ctx.club);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/hosted-play/sessions/:id/fixed-doubles/matches/:fixtureId/score — Edit Scores (post-hoc)
+router.patch("/sessions/:id/fixed-doubles/matches/:fixtureId/score", auth, admin, async (req, res) => {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, req.user.clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+    const fixture = await HostedPlayFixture.findOne({ _id: req.params.fixtureId, hostedPlayId: ctx.session._id });
+    if (!fixture) return res.status(404).json({ error: "Match not found" });
+    if (fixture.status !== "completed") return res.status(400).json({ error: "Only completed matches can have their score corrected" });
+
+    const pair1Score = Number(req.body.pair1Score);
+    const pair2Score = Number(req.body.pair2Score);
+    const tappedWinnerPairId = req.body.winnerPairId || (fixture.winnerSource === "tapped" ? fixture.winnerPairId : null);
+    const derived = fixedDoubles.deriveFixtureWinner({
+      pair1Score, pair2Score, winnerPairId: tappedWinnerPairId,
+      pair1Id: fixture.pair1Id, pair2Id: fixture.pair2Id,
+    });
+    if (derived.error) return res.status(400).json({ error: derived.error });
+
+    fixture.pair1Score = pair1Score;
+    fixture.pair2Score = pair2Score;
+    fixture.winnerPairId = derived.winnerPairId;
+    fixture.winnerSource = derived.winnerSource;
+    fixture.scoreEnteredBy = req.user.userId;
+    fixture.scoreEnteredAt = new Date();
+    await fixture.save();
+
+    // Keep the mirrored club-history row in sync via the same correction rules.
+    if (fixture.matchRecordId) {
+      const match = await HostedPlayMatch.findById(fixture.matchRecordId);
+      if (match) {
+        const result = correctMatchScore(match, { team1Score: pair1Score, team2Score: pair2Score });
+        if (!result.error) {
+          match.scoreEnteredBy = req.user.userId;
+          match.scoreEnteredAt = new Date();
+          await match.save();
+        }
+      }
+    }
+
+    await respondFixedDoublesBoard(res, ctx.session, ctx.club);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/fixed-doubles/matches/swap — Swap two
+// matches' court + time slot (the pairs stay in their own fixtures; only
+// which slot each one occupies changes). Unlike pairs/regenerate, this is
+// NOT blocked by the roster lock — it's meant to be usable throughout the
+// event. Only the two matches being swapped must not be completed yet;
+// finished results are never touched.
+router.post("/sessions/:id/fixed-doubles/matches/swap", auth, admin, async (req, res) => {
+  try {
+    const ctx = await loadFixedDoublesSession(req.params.id, req.user.clubId);
+    if (ctx.error) return res.status(ctx.status).json({ error: ctx.error });
+
+    const { fixtureAId, fixtureBId } = req.body;
+    if (!fixtureAId || !fixtureBId || String(fixtureAId) === String(fixtureBId)) {
+      return res.status(400).json({ error: "Choose two different matches" });
+    }
+    const [fixtureA, fixtureB] = await Promise.all([
+      HostedPlayFixture.findOne({ _id: fixtureAId, hostedPlayId: ctx.session._id }),
+      HostedPlayFixture.findOne({ _id: fixtureBId, hostedPlayId: ctx.session._id }),
+    ]);
+    if (!fixtureA || !fixtureB) return res.status(404).json({ error: "Match not found" });
+    if (fixtureA.status === "completed" || fixtureB.status === "completed") {
+      return res.status(400).json({ error: "Completed matches can't be swapped" });
+    }
+
+    // Proposed new slots after the swap.
+    const newA = { courtNumber: fixtureB.courtNumber, scheduledStart: fixtureB.scheduledStart, scheduledEnd: fixtureB.scheduledEnd };
+    const newB = { courtNumber: fixtureA.courtNumber, scheduledStart: fixtureA.scheduledStart, scheduledEnd: fixtureA.scheduledEnd };
+
+    // Guard against double-booking a pair: swapping only touches these two
+    // fixtures, so the only new conflict a swap can introduce is a pair now
+    // overlapping in time with some OTHER (untouched) fixture it's also in.
+    const others = await HostedPlayFixture.find({
+      hostedPlayId: ctx.session._id,
+      _id: { $nin: [fixtureA._id, fixtureB._id] },
+      status: { $ne: "completed" },
+    }).select("pair1Id pair2Id scheduledStart scheduledEnd").lean();
+
+    const overlaps = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
+    const conflictFor = (pairId, slot) => others.find((f) =>
+      (String(f.pair1Id) === String(pairId) || String(f.pair2Id) === String(pairId))
+      && overlaps(new Date(slot.scheduledStart), new Date(slot.scheduledEnd), new Date(f.scheduledStart), new Date(f.scheduledEnd)),
+    );
+    const conflict = conflictFor(fixtureA.pair1Id, newA) || conflictFor(fixtureA.pair2Id, newA)
+      || conflictFor(fixtureB.pair1Id, newB) || conflictFor(fixtureB.pair2Id, newB);
+    if (conflict) {
+      return res.status(400).json({ error: "That swap would double-book a pair — they already have another match at that time" });
+    }
+
+    fixtureA.courtNumber = newA.courtNumber;
+    fixtureA.scheduledStart = newA.scheduledStart;
+    fixtureA.scheduledEnd = newA.scheduledEnd;
+    fixtureB.courtNumber = newB.courtNumber;
+    fixtureB.scheduledStart = newB.scheduledStart;
+    fixtureB.scheduledEnd = newB.scheduledEnd;
+    await Promise.all([fixtureA.save(), fixtureB.save()]);
+
+    // Match order ("Match N") reflects real scheduled time — renumber
+    // everyone so it stays consistent with the new slots.
+    const all = await HostedPlayFixture.find({ hostedPlayId: ctx.session._id })
+      .select("_id scheduledStart courtNumber matchNumber").lean();
+    const originalNumberById = new Map(all.map((f) => [String(f._id), f.matchNumber]));
+    all.sort((a, b) => new Date(a.scheduledStart) - new Date(b.scheduledStart) || a.courtNumber - b.courtNumber);
+    const renumbers = all
+      .map((f, i) => ({ _id: f._id, matchNumber: i + 1 }))
+      .filter((f) => originalNumberById.get(String(f._id)) !== f.matchNumber);
+    if (renumbers.length) {
+      await HostedPlayFixture.bulkWrite(renumbers.map((f) => ({
+        updateOne: { filter: { _id: f._id }, update: { $set: { matchNumber: f.matchNumber } } },
+      })));
+    }
+
+    await respondFixedDoublesBoard(res, ctx.session, ctx.club);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
