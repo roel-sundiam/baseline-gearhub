@@ -818,7 +818,7 @@ router.post("/:clubId/reserve", async (req, res) => {
       body: `${guestInfo.name} booked Court ${courtNum} on ${dateLabel} at ${timeSlot}${durationHours > 1 ? ` (${durationHours} hrs)` : ''}`,
       url: '/admin/reservations',
       tag: 'new-guest-booking',
-    }).catch(() => {});
+    }, { clubName: club.name }).catch(() => {});
 
     res.status(201).json({ reservation, charge });
   } catch (err) {

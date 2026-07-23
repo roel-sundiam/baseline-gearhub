@@ -270,7 +270,7 @@ router.post("/", auth, async (req, res) => {
     if (!Number.isInteger(courtNum) || courtNum < 1) {
       return res.status(400).json({ error: "court must be a positive integer" });
     }
-    const clubDoc = await Club.findById(clubId).select('courtCount openingHour closingHour convenienceFeeRate convenienceFeeMode additionalFees').lean();
+    const clubDoc = await Club.findById(clubId).select('name courtCount openingHour closingHour convenienceFeeRate convenienceFeeMode additionalFees').lean();
     const courtCount = clubDoc?.courtCount ?? 2;
     if (courtNum > courtCount) {
       return res.status(400).json({ error: `court must be between 1 and ${courtCount}` });
@@ -453,7 +453,7 @@ router.post("/", auth, async (req, res) => {
       body: `Court ${courtNum} booked for ${dateLabel} at ${timeSlot}${durationHours > 1 ? ` (${durationHours} hrs)` : ''}`,
       url: '/admin/reservations',
       tag: 'new-reservation',
-    }).catch(() => {});
+    }, { clubName: clubDoc?.name }).catch(() => {});
 
     res.status(201).json({ reservation, charge });
   } catch (err) {
