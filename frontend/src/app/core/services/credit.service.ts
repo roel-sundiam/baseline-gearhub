@@ -7,7 +7,7 @@ export interface CreditEntry {
   _id: string;
   clubId: string;
   playerId: string;
-  type: 'grant' | 'redemption';
+  type: 'grant' | 'redemption' | 'deduction';
   amount: number;
   reason?: string;
   chargeId?: { _id: string; amount: number; chargeType: string } | string;
@@ -51,6 +51,14 @@ export class CreditService {
   grantCredit(playerId: string, amount: number, reason: string) {
     return this.http.post<{ message: string; credit: CreditEntry; newBalance: number }>(
       `${environment.apiUrl}/credits/grant`,
+      { playerId, amount, reason }
+    );
+  }
+
+  // Admin: deduct credit from a member
+  deductCredit(playerId: string, amount: number, reason: string) {
+    return this.http.post<{ message: string; credit: CreditEntry; newBalance: number }>(
+      `${environment.apiUrl}/credits/deduct`,
       { playerId, amount, reason }
     );
   }

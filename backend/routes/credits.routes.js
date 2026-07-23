@@ -125,6 +125,54 @@ router.post("/grant", auth, admin, async (req, res) => {
   }
 });
 
+// POST /api/credits/deduct - admin deducts credit from a member
+router.post("/deduct", auth, admin, async (req, res) => {
+  try {
+    const { playerId, amount, reason } = req.body;
+
+    if (!playerId || !(amount > 0)) {
+      return res.status(400).json({ error: "playerId and a positive amount are required" });
+    }
+    if (!reason || !String(reason).trim()) {
+      return res.status(400).json({ error: "reason is required" });
+    }
+
+    const player = await User.findById(playerId).select("clubId role name").lean();
+    if (!player || player.role !== "player") {
+      return res.status(404).json({ error: "Member not found" });
+    }
+    if (!ownsClub(req, player.clubId)) return res.status(403).json({ error: "Access denied" });
+
+    const balance = await getBalance(player.clubId, player._id);
+    if (amount > balance) {
+      return res.status(400).json({ error: `Cannot deduct more than the current balance of ₱${balance.toLocaleString()}` });
+    }
+
+    const credit = await Credit.create({
+      clubId: player.clubId,
+      playerId: player._id,
+      type: "deduction",
+      amount: -amount,
+      reason: String(reason).trim(),
+      grantedBy: req.user.userId,
+    });
+
+    const newBalance = await getBalance(player.clubId, player._id);
+
+    sendPushToUser(player._id, {
+      title: "Credit Adjusted",
+      body: `₱${Number(amount).toLocaleString()} credit was deducted from your account: ${credit.reason}`,
+      url: "/player/payments",
+      tag: "credit-deducted",
+    }).catch(() => {});
+
+    res.json({ message: "Credit deducted", credit, newBalance });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // PATCH /api/credits/apply/:chargeId - player (or admin) applies available credit to an owed charge
 router.patch("/apply/:chargeId", auth, async (req, res) => {
   try {

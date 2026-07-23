@@ -4,8 +4,8 @@ const creditSchema = new mongoose.Schema(
   {
     clubId: { type: mongoose.Schema.Types.ObjectId, ref: "Club", required: true },
     playerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    type: { type: String, enum: ["grant", "redemption"], required: true },
-    // Positive for grant, negative for redemption. Balance is always derived by summing.
+    type: { type: String, enum: ["grant", "redemption", "deduction"], required: true },
+    // Positive for grant, negative for redemption/deduction. Balance is always derived by summing.
     amount: { type: Number, required: true },
     reason: { type: String, trim: true },
     chargeId: { type: mongoose.Schema.Types.ObjectId, ref: "Charge" },

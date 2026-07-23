@@ -77,6 +77,10 @@ import { CreditService, MemberBalance, CreditEntry } from '../../../core/service
                           <i class="fas fa-plus"></i>
                           <span>Grant Credit</span>
                         </button>
+                        <button class="action-btn btn-deduct" [disabled]="member.balance <= 0" (click)="openDeductModal(member)">
+                          <i class="fas fa-minus"></i>
+                          <span>Deduct Credit</span>
+                        </button>
                         <button class="action-btn btn-history" (click)="openHistoryModal(member)">
                           <i class="fas fa-history"></i>
                           <span>History</span>
@@ -131,6 +135,44 @@ import { CreditService, MemberBalance, CreditEntry } from '../../../core/service
       </div>
     }
 
+    <!-- Deduct Credit Modal -->
+    @if (deductModalMember) {
+      <div class="modal-overlay" (click)="closeDeductModal()">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h3>Deduct Credit</h3>
+            <button class="modal-close" (click)="closeDeductModal()"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-member">
+              <div class="table-avatar">{{ getInitials(deductModalMember.name) }}</div>
+              <div>
+                <div class="table-name">{{ deductModalMember.name }}</div>
+                <div class="table-email">{{ deductModalMember.email }}</div>
+              </div>
+            </div>
+            <label class="field-label">Amount (₱) — current balance {{ deductModalMember.balance | currency:'PHP':'symbol' }}</label>
+            <input type="number" class="field-input" min="1" step="1" [(ngModel)]="deductAmount" placeholder="e.g. 850" />
+            <label class="field-label">Reason</label>
+            <textarea class="field-input" rows="3" [(ngModel)]="deductReason" placeholder="e.g. Correcting a credit granted in error"></textarea>
+            @if (deductError) {
+              <div class="modal-error">{{ deductError }}</div>
+            }
+          </div>
+          <div class="modal-footer">
+            <button class="btn-cancel" (click)="closeDeductModal()">Cancel</button>
+            <button class="btn-confirm btn-confirm-deduct" [disabled]="submittingDeduct" (click)="submitDeduct()">
+              @if (submittingDeduct) {
+                <i class="fas fa-circle-notch fa-spin"></i>
+              } @else {
+                <span>Deduct Credit</span>
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
     <!-- History Modal -->
     @if (historyModalMember) {
       <div class="modal-overlay" (click)="closeHistoryModal()">
@@ -150,8 +192,8 @@ import { CreditService, MemberBalance, CreditEntry } from '../../../core/service
               <div class="history-list">
                 @for (entry of historyEntries; track entry._id) {
                   <div class="history-item">
-                    <div class="history-icon" [class.history-icon-grant]="entry.type === 'grant'">
-                      <i class="fas" [class.fa-plus]="entry.type === 'grant'" [class.fa-minus]="entry.type === 'redemption'"></i>
+                    <div class="history-icon" [class.history-icon-grant]="entry.amount > 0">
+                      <i class="fas" [class.fa-plus]="entry.amount > 0" [class.fa-minus]="entry.amount < 0"></i>
                     </div>
                     <div class="history-info">
                       <div class="history-reason">{{ entry.reason || (entry.type === 'redemption' ? 'Applied to a charge' : '—') }}</div>
@@ -264,6 +306,9 @@ import { CreditService, MemberBalance, CreditEntry } from '../../../core/service
     }
     .btn-grant { background: rgba(163,230,53,0.16); border-color: rgba(163,230,53,0.28); color: var(--dm-accent); }
     .btn-grant:hover { background: rgba(163,230,53,0.24); }
+    .btn-deduct { background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.26); color: #fca5a5; }
+    .btn-deduct:hover:not(:disabled) { background: rgba(239,68,68,0.22); }
+    .btn-deduct:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-history { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); color: rgba(255,255,255,0.75); }
     .btn-history:hover { background: rgba(255,255,255,0.08); }
 
@@ -311,6 +356,7 @@ import { CreditService, MemberBalance, CreditEntry } from '../../../core/service
     .btn-confirm { background: var(--dm-accent); color: #0a0f0a; }
     .btn-confirm:hover:not(:disabled) { filter: brightness(1.08); }
     .btn-confirm:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-confirm-deduct { background: #ef4444; color: #ffffff; }
 
     .history-list { display: flex; flex-direction: column; gap: 10px; }
     .history-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
@@ -345,6 +391,12 @@ export class MemberCreditsComponent implements OnInit {
   grantReason = '';
   grantError = '';
   submittingGrant = false;
+
+  deductModalMember: MemberBalance | null = null;
+  deductAmount: number | null = null;
+  deductReason = '';
+  deductError = '';
+  submittingDeduct = false;
 
   historyModalMember: MemberBalance | null = null;
   historyEntries: CreditEntry[] = [];
@@ -427,6 +479,51 @@ export class MemberCreditsComponent implements OnInit {
       error: (err) => {
         this.grantError = err?.error?.error || 'Failed to grant credit. Please try again.';
         this.submittingGrant = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  openDeductModal(member: MemberBalance) {
+    this.deductModalMember = member;
+    this.deductAmount = null;
+    this.deductReason = '';
+    this.deductError = '';
+  }
+
+  closeDeductModal() {
+    this.deductModalMember = null;
+  }
+
+  submitDeduct() {
+    if (!this.deductModalMember) return;
+    if (!this.deductAmount || this.deductAmount <= 0) {
+      this.deductError = 'Enter a valid amount greater than ₱0.';
+      return;
+    }
+    if (this.deductAmount > this.deductModalMember.balance) {
+      this.deductError = `Cannot deduct more than the current balance of ₱${this.deductModalMember.balance.toLocaleString()}.`;
+      return;
+    }
+    if (!this.deductReason.trim()) {
+      this.deductError = 'A reason is required.';
+      return;
+    }
+
+    this.deductError = '';
+    this.submittingDeduct = true;
+    this.creditService.deductCredit(this.deductModalMember._id, this.deductAmount, this.deductReason.trim()).subscribe({
+      next: ({ newBalance }) => {
+        const member = this.members.find(m => m._id === this.deductModalMember!._id);
+        if (member) member.balance = newBalance;
+        this.applySearch();
+        this.submittingDeduct = false;
+        this.closeDeductModal();
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.deductError = err?.error?.error || 'Failed to deduct credit. Please try again.';
+        this.submittingDeduct = false;
         this.cdr.detectChanges();
       },
     });
