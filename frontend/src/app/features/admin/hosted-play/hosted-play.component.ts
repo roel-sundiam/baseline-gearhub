@@ -7,6 +7,7 @@ import {
   HostedPlaySession,
   HostedPlayInput,
   HostedPlayParticipant,
+  HostedPlayWaitlistEntry,
 } from '../../../core/services/hosted-play.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ClubService, Court } from '../../../core/services/club.service';
@@ -486,6 +487,36 @@ type FormModel = HostedPlayInput;
                 }
               </div>
             }
+
+            @if (waitlistLoading || waitlist.length > 0) {
+              <div class="waitlist-section">
+                <span class="modal-kicker">Waitlist</span>
+                @if (waitlistError) {
+                  <div class="waitlist-error"><i class="fas fa-exclamation-triangle"></i> {{ waitlistError }}</div>
+                }
+                @if (waitlistLoading) {
+                  <div class="state-inline"><i class="fas fa-circle-notch fa-spin"></i> Loading...</div>
+                } @else {
+                  <div class="participant-list">
+                    @for (w of waitlist; track w._id) {
+                      <div class="participant-row waitlist-row">
+                        <span class="participant-num">{{ w.position }}</span>
+                        <span class="participant-name">
+                          {{ w.memberName || 'Member' }}
+                          @if (w.waitStatus === 'offered') { <span class="offered-tag">Offer sent</span> }
+                        </span>
+                        <div class="waitlist-actions">
+                          <button class="text-btn" [disabled]="waitlistBusyId === w._id" (click)="promoteWaitlistEntry(w)">
+                            @if (waitlistBusyId === w._id) { <i class="fas fa-circle-notch fa-spin"></i> } @else { Promote }
+                          </button>
+                          <button class="text-btn danger" [disabled]="waitlistBusyId === w._id" (click)="removeWaitlistEntry(w)">Remove</button>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
           </div>
         </div>
       </div>
@@ -902,6 +933,18 @@ type FormModel = HostedPlayInput;
     .empty-inline { flex-direction: column; }
     .empty-inline i { color: var(--accent); font-size: 1.4rem; }
 
+    .waitlist-section { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,.08); }
+    .waitlist-section .modal-kicker { margin-bottom: .6rem; }
+    .waitlist-row { background: rgba(245,158,11,.06); border-color: rgba(245,158,11,.16); }
+    .offered-tag { margin-left: .5rem; font-size: .68rem; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; color: #f59e0b; background: rgba(245,158,11,.14); border-radius: 999px; padding: .18rem .5rem; }
+    .waitlist-actions { display: flex; gap: .4rem; flex-shrink: 0; }
+    .text-btn { border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.04); color: var(--accent); font-size: .74rem; font-weight: 800; border-radius: 8px; padding: .35rem .65rem; cursor: pointer; transition: .15s; }
+    .text-btn:hover:not(:disabled) { border-color: rgba(163,230,53,.4); }
+    .text-btn:disabled { opacity: .6; cursor: not-allowed; }
+    .text-btn.danger { color: #f87171; }
+    .text-btn.danger:hover:not(:disabled) { border-color: rgba(248,113,113,.4); }
+    .waitlist-error { color: #fca5a5; font-size: .8rem; font-weight: 700; margin-bottom: .6rem; display: flex; align-items: center; gap: .4rem; }
+
     @media (max-width: 860px) {
       .hero { grid-template-columns: 1fr; }
       .hero-actions { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
@@ -977,6 +1020,11 @@ export class AdminHostedPlayComponent implements OnInit {
   showParticipants = false;
   participantsLoading = false;
   participants: HostedPlayParticipant[] = [];
+  participantsSessionId: string | null = null;
+  waitlistLoading = false;
+  waitlist: HostedPlayWaitlistEntry[] = [];
+  waitlistBusyId: string | null = null;
+  waitlistError = '';
 
   showDeleteConfirm = false;
   deletingSession: HostedPlaySession | null = null;
@@ -1386,16 +1434,69 @@ export class AdminHostedPlayComponent implements OnInit {
 
   viewParticipants(s: HostedPlaySession) {
     this.showParticipants = true;
+    this.participantsSessionId = s._id;
     this.participantsLoading = true;
     this.participants = [];
+    this.waitlistError = '';
     this.cdr.detectChanges();
     this.hp.getParticipants(s._id).subscribe({
       next: (list) => { this.participants = list; this.participantsLoading = false; this.cdr.detectChanges(); },
       error: () => { this.participantsLoading = false; this.cdr.detectChanges(); },
     });
+    this.loadWaitlist(s._id);
   }
 
-  closeParticipants() { this.showParticipants = false; this.cdr.detectChanges(); }
+  loadWaitlist(sessionId: string) {
+    this.waitlistLoading = true;
+    this.waitlist = [];
+    this.hp.getWaitlist(sessionId).subscribe({
+      next: (list) => { this.waitlist = list; this.waitlistLoading = false; this.cdr.detectChanges(); },
+      error: () => { this.waitlistLoading = false; this.cdr.detectChanges(); },
+    });
+  }
+
+  promoteWaitlistEntry(entry: HostedPlayWaitlistEntry) {
+    if (!this.participantsSessionId || this.waitlistBusyId) return;
+    this.waitlistBusyId = entry._id;
+    this.waitlistError = '';
+    this.hp.promoteFromWaitlist(this.participantsSessionId, entry._id).subscribe({
+      next: () => {
+        this.waitlistBusyId = null;
+        this.loadWaitlist(this.participantsSessionId!);
+        this.hp.getParticipants(this.participantsSessionId!).subscribe((list) => { this.participants = list; this.cdr.detectChanges(); });
+        this.load();
+      },
+      error: (err) => {
+        this.waitlistError = err?.error?.error || 'Failed to promote member.';
+        this.waitlistBusyId = null;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  removeWaitlistEntry(entry: HostedPlayWaitlistEntry) {
+    if (!this.participantsSessionId || this.waitlistBusyId) return;
+    this.waitlistBusyId = entry._id;
+    this.waitlistError = '';
+    this.hp.removeFromWaitlist(this.participantsSessionId, entry._id).subscribe({
+      next: () => {
+        this.waitlistBusyId = null;
+        this.loadWaitlist(this.participantsSessionId!);
+      },
+      error: (err) => {
+        this.waitlistError = err?.error?.error || 'Failed to remove from waitlist.';
+        this.waitlistBusyId = null;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  closeParticipants() {
+    this.showParticipants = false;
+    this.participantsSessionId = null;
+    this.waitlist = [];
+    this.cdr.detectChanges();
+  }
 
   openQueue(s: HostedPlaySession) { this.router.navigate(['/admin/hosted-play', s._id, 'queue']); }
   openTeams(s: HostedPlaySession) { this.router.navigate(['/admin/hosted-play', s._id, 'teams']); }

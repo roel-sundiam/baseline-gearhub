@@ -831,6 +831,109 @@ router.get("/sessions/:id/participants", auth, admin, async (req, res) => {
   }
 });
 
+// GET /api/hosted-play/sessions/:id/waitlist — pre-session waitlist (waitlisted + offered).
+// Scoped separately from /participants: the live queue is deliberately blind to these
+// (see ACTIVE_PARTICIPANT), so this is the only place an admin can see who's waiting.
+router.get("/sessions/:id/waitlist", auth, admin, async (req, res) => {
+  try {
+    const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId }).lean();
+    if (!session) return res.status(404).json({ error: "Session not found" });
+
+    const entries = await HostedPlayParticipant.find({
+      hostedPlayId: session._id,
+      waitStatus: { $in: ["waitlisted", "offered"] },
+    }).sort({ waitlistOrder: 1 }).lean();
+
+    res.json(entries.map((e, i) => ({
+      _id: e._id,
+      memberName: e.memberName,
+      waitStatus: e.waitStatus,
+      position: i + 1,
+      offerExpiresAt: e.offerExpiresAt ?? null,
+      createdAt: e.createdAt,
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/waitlist/:pid/promote — admin manually moves a
+// waitlisted/offered member straight into the session, bypassing the claim window.
+// Mirrors joinSessionAsParticipant's billing so a promoted member is charged the same
+// way a direct join would be.
+router.post("/sessions/:id/waitlist/:pid/promote", auth, admin, async (req, res) => {
+  try {
+    const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId });
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (["cancelled", "completed"].includes(session.status)) {
+      return res.status(400).json({ error: "This session can no longer be changed" });
+    }
+
+    const participant = await HostedPlayParticipant.findOne({ _id: req.params.pid, hostedPlayId: session._id });
+    if (!participant) return res.status(404).json({ error: "Waitlist entry not found" });
+    if (!["waitlisted", "offered"].includes(participant.waitStatus)) {
+      return res.status(400).json({ error: "This member is not on the waitlist" });
+    }
+
+    if (session.feeSplitMode === "split_total") {
+      // Split Session Fee sessions bill everyone once at completion — no charge now.
+      participant.waitStatus = "active";
+      participant.offerExpiresAt = null;
+      await participant.save();
+    } else {
+      const club = await Club.findById(session.clubId)
+        .select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode").lean();
+      const breakdown = await computeMemberFeeAndCredit({
+        session, club, memberId: participant.memberId, baseFee: session.feePerPlayer,
+      });
+      if (breakdown.amount > 0) {
+        const charge = await chargeMemberForSession({ session, memberId: participant.memberId, breakdown });
+        participant.chargeId = charge._id;
+      }
+      participant.waitStatus = "active";
+      participant.offerExpiresAt = null;
+      await participant.save();
+    }
+
+    session.currentPlayers += 1;
+    if (session.currentPlayers >= session.maxPlayers) session.status = "full";
+    await session.save();
+
+    if (participant.memberId) {
+      sendPushToUser(String(participant.memberId), {
+        title: "You're in! 🎾",
+        body: `An admin moved you off the waitlist into "${session.title}".`,
+        url: "/player/hosted-play",
+        tag: `hp-promoted-${session._id}`,
+      });
+    }
+
+    res.json({ success: true, currentPlayers: session.currentPlayers, status: session.status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/hosted-play/sessions/:id/waitlist/:pid — admin declines a waitlisted/offered
+// member. Frees no real spot since they never occupied one.
+router.delete("/sessions/:id/waitlist/:pid", auth, admin, async (req, res) => {
+  try {
+    const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId }).lean();
+    if (!session) return res.status(404).json({ error: "Session not found" });
+
+    const removed = await HostedPlayParticipant.findOneAndDelete({
+      _id: req.params.pid,
+      hostedPlayId: session._id,
+      waitStatus: { $in: ["waitlisted", "offered"] },
+    });
+    if (!removed) return res.status(404).json({ error: "Waitlist entry not found" });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Queue Management (admin + auth; requires club.hostedPlayQueueEnabled) ─────
 
 const QUEUE_FIELDS = [

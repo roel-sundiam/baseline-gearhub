@@ -246,6 +246,15 @@ export interface HostedPlayParticipant {
   isMe?: boolean;
 }
 
+export interface HostedPlayWaitlistEntry {
+  _id: string;
+  memberName?: string;
+  waitStatus: 'waitlisted' | 'offered';
+  position: number;
+  offerExpiresAt?: string | null;
+  createdAt?: string;
+}
+
 export interface HostedPlayInput {
   title: string;
   sport: 'tennis' | 'pickleball' | 'badminton' | 'squash' | 'table_tennis' | 'padel';
@@ -457,6 +466,20 @@ export class HostedPlayService {
 
   getParticipants(id: string) {
     return this.http.get<HostedPlayParticipant[]>(`${this.base}/sessions/${id}/participants`);
+  }
+
+  getWaitlist(id: string) {
+    return this.http.get<HostedPlayWaitlistEntry[]>(`${this.base}/sessions/${id}/waitlist`);
+  }
+
+  promoteFromWaitlist(id: string, participantId: string) {
+    return this.http.post<{ success: boolean; currentPlayers: number; status: string }>(
+      `${this.base}/sessions/${id}/waitlist/${participantId}/promote`, {},
+    );
+  }
+
+  removeFromWaitlist(id: string, participantId: string) {
+    return this.http.delete<{ success: boolean }>(`${this.base}/sessions/${id}/waitlist/${participantId}`);
   }
 
   enableQueue(id: string) {
