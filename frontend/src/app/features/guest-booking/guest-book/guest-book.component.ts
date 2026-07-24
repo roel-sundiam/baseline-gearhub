@@ -9,14 +9,22 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
   selector: 'app-guest-book',
   standalone: true,
   imports: [CommonModule, FormsModule, DatePipe, RouterLink],
+  styleUrls: ['./guest-book-modern.scss'],
   template: `
     <div class="lp-shell">
       <!-- Top bar -->
       <div class="lp-topbar">
-        <img src="/CourtGo.png" alt="CourtGo" class="lp-courtgo-logo" />
-        <button class="lp-topbar-btn" (click)="goToLogin()">
-          <i class="fas fa-user"></i> Login / Register
-        </button>
+        <div class="lp-topbar-inner">
+          <a routerLink="/book" class="lp-brand" aria-label="Browse clubs on CourtGo">
+            <img src="/CourtGo.png" alt="CourtGo" class="lp-courtgo-logo" />
+            <span class="lp-brand-divider" aria-hidden="true"></span>
+            <span class="lp-brand-copy">Club booking</span>
+          </a>
+          <button type="button" class="lp-topbar-btn" (click)="goToLogin()">
+            <i class="fas fa-user" aria-hidden="true"></i>
+            <span>Login / Register</span>
+          </button>
+        </div>
       </div>
 
       @if (clubError) {
@@ -29,8 +37,16 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
         <!-- Hero Banner -->
         <div class="lp-hero-banner">
           @if (clubPhotos[0]) {
-            <img class="lp-hero-img" [src]="clubPhotos[0]" alt="Club cover photo" />
+            <img class="lp-hero-img" [src]="clubPhotos[0]" [alt]="clubName + ' venue'" />
           }
+          <div class="lp-hero-content">
+            <span class="lp-hero-kicker">
+              <i class="fas fa-circle-check" aria-hidden="true"></i>
+              Official club page
+            </span>
+            <h2>Your next game starts here.</h2>
+            <p>Discover the venue, check availability, and get on court in just a few steps.</p>
+          </div>
         </div>
 
         <!-- Club Info Row -->
@@ -43,10 +59,11 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                 <div class="lp-club-logo-placeholder"><i class="fas fa-table-tennis"></i></div>
               }
               <div class="lp-club-meta">
+                <span class="lp-club-eyebrow">Welcome to</span>
                 <h1 class="lp-club-name">{{ clubName || '&nbsp;' }}</h1>
                 @if (clubLocation) {
                   <div class="lp-club-location">
-                    <i class="fas fa-map-marker-alt"></i> {{ clubLocation }}
+                    <i class="fas fa-map-marker-alt" aria-hidden="true"></i> {{ clubLocation }}
                   </div>
                 }
                 <div class="lp-social-proof">
@@ -67,13 +84,17 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                       <span class="lp-proof-muted">players booked</span>
                     </span>
                   }
+                  <span class="lp-proof-item lp-proof-hours">
+                    <i class="far fa-clock" aria-hidden="true"></i>
+                    <span>{{ formatHour(openingHour) }}–{{ formatHour(closingHour) }} daily</span>
+                  </span>
                 </div>
               </div>
             </div>
 
             @if (!clubSuspended) {
               <div class="lp-club-right">
-                <button class="lp-cta lp-cta-member" (click)="goToLogin()">
+                <button type="button" class="lp-cta lp-cta-member" (click)="goToLogin()">
                   <div class="lp-cta-left">
                     <div class="lp-cta-icon lp-cta-icon-member"><i class="fas fa-user-circle"></i></div>
                     <div>
@@ -83,7 +104,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                   </div>
                 </button>
                 @if (!isPerGame && !isHostedPlay) {
-                  <button class="lp-cta lp-cta-guest" (click)="goToReserve()">
+                  <button type="button" class="lp-cta lp-cta-guest" (click)="goToReserve()">
                     <div class="lp-cta-left">
                       <div class="lp-cta-icon lp-cta-icon-guest"><i class="fas fa-calendar-plus"></i></div>
                       <div>
