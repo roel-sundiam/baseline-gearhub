@@ -390,6 +390,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'credits',
+        loadComponent: () =>
+          import('./features/player/credits/credits.component').then(
+            (m) => m.CreditsComponent,
+          ),
+      },
+      {
         path: 'payment-approvals',
         canActivate: [adminGuard],
         loadComponent: () =>

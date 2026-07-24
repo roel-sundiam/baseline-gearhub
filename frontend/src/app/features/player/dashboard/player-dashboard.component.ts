@@ -15,6 +15,7 @@ import { SoundService } from '../../../core/services/sound.service';
 import { PerGameService, GameJoin } from '../../../core/services/per-game.service';
 import { HostedPlayService, HostedPlaySession } from '../../../core/services/hosted-play.service';
 import { MembershipService, MembershipClub } from '../../../core/services/membership.service';
+import { CreditService } from '../../../core/services/credit.service';
 import { forkJoin } from 'rxjs';
 
 @Component({
@@ -262,6 +263,11 @@ import { forkJoin } from 'rxjs';
               <span class="dm-ac-title">Payments</span>
               <span class="dm-ac-sub">{{ outstanding > 0 ? 'Balance due' : 'All paid' }}</span>
               @if (outstanding > 0) { <span class="dm-ac-badge">!</span> }
+            </button>
+            <button class="dm-action-card" (click)="navigateTo('/player/credits')">
+              <div class="dm-ac-icon dm-ac-lime"><i class="fas fa-coins"></i></div>
+              <span class="dm-ac-title">My Credits</span>
+              <span class="dm-ac-sub">{{ creditBalance > 0 ? (creditBalance | currency:'PHP':'symbol':'1.0-0') + ' available' : 'No credit' }}</span>
             </button>
             <button class="dm-action-card" (click)="navigateTo('/player/directory')">
               <div class="dm-ac-icon dm-ac-blue"><i class="fas fa-user-friends"></i></div>
@@ -1332,6 +1338,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
   charges: Charge[] = [];
   loading = true;
   outstanding = 0;
+  creditBalance = 0;
   copiedPublicLink = false;
   clubSlug = '';
   clubName = 'Baseline Club';
@@ -1498,6 +1505,7 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     private perGameService: PerGameService,
     private hostedPlayService: HostedPlayService,
     private membershipService: MembershipService,
+    private creditService: CreditService,
   ) {}
 
   ngOnInit() {
@@ -1557,6 +1565,14 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
         this.loading = false;
         this.cdr.detectChanges();
       },
+    });
+
+    this.creditService.getMyCredit().subscribe({
+      next: ({ balance }) => {
+        this.creditBalance = balance;
+        this.cdr.detectChanges();
+      },
+      error: () => {},
     });
 
     this.reservationService.getMy().subscribe({
