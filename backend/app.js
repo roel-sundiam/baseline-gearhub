@@ -102,11 +102,14 @@ async function connectDB() {
   }
 
   console.log('=> using new database connection');
+  const isLongRunningServer = !!process.env.RENDER;
+  const maxPoolSize = Number(process.env.MONGO_MAX_POOL_SIZE) || (isLongRunningServer ? 10 : 3);
   connectingPromise = mongoose
     .connect(process.env.MONGODB_URI, {
       serverSelectionTimeoutMS: 10000,
       connectTimeoutMS: 12000,
       socketTimeoutMS: 20000,
+      maxPoolSize,
     })
     .then(() => {
       isConnected = true;
