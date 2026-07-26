@@ -21,6 +21,7 @@ export interface AdditionalFee {
 export interface Club {
   _id: string;
   name: string;
+  sport?: 'tennis' | 'pickleball' | 'badminton' | 'squash' | 'table_tennis' | 'padel';
   slug?: string;
   location?: string;
   mobile?: string;
@@ -85,11 +86,11 @@ export class ClubService {
     return this.http.get<Club>(`${environment.apiUrl}/clubs/${id}`);
   }
 
-  createClub(data: { name: string; location?: string; logo?: string; courtCount?: number; paymentMethods?: string[]; paymentAccounts?: Record<string, string>; paymentQrCodes?: Record<string, string> }) {
+  createClub(data: { name: string; sport?: 'tennis' | 'pickleball' | 'badminton' | 'squash' | 'table_tennis' | 'padel'; location?: string; logo?: string; courtCount?: number; paymentMethods?: string[]; paymentAccounts?: Record<string, string>; paymentQrCodes?: Record<string, string> }) {
     return this.http.post<Club>(`${environment.apiUrl}/clubs`, data);
   }
 
-  updateClub(id: string, data: { name?: string; location?: string; logo?: string; courtCount?: number; paymentMethods?: string[]; paymentAccounts?: Record<string, string>; paymentQrCodes?: Record<string, string> }) {
+  updateClub(id: string, data: { name?: string; sport?: 'tennis' | 'pickleball' | 'badminton' | 'squash' | 'table_tennis' | 'padel'; location?: string; logo?: string; courtCount?: number; paymentMethods?: string[]; paymentAccounts?: Record<string, string>; paymentQrCodes?: Record<string, string> }) {
     return this.http.put<Club>(`${environment.apiUrl}/clubs/${id}`, data);
   }
 

@@ -96,6 +96,17 @@ import { RatesService, Rates } from '../../../core/services/rates.service';
               </div>
 
               <div class="cf-group">
+                <label class="cf-label">Sport <span class="cf-required">*</span></label>
+                <div class="cf-booking-cards cf-sport-cards">
+                  @for (s of availableSports; track s.value) {
+                    <div class="cf-booking-card" [class.cf-bc-selected]="sport === s.value" (click)="sport = s.value">
+                      <div class="cf-bc-title">{{ s.label }}</div>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <div class="cf-group">
                 <label class="cf-label" for="location">Location <span class="cf-optional">optional</span></label>
                 <input id="location" type="text" class="cf-input" [(ngModel)]="location" name="location"
                   placeholder="e.g. Manila, Philippines" />
@@ -692,7 +703,10 @@ import { RatesService, Rates } from '../../../core/services/rates.service';
     .cf-booking-cards { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.35rem; }
     @media (min-width: 620px) {
       .cf-booking-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.65rem; }
+      .cf-sport-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
+    .cf-sport-cards .cf-bc-title { text-align: center; }
+    .cf-sport-cards .cf-booking-card { min-height: 0; padding: 0.85rem; }
     .cf-booking-card {
       border: 1.5px solid rgba(255,255,255,0.1);
       border-radius: 10px;
@@ -799,6 +813,15 @@ export class ClubFormComponent implements OnInit {
   });
 
   name = '';
+  sport: 'tennis' | 'pickleball' | 'badminton' | 'squash' | 'table_tennis' | 'padel' = 'tennis';
+  readonly availableSports: Array<{ value: 'tennis' | 'pickleball' | 'badminton' | 'squash' | 'table_tennis' | 'padel'; label: string }> = [
+    { value: 'tennis', label: 'Tennis' },
+    { value: 'pickleball', label: 'Pickleball' },
+    { value: 'badminton', label: 'Badminton' },
+    { value: 'squash', label: 'Squash' },
+    { value: 'table_tennis', label: 'Table Tennis' },
+    { value: 'padel', label: 'Padel' },
+  ];
   location = '';
   mobile = '';
   email = '';
@@ -852,6 +875,7 @@ export class ClubFormComponent implements OnInit {
       this.clubService.getClub(this.editId).subscribe({
         next: (club: any) => {
           this.name = club.name;
+          this.sport = club.sport ?? 'tennis';
           this.location = club.location ?? '';
           this.mobile = club.mobile ?? '';
           this.email = club.email ?? '';
@@ -1048,6 +1072,7 @@ export class ClubFormComponent implements OnInit {
     if (this.socialReclub.trim()) socialLinks['reclub'] = this.socialReclub.trim();
     const data: any = {
       name: this.name,
+      sport: this.sport,
       location: this.location || undefined,
       mobile: this.mobile || undefined,
       email: this.email || undefined,

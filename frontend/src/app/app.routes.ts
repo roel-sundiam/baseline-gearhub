@@ -34,6 +34,11 @@ export const routes: Routes = [
   {
     path: 'register-club',
     loadComponent: () =>
+      import('./features/auth/select-club-sport/select-club-sport.component').then((m) => m.SelectClubSportComponent),
+  },
+  {
+    path: 'register-club/:sport',
+    loadComponent: () =>
       import('./features/auth/register-club/register-club.component').then((m) => m.RegisterClubComponent),
   },
   {

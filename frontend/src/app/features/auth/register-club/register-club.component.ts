@@ -1,7 +1,7 @@
 import { Component, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
 
@@ -83,6 +83,11 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
 
               @if (currentStep === 1) {
                 <div class="section-label">Club Information</div>
+
+                <p class="rc-sport-chip">
+                  Registering a <strong>{{ sportLabel }}</strong> club ·
+                  <a routerLink="/register-club">change</a>
+                </p>
 
                 <div class="form-group">
                   <label for="clubName">Club Name *</label>
@@ -796,6 +801,10 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
       .step-dot.skipped { opacity: 0.2; }
       .step-line { flex: 1; max-width: 32px; height: 1px; background: rgba(255,255,255,0.1); }
       /* Booking Process cards */
+      .rc-sport-chip { font-size: 0.82rem; color: rgba(255,255,255,0.5); margin: 0 0 1.1rem; }
+      .rc-sport-chip strong { color: #fff; }
+      .rc-sport-chip a { color: var(--dm-accent, #a3e635); text-decoration: none; }
+      .rc-sport-chip a:hover { text-decoration: underline; }
       .booking-cards { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.75rem; }
       .booking-card { border: 1.5px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1rem 1.25rem; cursor: pointer; transition: all 0.18s; background: rgba(255,255,255,0.02); }
       .booking-card:hover { border-color: rgba(163,230,53,0.3); background: rgba(163,230,53,0.04); }
@@ -1077,8 +1086,31 @@ export class RegisterClubComponent {
   private auth = inject(AuthService);
   private cloudinary = inject(CloudinaryService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private loc = inject(Location);
   private cdr = inject(ChangeDetectorRef);
+
+  static readonly SPORT_LABELS: Record<string, string> = {
+    tennis: 'Tennis',
+    pickleball: 'Pickleball',
+    badminton: 'Badminton',
+    squash: 'Squash',
+    table_tennis: 'Table Tennis',
+    padel: 'Padel',
+  };
+
+  sport: 'tennis' | 'pickleball' | 'badminton' | 'squash' | 'table_tennis' | 'padel' = 'tennis';
+  sportLabel = 'Tennis';
+
+  constructor() {
+    const param = this.route.snapshot.paramMap.get('sport');
+    if (param && param in RegisterClubComponent.SPORT_LABELS) {
+      this.sport = param as typeof this.sport;
+      this.sportLabel = RegisterClubComponent.SPORT_LABELS[param];
+    } else {
+      this.router.navigate(['/register-club']);
+    }
+  }
 
   goBack() {
     if ((history.state?.navigationId ?? 1) > 1) {
@@ -1326,6 +1358,7 @@ export class RegisterClubComponent {
     this.auth
       .registerClub({
         clubName: this.clubName,
+        sport: this.sport,
         adminName: this.adminName,
         adminUsername: this.adminUsername,
         adminPassword: this.adminPassword,

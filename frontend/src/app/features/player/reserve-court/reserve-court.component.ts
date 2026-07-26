@@ -350,7 +350,7 @@ interface ActivePlayer { _id: string; name: string; email: string; }
             <div class="dm-summary-row"><span>Court</span><strong>Court {{ selectedCourt }}</strong></div>
             <div class="dm-summary-row">
               <span>Date</span>
-              <strong>{{ selectedDate | date: 'EEE, MMM d, y' : 'UTC' }}</strong>
+              <strong>{{ (selectedDate + 'T00:00:00Z') | date: 'EEE, MMM d, y' : 'UTC' }}</strong>
             </div>
             <div class="dm-summary-row"><span>Time</span><strong class="dm-summary-time">{{ selectedSlot }}{{ selectedDuration > 1 ? ' – ' + endSlotLabel : '' }}</strong></div>
             <div class="dm-summary-row">

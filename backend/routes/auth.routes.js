@@ -277,6 +277,7 @@ router.post("/register-club", async (req, res) => {
   try {
     const {
       clubName,
+      sport,
       adminName,
       adminUsername,
       adminPassword,
@@ -306,6 +307,10 @@ router.post("/register-club", async (req, res) => {
       });
     }
 
+    if (!['tennis', 'pickleball', 'badminton', 'squash', 'table_tennis', 'padel'].includes(sport)) {
+      return res.status(400).json({ error: "Invalid sport" });
+    }
+
     const existingUsername = await User.findOne({ username: adminUsername });
     if (existingUsername) {
       return res.status(409).json({ error: "Username already taken" });
@@ -325,6 +330,7 @@ router.post("/register-club", async (req, res) => {
     const club = await Club.create({
       name: clubName,
       slug,
+      sport,
       location: location || undefined,
       logo: logo || null,
       status: "active",

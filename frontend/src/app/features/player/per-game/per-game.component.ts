@@ -51,7 +51,7 @@ import { ClubService } from '../../../core/services/club.service';
                 <input class="date-input" type="date" [value]="selectedDate" [min]="todayStr"
                   (change)="onDateChange($any($event.target).value)" />
               } @else {
-                <div class="date-chip"><i class="fas fa-calendar-day"></i> {{ selectedDate | date: 'MMMM d, yyyy' : 'UTC' }}</div>
+                <div class="date-chip"><i class="fas fa-calendar-day"></i> {{ (selectedDate + 'T00:00:00Z') | date: 'MMMM d, yyyy' : 'UTC' }}</div>
               }
             </div>
             <div class="guest-section">

@@ -59,6 +59,7 @@ export class AuthService {
 
   registerClub(data: {
     clubName: string;
+    sport: 'tennis' | 'pickleball' | 'badminton' | 'squash' | 'table_tennis' | 'padel';
     adminName: string;
     adminUsername: string;
     adminPassword: string;
