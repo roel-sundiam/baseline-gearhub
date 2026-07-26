@@ -54,25 +54,40 @@ async function duprFetch(path, opts = {}) {
   }
 }
 
-// --- Match ops, confirmed against DUPR's GitBook (integration-checklist/match-upload-and-management).
-// Payload shape: { identifier, matchDate: 'yyyy-MM-dd', location, format: 'SINGLES'|'DOUBLES',
-// matchType: 'SIDEOUT'|'RALLY', teamA/teamB: [{ duprId, games: [...] }], event, bracket,
-// clubId, matchSource: 'CLUB', extras }. Response: { status, result: { matchCode, hashedMatchCode } }.
+// --- Match ops, confirmed 2026-07-27 against DUPR's real OpenAPI spec
+// (uat.mydupr.com/api/v3/api-docs) - the GitBook's paraphrase of these endpoints
+// (paths, casing, payload shape) was wrong; this is verified against the raw spec, not
+// a summarized doc. Payload shape (ExternalMatchRequest): teamA/teamB are FLAT objects
+// { player1, player2, game1..game5 } (DUPR IDs + up to 5 game scores directly on the
+// team, not a nested games array/list). clubId is an integer, not a string. identifier
+// must be globally unique forever - even a deleted match's identifier can't be reused.
+// Response: { status, result: { identifier, matchCode, hashedMatchCode } }.
 async function submitMatch(payload) {
-  return duprFetch("/Match/saveMatch", { method: "POST", body: JSON.stringify(payload) });
+  return duprFetch("/match/v1.0/create", { method: "POST", body: JSON.stringify(payload) });
 }
 
 async function submitMatchesInBulk(payloads) {
-  // Up to 100 matches per request per the docs.
-  return duprFetch("/Match/saveMatchInBulk", { method: "POST", body: JSON.stringify(payloads) });
+  return duprFetch("/match/v1.0/batch", { method: "POST", body: JSON.stringify(payloads) });
 }
 
+// payload must include matchId (DUPR's internal numeric id - Number(matchCode) from the
+// create response) plus the same required fields as create. matchCompletionType is
+// immutable on update; changing it is rejected - delete+recreate to change outcome type.
 async function updateMatch(payload) {
-  return duprFetch("/Match/updateMatch", { method: "PUT", body: JSON.stringify(payload) });
+  return duprFetch("/match/v1.0/update", { method: "POST", body: JSON.stringify(payload) });
 }
 
-async function deleteMatch(matchCode) {
-  return duprFetch(`/Match/deleteMatch?matchId=${encodeURIComponent(matchCode)}`, { method: "DELETE" });
+// Both matchCode (from the create response) and the original identifier must match.
+async function deleteMatch(matchCode, identifier) {
+  return duprFetch("/match/v1.0/delete", { method: "DELETE", body: JSON.stringify({ matchCode, identifier }) });
+}
+
+// Club role check for match submission gating - confirmed via the real spec to use the
+// PARTNER bearer token (same auth as everything else here), keyed by the submitter's own
+// DUPR ID, NOT the admin's per-user SSO token as originally assumed in the design doc.
+// Response: { membership: [{ clubId, clubName, role }] }, role one of DIRECTOR/ORGANIZER/PLAYER.
+async function getUserClubMemberships(duprPlayerId) {
+  return duprFetch(`/user/v1.0/${encodeURIComponent(duprPlayerId)}/clubs`);
 }
 
 // NOT CONFIRMED: DUPR's webhook docs (integration-checklist/ratings-and-webhooks) don't
@@ -93,5 +108,6 @@ module.exports = {
   submitMatchesInBulk,
   updateMatch,
   deleteMatch,
+  getUserClubMemberships,
   verifyWebhookSignature,
 };
