@@ -227,6 +227,51 @@ async function resolveDispute(submissionId, clubId, { team1Score, team2Score } =
   return { result: await enqueueAndSubmit(match, club) };
 }
 
+// Cron/sweep entry point: retries submissions whose backoff window has elapsed.
+// Claims each record atomically (findOneAndUpdate pushing nextAttemptAt forward first)
+// so concurrent invocations (e.g. an overlapping cron tick on a slow warm container)
+// never double-process the same submission - same pattern as financeReportBilling.js.
+async function processPendingSubmissions(limit = 20) {
+  const results = [];
+  for (let i = 0; i < limit; i++) {
+    const claimed = await DuprMatchSubmission.findOneAndUpdate(
+      { status: "pending_submission", nextAttemptAt: { $lte: new Date() } },
+      { $set: { nextAttemptAt: new Date(Date.now() + 5 * 60000) } }, // provisional - attemptSubmit overwrites it
+      { new: true, sort: { nextAttemptAt: 1 } },
+    );
+    if (!claimed) break;
+
+    try {
+      const match = await HostedPlayMatch.findById(claimed.sourceMatchId);
+      const club = match ? await Club.findById(match.clubId).select("duprEnabled duprClubId").lean() : null;
+      if (!match || !club) {
+        claimed.status = "failed";
+        claimed.lastError = "match_or_club_not_found";
+        await claimed.save();
+      } else {
+        const check = await checkEligibility(match, club);
+        if (!check.eligible) {
+          // No longer eligible (e.g. a player unlinked since) - stop retrying rather
+          // than burn attempts on a submission that can never succeed right now.
+          claimed.nextAttemptAt = null;
+          claimed.lastError = `no longer eligible: ${check.reason}`;
+          await claimed.save();
+        } else {
+          const payload = buildMatchPayload({
+            match, teamAPlayers: check.teamAPlayers, teamBPlayers: check.teamBPlayers, club,
+            identifier: claimed.idempotencyKey, matchId: claimed.duprMatchId ? Number(claimed.duprMatchId) : undefined,
+          });
+          await attemptSubmit(claimed, payload);
+        }
+      }
+    } catch (err) {
+      console.error("duprSync.processPendingSubmissions error:", err);
+    }
+    results.push({ id: claimed._id, status: claimed.status });
+  }
+  return results;
+}
+
 module.exports = {
   checkEligibility,
   enqueueAndSubmit,
@@ -235,4 +280,5 @@ module.exports = {
   resubmitById,
   markDisputed,
   resolveDispute,
+  processPendingSubmissions,
 };

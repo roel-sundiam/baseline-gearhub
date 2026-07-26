@@ -256,4 +256,20 @@ router.post("/webhook", async (req, res) => {
   }
 });
 
+// POST /api/dupr/tasks/process — retry/poll sweep trigger. No JWT; gated by a shared
+// secret header, meant to be hit by an external cron (or a Netlify scheduled function)
+// on this serverless deploy, which has no long-running process to run its own timer.
+router.post("/tasks/process", async (req, res) => {
+  if (!process.env.DUPR_CRON_SECRET || req.headers["x-cron-secret"] !== process.env.DUPR_CRON_SECRET) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const results = await duprSync.processPendingSubmissions(Number(req.query.limit) || 20);
+    res.json({ processed: results.length, results });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 module.exports = router;
