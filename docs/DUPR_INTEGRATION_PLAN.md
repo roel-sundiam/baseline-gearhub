@@ -248,7 +248,19 @@ sequenceDiagram
 
 **Phase A — foundation (invisible, safe to merge): SHIPPED 2026-07-27** (commits `8375c94`, `046eeb2`): env vars; `Club.duprEnabled` + 2 PATCH routes (`clubs.routes.js`); `User.duprLink` + PUT-handler guard (`User.js`, `users.routes.js`); `utils/dupr.js` (auth + match ops verified live against UAT); `models/DuprMatchSubmission.js`; `models/HostedPlayMatch.js` (pre-existing).
 
-**Phase B — linking (design corrected 2026-07-27, not yet built):** `routes/dupr.routes.js` — `sso-callback` (not lookup/confirm) + status/refresh — mounted in `app.js`; `core/services/dupr.service.ts`; profile-edit Linked Accounts UI embeds the SSO iframe + `postMessage` listener (both player and admin profiles, since admins need it too); add `ssoUserToken`/`ssoRefreshToken`/expiry fields to `User.duprLink`; hosted-play read-only rating swap.
+**Phase B — linking: SHIPPED 2026-07-27** (commit `9c1f2f2`), verified end-to-end against a real UAT login (not just unit-tested): `routes/dupr.routes.js` (`status`, `sso-config`, `link/sso-callback`, `link` DELETE) mounted in `app.js`; `core/services/dupr.service.ts`; profile-edit Linked Accounts card embeds the SSO iframe + `postMessage` listener. **The real postMessage payload differs from what was assumed when this section was first written** — captured live from a genuine DUPR UAT login:
+```json
+{
+  "userToken": "<JWT>", "refreshToken": "<JWT>", "id": 5338094789, "duprId": "L54ZQ6",
+  "stats": { "singles": "NR", "doubles": "NR", "singlesVerified": "NR", "doublesVerified": "NR",
+             "singlesProvisional": false, "doublesProvisional": false, "defaultRating": "DOUBLES",
+             "provisionalRatings": { "singlesRating": null, "doublesRating": null, "coach": null } },
+  "subscriptions": [{ "status": "active", "displayName": "DUPR", "entitlements": { "tournaments": ["BASIC_L1"], "merchandise": [] } }]
+}
+```
+Two corrections this forced: (1) **`stats.doubles`/`stats.singles` are the string `"NR"` (Not Rated) when unset, not a number** — naively mirroring into `User.duprRating` (Number-typed) threw a Mongoose `CastError` in testing; fixed with a `parseDuprRating()` normalizer in `dupr.routes.js` that maps `"NR"`/non-numeric to `null`. (2) **There is no `fullName`/`email` field anywhere in the payload** — the design's assumption that `stats` carried profile data was wrong; `duprLink.fullName`/`email` are left `null` (CourtGo's own `User.name` is the display name). Bonus finding: the payload includes a **`subscriptions`/`entitlements` array right in the SSO response** — this may satisfy the User Gating (`BASIC_L1`) checklist item without a separate Subscriptions Controller call; worth revisiting when Phase C needs an entitlement check. Also confirmed: the SSO iframe's `:clientKey` path segment is `base64(DUPR_CLIENT_KEY)` (the guess in `dupr.routes.js`'s `sso-config` endpoint was right — DUPR's real login UI rendered correctly on the first try).
+
+**Not yet done:** server-side validation of `userToken` before trusting it (no confirmed DUPR endpoint for this — flagged as a known gap in `dupr.routes.js`); hosted-play read-only rating swap (still shows the old self-report input regardless of link status).
 
 **Phase C — scores → DUPR (payload shape corrected 2026-07-27):** score capture + `HostedPlayMatch` persistence + match-score PATCH already exist — add the `utils/duprSync.js` hook into the existing finish/correction flow (`hosted-play.routes.js`), building the real `teamA`/`teamB`/games payload (not a flat score pair) and checking the recording admin's DUPR club role before submitting; submissions/dispute/resubmit/resolve endpoints; admin queue-board DUPR status chips (score UI already exists).
 
