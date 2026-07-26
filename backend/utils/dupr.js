@@ -10,20 +10,20 @@ function isDuprConfigured() {
 async function getAccessToken() {
   if (tokenCache.token && tokenCache.expiresAt > Date.now() + 5000) return tokenCache.token;
 
+  // Partner auth: base64(clientKey:clientSecret) in x-authorization, not a JSON body.
+  const authHeader = Buffer.from(`${process.env.DUPR_CLIENT_KEY}:${process.env.DUPR_CLIENT_SECRET}`).toString("base64");
   const res = await fetch(`${process.env.DUPR_BASE_URL}/auth/v1.0/token`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      clientId: process.env.DUPR_CLIENT_ID,
-      key: process.env.DUPR_CLIENT_KEY,
-      secret: process.env.DUPR_CLIENT_SECRET,
-    }),
+    headers: { "Content-Type": "application/json", "x-authorization": authHeader },
+    body: JSON.stringify({}),
   });
   if (!res.ok) throw new Error(`DUPR auth failed: ${res.status}`);
   const data = await res.json();
+  if (data.status !== "SUCCESS" || !data.result?.token) throw new Error("DUPR auth failed: unexpected response shape");
   tokenCache = {
-    token: data.accessToken || data.token,
-    expiresAt: Date.now() + (data.expiresIn ? data.expiresIn * 1000 : 55 * 60 * 1000),
+    token: data.result.token,
+    // expiry is an absolute ISO timestamp, not a relative expiresIn.
+    expiresAt: new Date(data.result.expiry).getTime(),
   };
   return tokenCache.token;
 }
@@ -54,28 +54,30 @@ async function duprFetch(path, opts = {}) {
   }
 }
 
-// --- Stub ops, thin wrappers over duprFetch. Payload/response shapes are not
-// yet confirmed against DUPR's docs (Phase B/C work) - signatures may change.
-async function lookupPlayerByEmail(email) {
-  return duprFetch(`/player/v1.0/search?email=${encodeURIComponent(email)}`);
-}
-
-async function getPlayerRating(duprPlayerId) {
-  return duprFetch(`/player/v1.0/${encodeURIComponent(duprPlayerId)}`);
-}
-
+// --- Match ops, confirmed against DUPR's GitBook (integration-checklist/match-upload-and-management).
+// Payload shape: { identifier, matchDate: 'yyyy-MM-dd', location, format: 'SINGLES'|'DOUBLES',
+// matchType: 'SIDEOUT'|'RALLY', teamA/teamB: [{ duprId, games: [...] }], event, bracket,
+// clubId, matchSource: 'CLUB', extras }. Response: { status, result: { matchCode, hashedMatchCode } }.
 async function submitMatch(payload) {
-  return duprFetch("/match/v1.0/create", { method: "POST", body: JSON.stringify(payload) });
+  return duprFetch("/Match/saveMatch", { method: "POST", body: JSON.stringify(payload) });
 }
 
-async function updateMatch(duprMatchId, payload) {
-  return duprFetch(`/match/v1.0/${encodeURIComponent(duprMatchId)}`, { method: "PUT", body: JSON.stringify(payload) });
+async function submitMatchesInBulk(payloads) {
+  // Up to 100 matches per request per the docs.
+  return duprFetch("/Match/saveMatchInBulk", { method: "POST", body: JSON.stringify(payloads) });
 }
 
-async function deleteMatch(duprMatchId) {
-  return duprFetch(`/match/v1.0/${encodeURIComponent(duprMatchId)}`, { method: "DELETE" });
+async function updateMatch(payload) {
+  return duprFetch("/Match/updateMatch", { method: "PUT", body: JSON.stringify(payload) });
 }
 
+async function deleteMatch(matchCode) {
+  return duprFetch(`/Match/deleteMatch?matchId=${encodeURIComponent(matchCode)}`, { method: "DELETE" });
+}
+
+// NOT CONFIRMED: DUPR's webhook docs (integration-checklist/ratings-and-webhooks) don't
+// document any signature scheme - envelope is just { clientId, event, message } over HTTPS.
+// Ask tech@mydupr.com before relying on this; DUPR_WEBHOOK_SECRET may not be a real DUPR concept.
 function verifyWebhookSignature(rawBody, signature) {
   if (!process.env.DUPR_WEBHOOK_SECRET || !signature) return false;
   const expected = crypto.createHmac("sha256", process.env.DUPR_WEBHOOK_SECRET).update(rawBody).digest("hex");
@@ -87,9 +89,8 @@ function verifyWebhookSignature(rawBody, signature) {
 module.exports = {
   isDuprConfigured,
   duprFetch,
-  lookupPlayerByEmail,
-  getPlayerRating,
   submitMatch,
+  submitMatchesInBulk,
   updateMatch,
   deleteMatch,
   verifyWebhookSignature,
