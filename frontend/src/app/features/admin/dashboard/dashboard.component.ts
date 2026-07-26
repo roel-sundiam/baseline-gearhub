@@ -18,6 +18,7 @@ import { SoundService } from '../../../core/services/sound.service';
 import { AppServicePaymentsService } from '../../../core/services/app-service-payments.service';
 import { AnnouncementService } from '../../../core/services/announcement.service';
 import { HostedPlayService, HostedPlaySession } from '../../../core/services/hosted-play.service';
+import { DuprService } from '../../../core/services/dupr.service';
 import { forkJoin, timeout, of, catchError } from 'rxjs';
 import { marked } from 'marked';
 import QRCode from 'qrcode';
@@ -310,6 +311,18 @@ import QRCode from 'qrcode';
                 </span>
                 <span class="action-sub">Check in players, manage courts and live rotation</span>
               </a>
+            }
+            @if (!authService.isSuperAdmin() && hostedPlayActive) {
+              <div class="action-card action-card--toggle" [title]="!duprConfigured ? 'DUPR is not configured on this platform yet' : ''">
+                <span class="action-icon"><i class="fas fa-table-tennis-paddle-ball"></i></span>
+                <span class="action-title">DUPR Rating Sync
+                  <label class="hpq-switch">
+                    <input type="checkbox" [checked]="!!club?.duprEnabled" [disabled]="togglingDuprAddon || !duprConfigured" (change)="toggleDuprAddon($any($event.target).checked)" />
+                    <span class="hpq-slider"></span>
+                  </label>
+                </span>
+                <span class="action-sub">Submit Hosted Play pickleball scores to DUPR for official ratings</span>
+              </div>
             }
             @if (!authService.isSuperAdmin()) {
               <a routerLink="/admin/finance-report" class="action-card action-card--premium">
@@ -1865,7 +1878,27 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     private announcementService: AnnouncementService,
     private hostedPlayService: HostedPlayService,
     private sanitizer: DomSanitizer,
+    private duprService: DuprService,
   ) {}
+
+  duprConfigured = false;
+  togglingDuprAddon = false;
+
+  toggleDuprAddon(enabled: boolean) {
+    if (!this.club || this.togglingDuprAddon || !this.duprConfigured) return;
+    this.togglingDuprAddon = true;
+    this.clubService.patchMyDuprAddon(enabled).subscribe({
+      next: (club) => {
+        this.club = { ...this.club!, duprEnabled: !!club.duprEnabled };
+        this.togglingDuprAddon = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.togglingDuprAddon = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
 
   toggleHostedPlayAddon(enabled: boolean) {
     if (!this.club || this.togglingHostedPlayAddon) return;
@@ -1903,6 +1936,14 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       next: ({ count }) => { this.messageUnreadCount = count; this.cdr.detectChanges(); },
       error: () => {},
     });
+
+    if (!this.authService.isSuperAdmin()) {
+      this.duprService.getStatus().subscribe({
+        next: (status) => { this.duprConfigured = status.configured; this.cdr.detectChanges(); },
+        error: () => {},
+      });
+    }
+
     this.msgPollInterval = setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       if (this.supportChatOpen) return;

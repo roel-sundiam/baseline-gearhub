@@ -1158,6 +1158,25 @@ interface AdminUser {
                           <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ duprClubIdSaveMsg }}</span>
                         }
                       </div>
+
+                      <div class="hpq-toggle-row">
+                        <div class="hpq-toggle-copy">
+                          <div class="hpq-toggle-title"><i class="fas fa-table-tennis-paddle-ball"></i> DUPR Rating Sync</div>
+                          <div class="hpq-toggle-desc">Submits this club's Hosted Play pickleball scores to DUPR for official ratings.</div>
+                        </div>
+                        <label class="hpq-switch">
+                          <input type="checkbox" [(ngModel)]="duprAddonEnabled" />
+                          <span class="hpq-slider"></span>
+                        </label>
+                      </div>
+                      <div class="cfs-actions xfee-actions">
+                        <button type="button" class="cfs-save-btn" (click)="saveDuprAddon()" [disabled]="savingDuprAddon">
+                          @if (savingDuprAddon) { <i class="fas fa-circle-notch fa-spin"></i> } Save DUPR Setting
+                        </button>
+                        @if (duprAddonSaveMsg) {
+                          <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ duprAddonSaveMsg }}</span>
+                        }
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -4176,6 +4195,9 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   editDuprClubId = '';
   savingDuprClubId = false;
   duprClubIdSaveMsg = '';
+  duprAddonEnabled = false;
+  savingDuprAddon = false;
+  duprAddonSaveMsg = '';
 
   // ── Additional (extra) fees ──
   editingExtraFees: AdditionalFee[] = [];
@@ -4462,6 +4484,8 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     this.hostedPlayCreditsSaveMsg = '';
     this.editDuprClubId = club.duprClubId ?? '';
     this.duprClubIdSaveMsg = '';
+    this.duprAddonEnabled = club.duprEnabled ?? false;
+    this.duprAddonSaveMsg = '';
     this.editingExtraFees = (club.additionalFees ?? []).map(f => ({ ...f }));
     this.newExtraFeeName = '';
     this.newExtraFeeAmount = 0;
@@ -4857,6 +4881,23 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
         setTimeout(() => { this.duprClubIdSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
       },
       error: () => { this.savingDuprClubId = false; this.duprClubIdSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
+  saveDuprAddon() {
+    if (!this.selectedClub?._id) return;
+    this.savingDuprAddon = true;
+    this.duprAddonSaveMsg = '';
+    this.clubService.patchDuprAddon(this.selectedClub._id, this.duprAddonEnabled).subscribe({
+      next: (updated) => {
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, duprEnabled: updated.duprEnabled } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, duprEnabled: updated.duprEnabled };
+        this.savingDuprAddon = false;
+        this.duprAddonSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.duprAddonSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingDuprAddon = false; this.duprAddonSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
     });
   }
 

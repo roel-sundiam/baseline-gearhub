@@ -62,6 +62,7 @@ export interface Club {
   financeReportSubscribedAt?: string | null;
   financeReportFeeOverride?: number | null;
   duprClubId?: string | null;
+  duprEnabled?: boolean;
   courts?: Court[];
 }
 
@@ -176,6 +177,14 @@ export class ClubService {
 
   patchDuprClubId(id: string, duprClubId: string | null) {
     return this.http.patch<{ duprClubId: string | null }>(`${environment.apiUrl}/clubs/${id}/dupr-club-id`, { duprClubId });
+  }
+
+  patchDuprAddon(id: string, enabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/dupr-addon`, { enabled });
+  }
+
+  patchMyDuprAddon(enabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/dupr-addon`, { enabled });
   }
 
   setSelectedClubId(id: string) {
