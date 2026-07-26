@@ -2,9 +2,11 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2 } from '@ang
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AuthService } from '../../../core/services/auth.service';
 import { UsersService } from '../../../core/services/users.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
+import { DuprService, DuprStatus } from '../../../core/services/dupr.service';
 
 @Component({
   selector: 'app-profile-edit',
@@ -116,6 +118,37 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
 
               </div>
             </div>
+
+            <!-- Linked Accounts (DUPR) -->
+            @if (duprStatus?.configured && duprStatus?.clubEnabled) {
+              <div class="dm-section">
+                <div class="dm-section-label">Linked Accounts</div>
+                <div class="dm-card">
+                  <div class="dm-form-group">
+                    <label class="dm-form-label">DUPR</label>
+                    @if (duprStatus?.myLink) {
+                      <div class="dm-dupr-linked">
+                        <span class="dm-dupr-badge"><i class="fas fa-check-circle"></i> Linked{{ duprStatus?.myLink?.fullName ? ' as ' + duprStatus?.myLink?.fullName : '' }}</span>
+                        @if (duprStatus?.myLink?.doubles) {
+                          <span class="dm-dupr-rating">Doubles {{ duprStatus?.myLink?.doubles }}</span>
+                        }
+                        <button type="button" class="dm-dupr-unlink-btn" (click)="unlinkDupr()" [disabled]="duprBusy">Unlink</button>
+                      </div>
+                    } @else if (showDuprIframe && duprIframeSafeUrl) {
+                      <iframe [src]="duprIframeSafeUrl" class="dm-dupr-iframe" title="DUPR login"></iframe>
+                      <span class="dm-form-hint">Log in to DUPR above to link your account.</span>
+                    } @else {
+                      <button type="button" class="dm-dupr-link-btn" (click)="startDuprLink()" [disabled]="duprBusy">
+                        @if (duprBusy) { <i class="fas fa-circle-notch fa-spin"></i> Loading… } @else { Link DUPR Account }
+                      </button>
+                    }
+                    @if (duprError) {
+                      <span class="dm-field-error">{{ duprError }}</span>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
 
             <!-- Password change -->
             <div class="dm-section">
@@ -464,6 +497,66 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
       font-weight: 500;
     }
 
+    .dm-dupr-linked {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+
+    .dm-dupr-badge {
+      color: #a3e635;
+      font-size: 0.85rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .dm-dupr-rating {
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.55);
+      background: rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 0.2rem 0.6rem;
+    }
+
+    .dm-dupr-unlink-btn {
+      margin-left: auto;
+      background: rgba(239,68,68,0.12);
+      color: #ef4444;
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 20px;
+      padding: 0.3rem 0.8rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .dm-dupr-unlink-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .dm-dupr-link-btn {
+      background: rgba(163,230,53,0.15);
+      color: #a3e635;
+      border: 1px solid rgba(163,230,53,0.3);
+      border-radius: 20px;
+      padding: 0.5rem 1.1rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      align-self: flex-start;
+      font-family: inherit;
+    }
+    .dm-dupr-link-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .dm-dupr-iframe {
+      width: 100%;
+      height: 480px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      background: #fff;
+    }
+
     .dm-gender-group {
       display: flex;
       gap: 0.75rem;
@@ -618,6 +711,14 @@ export class ProfileEditComponent implements OnInit, OnDestroy {
   errorMsg = '';
   successMsg = '';
 
+  duprStatus: DuprStatus | null = null;
+  duprBusy = false;
+  duprError = '';
+  showDuprIframe = false;
+  duprIframeSafeUrl: SafeResourceUrl | null = null;
+  private duprIframeOrigin = '';
+  private duprMessageHandler = (event: MessageEvent) => this.handleDuprMessage(event);
+
   get passwordMismatch(): boolean {
     if (!this.newPassword || !this.confirmPassword) return false;
     return this.newPassword !== this.confirmPassword;
@@ -627,6 +728,8 @@ export class ProfileEditComponent implements OnInit, OnDestroy {
     private auth: AuthService,
     private users: UsersService,
     private cloudinary: CloudinaryService,
+    private dupr: DuprService,
+    private sanitizer: DomSanitizer,
     private router: Router,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
@@ -636,11 +739,87 @@ export class ProfileEditComponent implements OnInit, OnDestroy {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
     this.loadUserProfile();
+    this.loadDuprStatus();
+    window.addEventListener('message', this.duprMessageHandler);
   }
 
   ngOnDestroy() {
     this.renderer.removeClass(document.documentElement, 'dark-player-page');
     this.renderer.removeClass(document.body, 'dark-player-page');
+    window.removeEventListener('message', this.duprMessageHandler);
+  }
+
+  loadDuprStatus() {
+    this.dupr.getStatus().subscribe({
+      next: (status) => {
+        this.duprStatus = status;
+        this.cdr.detectChanges();
+      },
+      error: () => { /* Linked Accounts card just stays hidden if this fails. */ },
+    });
+  }
+
+  startDuprLink() {
+    this.duprBusy = true;
+    this.duprError = '';
+    this.dupr.getSsoConfig().subscribe({
+      next: ({ iframeUrl }) => {
+        this.duprIframeOrigin = new URL(iframeUrl).origin;
+        this.duprIframeSafeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(iframeUrl);
+        this.showDuprIframe = true;
+        this.duprBusy = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.duprBusy = false;
+        this.duprError = err.error?.error || 'Could not start DUPR login. Please try again.';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private handleDuprMessage(event: MessageEvent) {
+    if (!this.duprIframeOrigin || event.origin !== this.duprIframeOrigin) return;
+    const data = event.data;
+    if (!data?.userToken || !data?.refreshToken || !data?.duprId) return;
+
+    this.duprBusy = true;
+    this.dupr.submitSsoCallback({
+      userToken: data.userToken,
+      refreshToken: data.refreshToken,
+      id: data.id,
+      duprId: data.duprId,
+      stats: data.stats,
+    }).subscribe({
+      next: ({ myLink }) => {
+        this.duprStatus = this.duprStatus ? { ...this.duprStatus, myLink } : this.duprStatus;
+        this.showDuprIframe = false;
+        this.duprBusy = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.duprBusy = false;
+        this.duprError = err.error?.error || 'Failed to link DUPR account. Please try again.';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  unlinkDupr() {
+    this.duprBusy = true;
+    this.duprError = '';
+    this.dupr.unlink().subscribe({
+      next: () => {
+        if (this.duprStatus) this.duprStatus = { ...this.duprStatus, myLink: null };
+        this.duprBusy = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.duprBusy = false;
+        this.duprError = err.error?.error || 'Failed to unlink. Please try again.';
+        this.cdr.detectChanges();
+      },
+    });
   }
 
   navigateTo(path: string) {

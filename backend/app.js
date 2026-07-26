@@ -53,6 +53,7 @@ const hostedPlayRoutes = require("./routes/hosted-play.routes");
 const configRoutes = require("./routes/config.routes");
 const clubLedgerRoutes = require("./routes/club-ledger.routes");
 const membershipsRoutes = require("./routes/memberships.routes");
+const duprRoutes = require("./routes/dupr.routes");
 
 const app = express();
 
@@ -167,5 +168,6 @@ app.use("/api/hosted-play", hostedPlayRoutes);
 app.use("/api/config", configRoutes);
 app.use("/api/club-ledger", clubLedgerRoutes);
 app.use("/api/memberships", membershipsRoutes);
+app.use("/api/dupr", duprRoutes);
 
 module.exports = app;

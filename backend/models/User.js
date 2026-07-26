@@ -58,6 +58,13 @@ const userSchema = new mongoose.Schema(
       doubles: { type: Number, default: null },
       singles: { type: Number, default: null },
       lastSyncedAt: { type: Date, default: null },
+      // Per-user DUPR SSO credentials (login-external-app iframe). Real credentials,
+      // not profile data - select: false so they're never returned unless a query
+      // explicitly opts in with .select('+duprLink.ssoUserToken') etc.
+      ssoUserToken: { type: String, default: null, select: false },
+      ssoRefreshToken: { type: String, default: null, select: false },
+      ssoTokenExpiresAt: { type: Date, default: null },
+      ssoRefreshExpiresAt: { type: Date, default: null },
     },
     profileImage: { type: String, default: null },
     clubId: { type: mongoose.Schema.Types.ObjectId, ref: "Club" },
