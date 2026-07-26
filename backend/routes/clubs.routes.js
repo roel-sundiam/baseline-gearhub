@@ -6,6 +6,7 @@ const Club = require("../models/Club");
 const User = require("../models/User");
 const { ownsClub } = require("../utils/scope");
 const { ensureFinanceReportBilling } = require("../utils/financeReportBilling");
+const { isDuprConfigured } = require("../utils/dupr");
 
 const router = express.Router();
 
@@ -45,9 +46,12 @@ router.get("/:id", async (req, res) => {
 // POST /api/clubs — create a club (admin only)
 router.post("/", auth, admin, async (req, res) => {
   try {
-    const { name, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount } = req.body;
+    const { name, sport, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount } = req.body;
     if (!name) return res.status(400).json({ error: "Club name is required" });
-    const club = await Club.create({ name, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount });
+    if (sport !== undefined && !['tennis', 'pickleball', 'badminton', 'squash', 'table_tennis', 'padel'].includes(sport)) {
+      return res.status(400).json({ error: "Invalid sport" });
+    }
+    const club = await Club.create({ name, sport, location, mobile, email, logo, courtCount, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount });
     res.status(201).json(club);
   } catch (err) {
     console.error(err);
@@ -59,10 +63,13 @@ router.post("/", auth, admin, async (req, res) => {
 router.put("/:id", auth, admin, async (req, res) => {
   try {
     if (!ownsClub(req, req.params.id)) return res.status(403).json({ error: "You can only manage your own club" });
-    const { name, location, mobile, email, logo, courtCount, courts, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount } = req.body;
+    const { name, sport, location, mobile, email, logo, courtCount, courts, openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount } = req.body;
+    if (sport !== undefined && !['tennis', 'pickleball', 'badminton', 'squash', 'table_tennis', 'padel'].includes(sport)) {
+      return res.status(400).json({ error: "Invalid sport" });
+    }
     const club = await Club.findByIdAndUpdate(
       req.params.id,
-      { name, location, mobile, email, logo, courtCount, ...(courts !== undefined ? { courts } : {}), openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount },
+      { name, ...(sport !== undefined ? { sport } : {}), location, mobile, email, logo, courtCount, ...(courts !== undefined ? { courts } : {}), openingHour, closingHour, paymentMethods, paymentAccounts, paymentQrCodes, description, photos, socialLinks, rating, reviewCount },
       { new: true, runValidators: true },
     );
     if (!club) return res.status(404).json({ error: "Club not found" });
@@ -462,6 +469,37 @@ router.patch("/:id/dupr-club-id", auth, superadmin, async (req, res) => {
     ).lean();
     if (!club) return res.status(404).json({ error: "Club not found" });
     res.json({ duprClubId: club.duprClubId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /api/clubs/me/dupr-addon — club admin self-toggle the DUPR add-on
+router.patch("/me/dupr-addon", auth, admin, async (req, res) => {
+  try {
+    if (!isDuprConfigured()) return res.status(409).json({ error: "DUPR is not configured on this platform" });
+    const clubId = req.user.clubId;
+    if (!clubId) return res.status(400).json({ error: "No club associated with this account" });
+    const club = await Club.findById(clubId);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    club.duprEnabled = !!req.body.enabled;
+    await club.save();
+    res.json(club.toObject());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /api/clubs/:id/dupr-addon — enable/disable the DUPR add-on (superadmin only)
+router.patch("/:id/dupr-addon", auth, superadmin, async (req, res) => {
+  try {
+    const club = await Club.findById(req.params.id);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    club.duprEnabled = !!req.body.enabled;
+    await club.save();
+    res.json(club.toObject());
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

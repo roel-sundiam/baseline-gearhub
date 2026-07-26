@@ -316,7 +316,7 @@ router.get("/:id/profile", auth, async (req, res) => {
 // PUT /api/users/:id/profile — update user's profile (authenticated)
 router.put("/:id/profile", auth, async (req, res) => {
   try {
-    const target = await User.findById(req.params.id).select("clubId");
+    const target = await User.findById(req.params.id).select("clubId duprLink.verified");
     if (!target) return res.status(404).json({ error: "User not found" });
 
     // Own profile, or staff (admin/superadmin) of the same club
@@ -325,6 +325,10 @@ router.put("/:id/profile", auth, async (req, res) => {
     if (!isSelf && !isClubStaff) return res.status(403).json({ error: "Forbidden" });
 
     const { name, contactNumber, gender, profileImage, skillLevel, duprRating, duprId } = req.body;
+
+    if ((duprRating !== undefined || duprId !== undefined) && target.duprLink?.verified) {
+      return res.status(409).json({ error: "DUPR-verified rating; unlink to edit manually" });
+    }
 
     const update = {};
     if (name) update.name = name;

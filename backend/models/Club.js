@@ -4,6 +4,7 @@ const clubSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     slug: { type: String, sparse: true, unique: true },
+    sport: { type: String, enum: ['tennis', 'pickleball', 'badminton', 'squash', 'table_tennis', 'padel'], required: true, default: 'tennis' },
     location: { type: String, trim: true },
     mobile: { type: String, trim: true },
     email: { type: String, trim: true },
@@ -55,6 +56,9 @@ const clubSchema = new mongoose.Schema(
     // for a future phase once a real DUPR API partnership/credentials exist -
     // not validated against DUPR today.
     duprClubId: { type: String, trim: true, default: null },
+    // Club-level opt-in for submitting Hosted Play pickleball match scores to DUPR.
+    // No-ops entirely when the platform-level DUPR_* env vars are unset.
+    duprEnabled: { type: Boolean, default: false },
     additionalFees: [{
       name: { type: String, required: true },
       amount: { type: Number, required: true, min: 0 },

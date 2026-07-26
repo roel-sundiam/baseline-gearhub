@@ -46,6 +46,19 @@ const userSchema = new mongoose.Schema(
     // Self-reported / admin-entered DUPR player ID (free text). Reserved for a
     // future account-linking phase once a DUPR API partnership exists.
     duprId: { type: String, trim: true, default: null },
+    // Verified DUPR account link (Partner API). While duprLink.verified is true,
+    // this is the source of truth and mirrors into duprRating/duprId on every
+    // sync so existing display paths need no changes.
+    duprLink: {
+      duprPlayerId: { type: String, trim: true, default: null },
+      email: { type: String, trim: true, default: null },
+      fullName: { type: String, trim: true, default: null },
+      verified: { type: Boolean, default: false },
+      linkedAt: { type: Date, default: null },
+      doubles: { type: Number, default: null },
+      singles: { type: Number, default: null },
+      lastSyncedAt: { type: Date, default: null },
+    },
     profileImage: { type: String, default: null },
     clubId: { type: mongoose.Schema.Types.ObjectId, ref: "Club" },
     termsAcceptedAt: { type: Date, default: null },
@@ -53,5 +66,7 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+userSchema.index({ "duprLink.duprPlayerId": 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("User", userSchema);
