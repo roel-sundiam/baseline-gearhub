@@ -62,4 +62,12 @@ export class DuprService {
   resubmit(submissionId: string) {
     return this.http.post(`${environment.apiUrl}/dupr/submissions/${submissionId}/resubmit`, {});
   }
+
+  dispute(submissionId: string, reason: string) {
+    return this.http.post<DuprMatchSubmission>(`${environment.apiUrl}/dupr/submissions/${submissionId}/dispute`, { reason });
+  }
+
+  resolve(submissionId: string, team1Score?: number, team2Score?: number) {
+    return this.http.post(`${environment.apiUrl}/dupr/submissions/${submissionId}/resolve`, { team1Score, team2Score });
+  }
 }

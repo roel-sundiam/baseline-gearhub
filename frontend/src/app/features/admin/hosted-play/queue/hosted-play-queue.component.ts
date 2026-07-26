@@ -151,6 +151,41 @@ import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr
         </div>
       }
 
+      @if (duprActionModal; as dam) {
+        <div class="modal-backdrop" (click)="closeDuprActionModal()">
+          <div class="modal-card" (click)="$event.stopPropagation()">
+            <div class="modal-body">
+              @if (dam.mode === 'dispute') {
+                <p class="modal-title">Dispute DUPR Submission</p>
+                <p class="modal-msg">Freezes retries until resolved. Describe the issue:</p>
+                <textarea class="dupr-modal-textarea" rows="3" [(ngModel)]="dam.reason" [disabled]="dam.saving" placeholder="e.g. wrong players, incorrect score"></textarea>
+              } @else {
+                <p class="modal-title">Resolve Dispute</p>
+                <p class="modal-msg">Optionally correct the score, then resubmit to DUPR.</p>
+                <div class="score-fields">
+                  <label class="score-field">
+                    <span>Team 1</span>
+                    <input type="number" min="0" inputmode="numeric" [(ngModel)]="dam.s1" [disabled]="dam.saving" />
+                  </label>
+                  <span class="score-dash">–</span>
+                  <label class="score-field">
+                    <span>Team 2</span>
+                    <input type="number" min="0" inputmode="numeric" [(ngModel)]="dam.s2" [disabled]="dam.saving" />
+                  </label>
+                </div>
+              }
+              @if (dam.error) { <p class="score-error"><i class="fas fa-exclamation-triangle"></i> {{ dam.error }}</p> }
+            </div>
+            <div class="modal-actions">
+              <button class="modal-cancel" [disabled]="dam.saving" (click)="closeDuprActionModal()">Cancel</button>
+              <button class="modal-confirm modal-confirm-save" [disabled]="dam.saving" (click)="submitDuprActionModal()">
+                {{ dam.saving ? 'Saving…' : (dam.mode === 'dispute' ? 'Submit Dispute' : 'Resolve & Resubmit') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
       @if (loading) {
         <div class="state-card"><i class="fas fa-circle-notch fa-spin"></i> Loading queue...</div>
       } @else if (!board) {
@@ -443,6 +478,16 @@ import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr
                         @if (dupr.status === 'failed' || dupr.status === 'rejected') {
                           <button class="icon-btn" title="Retry DUPR submission" [disabled]="duprRetryingIds.has(dupr._id)" (click)="retryDupr(dupr)">
                             <i class="fas fa-rotate-right" [class.fa-spin]="duprRetryingIds.has(dupr._id)"></i>
+                          </button>
+                        }
+                        @if (dupr.status === 'submitted' || dupr.status === 'accepted' || dupr.status === 'rejected') {
+                          <button class="icon-btn" title="Dispute DUPR submission" (click)="openDuprDispute(dupr)">
+                            <i class="fas fa-flag"></i>
+                          </button>
+                        }
+                        @if (dupr.status === 'disputed') {
+                          <button class="icon-btn" title="Resolve dispute" (click)="openDuprResolve(dupr, m)">
+                            <i class="fas fa-check"></i>
                           </button>
                         }
                       }
@@ -1399,6 +1444,19 @@ import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr
     .dupr-chip-accepted { background: rgba(163,230,53,.15); color: var(--accent); }
     .dupr-chip-rejected, .dupr-chip-failed { background: rgba(239,68,68,.15); color: #ef4444; }
     .dupr-chip-disputed { background: rgba(249,115,22,.15); color: #f97316; }
+    .dupr-modal-textarea {
+      width: 100%;
+      box-sizing: border-box;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 8px;
+      color: var(--text);
+      padding: .6rem .7rem;
+      font-family: inherit;
+      font-size: .88rem;
+      resize: vertical;
+      margin-top: .5rem;
+    }
     .match-time { flex-shrink: 0; color: var(--soft); font-size: .74rem; }
     .match-empty { padding: .8rem .35rem; color: var(--soft); font-size: .84rem; }
 
@@ -1610,6 +1668,7 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
   matchesLoading = false;
   duprSubmissions = new Map<string, DuprMatchSubmission>();
   duprRetryingIds = new Set<string>();
+  duprActionModal: { submission: DuprMatchSubmission; mode: 'dispute' | 'resolve'; reason: string; s1: number | null; s2: number | null; saving: boolean; error: string } | null = null;
   finishScoreA: number | null = null; // optional score inputs in winner-picker mode
   finishScoreB: number | null = null;
   scoreAutoFilled = false; // true when finishScoreA/B were carried over from the umpire's live score
@@ -2039,6 +2098,50 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
     this.dupr.resubmit(submission._id).subscribe({
       next: () => { this.duprRetryingIds.delete(submission._id); this.loadDuprSubmissions(); this.cdr.detectChanges(); },
       error: () => { this.duprRetryingIds.delete(submission._id); this.cdr.detectChanges(); },
+    });
+  }
+
+  openDuprDispute(submission: DuprMatchSubmission) {
+    this.duprActionModal = { submission, mode: 'dispute', reason: '', s1: null, s2: null, saving: false, error: '' };
+  }
+
+  openDuprResolve(submission: DuprMatchSubmission, match: HostedPlayMatch) {
+    this.duprActionModal = { submission, mode: 'resolve', reason: '', s1: match.team1Score, s2: match.team2Score, saving: false, error: '' };
+  }
+
+  closeDuprActionModal() {
+    if (this.duprActionModal?.saving) return;
+    this.duprActionModal = null;
+  }
+
+  submitDuprActionModal() {
+    const dam = this.duprActionModal;
+    if (!dam || dam.saving) return;
+    if (dam.mode === 'dispute' && !dam.reason.trim()) {
+      dam.error = 'A reason is required.';
+      this.cdr.detectChanges();
+      return;
+    }
+    dam.saving = true;
+    dam.error = '';
+    this.cdr.detectChanges();
+
+    const request$ = dam.mode === 'dispute'
+      ? this.dupr.dispute(dam.submission._id, dam.reason.trim())
+      : this.dupr.resolve(dam.submission._id, dam.s1 ?? undefined, dam.s2 ?? undefined);
+
+    request$.subscribe({
+      next: () => {
+        this.duprActionModal = null;
+        this.loadDuprSubmissions();
+        this.loadMatches();
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        dam.saving = false;
+        dam.error = err.error?.error || 'Failed. Please try again.';
+        this.cdr.detectChanges();
+      },
     });
   }
 
