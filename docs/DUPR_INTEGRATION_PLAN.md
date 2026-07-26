@@ -1,21 +1,25 @@
 # CourtGo — DUPR + RecClub Integration: Design & Implementation Reference
 
-> **STATUS: ON HOLD — DUPR Partner Agreement received 2026-07-24, pending signature.**
-> This document is the complete design reference so implementation can start the moment
-> DUPR grants API access. External API facts were verified 2026-07-19; re-confirm details
-> (webhook topics, endpoints) during DUPR partner onboarding. **No DUPR-specific code has
-> been written yet** (`duprLink`, `duprEnabled`, `DuprMatchSubmission` all absent as of
-> 2026-07-25) — but the score-capture prerequisite described in Phase C below (per-game
-> `HostedPlayMatch` records, score entry/correction, winner derivation) is already fully
-> built and in production, independent of DUPR. See the updated Phase C note.
+> **STATUS: IN PROGRESS — agreement signed, UAT credentials received 2026-07-27.**
+> Phase A foundation is shipped (`Club.duprEnabled`, `User.duprLink`, `DuprMatchSubmission`,
+> `backend/utils/dupr.js`). **The auth model and match-submission design below were
+> substantially corrected 2026-07-27** after reading DUPR's actual GitBook
+> (dupr.gitbook.io/dupr-raas) and testing the partner token endpoint live against UAT —
+> the original 2026-07-19 design guessed a client-credentials-only, email-lookup linking
+> flow that turned out to be wrong. See "Auth Model" and "Match Submission Reality" below
+> for what's now confirmed vs. still unconfirmed. Re-verify anything marked UNCONFIRMED
+> with `tech@mydupr.com` before relying on it in Phase B/C/D code.
 
-## DUPR Onboarding Checklist (do while implementation is on hold)
+## DUPR Onboarding Checklist
 
-1. Apply for Partner API access: [dupr.com/partners](https://www.dupr.com/partners) or support@mydupr.com — describe CourtGo (club platform; match submission + rating sync use case). **Done — agreement received 2026-07-24.**
-2. Sign the partner/licensing agreement; receive **UAT** `clientKey`/`clientSecret` (`uat.mydupr.com`), later production keys. **Next action: confirm no fee applies (agreement is silent on price) and resolve the 30-day no-cause termination clause before signing.**
+1. ~~Apply for Partner API access~~ **Done** — agreement received 2026-07-24, signed.
+2. ~~Sign the partner/licensing agreement~~ **Done.** UAT `clientKey`/`clientSecret`/`clientId` received 2026-07-27, live in root `.env`. Auth flow verified working against `uat.mydupr.com` (see Auth Model below).
 3. Optionally have clubs register at [dupr.com/clubs](https://www.dupr.com/clubs) for their 10-digit DUPR club ID (the superadmin panel already stores `duprClubId`).
-4. During onboarding, confirm with DUPR: available **webhook topics** (rating change vs. match status), the client match-identifier field for idempotent submission, and rate limits.
-5. When keys arrive: set `DUPR_CLIENT_KEY`, `DUPR_CLIENT_SECRET`, `DUPR_BASE_URL`, `DUPR_WEBHOOK_SECRET`, `DUPR_CRON_SECRET` in `.env`/Netlify → begin Phase A below.
+4. **Open questions to raise with `tech@mydupr.com` before Phase C/D:**
+   - Webhook signature verification — DUPR's docs describe no signing scheme for the `RATING` webhook envelope (`{clientId, event, message}`); confirm there really is none before trusting an unsigned HTTPS POST.
+   - Whether the "User Gating" production-review requirement (BASIC_L1/PREMIUM_L1/VERIFIED_L1 entitlements) applies given CourtGo's scope is Hosted Play matches only — no DUPR+ tournaments or merchandise pricing today.
+   - Exact request/response schema for `POST /auth/{version}/token` beyond what's been verified live (see Auth Model) — the OpenAPI spec at `uat.mydupr.com/api/v3/api-docs` truncates before full detail.
+5. When ready for the production review: email `tech@mydupr.com` with a live platform URL, test credentials, and a compliance summary covering all 5 checklist items (SSO login, rating visibility/webhooks, user gating, match management, club integration) — ~10 business day turnaround.
 
 ## Context
 
@@ -23,13 +27,19 @@ CourtGo is a tennis/pickleball club platform with accounts, clubs, reservations,
 
 Groundwork already exists (deliberately stubbed "Phase 0"): `User.duprRating` + `User.duprId` (self-reported, unverified), `Club.duprClubId` (+ superadmin PATCH), and a self-report rating input on the Hosted Play page. Additionally, **`backend/models/HostedPlayMatch.js` is fully built** (per-game records with team snapshots, nullable scores, `winnerTeam`/`winnerSource`, score-correction endpoint) — this was built as a standalone Hosted Play feature, zero DUPR code, and satisfies the score-capture prerequisite Phase C originally called for.
 
-## External API Reality (verified 2026-07-19)
+## External API Reality (originally verified 2026-07-19, corrected 2026-07-27 against dupr.gitbook.io/dupr-raas)
 
-**DUPR — official Partner API exists.**
-- Auth: **client-credentials** (partner-level `clientKey` + `clientSecret` → bearer token, refresh on expiry). No per-user OAuth; player linking = DUPR-ID **lookup by email** + user confirmation.
-- Capabilities: player lookup/ratings/history, rating subscriptions, match create (single/batch)/update/delete, club member ratings, **webhooks** (topic subscriptions, e.g. rating changes), events CRUD.
-- Environments: UAT `https://uat.mydupr.com/api`, Prod `https://api.dupr.com/api`. Docs: events.mydupr.com/docs, backend.mydupr.com/swagger-ui.
-- **Access is not self-serve**: requires a partner agreement. DUPR only accepts matches where **all players are DUPR-linked**, and DUPR is **pickleball-only**.
+**DUPR — official "RaaS" (Ratings as a Service) Partner API exists.** The 2026-07-19 design below was wrong about the auth/linking model — corrected version:
+
+- **Two separate auth mechanisms, not one:**
+  1. **Partner-level, client-credentials** (`clientKey`+`clientSecret` → bearer token) — used for match submission/management calls. **Confirmed live 2026-07-27**: `POST {base}/auth/v1.0/token` with `base64(clientKey:clientSecret)` in an `x-authorization` header (not a JSON body) → `{status:"SUCCESS", result:{token, expiry}}`; `expiry` is an absolute ISO timestamp; token valid **1 hour**.
+  2. **Per-user SSO** — mandatory for account linking; there is no partner-token "lookup player by email" endpoint. Partners embed a login iframe (`https://uat.dupr.gg/login-external-app/:clientKey` UAT / `https://dashboard.dupr.com/login-external-app/:clientKey` prod, `:clientKey` Base64-encoded) and listen for a `postMessage` carrying `userToken`/`refreshToken`/`id`/`duprId`/`stats`. UAT tokens: 7-day access / 30-day refresh. Prod: 30-day / 90-day. Without completed SSO, DUPR 403s on profile/match-history reads (match *submission* for unlinked players is still allowed per the docs, though Match Upload's "all players require BASIC_L1" note is in tension with that — needs confirming with DUPR).
+- **Match submission** (confirmed, partner-token auth): `POST /Match/saveMatch` (+ `saveMatchInBulk`, up to 100), `PUT /Match/updateMatch`, `DELETE /Match/deleteMatch`. Payload: `identifier` (our idempotency key), `matchDate` (`yyyy-MM-dd`), `location`, `format` (`SINGLES`|`DOUBLES`), `matchType` (`SIDEOUT`|`RALLY` — new concept, not previously modeled), `teamA`/`teamB` (DUPR IDs + **1-5 games each**, not a single score pair), `event`, `bracket`, `clubId` (required when club-sourced), `matchSource` (`"CLUB"` for club matches), `extras`. Success response: `{status:"SUCCESS", result:{matchCode, hashedMatchCode}}`; bulk responses include `successes`/`errors` arrays.
+- **Club match submission requires the *submitting user's own* DUPR role**, not a CourtGo role: only users whose DUPR club membership (fetched via their own SSO user token against the "Get Club Memberships" endpoint) is **DIRECTOR** or **ORGANIZER** may submit on behalf of that club. A CourtGo `admin` who hasn't personally SSO-linked and doesn't hold that DUPR-side role will have submissions rejected.
+- **Webhooks**: topic `RATING`, events `RATING` (match-triggered update) and `RATING_SEED` (sent immediately on subscribing a `duprId`, `matchId` always null). Envelope `{clientId, event, message}`; `message` has `duprId, name, timestamp, rating, metrics`. Register endpoint URL + `topics:["RATING"]`; must answer `200 OK` on handshake. Schema discoverable unauthenticated at `GET /v1.0/webhook/schema/{topic}`. **UNCONFIRMED: no documented signature/HMAC scheme** — ask DUPR before trusting an unsigned payload.
+- **User Gating**: entitlements `BASIC_L1` (required for any platform action), `PREMIUM_L1` (DUPR+ tournaments), `VERIFIED_L1` (identity-verification-gated resources), queried via the Subscriptions Controller after SSO, cacheable 24h. One of DUPR's 5 mandatory production-review items — applicability to CourtGo's Hosted-Play-only scope is unconfirmed (see onboarding checklist).
+- Environments: UAT `https://uat.mydupr.com/api` (dashboard `uat.dupr.gg`), Prod `https://api.dupr.com/api` (dashboard `dashboard.dupr.com`). Full docs: `dupr.gitbook.io/dupr-raas`.
+- **Access is not self-serve**: requires a signed partner agreement + a manual production-review pass (see onboarding checklist item 5) before production keys are issued — UAT access alone doesn't imply compliance. DUPR is **pickleball-only**.
 
 **RecClub (Reclub) — no public/developer API.** Its own DUPR integration is club-to-club (manual form: play.reclub.co/DUPR_Club_Form; Reclub staff link the clubs); the platform is mobile-only.
 
@@ -37,31 +47,31 @@ Groundwork already exists (deliberately stubbed "Phase 0"): `User.duprRating` + 
 
 ## Scope Decisions (confirmed with product owner, 2026-07-19)
 
-1. **Match source: Hosted Play** (pickleball sessions only). Hosted Play currently persists **no per-game match records or scores** — the queue engine only tracks `winnerIds` for rotation — so this plan adds per-game score capture + a persisted match record.
-2. **Submitters: club admins only** (matches the existing admin-only finish-game endpoint; lowest dispute risk).
-3. **No DUPR partner credentials yet** — build everything behind config + club toggle; all DUPR code **no-ops when env vars are unset** (existing `backend/utils/push.js` discipline).
+1. **Match source: Hosted Play** (pickleball sessions only). Hosted Play currently persists **no per-game match records or scores** — the queue engine only tracks `winnerIds` for rotation — so this plan adds per-game score capture + a persisted match record. ~~Currently persists no scores~~ — superseded, see Context: `HostedPlayMatch` now fully built.
+2. **Submitters: club admins only** at the CourtGo layer (matches the existing admin-only finish-game endpoint) — **but DUPR additionally requires the submitting admin to personally hold a DUPR DIRECTOR/ORGANIZER role on that club** (discovered 2026-07-27, see External API Reality). This means club admins need their own DUPR SSO link + role check, not just player-side linking as originally scoped. Practical fallback if an admin isn't DUPR-linked/role-qualified: the match still records in `HostedPlayMatch`/CourtGo internally, just skips DUPR submission (same graceful-skip pattern as unlinked players).
+3. **DUPR partner credentials arrived 2026-07-27** — still build behind config + club toggle; all DUPR code **no-ops when env vars are unset** (existing `backend/utils/push.js` discipline), since production keys/full compliance are still pending.
 
 ## Architecture Overview
 
 ```
-Angular (profile link UI, score entry, status chips)
-   │  /api/dupr/*, /api/hosted-play/*
-   ▼
-Express backend
-   ├─ backend/utils/dupr.js        ← DUPR HTTP client (token cache, no-op unconfigured)
+Angular (SSO iframe + postMessage listener, score entry, status chips)
+   │  /api/dupr/*, /api/hosted-play/*        ▲
+   ▼                                          │ postMessage {userToken, refreshToken, duprId, ...}
+Express backend                    DUPR SSO iframe (login-external-app/:clientKey)
+   ├─ backend/utils/dupr.js        ← partner-token HTTP client (token cache, no-op unconfigured)
    ├─ backend/utils/duprSync.js    ← enqueue/submit/retry/state-machine helpers
-   ├─ backend/routes/dupr.routes.js← link, submissions, dispute, webhook, cron sweep
+   ├─ backend/routes/dupr.routes.js← sso-callback, submissions, dispute, webhook, cron sweep
    ├─ hosted-play finish hook      ← persists HostedPlayMatch, enqueues DUPR submission
-   └─ Mongo: User.duprLink, Club.duprEnabled, HostedPlayMatch, DuprMatchSubmission
+   └─ Mongo: User.duprLink (incl. ssoUserToken/ssoRefreshToken), Club.duprEnabled, HostedPlayMatch, DuprMatchSubmission
    ▲
-DUPR Partner API (UAT/prod) ── webhooks ──► POST /api/dupr/webhook (HMAC-verified)
+DUPR Partner API (UAT/prod) ── webhooks ──► POST /api/dupr/webhook (signature scheme UNCONFIRMED)
 ```
 
 Serverless constraint (serverless-http/Netlify, no cron/bull/agenda): all DUPR calls happen **inline before the HTTP response** (8s AbortController timeout, never fails the parent request) with retries driven by (a) an external-cron-hit endpoint and (b) opportunistic lazy sweeps — same philosophy as `backend/utils/financeReportBilling.js`.
 
 ## Database Changes
 
-**`backend/models/User.js`** — keep existing `duprRating`/`duprId` as unverified fallback; add:
+**`backend/models/User.js`** — keep existing `duprRating`/`duprId` as unverified fallback; **shipped 2026-07-27** (commit `8375c94`):
 
 ```js
 duprLink: {
@@ -69,37 +79,35 @@ duprLink: {
   verified: Boolean, linkedAt: Date,
   doubles: Number, singles: Number, lastSyncedAt: Date,
 },
-reclubProfileUrl: { type: String, default: null },   // cosmetic, optional
 ```
 
 Plus a unique sparse index on `duprLink.duprPlayerId` (one DUPR profile per CourtGo account).
 
+**Not yet added — needed once the SSO discovery (2026-07-27) is implemented in Phase B:** the shipped `duprLink` shape above has no home for the per-user SSO tokens the iframe/postMessage flow returns. Add:
+
+```js
+duprLink: {
+  // ...existing fields above...
+  ssoUserToken: String,        // treat as a live credential, not profile data
+  ssoRefreshToken: String,
+  ssoTokenExpiresAt: Date,
+  ssoRefreshExpiresAt: Date,
+}
+```
+
+This changes the Security Considerations note below ("no per-user tokens are ever stored") — that was true of the original email-lookup design but is **no longer true**: `ssoUserToken`/`ssoRefreshToken` are real per-user DUPR credentials and need the same at-rest care as any other session token (consider encrypting at rest, unlike the plain profile fields above).
+
+`reclubProfileUrl: { type: String, default: null }` (cosmetic, optional) is also not yet added.
+
 **Precedence rule:** every successful sync also mirrors the doubles rating → `duprRating` and ID → `duprId`, so all existing display paths (hosted-play skill bands, profile, admin lists) show the verified number with zero rework. While `duprLink.verified`, the PUT profile handler (`backend/routes/users.routes.js:327-363`) rejects manual `duprRating`/`duprId` edits with 409; unlink keeps the last value as fallback.
 
-**`backend/models/Club.js`** — add `duprEnabled: { type: Boolean, default: false }` beside `duprClubId`.
+**`backend/models/Club.js`** — `duprEnabled: { type: Boolean, default: false }` beside `duprClubId`. **Shipped 2026-07-27.**
 
-**`backend/models/HostedPlayMatch.js` (new)** — persisted per finished game:
+**`backend/models/HostedPlayMatch.js`** — already fully built (predates this plan, standalone Hosted Play feature): `sessionId`, `clubId`, `courtNumber`, `team1`/`team2` (participant snapshots), `team1Score`/`team2Score` (nullable), `winnerTeam`, `winnerSource`, `finishedAt`, `recordedBy`. No changes needed for DUPR.
 
-```js
-{ sessionId→HostedPlay, clubId, courtNumber,
-  team1: [participant/user refs], team2: [...],      // teams from courtSlot pairing
-  team1Score: Number|null, team2Score: Number|null,  // null = winner-only game
-  winnerTeam: 1|2|null, finishedAt: Date, recordedBy→User }
-```
+**`backend/models/DuprMatchSubmission.js`** — **shipped 2026-07-27** (commit `8375c94`) with the fields originally planned (`clubId`, `source`, `sourceMatchId`, `idempotencyKey`, `players[{userId,duprPlayerId}]`, `sport`, `team1Score`/`team2Score`, `matchDate`, `status`, `duprMatchId`, `attempts`, `nextAttemptAt`, `lastError`, `errorLog`, `submittedBy`, `dispute`, unique index on `{source, sourceMatchId}`).
 
-**`backend/models/DuprMatchSubmission.js` (new)** — the audit/state record:
-
-```js
-{ clubId, source: {enum:['hosted_play']},            // extensible to open_play/tournament
-  sourceMatchId (→HostedPlayMatch),
-  idempotencyKey: `courtgo:hosted_play:${sourceMatchId}`,  // also sent to DUPR as client identifier
-  players: [{ userId, duprPlayerId }], sport: 'pickleball',
-  team1Score, team2Score, matchDate,
-  status: enum ['pending_submission','submitted','accepted','rejected','disputed','failed'],
-  duprMatchId, attempts, nextAttemptAt, lastError, errorLog: [{at,httpStatus,message}],
-  submittedBy, dispute: { reason, raisedBy, raisedAt, resolvedAt } }
-// unique index { source, sourceMatchId }  ← DB-level duplicate protection
-```
+**Correction needed once Phase C actually builds the submission (2026-07-27 finding):** DUPR's real `saveMatch` payload doesn't take a flat `team1Score`/`team2Score` pair — it takes `teamA`/`teamB`, each with **1-5 games**, plus `format` (`SINGLES`/`DOUBLES`), `matchType` (`SIDEOUT`/`RALLY`), and `identifier` as the idempotency key (maps directly to `DuprMatchSubmission.idempotencyKey`). Since `HostedPlayMatch`/`DuprMatchSubmission` only ever store one score pair per finished game, the Phase C submission-builder will need to wrap that single pair as **one game** inside `teamA`/`teamB` game arrays — the stored schema doesn't need to change, just the payload-construction code in `duprSync.js`. `matchType` (SIDEOUT vs RALLY pickleball scoring) isn't captured anywhere in CourtGo today; needs a decision (likely a fixed default, or a new field, once confirmed which one Hosted Play actually plays).
 
 ### Submission state machine
 
@@ -121,11 +129,11 @@ Transitions enforced by one `canTransition(from, to)` helper; illegal moves → 
 
 ## Backend Workflow
 
-**1. `backend/utils/dupr.js` (new, modeled on `utils/push.js`):** lazy env read; `isDuprConfigured()`; module-scope token cache `{token, expiresAt}` (survives warm serverless invocations); `duprFetch()` wrapper (bearer, JSON, 8s AbortController, returns `{ok,status,data,error}`, never throws into routes); ops: `lookupPlayerByEmail`, `getPlayerRating`, `submitMatch`, `updateMatch`, `deleteMatch`, `verifyWebhookSignature` (HMAC-SHA256 + `crypto.timingSafeEqual`).
+**1. `backend/utils/dupr.js`** — **shipped 2026-07-27, fixed same day** (commits `8375c94`, `046eeb2`) after live-testing against UAT: `isDuprConfigured()`; module-scope token cache `{token, expiresAt}` keyed off DUPR's absolute `expiry` timestamp; `duprFetch()` wrapper (bearer, JSON, 8s AbortController, returns `{ok,status,data,error}`, never throws into routes) — confirmed working live (auth handshake succeeds; verified via a real `Match` endpoint 404 rather than a 401, proving the token is accepted). Ops now match DUPR's actual API: `submitMatch`, `submitMatchesInBulk`, `updateMatch`, `deleteMatch` (real paths: `/Match/saveMatch`, `/Match/saveMatchInBulk`, `/Match/updateMatch`, `/Match/deleteMatch`), `verifyWebhookSignature` (kept but flagged UNCONFIRMED — no documented DUPR signature scheme). **Dropped** `lookupPlayerByEmail`/`getPlayerRating` — those modeled the wrong (email-lookup) linking design; there's no partner-token endpoint for this, linking is SSO-only (see Auth Model).
 
-**2. Score capture — ALREADY BUILT, hook it to DUPR.** `POST /sessions/:id/courts/:n/finish`, the `PATCH /api/hosted-play/matches/:matchId/score` correction endpoint, and `HostedPlayMatch` persistence (teams, nullable scores, winner derivation) all exist today and ship scores independent of DUPR. The only remaining work is the DUPR hook itself:
-- After a `HostedPlayMatch` has scores: if `club.duprEnabled && session.sport === 'pickleball' && all players duprLink.verified` → `duprSync.enqueueAndSubmit(...)` (upsert `DuprMatchSubmission`, inline submit attempt, try/catch — never fails the response). Response gains `dupr: { eligible, unlinkedPlayerIds, submission: {status, lastError} }`.
-- Score corrections on an already-submitted match (existing `correctMatchScore` path in `hosted-play.routes.js`): `updateMatch` on DUPR (fallback delete+recreate), status back to `submitted`.
+**2. Score capture — ALREADY BUILT, hook it to DUPR.** `POST /sessions/:id/courts/:n/finish`, the `PATCH /api/hosted-play/matches/:matchId/score` correction endpoint, and `HostedPlayMatch` persistence (teams, nullable scores, winner derivation) all exist today and ship scores independent of DUPR. Remaining work, corrected for the real payload shape:
+- After a `HostedPlayMatch` has scores: if `club.duprEnabled && session.sport === 'pickleball' && all players duprLink.verified` **AND the recording admin's own DUPR club role is DIRECTOR/ORGANIZER** (fetch via the admin's stored SSO `ssoUserToken` against Get Club Memberships, matched to `club.duprClubId`) → `duprSync.enqueueAndSubmit(...)`: build the `teamA`/`teamB` game-array payload from the single `team1Score`/`team2Score` pair (wrapped as one game), upsert `DuprMatchSubmission` (`idempotencyKey` → DUPR's `identifier`), inline submit attempt, try/catch — never fails the response. Response gains `dupr: { eligible, unlinkedPlayerIds, submission: {status, lastError} }`.
+- Score corrections on an already-submitted match (existing `correctMatchScore` path in `hosted-play.routes.js`): `updateMatch` on DUPR, status back to `submitted`.
 
 **3. Retry strategy (`backend/utils/duprSync.js`):** `attemptDuprSubmit` — retryable failure (network/5xx/429) → `nextAttemptAt = now + 2^attempts min`, `failed` at 5 attempts; non-retryable 4xx → `failed` immediately. `processPendingSubmissions(limit)` — atomically claims due records (`findOneAndUpdate` pushing `nextAttemptAt` forward first → safe under concurrent invocations); also polls stale `submitted` records to advance to `accepted` if webhooks were missed. Triggered by: `POST /api/dupr/tasks/process` (external cron / Netlify scheduled function, `x-cron-secret` header) + opportunistic fire-and-forget sweep on `GET /api/dupr/status`/`submissions` (throttled to 1 run / 5 min per warm container).
 
@@ -136,8 +144,7 @@ Transitions enforced by one `canTransition(from, to)` helper; illegal moves → 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | GET | `/api/dupr/status` | auth | `{configured, clubEnabled, myLink}` — drives all conditional UI |
-| POST | `/api/dupr/link/lookup` | auth | `{email}` → DUPR candidate `{duprPlayerId, fullName, ratings}`; 404 if none |
-| POST | `/api/dupr/link/confirm` | auth | Server re-validates lookup, writes `duprLink`, mirrors rating; 409 duplicate claim |
+| POST | `/api/dupr/link/sso-callback` | auth | **Corrected 2026-07-27** (was `link/lookup`+`link/confirm`, email-lookup design — wrong). Frontend posts the `{userToken, refreshToken, id, duprId, stats}` payload it received from the SSO iframe's `postMessage`; server validates against DUPR (fetch profile with `userToken` before trusting it), writes `duprLink` incl. `ssoUserToken`/`ssoRefreshToken`, mirrors rating; 409 duplicate claim |
 | DELETE | `/api/dupr/link` | auth | Unlink self; keep last rating as fallback |
 | POST | `/api/dupr/refresh-rating` | auth | Manual pull of latest rating (admin may pass `userId` for same-club member) |
 | GET | `/api/dupr/submissions?sessionId=` | auth, admin | Submission statuses for the session UI |
@@ -149,17 +156,19 @@ Transitions enforced by one `canTransition(from, to)` helper; illegal moves → 
 
 Plus in `backend/routes/clubs.routes.js` (cloning the `hostedPlayEnabled` pair): `PATCH /api/clubs/:id/dupr-addon` (superadmin), `PATCH /api/clubs/me/dupr-addon` (admin self-service; 409 if platform unconfigured).
 
-## Authentication Model
+## Authentication Model (rewritten 2026-07-27 — original design assumed a single client-credentials flow; DUPR actually has two)
 
-- **CourtGo↔DUPR:** partner-level client-credentials; `clientKey`/`clientSecret` in root `.env` (`DUPR_CLIENT_KEY`, `DUPR_CLIENT_SECRET`, `DUPR_BASE_URL`, `DUPR_WEBHOOK_SECRET`, `DUPR_CRON_SECRET`) + Netlify env. **No at-rest encryption needed** — these are platform secrets identical in sensitivity to the existing `JWT_SECRET`/`VAPID_PRIVATE_KEY` env vars; no per-user tokens are ever stored (only DUPR player ID/email/rating — profile data, not credentials).
+- **CourtGo↔DUPR (partner-level, for match submission):** client-credentials; `clientKey`/`clientSecret` in root `.env` (`DUPR_CLIENT_KEY`, `DUPR_CLIENT_SECRET`, `DUPR_BASE_URL`, `DUPR_WEBHOOK_SECRET`, `DUPR_CRON_SECRET`) + Netlify env. **Confirmed live 2026-07-27**: `base64(clientKey:clientSecret)` in an `x-authorization` header → 1-hour bearer token. No at-rest encryption needed for these — platform secrets identical in sensitivity to `JWT_SECRET`/`VAPID_PRIVATE_KEY`.
+- **User↔DUPR (per-user, mandatory for linking — NEW, not in the original design):** DUPR's SSO iframe (`login-external-app/:clientKey`) → `postMessage` with `userToken`/`refreshToken`/`id`/`duprId`/`stats`. These **are real per-user credentials and must be stored as such** (`User.duprLink.ssoUserToken`/`ssoRefreshToken` — see Database Changes) — the original design's claim that "no per-user tokens are ever stored" no longer holds. UAT tokens: 7-day access / 30-day refresh; prod: 30/90-day. Needs a refresh-before-expiry job or lazy-refresh-on-401 pattern; expired refresh token forces the user to re-run the SSO iframe.
+- **Club-match submission gate (NEW):** DUPR checks the *submitting user's own* DUPR club role (DIRECTOR/ORGANIZER), fetched via that user's `ssoUserToken` against DUPR's "Get Club Memberships" endpoint — not a CourtGo-side permission. A club admin must personally complete SSO linking and hold that role on the matching `duprClubId`, or their submissions get rejected/skipped.
 - **User↔CourtGo:** existing JWT + `auth`/`admin`/`superadmin` middleware; no changes.
-- **Linking trust rule:** players may only look up **their own CourtGo account email**; admins/superadmins may look up other emails (org-assisted linking). Prevents claiming a stranger's DUPR profile; the unique index prevents double-claims.
+- **Linking trust rule:** SSO login is inherently self-service (the iframe authenticates the DUPR account directly) — the old "players may only look up their own email" rule doesn't apply since there's no partner-token lookup step anymore. The unique index on `duprLink.duprPlayerId` still prevents one DUPR account being claimed by two CourtGo users.
 
-## User Flows
+## User Flows (link flow corrected 2026-07-27 — SSO iframe, not email lookup)
 
-**Link (player):** Profile → Linked Accounts → "Find my DUPR account" (email prefilled, locked) → confirm card shows DUPR name + rating → "Yes, link" → verified badge + synced rating. Unlink anytime.
+**Link (player or admin — both need it now):** Profile → Linked Accounts → embedded DUPR login iframe → user logs into DUPR inside the iframe → iframe posts `{userToken, refreshToken, id, duprId, stats}` to the parent window → frontend calls `POST /api/dupr/link/sso-callback` → verified badge + synced rating. Club admins additionally need this so DUPR can check their DIRECTOR/ORGANIZER club role at submission time. Unlink anytime.
 
-**Score → DUPR (admin):** Finish game on queue board → winner picker + new optional score inputs → match persisted → if eligible, auto-submitted to DUPR → status chip (Pending/Submitted/Accepted/Rejected/Failed/Disputed) with Retry / Dispute / Resolve actions. Unlinked players shown as chips: "Recorded in CourtGo only — 2 players unlinked."
+**Score → DUPR (admin):** Finish game on queue board → winner picker + optional score inputs → match persisted → if eligible (all players linked **and** the recording admin holds the right DUPR club role) → auto-submitted to DUPR → status chip (Pending/Submitted/Accepted/Rejected/Failed/Disputed) with Retry/Dispute/Resolve actions. Ineligible cases shown as chips: "Recorded in CourtGo only — 2 players unlinked" or "— admin not DUPR-authorized for this club."
 
 **Rating sync-back:** DUPR webhook (or poll/manual refresh) → `duprLink` + mirrored `duprRating` updated → optional push notification.
 
@@ -167,35 +176,35 @@ Plus in `backend/routes/clubs.routes.js` (cloning the `hostedPlayEnabled` pair):
 
 ```mermaid
 sequenceDiagram
-    participant P as Player
-    participant A as Club Admin
+    participant P as Player/Admin
     participant FE as Angular FE
+    participant D as DUPR SSO iframe
     participant BE as CourtGo API
-    participant D as DUPR Partner API
+    participant DP as DUPR Partner API
 
-    P->>FE: Link DUPR (own email)
-    FE->>BE: POST /api/dupr/link/lookup
-    BE->>D: player lookup by email (bearer via client-credentials)
-    D-->>BE: duprPlayerId + name + rating
-    BE-->>FE: candidate → P confirms
-    FE->>BE: POST /api/dupr/link/confirm
-    BE->>BE: write duprLink (unique idx), mirror duprRating
+    P->>FE: Open Linked Accounts, click Link DUPR
+    FE->>D: embed login-external-app/:clientKey iframe
+    P->>D: log into DUPR inside iframe
+    D-->>FE: postMessage {userToken, refreshToken, id, duprId, stats}
+    FE->>BE: POST /api/dupr/link/sso-callback
+    BE->>DP: validate userToken (profile fetch)
+    BE->>BE: write duprLink incl. ssoUserToken/ssoRefreshToken (unique idx), mirror duprRating
 
-    A->>FE: Finish game + scores
+    P->>FE: Finish game + scores (admin)
     FE->>BE: POST /sessions/:id/courts/:n/finish {winnerIds, scores}
     BE->>BE: rotate queue, persist HostedPlayMatch
-    alt club.duprEnabled ∧ pickleball ∧ all linked
-        BE->>BE: upsert DuprMatchSubmission (idempotencyKey)
-        BE->>D: submit match (8s timeout)
+    alt club.duprEnabled ∧ pickleball ∧ all players linked ∧ admin has DIRECTOR/ORGANIZER role
+        BE->>BE: build teamA/teamB game payload, upsert DuprMatchSubmission (identifier)
+        BE->>DP: POST /Match/saveMatch (partner bearer, 8s timeout)
         alt 2xx
-            D-->>BE: duprMatchId → status=submitted
+            DP-->>BE: matchCode → status=submitted
         else failure
             BE->>BE: backoff nextAttemptAt (cron/lazy sweep retries)
         end
     end
     BE-->>FE: result + dupr status block
 
-    D-->>BE: webhook: rating changed (HMAC verified)
+    DP-->>BE: webhook: RATING event (signature scheme UNCONFIRMED)
     BE->>BE: update duprLink.doubles/singles + mirror duprRating
     BE-->>P: push "Your DUPR rating updated"
 ```
@@ -203,7 +212,7 @@ sequenceDiagram
 ## Frontend Changes
 
 - **`frontend/src/app/core/services/dupr.service.ts` (new):** standard pattern (`${environment.apiUrl}/dupr/...`; JWT + club interceptors apply). Methods mirror the endpoint table; export `DuprLinkState`/`DuprSubmission` types.
-- **`features/player/profile/profile-edit.component.ts`:** "Linked Accounts" section card — lookup/confirm/linked-badge/refresh/unlink states (signals); optional Reclub profile URL field; hidden when `!configured || !clubEnabled`.
+- **`features/player/profile/profile-edit.component.ts`:** "Linked Accounts" section card — **corrected 2026-07-27**: embeds the DUPR SSO iframe (`<iframe>` pointed at `login-external-app/:clientKey`) rather than an email-lookup form; a `window.addEventListener('message', ...)` handler (origin-checked against DUPR's domain) captures the credential payload and posts it to `sso-callback`; linked-badge/refresh/unlink states as before. Both players **and admins** need this UI now, since admins must SSO-link too for club match submission. Optional Reclub profile URL field; hidden when `!configured || !clubEnabled`.
 - **`features/player/hosted-play/hosted-play.component.ts`:** when `duprLink.verified`, replace the self-report rating input with read-only "✓ Verified via DUPR" display.
 - **Hosted Play queue board (admin):** finish-game dialog gains optional per-team score inputs; session view listing recorded `HostedPlayMatch`es with score edit + DUPR status chips and Retry/Dispute/Resolve actions.
 - **`core/services/club.service.ts`:** `duprEnabled` on `Club` + `patchDuprAddon`/`patchMyDuprAddon` (beside existing `patchDuprClubId`).
@@ -212,17 +221,20 @@ sequenceDiagram
 ## Edge Cases
 
 - **Unlinked players:** game finishes, rotation and internal flow unaffected; no submission created; `unlinkedPlayerIds` surfaced so the admin can nudge players. Never hard-block score entry.
-- **Duplicates:** unique `{source, sourceMatchId}` index + deterministic `idempotencyKey` sent to DUPR (dedupes on both sides even under double-taps/retries/replays).
+- **Admin not DUPR-role-qualified (NEW, 2026-07-27):** club admin hasn't SSO-linked, or has but isn't DIRECTOR/ORGANIZER on the matching DUPR club — same graceful-skip pattern as unlinked players, surfaced as its own reason chip rather than lumped in with "players unlinked."
+- **SSO token expiry (NEW):** access token expires (7d UAT/30d prod) — refresh via `refreshToken` transparently; if the refresh token itself has expired (30d UAT/90d prod), the user must re-run the SSO iframe — surface this as a "reconnect DUPR" prompt rather than a silent failure.
+- **Duplicates:** unique `{source, sourceMatchId}` index + deterministic `idempotencyKey` sent to DUPR as `identifier` (dedupes on both sides even under double-taps/retries/replays).
 - **Disputes:** `disputed` freezes retries; resolve = delete on DUPR → corrected scores → resubmit through the same record; full audit trail in `dispute` + `errorLog`.
 - **Failed/delayed calls:** inline attempt with timeout → exponential backoff (`nextAttemptAt`, cap 5) → cron + lazy sweep → manual resubmit; stale-`submitted` poller covers missed webhooks; everything no-ops gracefully when DUPR is down.
 
 ## Security Considerations
 
-- Webhook: HMAC-SHA256 over raw body, `timingSafeEqual`, reject unsigned/mismatched; the endpoint does nothing else.
-- Linking: own-email-only for players; unique DUPR-ID index; server re-validates the lookup on confirm (a client can't forge a duprPlayerId).
-- Secrets: env-vars only, never in Mongo/frontend; cron endpoint gated by a shared secret header.
-- Authorization: every submission route is `auth, admin` and club-scoped; webhook and cron are the only non-JWT paths, each with its own credential.
-- PII: only DUPR ID, email, name, ratings stored — disclose in the privacy policy; unlinking clears `duprLink`.
+- Webhook: no documented DUPR signature scheme (UNCONFIRMED, ask `tech@mydupr.com`) — until/unless one exists, the `verifyWebhookSignature` HMAC check in `utils/dupr.js` only guards against payloads unless we invent our own shared secret with DUPR; don't treat an unsigned POST as fully trusted (e.g. validate `clientId` matches ours, treat webhook data as a *signal to re-fetch* rather than gospel where feasible).
+- **Per-user SSO tokens are real credentials now (changed 2026-07-27)** — `User.duprLink.ssoUserToken`/`ssoRefreshToken` must be handled with the same care as any session token (never logged, never sent to the frontend after initial capture, consider at-rest encryption). This supersedes the original design's "no per-user tokens are ever stored" assumption.
+- Linking: SSO iframe origin must be checked on `postMessage` receipt (both frontend `addEventListener` and, ideally, backend re-validation of `userToken` against DUPR before trusting it) — a forged `postMessage` from a malicious script could otherwise fake a link.
+- Secrets: partner `clientKey`/`clientSecret` env-vars only, never in Mongo/frontend; cron endpoint gated by a shared secret header.
+- Authorization: every submission route is `auth, admin` and club-scoped **plus the new DUPR-side role check** (see Edge Cases); webhook and cron are the only non-JWT paths, each with its own credential.
+- PII: DUPR ID, email, name, ratings, **and now per-user SSO tokens** stored — disclose in the privacy policy; unlinking clears all of `duprLink`.
 
 ## Limitations & Licensing
 
@@ -234,13 +246,13 @@ sequenceDiagram
 
 ## Implementation Order & File List
 
-**Phase A — foundation (invisible, safe to merge):** env vars; `Club.duprEnabled` + 2 PATCH routes (`clubs.routes.js`); `User.duprLink` + PUT-handler guard (`User.js`, `users.routes.js`); `utils/dupr.js`; `models/DuprMatchSubmission.js`; `models/HostedPlayMatch.js`.
+**Phase A — foundation (invisible, safe to merge): SHIPPED 2026-07-27** (commits `8375c94`, `046eeb2`): env vars; `Club.duprEnabled` + 2 PATCH routes (`clubs.routes.js`); `User.duprLink` + PUT-handler guard (`User.js`, `users.routes.js`); `utils/dupr.js` (auth + match ops verified live against UAT); `models/DuprMatchSubmission.js`; `models/HostedPlayMatch.js` (pre-existing).
 
-**Phase B — linking:** `routes/dupr.routes.js` (status/link/refresh) + mount in `app.js`; `core/services/dupr.service.ts`; profile-edit Linked Accounts UI; hosted-play read-only rating swap.
+**Phase B — linking (design corrected 2026-07-27, not yet built):** `routes/dupr.routes.js` — `sso-callback` (not lookup/confirm) + status/refresh — mounted in `app.js`; `core/services/dupr.service.ts`; profile-edit Linked Accounts UI embeds the SSO iframe + `postMessage` listener (both player and admin profiles, since admins need it too); add `ssoUserToken`/`ssoRefreshToken`/expiry fields to `User.duprLink`; hosted-play read-only rating swap.
 
-**Phase C — scores → DUPR:** score capture + `HostedPlayMatch` persistence + match-score PATCH already exist — only add the `utils/duprSync.js` hook into the existing finish/correction flow (`hosted-play.routes.js`); submissions/dispute/resubmit/resolve endpoints; admin queue-board DUPR status chips (score UI already exists).
+**Phase C — scores → DUPR (payload shape corrected 2026-07-27):** score capture + `HostedPlayMatch` persistence + match-score PATCH already exist — add the `utils/duprSync.js` hook into the existing finish/correction flow (`hosted-play.routes.js`), building the real `teamA`/`teamB`/games payload (not a flat score pair) and checking the recording admin's DUPR club role before submitting; submissions/dispute/resubmit/resolve endpoints; admin queue-board DUPR status chips (score UI already exists).
 
-**Phase D — sync-back & ops:** raw-body verify in `app.js`; webhook handler; cron sweep endpoint + Netlify scheduled function (or external cron); push notifications; club toggle UI cards.
+**Phase D — sync-back & ops:** raw-body verify in `app.js`; webhook handler (treat as unsigned per the open signature question); cron sweep endpoint + Netlify scheduled function (or external cron); push notifications; club toggle UI cards.
 
 ## Verification Plan
 
@@ -251,8 +263,9 @@ sequenceDiagram
 
 ## Reference Links
 
+- **DUPR RaaS partner GitBook (authoritative, added 2026-07-27):** https://dupr.gitbook.io/dupr-raas — pages used so far: `#steps-for-integration-review`, `/integration-checklist/sso-login`, `/get-started/partner-access-token-generation`, `/integration-checklist/ratings-and-webhooks`, `/integration-checklist/match-upload-and-management`, `/integration-checklist/user-gating`, `/integration-checklist/club-integration`. Not yet reviewed: AI-Powered Ratings & Match Annotations, Developer FAQ.
 - DUPR partner program: https://www.dupr.com/partners
-- DUPR API docs: https://events.mydupr.com/docs · https://backend.mydupr.com/swagger-ui/index.html
+- DUPR API docs: https://events.mydupr.com/docs · https://backend.mydupr.com/swagger-ui/index.html · OpenAPI spec (truncates on fetch, but path-confirmed): `https://uat.mydupr.com/api/v3/api-docs`
 - DUPR club resources: https://www.dupr.com/club-resources
 - Reclub FAQ (DUPR connection, no public API): https://pickleball.reclub.co/faq
 - Community partner-API client (endpoint/auth reference): https://github.com/Info-Esportes/dupr-partner-api
