@@ -1,15 +1,17 @@
 # CourtGo — DUPR + RecClub Integration: Design & Implementation Reference
 
-> **STATUS: Phases A, B, C shipped and verified live against UAT; Phase D mostly shipped.**
-> (2026-07-27, commits through `f41aab2`, all unpushed.) Linking (SSO iframe), Hosted Play
-> score submission (with club-role gating), and rating sync-back via webhooks all work
-> against real UAT — see the per-phase notes under Implementation Order for exactly what
-> was tested and what bugs live testing caught. Remaining: registering a real webhook URL
-> (needs a public HTTPS deploy, untestable locally), a retry-sweep cron job, the admin
-> dispute/resolve UI, and the DUPR toggle switch in the admin dashboard. Two of DUPR's 5
-> production-review checklist items are still unaddressed: rating-visibility-via-webhook
-> is code-complete but unregistered, and User Gating hasn't been started (applicability to
-> our Hosted-Play-only scope is still an open question for `tech@mydupr.com`).
+> **STATUS: Phases A-D shipped and verified live against UAT.**
+> (2026-07-27, commits through `b7612ea`, all unpushed.) Linking (SSO iframe), Hosted Play
+> score submission (with club-role gating), rating sync-back via webhooks, the retry-sweep
+> endpoint, and both the admin-facing and superadmin-facing DUPR toggle switches all work
+> against real UAT/real browser testing — see the per-phase notes under Implementation
+> Order for exactly what was tested and what bugs live testing caught. Only remaining gap:
+> actually registering a real webhook URL, which needs a public HTTPS deploy (untestable
+> from this local dev environment), and wiring an external cron/Netlify scheduled function
+> to call the retry-sweep endpoint on a timer. Two of DUPR's 5 production-review checklist
+> items are still unaddressed: rating-visibility-via-webhook is code-complete but
+> unregistered, and User Gating hasn't been started (applicability to our Hosted-Play-only
+> scope is still an open question for `tech@mydupr.com`).
 >
 > Much of this design was corrected mid-implementation: the 2026-07-19 draft guessed at
 > DUPR's auth/linking model before partner access existed, and even GitBook's own docs
@@ -273,9 +275,9 @@ Two corrections this forced: (1) **`stats.doubles`/`stats.singles` are the strin
 
 Two real bugs the live testing caught (both fixed): (1) the submit-vs-update decision was keyed off `submission.status`, but `resolveDispute`/`resubmitById` reset status to `pending_submission` while a `duprMatchId` already existed, causing a wrongful CREATE that DUPR rejected (409, identifier already used) — fixed to key off `duprMatchId` presence instead. (2) The unlink endpoint `$set` `duprLink` to an object with `duprPlayerId: null` — a sparse unique index only excludes documents where the field is entirely **absent**, not present-and-null, so a *second* user unlinking would have hit an `E11000` duplicate key error the first unlink didn't. Fixed to `$unset` the whole `duprLink` subdocument.
 
-**Not yet done:** a full dispute/resolve modal in the admin UI (the backend endpoints exist; only a basic retry button shipped in this pass) — worth a follow-up before relying on the dispute workflow in practice.
+**Dispute/resolve modal: SHIPPED 2026-07-27** (commit `b7612ea`). Each recorded game's DUPR chip now has a flag button (submitted/accepted/rejected → dispute modal, reason required) and a check button (disputed → resolve modal, optional corrected score). Verified live: submitted → disputed → resolved-with-corrected-score, confirmed the score/winner wrote back to the real `HostedPlayMatch` and the chip reflected each state change.
 
-**Phase D — sync-back & ops: partially shipped 2026-07-27** (commit `f41aab2`). Done: webhook handler (unsigned, per the confirmed no-HMAC finding above), `subscribeToRatingUpdates`/`unsubscribeFromRatingUpdates` hooked into link/unlink, push notification on rating update, superadmin-only `POST /api/dupr/webhook/register`. **Not done / not testable in this dev environment:** actually calling `webhook/register` (needs a real public HTTPS deploy URL — DUPR's registration handshake POSTs to it synchronously); a cron sweep endpoint + Netlify scheduled function for retrying `failed`/backed-off `DuprMatchSubmission` records (Phase C's inline attempt + backoff bookkeeping exist, but nothing currently triggers a later retry automatically); club-facing DUPR toggle UI cards in the admin dashboard (the backend PATCH routes from Phase A exist, just no frontend switch yet).
+**Phase D — sync-back & ops: shipped 2026-07-27** (commits `f41aab2`, `0cf96c3`, `c311e74`). Done: webhook handler (unsigned, per the confirmed no-HMAC finding above), `subscribeToRatingUpdates`/`unsubscribeFromRatingUpdates` hooked into link/unlink, push notification on rating update, superadmin-only `POST /api/dupr/webhook/register`, `POST /api/dupr/tasks/process` retry-sweep endpoint (shared-secret gated, atomically claims backed-off submissions — verified live with a real backed-off record), and the DUPR toggle UI in both the admin dashboard (self-service) and superadmin clubs page (verified live: toggled a real club on/off in a browser). **Not testable in this dev environment:** actually calling `webhook/register` — needs a real public HTTPS deploy URL, since DUPR's registration handshake synchronously POSTs to it (this repo's `APP_URL` is a LAN address in dev). No Netlify scheduled function/external cron is wired up to call `tasks/process` on a timer yet — the endpoint works, but nothing calls it automatically.
 
 ## Verification Plan
 
