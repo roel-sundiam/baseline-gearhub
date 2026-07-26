@@ -1,5 +1,3 @@
-const crypto = require("crypto");
-
 // Survives warm serverless invocations; cleared on cold start.
 let tokenCache = { token: null, expiresAt: 0 };
 
@@ -90,15 +88,37 @@ async function getUserClubMemberships(duprPlayerId) {
   return duprFetch(`/user/v1.0/${encodeURIComponent(duprPlayerId)}/clubs`);
 }
 
-// NOT CONFIRMED: DUPR's webhook docs (integration-checklist/ratings-and-webhooks) don't
-// document any signature scheme - envelope is just { clientId, event, message } over HTTPS.
-// Ask tech@mydupr.com before relying on this; DUPR_WEBHOOK_SECRET may not be a real DUPR concept.
-function verifyWebhookSignature(rawBody, signature) {
-  if (!process.env.DUPR_WEBHOOK_SECRET || !signature) return false;
-  const expected = crypto.createHmac("sha256", process.env.DUPR_WEBHOOK_SECRET).update(rawBody).digest("hex");
-  const a = Buffer.from(expected);
-  const b = Buffer.from(String(signature));
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+// --- Webhook ops, confirmed 2026-07-27 against the real OpenAPI spec AND a live,
+// unauthenticated call to GET /v1.0/webhook/schema/RATING (see docs/DUPR_INTEGRATION_PLAN.md).
+// CONFIRMED: there is genuinely no signature/HMAC scheme anywhere in the spec (searched
+// the whole raw JSON for "signature"/"hmac"/"secret" - nothing). Authenticity rests on
+// the webhook URL being known only to us and DUPR, plus checking the envelope's clientId
+// matches ours. DUPR_WEBHOOK_SECRET/verifyWebhookSignature from the original design were
+// never a real DUPR concept - dropped rather than kept as dead code.
+
+// One webhook URL per client, ever - registering a new one replaces any existing
+// registration. DUPR sends a synchronous POST handshake (event: "REGISTRATION") to
+// webhookUrl during this call and requires a 200 back before the registration succeeds.
+async function registerWebhook(webhookUrl, topics = ["RATING"]) {
+  return duprFetch("/v1.0/webhook", { method: "POST", body: JSON.stringify({ webhookUrl, topics }) });
+}
+
+// Subscribing fires an immediate RATING_SEED webhook event per duprId with their current
+// rating snapshot (null rating/metrics if they've never played a rated match) - this is
+// what lets us populate duprLink.doubles/singles right after linking, without waiting for
+// a match. Requires a webhook already registered via registerWebhook.
+async function subscribeToRatingUpdates(duprIds) {
+  return duprFetch("/user/v1.0/subscribe/webhook-event", {
+    method: "POST",
+    body: JSON.stringify({ duprIds, topic: "RATING" }),
+  });
+}
+
+async function unsubscribeFromRatingUpdates(duprIds) {
+  return duprFetch("/user/v1.0/subscribe/webhook-event", {
+    method: "DELETE",
+    body: JSON.stringify({ duprIds, topic: "RATING" }),
+  });
 }
 
 module.exports = {
@@ -109,5 +129,7 @@ module.exports = {
   updateMatch,
   deleteMatch,
   getUserClubMemberships,
-  verifyWebhookSignature,
+  registerWebhook,
+  subscribeToRatingUpdates,
+  unsubscribeFromRatingUpdates,
 };

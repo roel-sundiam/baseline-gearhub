@@ -1,12 +1,15 @@
 const express = require("express");
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
+const superadmin = require("../middleware/superadmin");
 const User = require("../models/User");
 const Club = require("../models/Club");
 const HostedPlayMatch = require("../models/HostedPlayMatch");
 const DuprMatchSubmission = require("../models/DuprMatchSubmission");
-const { isDuprConfigured } = require("../utils/dupr");
+const dupr = require("../utils/dupr");
+const { isDuprConfigured } = dupr;
 const duprSync = require("../utils/duprSync");
+const { sendPushToUser } = require("../utils/push");
 
 const router = express.Router();
 
@@ -47,10 +50,8 @@ router.get("/status", auth, async (req, res) => {
 // but this is not itself a secret; the clientSecret is never sent to the frontend).
 router.get("/sso-config", auth, (req, res) => {
   if (!isDuprConfigured()) return res.status(409).json({ error: "DUPR is not configured on this platform" });
-  // UNCONFIRMED which of our two DUPR-issued values ("Client ID" vs "Client Key") DUPR's
-  // :clientKey path segment expects - GitBook only says "distinct from the Access Token
-  // and Secret" and to Base64-encode it. Using DUPR_CLIENT_KEY (not the secret) as the
-  // best-guess candidate; verify against a real UAT iframe load before shipping this UI.
+  // CONFIRMED live 2026-07-27: base64(DUPR_CLIENT_KEY) is correct - DUPR's real UAT
+  // login page rendered on the first try with no clientKey-rejection error.
   const encodedClientKey = Buffer.from(process.env.DUPR_CLIENT_KEY).toString("base64");
   const isUat = /uat/i.test(process.env.DUPR_BASE_URL || "");
   const iframeBase = isUat ? "https://uat.dupr.gg" : "https://dashboard.dupr.com";
@@ -114,6 +115,12 @@ router.post("/link/sso-callback", auth, async (req, res) => {
       { new: true, runValidators: true },
     ).select("duprLink");
 
+    // Fire-and-forget: subscribing triggers an immediate RATING_SEED webhook event with
+    // this player's current rating, which populates duprLink.doubles/singles without
+    // waiting for a match - but only if a webhook URL has actually been registered (see
+    // POST /webhook/register). Never fails the link response if this errors.
+    dupr.subscribeToRatingUpdates([duprId]).catch(() => {});
+
     res.json({ myLink: serializeLink(user) });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: "This DUPR account is already linked to another user" });
@@ -130,7 +137,10 @@ router.post("/link/sso-callback", auth, async (req, res) => {
 // because the field was then explicitly present-and-null on two documents at once).
 router.delete("/link", auth, async (req, res) => {
   try {
-    await User.findByIdAndUpdate(req.user.userId, { $unset: { duprLink: "" } });
+    const user = await User.findByIdAndUpdate(req.user.userId, { $unset: { duprLink: "" } }).select("duprLink");
+    if (user?.duprLink?.duprPlayerId) {
+      dupr.unsubscribeFromRatingUpdates([user.duprLink.duprPlayerId]).catch(() => {});
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -191,6 +201,58 @@ router.post("/submissions/:id/resolve", auth, admin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/dupr/webhook/register — one-time (superadmin) action to register this
+// platform's webhook URL with DUPR. Real constraint confirmed against the spec: each
+// client can have only ONE active webhook registration, ever - calling this again
+// replaces the existing one. NOT testable from a local dev environment: DUPR's
+// registration call synchronously POSTs a handshake test to the given URL and requires
+// a 200 back, which means webhookUrl must be a real, publicly reachable HTTPS endpoint
+// (this repo's APP_URL is a LAN address in dev) - only run this against a real deploy.
+router.post("/webhook/register", auth, superadmin, async (req, res) => {
+  try {
+    const webhookUrl = req.body.webhookUrl || `${process.env.APP_URL}/api/dupr/webhook`;
+    const result = await dupr.registerWebhook(webhookUrl);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/dupr/webhook — DUPR event receiver. No auth (DUPR posts here directly, not
+// a CourtGo user) and no signature verification (confirmed 2026-07-27: DUPR's spec has
+// no HMAC/signature scheme at all - authenticity rests on the URL being known only to
+// DUPR and us, plus checking the envelope's clientId). Always answers fast; per-user
+// work happens best-effort and never blocks the 200.
+router.post("/webhook", async (req, res) => {
+  res.status(200).json({ ok: true }); // ack immediately - required for the registration handshake too
+
+  try {
+    const { clientId, event, message } = req.body || {};
+    if (String(clientId) !== String(process.env.DUPR_CLIENT_ID)) return; // not ours - ignore silently
+    if (event !== "RATING" && event !== "RATING_SEED") return; // e.g. the REGISTRATION handshake ping
+    if (!message?.duprId) return;
+
+    const user = await User.findOne({ "duprLink.duprPlayerId": message.duprId }).select("duprLink");
+    if (!user?.duprLink?.verified) return;
+
+    const doubles = parseDuprRating(message.rating?.doubles);
+    const singles = parseDuprRating(message.rating?.singles);
+    await User.updateOne(
+      { _id: user._id },
+      {
+        "duprLink.doubles": doubles,
+        "duprLink.singles": singles,
+        "duprLink.lastSyncedAt": new Date(),
+        ...(doubles != null ? { duprRating: doubles } : {}),
+      },
+    );
+    sendPushToUser(user._id, { title: "DUPR rating updated", body: "Your DUPR rating was just refreshed." }).catch(() => {});
+  } catch (err) {
+    console.error("dupr webhook handling error:", err);
   }
 });
 
