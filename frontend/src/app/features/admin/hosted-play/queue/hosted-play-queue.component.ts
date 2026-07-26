@@ -17,6 +17,7 @@ import {
 import { AuthService } from '../../../../core/services/auth.service';
 import { ClubService, Court } from '../../../../core/services/club.service';
 import { CreditService, MemberBalance } from '../../../../core/services/credit.service';
+import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr.service';
 
 @Component({
   selector: 'app-admin-hosted-play-queue',
@@ -434,6 +435,16 @@ import { CreditService, MemberBalance } from '../../../../core/services/credit.s
                       </div>
                       @if (m.team1Score !== null) {
                         <span class="match-score">{{ m.team1Score }}–{{ m.team2Score }}</span>
+                      }
+                      @if (duprSubmissionFor(m._id); as dupr) {
+                        <span class="dupr-chip" [class]="'dupr-chip-' + dupr.status" [title]="dupr.lastError || dupr.status">
+                          DUPR: {{ dupr.status === 'pending_submission' ? 'Pending' : (dupr.status | titlecase) }}
+                        </span>
+                        @if (dupr.status === 'failed' || dupr.status === 'rejected') {
+                          <button class="icon-btn" title="Retry DUPR submission" [disabled]="duprRetryingIds.has(dupr._id)" (click)="retryDupr(dupr)">
+                            <i class="fas fa-rotate-right" [class.fa-spin]="duprRetryingIds.has(dupr._id)"></i>
+                          </button>
+                        }
                       }
                       <span class="match-time">{{ m.finishedAt | date:'shortTime' }}</span>
                       <button class="icon-btn" [title]="m.team1Score === null ? 'Add score' : 'Edit score'" [disabled]="busy" (click)="openScoreModal(m)">
@@ -1373,6 +1384,21 @@ import { CreditService, MemberBalance } from '../../../../core/services/credit.s
       color: var(--accent);
       font-weight: 900;
     }
+    .dupr-chip {
+      flex-shrink: 0;
+      padding: .15rem .5rem;
+      border-radius: 20px;
+      font-size: .68rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+      white-space: nowrap;
+    }
+    .dupr-chip-pending_submission { background: rgba(234,179,8,.15); color: #eab308; }
+    .dupr-chip-submitted { background: rgba(59,130,246,.15); color: #3b82f6; }
+    .dupr-chip-accepted { background: rgba(163,230,53,.15); color: var(--accent); }
+    .dupr-chip-rejected, .dupr-chip-failed { background: rgba(239,68,68,.15); color: #ef4444; }
+    .dupr-chip-disputed { background: rgba(249,115,22,.15); color: #f97316; }
     .match-time { flex-shrink: 0; color: var(--soft); font-size: .74rem; }
     .match-empty { padding: .8rem .35rem; color: var(--soft); font-size: .84rem; }
 
@@ -1582,6 +1608,8 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
 
   matches: HostedPlayMatch[] = [];
   matchesLoading = false;
+  duprSubmissions = new Map<string, DuprMatchSubmission>();
+  duprRetryingIds = new Set<string>();
   finishScoreA: number | null = null; // optional score inputs in winner-picker mode
   finishScoreB: number | null = null;
   scoreAutoFilled = false; // true when finishScoreA/B were carried over from the umpire's live score
@@ -1600,6 +1628,7 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
     private auth: AuthService,
     private clubService: ClubService,
     private credit: CreditService,
+    private dupr: DuprService,
   ) {}
 
   ngOnInit() {
@@ -1980,8 +2009,36 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
     this.matchesLoading = true;
     this.cdr.detectChanges();
     this.hp.listMatches(this.id).subscribe({
-      next: (list) => { this.matches = list; this.matchesLoading = false; this.cdr.detectChanges(); },
+      next: (list) => {
+        this.matches = list;
+        this.matchesLoading = false;
+        this.cdr.detectChanges();
+        this.loadDuprSubmissions();
+      },
       error: () => { this.matchesLoading = false; this.cdr.detectChanges(); },
+    });
+  }
+
+  private loadDuprSubmissions() {
+    this.dupr.getSubmissionsForSession(this.id).subscribe({
+      next: (list) => {
+        this.duprSubmissions = new Map(list.map((s) => [s.sourceMatchId, s]));
+        this.cdr.detectChanges();
+      },
+      error: () => { /* DUPR chip just stays hidden if this fails - not critical path. */ },
+    });
+  }
+
+  duprSubmissionFor(matchId: string): DuprMatchSubmission | null {
+    return this.duprSubmissions.get(matchId) || null;
+  }
+
+  retryDupr(submission: DuprMatchSubmission) {
+    this.duprRetryingIds.add(submission._id);
+    this.cdr.detectChanges();
+    this.dupr.resubmit(submission._id).subscribe({
+      next: () => { this.duprRetryingIds.delete(submission._id); this.loadDuprSubmissions(); this.cdr.detectChanges(); },
+      error: () => { this.duprRetryingIds.delete(submission._id); this.cdr.detectChanges(); },
     });
   }
 

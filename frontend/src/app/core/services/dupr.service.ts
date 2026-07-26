@@ -25,6 +25,16 @@ export interface DuprSsoCallbackPayload {
   stats?: { fullName?: string; email?: string; doubles?: number; singles?: number };
 }
 
+export type DuprSubmissionStatus = 'pending_submission' | 'submitted' | 'accepted' | 'rejected' | 'disputed' | 'failed';
+
+export interface DuprMatchSubmission {
+  _id: string;
+  sourceMatchId: string;
+  status: DuprSubmissionStatus;
+  lastError: string | null;
+  attempts: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class DuprService {
   constructor(private http: HttpClient) {}
@@ -43,5 +53,13 @@ export class DuprService {
 
   unlink() {
     return this.http.delete<{ ok: boolean }>(`${environment.apiUrl}/dupr/link`);
+  }
+
+  getSubmissionsForSession(sessionId: string) {
+    return this.http.get<DuprMatchSubmission[]>(`${environment.apiUrl}/dupr/submissions`, { params: { sessionId } });
+  }
+
+  resubmit(submissionId: string) {
+    return this.http.post(`${environment.apiUrl}/dupr/submissions/${submissionId}/resubmit`, {});
   }
 }

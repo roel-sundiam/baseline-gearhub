@@ -13,6 +13,7 @@ const User = require("../models/User");
 const Club = require("../models/Club");
 const Charge = require("../models/Charge");
 const AppServicePayment = require("../models/AppServicePayment");
+const duprSync = require("../utils/duprSync");
 const queue = require("../services/queue-engine");
 const fixedDoubles = require("../services/fixed-doubles-engine");
 const { sendPushToClubAdmins, sendPushToUser } = require("../utils/push");
@@ -1087,7 +1088,7 @@ async function loadParticipantsContext(session, club) {
 async function loadQueueContext(req, res) {
   const [session, club] = await Promise.all([
     HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId }).lean(),
-    Club.findById(req.user.clubId).select("hostedPlayQueueEnabled hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount hostedPlayCreditsEnabled").lean(),
+    Club.findById(req.user.clubId).select("hostedPlayQueueEnabled hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount hostedPlayCreditsEnabled duprEnabled duprClubId").lean(),
   ]);
   if (!session) {
     res.status(404).json({ error: "Session not found" });
@@ -1124,7 +1125,7 @@ async function loadUmpireContext(req, res) {
     return null;
   }
   const club = await Club.findById(session.clubId)
-    .select("hostedPlayQueueEnabled hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount logo courts")
+    .select("hostedPlayQueueEnabled hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount logo courts duprEnabled duprClubId")
     .lean();
   const queueAllowed = session.queueManagementEnabled ?? !!club?.hostedPlayQueueEnabled;
   if (!queueAllowed) {
@@ -1687,6 +1688,7 @@ async function finishCourtAndRecordMatch(ctx, courtNumber, teams, { winnerIds = 
   // Record the match only when the finish itself succeeded. A failed insert
   // must never fail the finish — court rotation is the primary flow.
   let match = null;
+  let dupr = null;
   if (!result?.error) {
     try {
       match = await HostedPlayMatch.create({
@@ -1709,8 +1711,12 @@ async function finishCourtAndRecordMatch(ctx, courtNumber, teams, { winnerIds = 
     } catch (e) {
       console.error("hosted-play: failed to record match", e);
     }
+    // Never fails the finish response - enqueueAndSubmit catches its own errors.
+    if (match && scores) {
+      dupr = await duprSync.enqueueAndSubmit(match, ctx.club);
+    }
   }
-  return { result, match };
+  return { result, match, dupr };
 }
 
 // POST /api/hosted-play/sessions/:id/courts/:n/finish
@@ -1731,11 +1737,11 @@ router.post("/sessions/:id/courts/:n/finish", auth, admin, async (req, res) => {
     const derived = deriveWinnerTeam(teams.team1Players, teams.team2Players, winnerSet, scores);
     if (derived.error) return res.status(400).json({ error: derived.error });
 
-    const { result, match } = await finishCourtAndRecordMatch(ctx, courtNumber, teams, {
+    const { result, match, dupr } = await finishCourtAndRecordMatch(ctx, courtNumber, teams, {
       winnerIds, scores, winnerTeam: derived.winnerTeam, winnerSource: derived.winnerSource, recordedBy: req.user.userId,
     });
     await applyAndRespond(res, ctx.session, ctx.participants, result, ctx.club, ctx.prev,
-      match ? { lastMatch: match.toObject() } : null);
+      match ? { lastMatch: match.toObject(), dupr } : null);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2063,7 +2069,7 @@ router.post("/umpire/:sessionId/courts/:n/finish", async (req, res) => {
         return res.status(400).json({ error: "Scores are tied — enter the final point before finishing" });
       }
       const winnerPairId = pair1Score > pair2Score ? String(ctx.fixture.pair1Id) : String(ctx.fixture.pair2Id);
-      await finishFixtureAndRecordMatch(ctx.session, ctx.fixture, {
+      await finishFixtureAndRecordMatch(ctx.session, ctx.fixture, ctx.club, {
         pair1Score, pair2Score, winnerPairId, winnerSource: "scores", recordedBy: ctx.session.createdBy,
       });
       // The court may already have a next scheduled match lined up.
@@ -2084,7 +2090,7 @@ router.post("/umpire/:sessionId/courts/:n/finish", async (req, res) => {
     const teams = snapshotCourtTeams(ctx.participants, courtNumber, ctx.session.playersPerCourt);
     const winnerIds = (winnerTeam === 1 ? teams.team1Players : teams.team2Players).map((p) => String(p.participantId));
 
-    const { result, match } = await finishCourtAndRecordMatch(ctx, courtNumber, teams, {
+    const { result, match, dupr } = await finishCourtAndRecordMatch(ctx, courtNumber, teams, {
       winnerIds,
       scores: { team1Score: live.team1Score, team2Score: live.team2Score },
       winnerTeam,
@@ -2097,7 +2103,7 @@ router.post("/umpire/:sessionId/courts/:n/finish", async (req, res) => {
       await HostedPlay.updateOne({ _id: ctx.session._id }, { $pull: { liveScores: { courtNumber } } });
     }
     await applyAndRespond(res, ctx.session, ctx.participants, result, ctx.club, ctx.prev,
-      match ? { lastMatch: match.toObject() } : null);
+      match ? { lastMatch: match.toObject(), dupr } : null);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2324,7 +2330,14 @@ router.patch("/matches/:matchId/score", auth, admin, async (req, res) => {
     match.scoreEnteredBy = req.user.userId;
     match.scoreEnteredAt = new Date();
     await match.save();
-    res.json(match.toObject());
+
+    // Never fails the response - enqueueAndSubmit catches its own errors. Re-running
+    // it here (not just at finish time) covers both the score-later workflow and
+    // correcting an already-submitted match (attemptSubmit calls DUPR's update
+    // endpoint once a duprMatchId exists).
+    const club = await Club.findById(req.user.clubId).select("duprEnabled duprClubId").lean();
+    const dupr = await duprSync.enqueueAndSubmit(match, club);
+    res.json({ ...match.toObject(), dupr });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2397,7 +2410,7 @@ async function loadFixedDoublesSession(sessionId, clubId) {
   const [session, club] = await Promise.all([
     HostedPlay.findOne({ _id: sessionId, clubId }),
     Club.findById(clubId)
-      .select("hostedPlayQueueEnabled hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount logo courts")
+      .select("hostedPlayQueueEnabled hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode hostedPlayConvenienceFeeAmount logo courts duprEnabled duprClubId")
       .lean(),
   ]);
   if (!session) return { error: "Session not found", status: 404 };
@@ -2443,7 +2456,7 @@ async function respondFixedDoublesBoard(res, session, club, extra = null) {
 // history/standings). Shared by the admin "Record Score" route (tapped/typed
 // scores) and the anonymous umpire finish route (winner always score-derived) —
 // each resolves its own winner before calling this. Saves the fixture.
-async function finishFixtureAndRecordMatch(session, fixture, { pair1Score, pair2Score, winnerPairId, winnerSource, recordedBy }) {
+async function finishFixtureAndRecordMatch(session, fixture, club, { pair1Score, pair2Score, winnerPairId, winnerSource, recordedBy }) {
   fixture.status = "completed";
   fixture.actualStart = fixture.actualStart || fixture.scheduledStart;
   fixture.actualEnd = new Date();
@@ -2487,6 +2500,8 @@ async function finishFixtureAndRecordMatch(session, fixture, { pair1Score, pair2
       scoreEnteredAt: new Date(),
     });
     fixture.matchRecordId = match._id;
+    // Never fails the finish - enqueueAndSubmit catches its own errors.
+    await duprSync.enqueueAndSubmit(match, club);
   } catch (e) {
     console.error("hosted-play: failed to record fixed-doubles match", e);
   }
@@ -2918,7 +2933,7 @@ router.post("/sessions/:id/fixed-doubles/matches/:fixtureId/finish", auth, admin
     });
     if (derived.error) return res.status(400).json({ error: derived.error });
 
-    await finishFixtureAndRecordMatch(ctx.session, fixture, {
+    await finishFixtureAndRecordMatch(ctx.session, fixture, ctx.club, {
       pair1Score, pair2Score, winnerPairId: derived.winnerPairId, winnerSource: derived.winnerSource, recordedBy: req.user.userId,
     });
     await respondFixedDoublesBoard(res, ctx.session, ctx.club);
@@ -2963,6 +2978,7 @@ router.patch("/sessions/:id/fixed-doubles/matches/:fixtureId/score", auth, admin
           match.scoreEnteredBy = req.user.userId;
           match.scoreEnteredAt = new Date();
           await match.save();
+          await duprSync.enqueueAndSubmit(match, ctx.club);
         }
       }
     }

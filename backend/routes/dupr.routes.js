@@ -1,8 +1,12 @@
 const express = require("express");
 const auth = require("../middleware/auth");
+const admin = require("../middleware/admin");
 const User = require("../models/User");
 const Club = require("../models/Club");
+const HostedPlayMatch = require("../models/HostedPlayMatch");
+const DuprMatchSubmission = require("../models/DuprMatchSubmission");
 const { isDuprConfigured } = require("../utils/dupr");
+const duprSync = require("../utils/duprSync");
 
 const router = express.Router();
 
@@ -119,25 +123,71 @@ router.post("/link/sso-callback", auth, async (req, res) => {
 });
 
 // DELETE /api/dupr/link — unlink self; keep the last-synced rating as a fallback value.
+// Must $unset the whole subdocument rather than $set it to null-valued fields: the
+// sparse unique index on duprLink.duprPlayerId only excludes documents where that path
+// is entirely ABSENT, not merely null - confirmed live 2026-07-27 (a second user's
+// $set-to-null unlink hit an E11000 duplicate key error the first unlink didn't,
+// because the field was then explicitly present-and-null on two documents at once).
 router.delete("/link", auth, async (req, res) => {
   try {
-    await User.findByIdAndUpdate(req.user.userId, {
-      duprLink: {
-        duprPlayerId: null,
-        email: null,
-        fullName: null,
-        verified: false,
-        linkedAt: null,
-        doubles: null,
-        singles: null,
-        lastSyncedAt: null,
-        ssoUserToken: null,
-        ssoRefreshToken: null,
-        ssoTokenExpiresAt: null,
-        ssoRefreshExpiresAt: null,
-      },
-    });
+    await User.findByIdAndUpdate(req.user.userId, { $unset: { duprLink: "" } });
     res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /api/dupr/submissions?sessionId= — submission statuses for a session's queue board
+router.get("/submissions", auth, admin, async (req, res) => {
+  try {
+    const { sessionId } = req.query;
+    if (!sessionId) return res.status(400).json({ error: "sessionId is required" });
+    const matchIds = await HostedPlayMatch.find({ sessionId, clubId: req.user.clubId }).distinct("_id");
+    const submissions = await DuprMatchSubmission.find({
+      clubId: req.user.clubId,
+      sourceMatchId: { $in: matchIds },
+    }).lean();
+    res.json(submissions);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/dupr/submissions/:id/resubmit — manual retry of a failed/rejected submission
+router.post("/submissions/:id/resubmit", auth, admin, async (req, res) => {
+  try {
+    const { result, error } = await duprSync.resubmitById(req.params.id, req.user.clubId);
+    if (error) return res.status(error === "disputed" ? 409 : 404).json({ error });
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/dupr/submissions/:id/dispute — freeze retries pending manual review
+router.post("/submissions/:id/dispute", auth, admin, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    if (!reason) return res.status(400).json({ error: "reason is required" });
+    const { submission, error } = await duprSync.markDisputed(req.params.id, req.user.clubId, reason, req.user.userId);
+    if (error) return res.status(404).json({ error });
+    res.json(submission.toObject());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/dupr/submissions/:id/resolve — corrected scores (optional) -> unfreeze + resubmit
+router.post("/submissions/:id/resolve", auth, admin, async (req, res) => {
+  try {
+    const { team1Score, team2Score } = req.body;
+    const { result, error } = await duprSync.resolveDispute(req.params.id, req.user.clubId, { team1Score, team2Score });
+    if (error) return res.status(404).json({ error });
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
