@@ -1,14 +1,18 @@
 # CourtGo — DUPR + RecClub Integration: Design & Implementation Reference
 
-> **STATUS: ON HOLD — awaiting DUPR Partner API credentials.**
+> **STATUS: ON HOLD — DUPR Partner Agreement received 2026-07-24, pending signature.**
 > This document is the complete design reference so implementation can start the moment
-> DUPR grants API access. No code has been written yet. External API facts were verified
-> 2026-07-19; re-confirm details (webhook topics, endpoints) during DUPR partner onboarding.
+> DUPR grants API access. External API facts were verified 2026-07-19; re-confirm details
+> (webhook topics, endpoints) during DUPR partner onboarding. **No DUPR-specific code has
+> been written yet** (`duprLink`, `duprEnabled`, `DuprMatchSubmission` all absent as of
+> 2026-07-25) — but the score-capture prerequisite described in Phase C below (per-game
+> `HostedPlayMatch` records, score entry/correction, winner derivation) is already fully
+> built and in production, independent of DUPR. See the updated Phase C note.
 
 ## DUPR Onboarding Checklist (do while implementation is on hold)
 
-1. Apply for Partner API access: [dupr.com/partners](https://www.dupr.com/partners) or support@mydupr.com — describe CourtGo (club platform; match submission + rating sync use case).
-2. Sign the partner/licensing agreement; receive **UAT** `clientKey`/`clientSecret` (`uat.mydupr.com`), later production keys.
+1. Apply for Partner API access: [dupr.com/partners](https://www.dupr.com/partners) or support@mydupr.com — describe CourtGo (club platform; match submission + rating sync use case). **Done — agreement received 2026-07-24.**
+2. Sign the partner/licensing agreement; receive **UAT** `clientKey`/`clientSecret` (`uat.mydupr.com`), later production keys. **Next action: confirm no fee applies (agreement is silent on price) and resolve the 30-day no-cause termination clause before signing.**
 3. Optionally have clubs register at [dupr.com/clubs](https://www.dupr.com/clubs) for their 10-digit DUPR club ID (the superadmin panel already stores `duprClubId`).
 4. During onboarding, confirm with DUPR: available **webhook topics** (rating change vs. match status), the client match-identifier field for idempotent submission, and rate limits.
 5. When keys arrive: set `DUPR_CLIENT_KEY`, `DUPR_CLIENT_SECRET`, `DUPR_BASE_URL`, `DUPR_WEBHOOK_SECRET`, `DUPR_CRON_SECRET` in `.env`/Netlify → begin Phase A below.
@@ -17,7 +21,7 @@
 
 CourtGo is a tennis/pickleball club platform with accounts, clubs, reservations, match management (Open Play, Tournaments, Hosted Play), rankings, and per-club feature toggles. Goal: let players link their DUPR account, let authorized users submit official match scores, push results to DUPR so they count toward official ratings, and sync updated DUPR ratings back into CourtGo. RecClub was requested as a second integration target.
 
-Groundwork already exists (deliberately stubbed "Phase 0"): `User.duprRating` + `User.duprId` (self-reported, unverified), `Club.duprClubId` (+ superadmin PATCH), and a self-report rating input on the Hosted Play page.
+Groundwork already exists (deliberately stubbed "Phase 0"): `User.duprRating` + `User.duprId` (self-reported, unverified), `Club.duprClubId` (+ superadmin PATCH), and a self-report rating input on the Hosted Play page. Additionally, **`backend/models/HostedPlayMatch.js` is fully built** (per-game records with team snapshots, nullable scores, `winnerTeam`/`winnerSource`, score-correction endpoint) — this was built as a standalone Hosted Play feature, zero DUPR code, and satisfies the score-capture prerequisite Phase C originally called for.
 
 ## External API Reality (verified 2026-07-19)
 
@@ -119,11 +123,9 @@ Transitions enforced by one `canTransition(from, to)` helper; illegal moves → 
 
 **1. `backend/utils/dupr.js` (new, modeled on `utils/push.js`):** lazy env read; `isDuprConfigured()`; module-scope token cache `{token, expiresAt}` (survives warm serverless invocations); `duprFetch()` wrapper (bearer, JSON, 8s AbortController, returns `{ok,status,data,error}`, never throws into routes); ops: `lookupPlayerByEmail`, `getPlayerRating`, `submitMatch`, `updateMatch`, `deleteMatch`, `verifyWebhookSignature` (HMAC-SHA256 + `crypto.timingSafeEqual`).
 
-**2. Score capture — hook the Hosted Play finish-game flow** (`backend/routes/hosted-play.routes.js:1151`, `POST /sessions/:id/courts/:n/finish`, already `auth, admin`):
-- Accept optional `team1Score`/`team2Score` alongside `winnerIds`; derive teams from court slots; persist `HostedPlayMatch` for every finished game (scores null when not entered). Queue-engine rotation logic untouched.
-- New `PATCH /api/hosted-play/matches/:matchId/score` (`auth, admin`) to add/correct scores after the fact (score-later workflow, and the dispute-resolution write path).
+**2. Score capture — ALREADY BUILT, hook it to DUPR.** `POST /sessions/:id/courts/:n/finish`, the `PATCH /api/hosted-play/matches/:matchId/score` correction endpoint, and `HostedPlayMatch` persistence (teams, nullable scores, winner derivation) all exist today and ship scores independent of DUPR. The only remaining work is the DUPR hook itself:
 - After a `HostedPlayMatch` has scores: if `club.duprEnabled && session.sport === 'pickleball' && all players duprLink.verified` → `duprSync.enqueueAndSubmit(...)` (upsert `DuprMatchSubmission`, inline submit attempt, try/catch — never fails the response). Response gains `dupr: { eligible, unlinkedPlayerIds, submission: {status, lastError} }`.
-- Score corrections on an already-submitted match: `updateMatch` on DUPR (fallback delete+recreate), status back to `submitted`.
+- Score corrections on an already-submitted match (existing `correctMatchScore` path in `hosted-play.routes.js`): `updateMatch` on DUPR (fallback delete+recreate), status back to `submitted`.
 
 **3. Retry strategy (`backend/utils/duprSync.js`):** `attemptDuprSubmit` — retryable failure (network/5xx/429) → `nextAttemptAt = now + 2^attempts min`, `failed` at 5 attempts; non-retryable 4xx → `failed` immediately. `processPendingSubmissions(limit)` — atomically claims due records (`findOneAndUpdate` pushing `nextAttemptAt` forward first → safe under concurrent invocations); also polls stale `submitted` records to advance to `accepted` if webhooks were missed. Triggered by: `POST /api/dupr/tasks/process` (external cron / Netlify scheduled function, `x-cron-secret` header) + opportunistic fire-and-forget sweep on `GET /api/dupr/status`/`submissions` (throttled to 1 run / 5 min per warm container).
 
@@ -236,7 +238,7 @@ sequenceDiagram
 
 **Phase B — linking:** `routes/dupr.routes.js` (status/link/refresh) + mount in `app.js`; `core/services/dupr.service.ts`; profile-edit Linked Accounts UI; hosted-play read-only rating swap.
 
-**Phase C — scores → DUPR:** finish-game score capture + `HostedPlayMatch` persistence + `utils/duprSync.js` hook (`hosted-play.routes.js`); match-score PATCH; submissions/dispute/resubmit/resolve endpoints; admin queue-board score UI + status chips.
+**Phase C — scores → DUPR:** score capture + `HostedPlayMatch` persistence + match-score PATCH already exist — only add the `utils/duprSync.js` hook into the existing finish/correction flow (`hosted-play.routes.js`); submissions/dispute/resubmit/resolve endpoints; admin queue-board DUPR status chips (score UI already exists).
 
 **Phase D — sync-back & ops:** raw-body verify in `app.js`; webhook handler; cron sweep endpoint + Netlify scheduled function (or external cron); push notifications; club toggle UI cards.
 
