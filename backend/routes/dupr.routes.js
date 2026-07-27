@@ -213,7 +213,7 @@ router.post("/submissions/:id/resolve", auth, admin, async (req, res) => {
 // (this repo's APP_URL is a LAN address in dev) - only run this against a real deploy.
 router.post("/webhook/register", auth, superadmin, async (req, res) => {
   try {
-    const webhookUrl = req.body.webhookUrl || `${process.env.APP_URL}/api/dupr/webhook`;
+    const webhookUrl = req.body.webhookUrl || `${process.env.APP_URL || "https://courtgo.club"}/api/dupr/webhook`;
     const result = await dupr.registerWebhook(webhookUrl);
     res.json(result);
   } catch (err) {
