@@ -790,6 +790,7 @@ export class ProfileEditComponent implements OnInit, OnDestroy {
       id: data.id,
       duprId: data.duprId,
       stats: data.stats,
+      subscriptions: data.subscriptions,
     }).subscribe({
       next: ({ myLink }) => {
         this.duprStatus = this.duprStatus ? { ...this.duprStatus, myLink } : this.duprStatus;

@@ -24,7 +24,12 @@ async function resolveTeamPlayers(teamPlayers) {
   const unlinkedIds = [];
   for (const p of teamPlayers) {
     const user = p.memberId ? byId.get(String(p.memberId)) : null;
-    if (!user?.duprLink?.verified) {
+    // BASIC_L1 gating (DUPR's User Gating checklist item, and also literally required
+    // by the Match Upload API: "all players must have the BASIC_L1 entitlement").
+    // Sourced only from the SSO postMessage payload at link time - there's no live
+    // API to re-check it, so a player who loses the entitlement DUPR-side won't be
+    // caught until they relink.
+    if (!user?.duprLink?.verified || !user.duprLink.entitlements?.includes("BASIC_L1")) {
       unlinkedIds.push(p.memberId || p.participantId);
       continue;
     }

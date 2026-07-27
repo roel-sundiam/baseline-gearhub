@@ -20,6 +20,7 @@ function serializeLink(user) {
     fullName: user.duprLink.fullName,
     doubles: user.duprLink.doubles,
     singles: user.duprLink.singles,
+    entitlements: user.duprLink.entitlements || [],
     linkedAt: user.duprLink.linkedAt,
     lastSyncedAt: user.duprLink.lastSyncedAt,
   };
@@ -72,10 +73,27 @@ function parseDuprRating(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+// Flattens the SSO postMessage's subscriptions[].entitlements map into a deduped list
+// of entitlement codes (e.g. ["BASIC_L1"]), counting only active subscriptions. This is
+// the ONLY source of entitlement data - confirmed against the real OpenAPI spec that
+// there is no separate API to check/refresh it later (the one "subscription" endpoint
+// that exists is for a partner to GRANT a promo subscription, not to read one).
+function extractEntitlements(subscriptions) {
+  if (!Array.isArray(subscriptions)) return [];
+  const codes = new Set();
+  for (const sub of subscriptions) {
+    if (sub?.status !== "active" || !sub.entitlements) continue;
+    for (const list of Object.values(sub.entitlements)) {
+      if (Array.isArray(list)) list.forEach((c) => codes.add(c));
+    }
+  }
+  return [...codes];
+}
+
 router.post("/link/sso-callback", auth, async (req, res) => {
   try {
     if (!isDuprConfigured()) return res.status(409).json({ error: "DUPR is not configured on this platform" });
-    const { userToken, refreshToken, duprId, stats } = req.body;
+    const { userToken, refreshToken, duprId, stats, subscriptions } = req.body;
     if (!userToken || !refreshToken || !duprId) {
       return res.status(400).json({ error: "userToken, refreshToken, and duprId are required" });
     }
@@ -85,6 +103,7 @@ router.post("/link/sso-callback", auth, async (req, res) => {
 
     const doubles = parseDuprRating(stats?.doubles);
     const singles = parseDuprRating(stats?.singles);
+    const entitlements = extractEntitlements(subscriptions);
     const now = new Date();
     const user = await User.findByIdAndUpdate(
       req.user.userId,
@@ -100,6 +119,7 @@ router.post("/link/sso-callback", auth, async (req, res) => {
           linkedAt: now,
           doubles,
           singles,
+          entitlements,
           lastSyncedAt: now,
           ssoUserToken: userToken,
           ssoRefreshToken: refreshToken,

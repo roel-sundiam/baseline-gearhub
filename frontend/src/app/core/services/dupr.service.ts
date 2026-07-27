@@ -7,6 +7,7 @@ export interface DuprLinkState {
   fullName: string | null;
   doubles: number | null;
   singles: number | null;
+  entitlements: string[];
   linkedAt: string | null;
   lastSyncedAt: string | null;
 }
@@ -23,6 +24,7 @@ export interface DuprSsoCallbackPayload {
   id: string;
   duprId: string;
   stats?: { fullName?: string; email?: string; doubles?: number; singles?: number };
+  subscriptions?: Array<{ status: string; displayName: string; entitlements?: Record<string, string[]> }>;
 }
 
 export type DuprSubmissionStatus = 'pending_submission' | 'submitted' | 'accepted' | 'rejected' | 'disputed' | 'failed';

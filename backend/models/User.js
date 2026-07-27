@@ -58,6 +58,13 @@ const userSchema = new mongoose.Schema(
       doubles: { type: Number, default: null },
       singles: { type: Number, default: null },
       lastSyncedAt: { type: Date, default: null },
+      // DUPR entitlement codes (e.g. "BASIC_L1") from the SSO postMessage payload's
+      // `subscriptions[].entitlements` map - flattened across resource categories.
+      // There is no separate DUPR API to check/refresh this later (confirmed against
+      // the real OpenAPI spec - the only "subscription" endpoint is for a partner to
+      // GRANT a promo subscription, not to read one) - only ever set/refreshed at
+      // SSO link time.
+      entitlements: { type: [String], default: [] },
       // Per-user DUPR SSO credentials (login-external-app iframe). Real credentials,
       // not profile data - select: false so they're never returned unless a query
       // explicitly opts in with .select('+duprLink.ssoUserToken') etc.
