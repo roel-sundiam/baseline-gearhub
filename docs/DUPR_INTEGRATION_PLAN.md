@@ -1,17 +1,23 @@
 # CourtGo — DUPR + RecClub Integration: Design & Implementation Reference
 
-> **STATUS: Phases A-D shipped and verified live against UAT.**
-> (2026-07-27, commits through `b7612ea`, all unpushed.) Linking (SSO iframe), Hosted Play
-> score submission (with club-role gating), rating sync-back via webhooks, the retry-sweep
-> endpoint, and both the admin-facing and superadmin-facing DUPR toggle switches all work
-> against real UAT/real browser testing — see the per-phase notes under Implementation
-> Order for exactly what was tested and what bugs live testing caught. Only remaining gap:
-> actually registering a real webhook URL, which needs a public HTTPS deploy (untestable
-> from this local dev environment), and wiring an external cron/Netlify scheduled function
-> to call the retry-sweep endpoint on a timer. Two of DUPR's 5 production-review checklist
-> items are still unaddressed: rating-visibility-via-webhook is code-complete but
-> unregistered, and User Gating hasn't been started (applicability to our Hosted-Play-only
-> scope is still an open question for `tech@mydupr.com`).
+> **STATUS: LIVE IN PRODUCTION on courtgo.club — all 5 DUPR production-review checklist
+> items verified working end-to-end for real** (2026-07-27, commits through `3ba0ed0`).
+> SSO login, match management, club integration (DIRECTOR/ORGANIZER role gating), rating
+> sync-back via webhooks, and User Gating (BASIC_L1) have all been exercised against real
+> production infrastructure — a real deploy, a real registered webhook, a real club
+> (SheServes Tennis Club, kept on permanently as a demo), and real UAT test accounts
+> playing an actual Hosted Play match that DUPR accepted. See the per-phase notes under
+> Implementation Order for exactly what was tested, and two more real bugs live testing
+> caught even at this stage (a `netlify.toml` path-resolution issue and a webhook
+> `clientId` mismatch that silently dropped every inbound event until fixed).
+>
+> Remaining, but no longer blocking a production-key submission: wiring an external
+> cron/Netlify scheduled function to call the retry-sweep endpoint on a timer (works
+> manually, nothing calls it automatically), and two open questions worth asking
+> `tech@mydupr.com` before that submission — the unexplained `message.token` field in
+> webhook payloads, and whether User Gating's `PREMIUM_L1`/`VERIFIED_L1` tiers need
+> anything beyond the `BASIC_L1` check already built, given CourtGo has no DUPR+
+> tournaments or merch today.
 >
 > Much of this design was corrected mid-implementation: the 2026-07-19 draft guessed at
 > DUPR's auth/linking model before partner access existed, and even GitBook's own docs
@@ -24,10 +30,10 @@
 1. ~~Apply for Partner API access~~ **Done** — agreement received 2026-07-24, signed.
 2. ~~Sign the partner/licensing agreement~~ **Done.** UAT `clientKey`/`clientSecret`/`clientId` received 2026-07-27, live in root `.env`. Auth flow verified working against `uat.mydupr.com` (see Auth Model below).
 3. Optionally have clubs register at [dupr.com/clubs](https://www.dupr.com/clubs) for their 10-digit DUPR club ID (the superadmin panel already stores `duprClubId`).
-4. **Open questions to raise with `tech@mydupr.com` before Phase C/D:**
-   - Webhook signature verification — DUPR's docs describe no signing scheme for the `RATING` webhook envelope (`{clientId, event, message}`); confirm there really is none before trusting an unsigned HTTPS POST.
-   - Whether the "User Gating" production-review requirement (BASIC_L1/PREMIUM_L1/VERIFIED_L1 entitlements) applies given CourtGo's scope is Hosted Play matches only — no DUPR+ tournaments or merchandise pricing today.
-   - Exact request/response schema for `POST /auth/{version}/token` beyond what's been verified live (see Auth Model) — the OpenAPI spec at `uat.mydupr.com/api/v3/api-docs` truncates before full detail.
+4. **Remaining open questions for `tech@mydupr.com` before a production-key submission:**
+   - The unexplained `message.token` field on `RATING`/`RATING_SEED` webhook payloads — confirmed via the real OpenAPI spec there's no signature/HMAC scheme at all, but this field's purpose is unknown; worth asking rather than assuming.
+   - Whether `PREMIUM_L1`/`VERIFIED_L1` gating needs anything beyond the `BASIC_L1` check already built, given CourtGo has no DUPR+ tournaments or merchandise pricing today.
+   - ~~Exact request/response schema for `POST /auth/{version}/token`~~ **Resolved** — confirmed fully live against real UAT (see Auth Model).
 5. When ready for the production review: email `tech@mydupr.com` with a live platform URL, test credentials, and a compliance summary covering all 5 checklist items (SSO login, rating visibility/webhooks, user gating, match management, club integration) — ~10 business day turnaround.
 
 ## Context
@@ -46,7 +52,7 @@ Groundwork already exists (deliberately stubbed "Phase 0"): `User.duprRating` + 
 - **Match submission — corrected again 2026-07-27, this time against the real OpenAPI spec** (`uat.mydupr.com/api/v3/api-docs`, fetched and parsed directly with `node` since WebFetch's summarizer kept truncating before the schema; GitBook's own paraphrase of these endpoints turned out wrong on path, casing, and shape). Real endpoints: `POST /match/{version}/create`, `POST /match/{version}/batch` (bulk), `POST /match/{version}/update`, `DELETE /match/{version}/delete` (`version` defaults `v1.0`) — **not** `/Match/saveMatch` etc. Payload (`ExternalMatchRequest`): `identifier` (our idempotency key — **must be universally unique forever**, can't be reused even after delete), `matchDate` (`yyyy-MM-dd`, today-or-past +24h grace), `location`, `format` (`SINGLES`|`DOUBLES`), `matchType` (`SIDEOUT`|`RALLY`), **`teamA`/`teamB` are flat objects** `{player1, player2, game1..game5}` (DUPR IDs + up to 5 game scores directly on the team — not a nested players/games array as GitBook implied), `event` (required), `bracket`, **`clubId` is an integer** (not a string), `matchSource` (`PARTNER`|`CLUB`|`LEAGUE`|`DUPR` — omit `clubId` for `PARTNER`), `matchCompletionType` (`COMPLETED` default/rated; `TIE`/`FORFEIT`/`WITHDRAWAL`/`RETIREMENT`/`UNKNOWN` are non-rated, bypass ELO, need `UNCALCULATED_MATCH::ADD` permission), `extras`. Rated matches need a clear per-game winner with the winner scoring ≥6; all players need `BASIC_L1`; no duplicate players across teams. Success: `{status:"SUCCESS", result:{identifier, matchCode, hashedMatchCode}}` — **store `matchCode`**, required for update/delete. Update requires `matchId` (`Number(matchCode)`); `matchCompletionType` is immutable on update (delete+recreate to change it). Delete requires both `matchCode` and the original `identifier`.
 - **Club match submission requires the *submitting user's own* DUPR role**, not a CourtGo role — confirmed via `GET /user/{version}/{id}/clubs` (`id` = DUPR ID), which returns `{membership: [{clubId, clubName, role}]}` (role: DIRECTOR/ORGANIZER/PLAYER). **This endpoint uses the PARTNER bearer token, not the admin's own SSO token** — simpler than originally assumed; no per-user token round-trip needed for the role check itself. Only DIRECTOR/ORGANIZER may submit club-sourced matches. Verified live: a real UAT test account (`player1@courtgo.com`) holds DIRECTOR on DUPR's own UAT "CourtGo Club".
 - **Webhooks — endpoints and payload shape confirmed 2026-07-27 against the real OpenAPI spec + a live unauthenticated call to `GET /v1.0/webhook/schema/RATING`** (not GitBook's prose, which was already wrong twice this session for other endpoints): `POST /{version}/webhook` registers `{webhookUrl, topics:["RATING"]}` — **only one webhook registration per client, ever**; registering synchronously POSTs a `REGISTRATION`-event handshake to `webhookUrl` and requires `200` back, so this can only be exercised against a real public HTTPS deploy, never localhost. `POST /user/{version}/subscribe/webhook-event` (`{duprIds, topic:"RATING"}`) subscribes players — fires an immediate `RATING_SEED` event per player (current snapshot; `rating`/`metrics` null if never played a rated match); `DELETE` unsubscribes. Envelope: `{clientId, event, message}`; `message` (`RatingUpdate`): `duprId, name, token, timestamp, rating:{singles, doubles, singlesReliability, doublesReliability, matchId, ...halfLife/provisional fields}, metrics:{statistics, subscores}` — `rating.singles`/`rating.doubles` are **strings** (reuse the `parseDuprRating()` "NR" normalizer from Phase B). **CONFIRMED no signature/HMAC scheme exists anywhere in the spec** (grepped the entire raw JSON for "signature"/"hmac"/"secret" — nothing) — the unexplained `message.token` field's purpose is unknown; worth asking DUPR support rather than assuming it's a verification token. Authenticity in practice rests on the URL being known only to us and DUPR, plus checking `clientId` matches ours.
-- **User Gating**: entitlements `BASIC_L1` (required for any platform action), `PREMIUM_L1` (DUPR+ tournaments), `VERIFIED_L1` (identity-verification-gated resources), queried via the Subscriptions Controller after SSO, cacheable 24h. One of DUPR's 5 mandatory production-review items — applicability to CourtGo's Hosted-Play-only scope is unconfirmed (see onboarding checklist).
+- **User Gating — SHIPPED and verified live 2026-07-27** (commit `3ba0ed0`): entitlements `BASIC_L1` (required for any platform action), `PREMIUM_L1` (DUPR+ tournaments), `VERIFIED_L1` (identity-verification-gated resources). **Confirmed there is no separate API to check/refresh entitlements** — the real OpenAPI spec's only "subscription" endpoint (`/user/{version}/subscription/grants`) is for a *partner to grant* a promo subscription, not to *read* one. The sole source is `subscriptions[].entitlements` already embedded in the SSO `postMessage` payload — captured but previously discarded on both the frontend and backend. Now stored as `User.duprLink.entitlements` (flattened, active-subscriptions-only) and gates Hosted Play match eligibility on `BASIC_L1` (which is also a literal Match Upload API requirement, not just an abstract gating exercise). `PREMIUM_L1`/`VERIFIED_L1` have no current CourtGo resource to gate (no DUPR+ tournaments/merch), so nothing further was built for those tiers — worth confirming with DUPR whether that's sufficient. Entitlements only ever refresh at SSO link time; no live re-check exists.
 - Environments: UAT `https://uat.mydupr.com/api` (dashboard `uat.dupr.gg`), Prod `https://api.dupr.com/api` (dashboard `dashboard.dupr.com`). Full docs: `dupr.gitbook.io/dupr-raas`.
 - **Access is not self-serve**: requires a signed partner agreement + a manual production-review pass (see onboarding checklist item 5) before production keys are issued — UAT access alone doesn't imply compliance. DUPR is **pickleball-only**.
 
@@ -277,7 +283,13 @@ Two real bugs the live testing caught (both fixed): (1) the submit-vs-update dec
 
 **Dispute/resolve modal: SHIPPED 2026-07-27** (commit `b7612ea`). Each recorded game's DUPR chip now has a flag button (submitted/accepted/rejected → dispute modal, reason required) and a check button (disputed → resolve modal, optional corrected score). Verified live: submitted → disputed → resolved-with-corrected-score, confirmed the score/winner wrote back to the real `HostedPlayMatch` and the chip reflected each state change.
 
-**Phase D — sync-back & ops: shipped 2026-07-27** (commits `f41aab2`, `0cf96c3`, `c311e74`). Done: webhook handler (unsigned, per the confirmed no-HMAC finding above), `subscribeToRatingUpdates`/`unsubscribeFromRatingUpdates` hooked into link/unlink, push notification on rating update, superadmin-only `POST /api/dupr/webhook/register`, `POST /api/dupr/tasks/process` retry-sweep endpoint (shared-secret gated, atomically claims backed-off submissions — verified live with a real backed-off record), and the DUPR toggle UI in both the admin dashboard (self-service) and superadmin clubs page (verified live: toggled a real club on/off in a browser). **Not testable in this dev environment:** actually calling `webhook/register` — needs a real public HTTPS deploy URL, since DUPR's registration handshake synchronously POSTs to it (this repo's `APP_URL` is a LAN address in dev). No Netlify scheduled function/external cron is wired up to call `tasks/process` on a timer yet — the endpoint works, but nothing calls it automatically.
+**Phase D — sync-back & ops: shipped 2026-07-27** (commits `f41aab2`, `0cf96c3`, `c311e74`). Done: webhook handler, `subscribeToRatingUpdates`/`unsubscribeFromRatingUpdates` hooked into link/unlink, push notification on rating update, superadmin-only `POST /api/dupr/webhook/register`, `POST /api/dupr/tasks/process` retry-sweep endpoint, and the DUPR toggle UI. **Then actually deployed and fully live-verified the same day** (commits `0701276`, `1ed892f`, `7988c37`, `5d3ef8d`): real production deploy to `courtgo.club`, real webhook registration, and — critically — a real inbound `RATING_SEED` event confirmed received and processed, which exposed and fixed a genuine production bug: **the webhook envelope's `clientId` field is the Client *Key* string, not the numeric `DUPR_CLIENT_ID`** (despite DUPR's own auth-token JWT using `"clientId"` for the numeric value) — every real webhook event had been silently discarded by this mismatch until fixed. Also added success-path logging to the handler, since it previously had none and a "successful" registration gave no way to tell whether events were actually being processed.
+
+**User Gating (item #3 of 5) shipped and live-verified the same day** (commit `3ba0ed0`) — see the User Gating entry under External API Reality above for detail. **This closes out all 5 of DUPR's production-review checklist items, each verified against real production infrastructure, not just UAT/local dev**: a real deploy, a real registered webhook, a real test club (SheServes Tennis Club, left enabled permanently as an ongoing demo), and a real Hosted Play match DUPR accepted.
+
+Netlify deploy mechanics discovered along the way: this repo has **no git-based auto-deploy** (confirmed via `netlify api getSite`/`listSiteDeploys`) — despite `BACKEND_DEPLOYMENT.md` claiming otherwise, deploys are manual (`netlify deploy --prod`). Also hit and fixed a `netlify.toml` path-resolution bug (`publish` doesn't resolve relative to `base` for local CLI deploys). Full detail in the separate `docs/DUPR_DEPLOYMENT_ROLLBACK_PLAN.md` and Claude's own session memory.
+
+**Still not wired up:** an external cron/Netlify scheduled function to call `tasks/process` on a timer — the endpoint works when called manually, nothing calls it automatically yet.
 
 ## Verification Plan
 
