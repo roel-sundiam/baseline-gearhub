@@ -233,8 +233,13 @@ router.post("/webhook", async (req, res) => {
   try {
     const { clientId, event, message } = req.body || {};
     console.log(`[dupr webhook] received event=${event} clientId=${clientId} duprId=${message?.duprId}`);
-    if (String(clientId) !== String(process.env.DUPR_CLIENT_ID)) {
-      console.log(`[dupr webhook] ignored: clientId mismatch (expected ${process.env.DUPR_CLIENT_ID})`);
+    // CONFIRMED live 2026-07-27: the envelope's clientId field is actually the Client
+    // KEY string (e.g. "test-ck-..."), not the numeric DUPR_CLIENT_ID - despite the auth
+    // token's own JWT payload using "clientId" for the numeric value. A real production
+    // webhook was silently discarded here before this fix, since it was compared against
+    // the wrong env var and could never match.
+    if (String(clientId) !== String(process.env.DUPR_CLIENT_KEY)) {
+      console.log(`[dupr webhook] ignored: clientId mismatch (expected ${process.env.DUPR_CLIENT_KEY})`);
       return;
     }
     if (event !== "RATING" && event !== "RATING_SEED") {
