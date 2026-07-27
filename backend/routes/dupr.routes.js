@@ -232,12 +232,22 @@ router.post("/webhook", async (req, res) => {
 
   try {
     const { clientId, event, message } = req.body || {};
-    if (String(clientId) !== String(process.env.DUPR_CLIENT_ID)) return; // not ours - ignore silently
-    if (event !== "RATING" && event !== "RATING_SEED") return; // e.g. the REGISTRATION handshake ping
+    console.log(`[dupr webhook] received event=${event} clientId=${clientId} duprId=${message?.duprId}`);
+    if (String(clientId) !== String(process.env.DUPR_CLIENT_ID)) {
+      console.log(`[dupr webhook] ignored: clientId mismatch (expected ${process.env.DUPR_CLIENT_ID})`);
+      return;
+    }
+    if (event !== "RATING" && event !== "RATING_SEED") {
+      console.log(`[dupr webhook] ignored: not a rating event (likely the REGISTRATION handshake ping)`);
+      return; // e.g. the REGISTRATION handshake ping
+    }
     if (!message?.duprId) return;
 
     const user = await User.findOne({ "duprLink.duprPlayerId": message.duprId }).select("duprLink");
-    if (!user?.duprLink?.verified) return;
+    if (!user?.duprLink?.verified) {
+      console.log(`[dupr webhook] ignored: no verified CourtGo user linked to duprId=${message.duprId}`);
+      return;
+    }
 
     const doubles = parseDuprRating(message.rating?.doubles);
     const singles = parseDuprRating(message.rating?.singles);
@@ -250,6 +260,7 @@ router.post("/webhook", async (req, res) => {
         ...(doubles != null ? { duprRating: doubles } : {}),
       },
     );
+    console.log(`[dupr webhook] updated user=${user._id} doubles=${doubles} singles=${singles}`);
     sendPushToUser(user._id, { title: "DUPR rating updated", body: "Your DUPR rating was just refreshed." }).catch(() => {});
   } catch (err) {
     console.error("dupr webhook handling error:", err);
