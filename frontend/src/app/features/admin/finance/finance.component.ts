@@ -184,7 +184,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
               </div>
               <div class="bk-stat-card bk-stat-earnings">
                 <i class="fas fa-coins bk-stat-icon"></i>
-                <div class="bk-stat-value">{{ reservationTotal | currency: 'PHP' : 'symbol' : '1.0-0' }}</div>
+                <div class="bk-stat-value">{{ bookingsEarningsTotal | currency: 'PHP' : 'symbol' : '1.0-0' }}</div>
                 <div class="bk-stat-label">Approved Earnings</div>
               </div>
             </div>
@@ -2399,6 +2399,14 @@ export class FinanceComponent implements OnInit {
 
   get totalBookings() { return this.filteredReservations.length; }
   get totalHours() { return this.filteredReservations.reduce((s, r) => s + (r.durationHours ?? 1), 0); }
+  // Scoped to the same date range/status filter as the Bookings tab (unlike reservationTotal,
+  // which is all-time and feeds the App Service tab's developer-fee balance).
+  get bookingsEarningsTotal() {
+    const filteredIds = new Set(this.filteredReservations.map(r => r._id));
+    return this.reservationCharges
+      .filter(c => c.reservationId && filteredIds.has(c.reservationId._id))
+      .reduce((s, c) => s + c.amount, 0);
+  }
   get confirmedCount() { return this.filteredReservations.filter(r => r.status === 'confirmed').length; }
   get pendingCount() { return this.filteredReservations.filter(r => r.status === 'pending_payment').length; }
   get cancelledCount() { return this.filteredReservations.filter(r => r.status === 'cancelled').length; }
