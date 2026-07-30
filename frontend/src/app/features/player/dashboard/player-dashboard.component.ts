@@ -16,6 +16,7 @@ import { PerGameService, GameJoin } from '../../../core/services/per-game.servic
 import { HostedPlayService, HostedPlaySession } from '../../../core/services/hosted-play.service';
 import { MembershipService, MembershipClub } from '../../../core/services/membership.service';
 import { CreditService } from '../../../core/services/credit.service';
+import { DuprService } from '../../../core/services/dupr.service';
 import { forkJoin } from 'rxjs';
 
 @Component({
@@ -40,6 +41,13 @@ import { forkJoin } from 'rxjs';
               <span class="dm-club-accent">{{ clubNameFirst }}</span>@if (clubNameLast) {<span class="dm-club-word"> {{ clubNameLast }}</span>}
             </span>
             <span class="dm-greeting-sub">{{ greeting }}, {{ firstName }}! 👋</span>
+            @if (myDuprRating) {
+              <span class="dm-dupr-rating-pill"><i class="fas fa-table-tennis-paddle-ball"></i> DUPR {{ myDuprRating | number:'1.3-3' }}</span>
+            } @else if (duprLinkPromptVisible) {
+              <button type="button" class="dm-dupr-link-pill" (click)="navigateTo('/player/profile/edit')">
+                <i class="fas fa-link"></i> Link your DUPR account
+              </button>
+            }
           </div>
         </div>
         <button class="dm-bell-btn" title="Notifications">
@@ -65,6 +73,13 @@ import { forkJoin } from 'rxjs';
                 <span class="dm-club-accent">{{ clubNameFirst }}</span>@if (clubNameLast) {<span class="dm-club-word"> {{ clubNameLast }}</span>}
               </div>
               <h2 class="dm-greeting-text">{{ greeting }}, {{ firstName }}! 👋</h2>
+              @if (myDuprRating) {
+                <span class="dm-dupr-rating-pill"><i class="fas fa-table-tennis-paddle-ball"></i> DUPR {{ myDuprRating | number:'1.3-3' }}</span>
+              } @else if (duprLinkPromptVisible) {
+                <button type="button" class="dm-dupr-link-pill" (click)="navigateTo('/player/profile/edit')">
+                  <i class="fas fa-link"></i> Link your DUPR account
+                </button>
+              }
             </div>
           </div>
           @if (auth.isAdmin()) {
@@ -648,6 +663,42 @@ import { forkJoin } from 'rxjs';
       font-size: 0.78rem;
       font-weight: 500;
     }
+    .dm-dupr-rating-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      align-self: flex-start;
+      margin-top: 0.3rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: #60a5fa;
+      background: rgba(96,165,250,0.14);
+      border: 1px solid rgba(96,165,250,0.32);
+    }
+    .dm-dupr-rating-pill i { font-size: 0.62rem; }
+    .dm-dupr-link-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      align-self: flex-start;
+      margin-top: 0.3rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: #a3e635;
+      background: rgba(163,230,53,0.14);
+      border: 1px dashed rgba(163,230,53,0.4);
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s;
+    }
+    .dm-dupr-link-pill:hover { background: rgba(163,230,53,0.24); }
+    .dm-dupr-link-pill i { font-size: 0.62rem; }
     .dm-bell-btn {
       background: rgba(255,255,255,0.08);
       border: none;
@@ -1506,11 +1557,30 @@ export class PlayerDashboardComponent implements OnInit, OnDestroy {
     private hostedPlayService: HostedPlayService,
     private membershipService: MembershipService,
     private creditService: CreditService,
+    private duprService: DuprService,
   ) {}
+
+  myDuprRating: number | null = null;
+  duprLinkPromptVisible = false;
+
+  private loadDuprRating() {
+    this.duprService.getStatus().subscribe({
+      next: (status) => {
+        this.myDuprRating = status.myLink?.doubles ?? null;
+        // Only nudge to link when the club actually supports it and the player
+        // hasn't already linked - a linked-but-not-yet-rated ("NR") account
+        // shouldn't be re-prompted to link again.
+        this.duprLinkPromptVisible = status.configured && status.clubEnabled && !status.myLink;
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
+  }
 
   ngOnInit() {
     this.renderer.addClass(document.documentElement, 'dark-player-page');
     this.renderer.addClass(document.body, 'dark-player-page');
+    this.loadDuprRating();
 
     if (!this.auth.isAdmin()) {
       this.membershipService.loadMine().subscribe({

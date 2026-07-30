@@ -68,6 +68,7 @@ const MAX_VISIBLE_WAITING = 9;
                     <span class="lb-name">
                       @if (p.profileImage) { <img class="lb-avatar" [src]="p.profileImage" [alt]="p.memberName" /> }
                       {{ p.memberName }}
+                      @if (p.duprRating) { <span class="lb-dupr">DUPR {{ p.duprRating | number:'1.3-3' }}</span> }
                     </span>
                     <span class="lb-w">{{ p.wins || 0 }}</span>
                     <span class="lb-l">{{ p.losses || 0 }}</span>
@@ -128,7 +129,7 @@ const MAX_VISIBLE_WAITING = 9;
                               <span class="pavatar">
                                 @if (p.profileImage) { <img [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }
                               </span>
-                              <span class="pname">{{ p.memberName }}</span>
+                              <span class="pname">{{ p.memberName }}@if (p.duprRating) { <small class="court-dupr">DUPR {{ p.duprRating | number:'1.3-3' }}</small> }</span>
                               @if (isServingPlayer(p, c)) { <span class="serving-badge" aria-hidden="true"><i class="fas fa-table-tennis-paddle-ball"></i></span> }
                               @if (p.isWalkIn) { <span class="walk-tag">Walk-in</span> }
                             </div>
@@ -151,7 +152,7 @@ const MAX_VISIBLE_WAITING = 9;
                               <span class="pavatar">
                                 @if (p.profileImage) { <img [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }
                               </span>
-                              <span class="pname">{{ p.memberName }}</span>
+                              <span class="pname">{{ p.memberName }}@if (p.duprRating) { <small class="court-dupr">DUPR {{ p.duprRating | number:'1.3-3' }}</small> }</span>
                               @if (isServingPlayer(p, c)) { <span class="serving-badge" aria-hidden="true"><i class="fas fa-table-tennis-paddle-ball"></i></span> }
                               @if (p.isWalkIn) { <span class="walk-tag">Walk-in</span> }
                             </div>
@@ -176,7 +177,7 @@ const MAX_VISIBLE_WAITING = 9;
                       <span class="avatar">
                         @if (p.profileImage) { <img [src]="p.profileImage" [alt]="p.memberName" /> } @else { {{ initials(p.memberName) }} }
                       </span>
-                      <span class="pname">{{ p.memberName }}<small>{{ i === 0 ? 'Next available court' : 'In queue' }}</small></span>
+                      <span class="pname">{{ p.memberName }}<small>{{ i === 0 ? 'Next available court' : 'In queue' }}@if (p.duprRating) { · DUPR {{ p.duprRating | number:'1.3-3' }} }</small></span>
                       @if (p.isWalkIn) { <span class="walk-tag">Walk-in</span> }
                     </div>
                   }
@@ -206,6 +207,7 @@ const MAX_VISIBLE_WAITING = 9;
                         <span class="lb-name">
                       @if (p.profileImage) { <img class="lb-avatar" [src]="p.profileImage" [alt]="p.memberName" /> }
                       {{ p.memberName }}
+                      @if (p.duprRating) { <span class="lb-dupr">DUPR {{ p.duprRating | number:'1.3-3' }}</span> }
                     </span>
                         <span class="lb-w">{{ p.wins || 0 }}</span>
                         <span class="lb-l">{{ p.losses || 0 }}</span>
@@ -336,6 +338,7 @@ const MAX_VISIBLE_WAITING = 9;
       font-size: .78rem; box-shadow: 0 4px 10px rgba(245,223,24,.4);
     }
     .lb-name { display: flex; align-items: center; gap: .5rem; font-size: 1.15rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-dupr { flex-shrink: 0; color: #60a5fa; font-size: .78rem; font-weight: 700; }
     .lb-w, .lb-l { text-align: center; font-size: 1.2rem; font-weight: 900; font-variant-numeric: tabular-nums; }
     .lb-w { color: #4ade80; }
     .lb-l { color: #f87171; }
@@ -499,6 +502,7 @@ const MAX_VISIBLE_WAITING = 9;
     .team-block .serving-badge { color: var(--accent); }
     .team-block .pname { font-size: .85rem; text-transform: uppercase; }
     .team-block .walk-tag { display: none; }
+    .court-dupr { display: block; text-transform: none; font-size: .6rem; font-weight: 700; color: #60a5fa; margin-top: .1rem; }
     .score-block { z-index: 1; align-self: center; padding: 0 .35rem; }
     .score-big { color: white; background: #07193c; border: 2px solid #244d94; box-shadow: 0 4px 12px rgba(0,0,0,.4); font-size: 1.7rem; padding: .5rem .9rem; border-radius: 14px; white-space: nowrap; }
     .score-vs { color: white; background: #07193c; border: 2px solid #244d94; box-shadow: 0 4px 12px rgba(0,0,0,.4); border-radius: 999px; }

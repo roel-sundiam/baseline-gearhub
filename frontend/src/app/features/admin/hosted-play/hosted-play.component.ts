@@ -13,6 +13,7 @@ import {
 import { AuthService } from '../../../core/services/auth.service';
 import { ClubService, Court } from '../../../core/services/club.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
+import { DuprService } from '../../../core/services/dupr.service';
 
 type FormModel = HostedPlayInput;
 
@@ -357,10 +358,20 @@ type FormModel = HostedPlayInput;
                       <option [ngValue]="11">11 points</option><option [ngValue]="15">15 points</option><option [ngValue]="21">21 points</option>
                     </select>
                   </label>
-                  <label class="field"><span>Win by 2</span>
-                    <input type="checkbox" [(ngModel)]="form.winByTwo" />
-                  </label>
+                  <div class="field toggle-field"><span>Win by 2</span>
+                    <label class="queue-switch">
+                      <input type="checkbox" [(ngModel)]="form.winByTwo" />
+                      <span class="queue-slider"></span>
+                    </label>
+                  </div>
                   <div class="field-hint wide">Used to give a heads-up (not a hard block) if an entered score doesn't reach the target or win margin — short games at session end are still fine.</div>
+                  <div class="field toggle-field wide" [title]="!duprReady() ? 'Enable the DUPR add-on for this club to offer Premium Events' : ''">
+                    <span>Premium Event (DUPR+ only) — only players with an active DUPR+ subscription can register</span>
+                    <label class="queue-switch">
+                      <input type="checkbox" [(ngModel)]="form.premiumEvent" [disabled]="!duprReady()" />
+                      <span class="queue-slider"></span>
+                    </label>
+                  </div>
                 }
                 <label class="field wide"><span>Description</span>
                   <textarea rows="3" [(ngModel)]="form.description" placeholder="Notes for members..."></textarea>
@@ -1016,6 +1027,7 @@ type FormModel = HostedPlayInput;
     .field-hint { color: var(--muted); font-size: .76rem; line-height: 1.4; margin-top: -.4rem; }
     .field { display: flex; flex-direction: column; gap: .35rem; }
     .field span { color: var(--muted); font-size: .78rem; font-weight: 850; }
+    .field.toggle-field { flex-direction: row; align-items: center; justify-content: space-between; gap: .75rem; padding: .5rem 0; }
     .field input, .field select, .field textarea {
       width: 100%;
       padding: .68rem .75rem;
@@ -1197,7 +1209,12 @@ export class AdminHostedPlayComponent implements OnInit {
     private auth: AuthService,
     private clubService: ClubService,
     private cloudinary: CloudinaryService,
+    private duprService: DuprService,
   ) {}
+
+  duprConfigured = false;
+  clubDuprEnabled = false;
+  duprReady(): boolean { return this.duprConfigured && this.clubDuprEnabled; }
 
   ngOnInit() {
     this.load();
@@ -1209,11 +1226,16 @@ export class AdminHostedPlayComponent implements OnInit {
           this.queueFeePerPlayer.set(c.queueManagementFeePerPlayer ?? 0);
           this.feeSplitMode.set(c.hostedPlayFeeSplitMode ?? 'per_player');
           this.clubCourts = (c.courts ?? []) as Court[];
+          this.clubDuprEnabled = !!c.duprEnabled;
           this.cdr.detectChanges();
         },
         error: () => {},
       });
     }
+    this.duprService.getStatus().subscribe({
+      next: (status) => { this.duprConfigured = status.configured; this.cdr.detectChanges(); },
+      error: () => {},
+    });
   }
 
   load() {
@@ -1249,7 +1271,7 @@ export class AdminHostedPlayComponent implements OnInit {
       numberOfCourts: 1, queueMode: 'fcfs',
       fixedDoubles: { pairCount: 4 },
       minSkillLevel: null, maxSkillLevel: null,
-      scoreTarget: 11, winByTwo: true,
+      scoreTarget: 11, winByTwo: true, premiumEvent: false,
     };
   }
 
@@ -1443,6 +1465,7 @@ export class AdminHostedPlayComponent implements OnInit {
       fixedDoubles: { pairCount: s.fixedDoubles?.pairCount ?? 4 },
       minSkillLevel: s.minSkillLevel ?? null, maxSkillLevel: s.maxSkillLevel ?? null,
       scoreTarget: s.scoreTarget ?? 11, winByTwo: s.winByTwo ?? true,
+      premiumEvent: s.premiumEvent ?? false,
     };
     this.formError = '';
     this.showForm = true;

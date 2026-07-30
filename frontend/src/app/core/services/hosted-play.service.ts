@@ -62,6 +62,9 @@ export interface HostedPlaySession {
   // Optional pickleball scoring config (pickleball sessions only; null = free-form scoring)
   scoreTarget?: 11 | 15 | 21 | null;
   winByTwo?: boolean;
+  // DUPR Premium Event gating (pickleball + DUPR-enabled clubs only) — only players
+  // whose linked DUPR account carries PREMIUM_L1 may register/participate.
+  premiumEvent?: boolean;
   // Member-facing extras
   joined?: boolean;
   pendingApproval?: boolean;
@@ -111,6 +114,7 @@ export interface QueuePlayer {
   memberId?: string | null;
   memberName: string;
   profileImage?: string | null;
+  duprRating?: number | null;
   isWalkIn: boolean;
   checkedIn: boolean;
   queueStatus: ParticipantQueueStatus;
@@ -297,6 +301,7 @@ export interface HostedPlayInput {
   maxSkillLevel?: SkillLevel | null;
   scoreTarget?: 11 | 15 | 21 | null;
   winByTwo?: boolean;
+  premiumEvent?: boolean;
 }
 
 // ── Fixed Doubles Rotation ────────────────────────────────────────────────────
@@ -560,6 +565,10 @@ export class HostedPlayService {
 
   updateMatchScore(matchId: string, team1Score: number, team2Score: number) {
     return this.http.patch<HostedPlayMatch>(`${this.base}/matches/${matchId}/score`, { team1Score, team2Score });
+  }
+
+  deleteMatch(matchId: string) {
+    return this.http.delete<{ success: boolean }>(`${this.base}/matches/${matchId}`);
   }
 
   // ── Match History & Standings (club-wide, all-time) ──

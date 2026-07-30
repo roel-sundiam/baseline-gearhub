@@ -187,6 +187,10 @@ export class ClubService {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/dupr-addon`, { enabled });
   }
 
+  patchMyDuprClubId(duprClubId: string | null) {
+    return this.http.patch<{ duprClubId: string | null }>(`${environment.apiUrl}/clubs/me/dupr-club-id`, { duprClubId });
+  }
+
   setSelectedClubId(id: string) {
     try { localStorage.setItem(this.CLUB_KEY, id); } catch { /* Safari restricted storage */ }
     this._selectedClubId.set(id);

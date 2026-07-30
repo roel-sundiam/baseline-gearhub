@@ -126,6 +126,7 @@ import { MembershipService } from '../../../core/services/membership.service';
                       <th>Contact</th>
                       <th>Role</th>
                       <th>Status</th>
+                      <th>DUPR Rating</th>
                       <th>Registered</th>
                       <th>Actions</th>
                     </tr>
@@ -151,6 +152,7 @@ import { MembershipService } from '../../../core/services/membership.service';
                         <td class="col-contact">{{ user.contactNumber || '—' }}</td>
                         <td><span class="role-badge role-{{ user.role }}">{{ user.role }}</span></td>
                         <td><span class="status-badge status-{{ user.status }}">{{ user.status }}</span></td>
+                        <td class="col-dupr">{{ user.duprRating ? (user.duprRating | number:'1.3-3') : '—' }}</td>
                         <td class="col-date">{{ user.createdAt | date:'MMM d, yyyy' }}</td>
                         <td class="col-actions">
                           @if (user.role === 'player' && user.status === 'active') {
@@ -332,6 +334,7 @@ import { MembershipService } from '../../../core/services/membership.service';
     .table-email { font-size: 0.75rem; color: rgba(255,255,255,0.56); margin-top: 1px; }
     .col-contact { color: rgba(255,255,255,0.72); font-size: 0.82rem; }
     .col-date { color: rgba(255,255,255,0.62); font-size: 0.8rem; white-space: nowrap; }
+    .col-dupr { color: #60a5fa; font-size: 0.82rem; font-weight: 700; white-space: nowrap; }
 
     .role-badge, .status-badge {
       padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; text-transform: capitalize;

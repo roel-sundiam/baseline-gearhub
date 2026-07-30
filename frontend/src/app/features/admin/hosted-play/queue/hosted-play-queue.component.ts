@@ -492,9 +492,27 @@ import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr
                         }
                       }
                       <span class="match-time">{{ m.finishedAt | date:'shortTime' }}</span>
-                      <button class="icon-btn" [title]="m.team1Score === null ? 'Add score' : 'Edit score'" [disabled]="busy" (click)="openScoreModal(m)">
-                        <i class="fas" [class.fa-plus]="m.team1Score === null" [class.fa-pen]="m.team1Score !== null"></i>
-                      </button>
+                      @if (confirmingDeleteId === m._id) {
+                        <span class="match-delete-confirm">
+                          Delete this game?
+                          <button class="icon-btn icon-btn--danger" title="Confirm delete" [disabled]="deletingMatchIds.has(m._id)" (click)="deleteMatch(m._id)">
+                            <i class="fas" [class.fa-check]="!deletingMatchIds.has(m._id)" [class.fa-circle-notch]="deletingMatchIds.has(m._id)" [class.fa-spin]="deletingMatchIds.has(m._id)"></i>
+                          </button>
+                          <button class="icon-btn" title="Cancel" [disabled]="deletingMatchIds.has(m._id)" (click)="cancelDeleteMatch()">
+                            <i class="fas fa-xmark"></i>
+                          </button>
+                        </span>
+                        @if (deleteMatchError) {
+                          <span class="match-delete-error">{{ deleteMatchError }}</span>
+                        }
+                      } @else {
+                        <button class="icon-btn" [title]="m.team1Score === null ? 'Add score' : 'Edit score'" [disabled]="busy" (click)="openScoreModal(m)">
+                          <i class="fas" [class.fa-plus]="m.team1Score === null" [class.fa-pen]="m.team1Score !== null"></i>
+                        </button>
+                        <button class="icon-btn icon-btn--danger" title="Delete game" [disabled]="busy" (click)="confirmDeleteMatch(m._id)">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      }
                     </div>
                   } @empty {
                     <div class="match-empty">No games recorded yet — finished games will appear here.</div>
@@ -734,7 +752,10 @@ import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr
                         </span>
                         <span class="roster-main">
                           <span class="roster-name">{{ p.memberName }}@if (p.isWalkIn) { <span class="walk">Walk-in</span> }</span>
-                          <span class="roster-meta">{{ p.gamesPlayed }} games</span>
+                          <span class="roster-meta">
+                            {{ p.gamesPlayed }} games
+                            @if (p.duprRating) { <span class="roster-dupr">DUPR {{ p.duprRating | number:'1.3-3' }}</span> }
+                          </span>
                         </span>
                         <span class="state-tag" [ngClass]="p.queueStatus">{{ stateLabel(p) }}</span>
                       </button>
@@ -1063,6 +1084,7 @@ import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr
     .player-name, .q-name, .roster-name { color: var(--text); font-size: .9rem; font-weight: 850; min-width: 0; overflow-wrap: anywhere; }
     .player-meta, .roster-meta, .q-games { color: var(--muted); font-size: .74rem; font-weight: 750; white-space: nowrap; }
     .q-name { flex: 1; }
+    .roster-dupr { color: #60a5fa; margin-left: .4rem; }
 
     .walk {
       display: inline-flex;
@@ -1094,6 +1116,8 @@ import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr
     }
     .icon-btn:hover:not(:disabled) { background: rgba(255,255,255,.12); }
     .icon-btn:disabled { opacity: .36; cursor: not-allowed; }
+    .icon-btn--danger { color: #ef4444; border-color: rgba(239,68,68,.32); }
+    .icon-btn--danger:hover:not(:disabled) { background: rgba(239,68,68,.14); }
     .icon-btn.danger { color: #fca5a5; border-color: rgba(239,68,68,.25); }
 
     .primary-action, .danger-action, .primary-small, .secondary-btn, .finish-btn, .text-action {
@@ -1398,6 +1422,7 @@ import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr
     .match-refresh-btn:hover:not(:disabled) { background: rgba(255,255,255,.12); color: var(--text); }
     .match-row {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: .6rem;
       padding: .5rem .35rem;
@@ -1417,7 +1442,7 @@ import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr
       font-weight: 900;
     }
     .match-main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
-    .match-team { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+    .match-team { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 220px; }
     .match-team.match-winner { color: var(--text); font-weight: 800; }
     .match-team .fa-trophy { color: var(--accent); font-size: .72rem; margin-left: .25rem; }
     .match-vs { color: var(--soft); font-size: .72rem; font-weight: 800; text-transform: uppercase; }
@@ -1459,6 +1484,8 @@ import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr
     }
     .match-time { flex-shrink: 0; color: var(--soft); font-size: .74rem; }
     .match-empty { padding: .8rem .35rem; color: var(--soft); font-size: .84rem; }
+    .match-delete-confirm { display: inline-flex; align-items: center; gap: .4rem; color: #ef4444; font-size: .78rem; font-weight: 800; flex-shrink: 0; }
+    .match-delete-error { flex-basis: 100%; color: #ef4444; font-size: .74rem; }
 
     /* ── Tap-to-swap rearrange ── */
     .move-banner {
@@ -1668,6 +1695,9 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
   matchesLoading = false;
   duprSubmissions = new Map<string, DuprMatchSubmission>();
   duprRetryingIds = new Set<string>();
+  confirmingDeleteId: string | null = null; // matchId showing the inline "are you sure" state
+  deletingMatchIds = new Set<string>();
+  deleteMatchError = '';
   duprActionModal: { submission: DuprMatchSubmission; mode: 'dispute' | 'resolve'; reason: string; s1: number | null; s2: number | null; saving: boolean; error: string } | null = null;
   finishScoreA: number | null = null; // optional score inputs in winner-picker mode
   finishScoreB: number | null = null;
@@ -2098,6 +2128,38 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
     this.dupr.resubmit(submission._id).subscribe({
       next: () => { this.duprRetryingIds.delete(submission._id); this.loadDuprSubmissions(); this.cdr.detectChanges(); },
       error: () => { this.duprRetryingIds.delete(submission._id); this.cdr.detectChanges(); },
+    });
+  }
+
+  confirmDeleteMatch(matchId: string) {
+    this.deleteMatchError = '';
+    this.confirmingDeleteId = matchId;
+  }
+
+  cancelDeleteMatch() {
+    this.confirmingDeleteId = null;
+  }
+
+  // Deleting a match that was submitted to DUPR also retracts it there (see the
+  // backend route) — DUPR recalculates ratings without it and pushes the update
+  // back through the existing rating webhook, same as any other rating change.
+  deleteMatch(matchId: string) {
+    this.deletingMatchIds.add(matchId);
+    this.deleteMatchError = '';
+    this.cdr.detectChanges();
+    this.hp.deleteMatch(matchId).subscribe({
+      next: () => {
+        this.matches = this.matches.filter((m) => m._id !== matchId);
+        this.duprSubmissions.delete(matchId);
+        this.deletingMatchIds.delete(matchId);
+        this.confirmingDeleteId = null;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.deletingMatchIds.delete(matchId);
+        this.deleteMatchError = err?.error?.error || 'Failed to delete this game.';
+        this.cdr.detectChanges();
+      },
     });
   }
 

@@ -178,6 +178,12 @@ const hostedPlaySchema = new mongoose.Schema(
     // null scoreTarget = no configured target; score entry stays free-form.
     scoreTarget: { type: Number, enum: [11, 15, 21, null], default: null },
     winByTwo: { type: Boolean, default: true },
+
+    // DUPR "Premium Event" gating (User Gating requirement): when true, only players
+    // whose linked DUPR account carries the PREMIUM_L1 entitlement may register or
+    // participate. Only settable when DUPR is configured, the club has the DUPR
+    // add-on enabled, and sport is pickleball — see hosted-play.routes.js.
+    premiumEvent: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

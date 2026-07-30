@@ -466,6 +466,7 @@ function toPublic(p) {
     memberId: p.memberId ?? null,
     memberName: p.memberName || "Member",
     profileImage: p.profileImage ?? null,
+    duprRating: p.duprRating ?? null,
     isWalkIn: !!p.isWalkIn,
     checkedIn: !!p.checkedIn,
     queueStatus: p.queueStatus,

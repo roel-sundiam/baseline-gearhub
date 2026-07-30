@@ -14,6 +14,9 @@ const Club = require("../models/Club");
 const Charge = require("../models/Charge");
 const AppServicePayment = require("../models/AppServicePayment");
 const duprSync = require("../utils/duprSync");
+const dupr = require("../utils/dupr");
+const { isDuprConfigured } = dupr;
+const DuprMatchSubmission = require("../models/DuprMatchSubmission");
 const queue = require("../services/queue-engine");
 const fixedDoubles = require("../services/fixed-doubles-engine");
 const { sendPushToClubAdmins, sendPushToUser } = require("../utils/push");
@@ -57,6 +60,32 @@ function skillBandError(session, level) {
   const o = SKILL_ORDER[level];
   if (min && o < SKILL_ORDER[min]) return `This session is for ${SKILL_LABELS[min]} level and up.`;
   if (max && o > SKILL_ORDER[max]) return `This session is capped at ${SKILL_LABELS[max]} level.`;
+  return null;
+}
+
+// DUPR "Premium Event" gating (User Gating requirement): only players holding the
+// PREMIUM_L1 entitlement on their linked DUPR account may join/participate.
+// Sourced from the same SSO-postMessage-only entitlements snapshot as BASIC_L1
+// (see duprSync.resolveTeamPlayers) — no live re-check exists.
+function premiumEventError(session, user) {
+  if (!session.premiumEvent) return null;
+  if (!user?.duprLink?.verified) {
+    return "This is a Premium Event — you must link a verified DUPR account to register.";
+  }
+  if (!user.duprLink.entitlements?.includes("PREMIUM_L1")) {
+    return "This is a Premium Event (DUPR+) — your linked DUPR account doesn't have an active DUPR+ subscription.";
+  }
+  return null;
+}
+
+// Validates a requested premiumEvent=true against DUPR config/club add-on/sport —
+// a session no one could ever join otherwise. Returns an error string, or null if ok.
+function premiumEventSetupError(premiumEvent, sport, club) {
+  if (!premiumEvent) return null;
+  if (sport !== "pickleball") return "Premium Event is only available for pickleball sessions";
+  if (!isDuprConfigured() || !club?.duprEnabled) {
+    return "Premium Event requires the DUPR add-on to be enabled for this club";
+  }
   return null;
 }
 
@@ -195,9 +224,12 @@ router.post("/player/sessions/:id/join", auth, async (req, res) => {
     // Skill band gate — applies to confirmed joins and waitlisting alike.
     // .lean() skips the schema default, so fall back to it here for players
     // who've never touched their profile (matches User.skillLevel default).
-    const me = await User.findById(memberId).select("skillLevel").lean();
+    const me = await User.findById(memberId).select("skillLevel duprLink").lean();
     const bandErr = skillBandError(session, me?.skillLevel || "novice");
     if (bandErr) return res.status(403).json({ error: bandErr });
+
+    const premErr = premiumEventError(session, me);
+    if (premErr) return res.status(403).json({ error: premErr });
 
     // Session full → offer the waitlist (if the club allows it) instead of rejecting.
     if (session.currentPlayers >= session.maxPlayers) {
@@ -509,7 +541,7 @@ router.get("/player/sessions/:id/queue", auth, async (req, res) => {
     if (!(session.queueManagementEnabled ?? club?.hostedPlayQueueEnabled)) return res.status(403).json({ error: "Queue not enabled for this session" });
     const participants = await HostedPlayParticipant.find({ hostedPlayId: session._id, ...ACTIVE_PARTICIPANT })
       .sort({ createdAt: 1 }).lean();
-    await decorateProfileImages(participants);
+    await decorateParticipants(participants);
     res.json(queue.buildBoard(session, participants));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -575,7 +607,7 @@ router.post("/sessions", auth, admin, async (req, res) => {
       title, sport, date, startTime, endTime, venue, court, address,
       feePerPlayer, sessionFee, guestFeePerPlayer, maxPlayers, maxGuests, description,
       numberOfCourts, playersPerCourt, queueMode, fixedDoubles: fixedDoublesInput,
-      minSkillLevel, maxSkillLevel, scoreTarget, winByTwo,
+      minSkillLevel, maxSkillLevel, scoreTarget, winByTwo, premiumEvent,
     } = req.body;
 
     if (!title || !sport || !date || !startTime || !endTime || !venue || !maxPlayers) {
@@ -594,7 +626,10 @@ router.post("/sessions", auth, admin, async (req, res) => {
       return res.status(400).json({ error: "Max guests cannot exceed maximum players" });
     }
 
-    const club = await Club.findById(req.user.clubId).select("hostedPlayQueueEnabled queueManagementFeePerPlayer hostedPlayFeeSplitMode").lean();
+    const club = await Club.findById(req.user.clubId).select("hostedPlayQueueEnabled queueManagementFeePerPlayer hostedPlayFeeSplitMode duprEnabled").lean();
+
+    const premiumSetupErr = premiumEventSetupError(!!premiumEvent, sport, club);
+    if (premiumSetupErr) return res.status(400).json({ error: premiumSetupErr });
 
     const session = await HostedPlay.create({
       clubId: req.user.clubId,
@@ -623,6 +658,7 @@ router.post("/sessions", auth, admin, async (req, res) => {
       ...(maxSkillLevel ? { maxSkillLevel } : {}),
       scoreTarget: normalizeScoreTarget(sport, scoreTarget),
       ...(winByTwo !== undefined ? { winByTwo: !!winByTwo } : {}),
+      premiumEvent: !!premiumEvent,
     });
 
     // Auto-bill the club the Queue Management fee when a session is created with queue enabled
@@ -649,7 +685,7 @@ router.put("/sessions/:id", auth, admin, async (req, res) => {
       title, sport, date, startTime, endTime, venue, court, address,
       feePerPlayer, sessionFee, guestFeePerPlayer, maxPlayers, maxGuests, description,
       numberOfCourts, playersPerCourt, queueMode, fixedDoubles: fixedDoublesInput,
-      minSkillLevel, maxSkillLevel, scoreTarget, winByTwo,
+      minSkillLevel, maxSkillLevel, scoreTarget, winByTwo, premiumEvent,
     } = req.body;
     if (scoreTarget !== undefined && scoreTarget !== null && scoreTarget !== "" && !VALID_SCORE_TARGETS.includes(Number(scoreTarget))) {
       return res.status(400).json({ error: "scoreTarget must be 11, 15, or 21" });
@@ -657,6 +693,16 @@ router.put("/sessions/:id", auth, admin, async (req, res) => {
 
     const session = await HostedPlay.findOne({ _id: req.params.id, clubId: req.user.clubId });
     if (!session) return res.status(404).json({ error: "Session not found" });
+
+    if (premiumEvent !== undefined) {
+      const effectiveSport = sport !== undefined ? sport : session.sport;
+      if (premiumEvent) {
+        const club = await Club.findById(req.user.clubId).select("duprEnabled").lean();
+        const premiumSetupErr = premiumEventSetupError(true, effectiveSport, club);
+        if (premiumSetupErr) return res.status(400).json({ error: premiumSetupErr });
+      }
+      session.premiumEvent = !!premiumEvent;
+    }
 
     const effectiveQueueMode = queueMode !== undefined ? queueMode : session.queueMode;
     if (effectiveQueueMode === "fixed_doubles_rotation" && (fixedDoublesInput !== undefined || queueMode !== undefined)) {
@@ -691,6 +737,7 @@ router.put("/sessions/:id", auth, admin, async (req, res) => {
     // that isn't pickleball so stale values don't resurface if it's switched back.
     if (session.sport !== "pickleball") {
       session.scoreTarget = null;
+      session.premiumEvent = false;
     } else if (scoreTarget !== undefined) {
       session.scoreTarget = normalizeScoreTarget(session.sport, scoreTarget);
     }
@@ -1062,13 +1109,16 @@ const QUEUE_FIELDS = [
 
 // Decorate members with their profile image so boards can show real avatars
 // (display-only — never persisted back; see QUEUE_FIELDS).
-async function decorateProfileImages(participants) {
+async function decorateParticipants(participants) {
   const memberIds = [...new Set(participants.filter((p) => p.memberId).map((p) => String(p.memberId)))];
   if (!memberIds.length) return;
-  const users = await User.find({ _id: { $in: memberIds } }).select("profileImage").lean();
-  const imageById = new Map(users.map((u) => [String(u._id), u.profileImage || null]));
+  const users = await User.find({ _id: { $in: memberIds } }).select("profileImage duprLink").lean();
+  const byId = new Map(users.map((u) => [String(u._id), u]));
   for (const p of participants) {
-    if (p.memberId) p.profileImage = imageById.get(String(p.memberId)) ?? null;
+    if (!p.memberId) continue;
+    const user = byId.get(String(p.memberId));
+    p.profileImage = user?.profileImage || null;
+    p.duprRating = user?.duprLink?.verified ? (user.duprLink.doubles ?? null) : null;
   }
 }
 
@@ -1078,7 +1128,7 @@ async function loadParticipantsContext(session, club) {
   const participants = await HostedPlayParticipant.find({ hostedPlayId: session._id, ...ACTIVE_PARTICIPANT })
     .sort({ createdAt: 1 })
     .lean();
-  await decorateProfileImages(participants);
+  await decorateParticipants(participants);
   const prev = snapshotQueue(session, participants);
   return { session, participants, club, prev };
 }
@@ -1494,6 +1544,13 @@ router.post("/sessions/:id/walkins", auth, admin, async (req, res) => {
     const name = String(req.body.name || "").trim();
     if (!name) return res.status(400).json({ error: "Walk-in name is required" });
 
+    // Guest walk-ins have no DUPR-linked account, so they can never satisfy a
+    // Premium Event's PREMIUM_L1 requirement — no admin-override carve-out here,
+    // unlike the skill-band/guest-cap checks below (DUPR's requirement is a hard gate).
+    if (ctx.session.premiumEvent) {
+      return res.status(400).json({ error: "This is a Premium Event — guest walk-ins aren't eligible; only DUPR+ linked members may participate." });
+    }
+
     // Walk-ins are guests: enforce the session's guest cap.
     if (ctx.session.maxGuests != null) {
       const guests = await countGuests(ctx.session._id);
@@ -1540,13 +1597,18 @@ router.post("/sessions/:id/walkins", auth, admin, async (req, res) => {
 // Member walk-in: link the participant to a club member's account. Occupies a
 // member slot (maxPlayers), never the guest cap. Skill-band and guest checks
 // are deliberately skipped — the admin is seating a player standing at the desk.
+// Premium Event gating is the one exception: DUPR's requirement has no stated
+// admin-override carve-out, so it still runs even for a manually-seated member.
 async function addMemberWalkIn(req, res, ctx) {
   const memberId = String(req.body.memberId);
-  const user = await User.findById(memberId).select("name clubId").lean();
+  const user = await User.findById(memberId).select("name clubId duprLink").lean();
   if (!user) return res.status(404).json({ error: "Member not found" });
   if (String(user.clubId) !== String(ctx.session.clubId)) {
     return res.status(400).json({ error: "Member does not belong to this club" });
   }
+
+  const premErr = premiumEventError(ctx.session, user);
+  if (premErr) return res.status(403).json({ error: premErr });
 
   const existing = await HostedPlayParticipant.findOne({ hostedPlayId: ctx.session._id, memberId }).lean();
   if (existing) {
@@ -2336,8 +2398,36 @@ router.patch("/matches/:matchId/score", auth, admin, async (req, res) => {
     // correcting an already-submitted match (attemptSubmit calls DUPR's update
     // endpoint once a duprMatchId exists).
     const club = await Club.findById(req.user.clubId).select("duprEnabled duprClubId").lean();
-    const dupr = await duprSync.enqueueAndSubmit(match, club);
-    res.json({ ...match.toObject(), dupr });
+    const duprResult = await duprSync.enqueueAndSubmit(match, club);
+    res.json({ ...match.toObject(), dupr: duprResult });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/hosted-play/matches/:matchId — permanently remove a recorded game.
+// If it was ever submitted to DUPR, retract it there first so DUPR recalculates
+// ratings without this match — the corrected rating then arrives back through the
+// existing RATING webhook, same as any other rating change; nothing else to do here.
+router.delete("/matches/:matchId", auth, admin, async (req, res) => {
+  try {
+    const match = await HostedPlayMatch.findOne({ _id: req.params.matchId, clubId: req.user.clubId });
+    if (!match) return res.status(404).json({ error: "Match not found" });
+
+    const submission = await DuprMatchSubmission.findOne({ source: "hosted_play", sourceMatchId: match._id });
+    if (submission?.duprMatchId) {
+      const result = await dupr.deleteMatch(submission.duprMatchId, submission.idempotencyKey);
+      // 404 means DUPR already has no record of it (e.g. a prior delete attempt
+      // succeeded but we never heard back) — safe to proceed. Any other failure
+      // blocks the delete so a match is never silently orphaned on DUPR's side
+      // with stale ratings still counting it.
+      if (!result.ok && result.status !== 404) {
+        return res.status(502).json({ error: `Could not remove this match from DUPR (${result.error || "unknown error"}) — try again.` });
+      }
+    }
+    if (submission) await submission.deleteOne();
+    await match.deleteOne();
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2662,9 +2752,12 @@ router.post("/sessions/:id/pairs/:pairId/respond", auth, async (req, res) => {
       if (ctx.session.currentPlayers >= ctx.session.maxPlayers) {
         return res.status(400).json({ error: "This session is full — no spots left for a partner" });
       }
-      const me = await User.findById(req.user.userId).select("skillLevel").lean();
+      const me = await User.findById(req.user.userId).select("skillLevel duprLink").lean();
       const bandErr = skillBandError(ctx.session, me?.skillLevel || "novice");
       if (bandErr) return res.status(403).json({ error: bandErr });
+
+      const premErr = premiumEventError(ctx.session, me);
+      if (premErr) return res.status(403).json({ error: premErr });
 
       const { paymentMethod, paymentScreenshot, useCredit } = req.body;
       const result = await joinSessionAsParticipant({ session: ctx.session, memberId: req.user.userId, paymentMethod, paymentScreenshot, useCredit });

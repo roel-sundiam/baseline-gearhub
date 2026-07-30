@@ -322,6 +322,22 @@ import QRCode from 'qrcode';
                   </label>
                 </span>
                 <span class="action-sub">Submit Hosted Play pickleball scores to DUPR for official ratings</span>
+                @if (club?.duprEnabled) {
+                  <div class="dupr-club-id-row" (click)="$event.stopPropagation()">
+                    <input
+                      type="text"
+                      placeholder="Your DUPR Club ID"
+                      [(ngModel)]="editDuprClubId"
+                      [disabled]="savingDuprClubId"
+                      (keyup.enter)="saveMyDuprClubId()"
+                    />
+                    <button type="button" [disabled]="savingDuprClubId" (click)="saveMyDuprClubId()">
+                      @if (savingDuprClubId) { <i class="fas fa-circle-notch fa-spin"></i> } @else { Save }
+                    </button>
+                    @if (duprClubIdSaveMsg) { <span class="dupr-club-id-msg">{{ duprClubIdSaveMsg }}</span> }
+                    <span class="dupr-club-id-hint">Find your 10-digit Club ID at <a href="https://www.dupr.com/clubs" target="_blank" rel="noopener" (click)="$event.stopPropagation()">dupr.com/clubs</a> — register your club there first if you haven't already.</span>
+                  </div>
+                }
               </div>
             }
             @if (!authService.isSuperAdmin()) {
@@ -1082,6 +1098,41 @@ import QRCode from 'qrcode';
       .hpq-switch input:checked + .hpq-slider { background: var(--dm-accent); }
       .hpq-switch input:checked + .hpq-slider:before { transform: translateX(20px); }
       .hpq-switch input:disabled + .hpq-slider { opacity: .5; cursor: wait; }
+      .dupr-club-id-row {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-top: 0.6rem;
+        cursor: default;
+        flex-wrap: wrap;
+      }
+      .dupr-club-id-row input {
+        flex: 1;
+        min-width: 120px;
+        padding: 0.4rem 0.6rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.16);
+        background: rgba(255,255,255,0.06);
+        color: #fff;
+        font-size: 0.78rem;
+        font-family: inherit;
+      }
+      .dupr-club-id-row input:disabled { opacity: 0.6; }
+      .dupr-club-id-row button {
+        flex-shrink: 0;
+        padding: 0.4rem 0.8rem;
+        border-radius: 8px;
+        border: none;
+        background: var(--dm-accent);
+        color: #07130d;
+        font-weight: 800;
+        font-size: 0.78rem;
+        cursor: pointer;
+      }
+      .dupr-club-id-row button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .dupr-club-id-msg { font-size: 0.72rem; color: var(--dm-accent); flex-basis: 100%; }
+      .dupr-club-id-hint { font-size: 0.68rem; color: rgba(255,255,255,0.5); flex-basis: 100%; line-height: 1.4; }
+      .dupr-club-id-hint a { color: var(--dm-accent); text-decoration: underline; }
 
       .action-card--queue {
         border-color: rgba(56,189,248,.22);
@@ -1883,6 +1934,9 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   duprConfigured = false;
   togglingDuprAddon = false;
+  editDuprClubId = '';
+  savingDuprClubId = false;
+  duprClubIdSaveMsg = '';
 
   toggleDuprAddon(enabled: boolean) {
     if (!this.club || this.togglingDuprAddon || !this.duprConfigured) return;
@@ -1895,6 +1949,26 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.togglingDuprAddon = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  saveMyDuprClubId() {
+    if (!this.club || this.savingDuprClubId) return;
+    this.savingDuprClubId = true;
+    this.duprClubIdSaveMsg = '';
+    this.clubService.patchMyDuprClubId(this.editDuprClubId.trim() || null).subscribe({
+      next: (res) => {
+        this.club = { ...this.club!, duprClubId: res.duprClubId };
+        this.savingDuprClubId = false;
+        this.duprClubIdSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.duprClubIdSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => {
+        this.savingDuprClubId = false;
+        this.duprClubIdSaveMsg = 'Failed to save.';
         this.cdr.detectChanges();
       },
     });
@@ -1924,6 +1998,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       this.clubService.getClub(clubId).subscribe({
         next: (c) => {
           this.club = c;
+          this.editDuprClubId = c.duprClubId ?? '';
           if (this.isPureHostedPlayClub) this.loadPosterHostedPlaySessions();
           else this.loadPosterSlots();
           this.buildBookingLinkQr();

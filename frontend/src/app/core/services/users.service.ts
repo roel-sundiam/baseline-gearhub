@@ -10,6 +10,7 @@ export interface User {
   status: string;
   contactNumber?: string;
   profileImage?: string;
+  duprRating?: number | null;
   createdAt: string;
   // Present on members whose home is another club: their relationship to the
   // viewing club lives in a ClubMembership doc, managed via /memberships APIs.

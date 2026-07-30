@@ -7,6 +7,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ClubService, Court } from '../../../core/services/club.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
 import { CreditService } from '../../../core/services/credit.service';
+import { DuprService } from '../../../core/services/dupr.service';
 import { QrScannerModalComponent } from './qr-scanner-modal.component';
 
 @Component({
@@ -87,6 +88,9 @@ import { QrScannerModalComponent } from './qr-scanner-modal.component';
             <article class="session-card" [class.session-card--joined]="s.joined">
               @if (levelBand(s)) {
                 <div class="level-band-badge"><i class="fas fa-signal"></i> {{ levelBand(s) }} level</div>
+              }
+              @if (s.premiumEvent) {
+                <div class="premium-event-badge"><i class="fas fa-crown"></i> Premium (DUPR+)</div>
               }
               <div class="card-head">
                 <div class="club-mark">
@@ -569,6 +573,8 @@ import { QrScannerModalComponent } from './qr-scanner-modal.component';
     .dupr-save-msg { font-size: .74rem; color: var(--muted); }
     .level-band-badge { display: inline-flex; align-items: center; gap: .35rem; align-self: flex-start; margin-bottom: .55rem; padding: .2rem .55rem; border-radius: 999px; font-size: .68rem; font-weight: 900; letter-spacing: .02em; color: #c4b5fd; background: rgba(139,92,246,.14); border: 1px solid rgba(139,92,246,.32); }
     .level-band-badge i { font-size: .6rem; }
+    .premium-event-badge { display: inline-flex; align-items: center; gap: .35rem; align-self: flex-start; margin-bottom: .55rem; padding: .2rem .55rem; border-radius: 999px; font-size: .68rem; font-weight: 900; letter-spacing: .02em; color: #fbbf24; background: rgba(251,191,36,.14); border: 1px solid rgba(251,191,36,.32); }
+    .premium-event-badge i { font-size: .6rem; }
 
     .session-card {
       background: rgba(18,37,29,.92);
@@ -908,6 +914,10 @@ export class PlayerHostedPlayComponent implements OnInit {
   myLevel: SkillLevel | null = null;
   savingLevel = false;
 
+  // DUPR entitlements, for Premium Event gating (see premiumGateError()).
+  myDuprVerified = false;
+  myEntitlements: string[] = [];
+
   // Self-reported DUPR doubles rating (2.000-8.000). Phase 0: no DUPR API verification.
   myDuprRating: number | null = null;
   savingDupr = false;
@@ -938,6 +948,7 @@ export class PlayerHostedPlayComponent implements OnInit {
     private clubService: ClubService,
     private cloudinary: CloudinaryService,
     private creditService: CreditService,
+    private duprService: DuprService,
   ) {}
 
   ngOnInit() {
@@ -945,6 +956,18 @@ export class PlayerHostedPlayComponent implements OnInit {
     this.refresh();
     this.loadMyLevel();
     this.loadCreditBalance();
+    this.loadDuprStatus();
+  }
+
+  private loadDuprStatus() {
+    this.duprService.getStatus().subscribe({
+      next: (status) => {
+        this.myDuprVerified = !!status.myLink;
+        this.myEntitlements = status.myLink?.entitlements ?? [];
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
   }
 
   private loadCreditBalance() {
@@ -1056,6 +1079,13 @@ export class PlayerHostedPlayComponent implements OnInit {
     return null;
   }
 
+  premiumGateError(s: HostedPlaySession): string | null {
+    if (!s.premiumEvent) return null;
+    if (!this.myDuprVerified) return 'This is a Premium Event — link a verified DUPR account in your profile first.';
+    if (!this.myEntitlements.includes('PREMIUM_L1')) return "This is a Premium Event (DUPR+) — your DUPR account doesn't have an active DUPR+ subscription.";
+    return null;
+  }
+
   loadClubCourts() {
     const clubId = this.auth.user()?.clubId || this.clubService.getSelectedClubId();
     if (!clubId) return;
@@ -1150,7 +1180,7 @@ export class PlayerHostedPlayComponent implements OnInit {
   join(s: HostedPlaySession) {
     // Check the skill gate up front so a blocked player is told immediately,
     // instead of only after filling out the payment modal for a paid session.
-    const gateErr = this.skillGateError(s);
+    const gateErr = this.skillGateError(s) || this.premiumGateError(s);
     if (gateErr) {
       this.errorMap[s._id] = gateErr;
       this.cdr.detectChanges();

@@ -926,6 +926,7 @@ router.get("/:clubId/hosted-play", async (req, res) => {
       currentPlayers: s.currentPlayers,
       status: s.status,
       venueLogo: findLogo(s.venue, s.court),
+      premiumEvent: !!s.premiumEvent,
     })));
   } catch (err) {
     console.error(err);
@@ -950,6 +951,13 @@ router.post("/:clubId/hosted-play/:sessionId/guest-join", async (req, res) => {
     if (session.clubId.toString() !== club._id.toString()) return res.status(404).json({ error: "Session not found" });
     if (session.status !== "open") return res.status(400).json({ error: "Session is not open" });
     if (session.currentPlayers >= session.maxPlayers) return res.status(400).json({ error: "Session is full" });
+
+    // Guests have no DUPR-linked account, so they can never satisfy a Premium
+    // Event's PREMIUM_L1 requirement - same hard block as admin-added guest
+    // walk-ins in hosted-play.routes.js (no override for either path).
+    if (session.premiumEvent) {
+      return res.status(400).json({ error: "This is a Premium Event — guest sign-ups aren't eligible; only DUPR+ linked members may participate." });
+    }
 
     if (session.maxGuests != null) {
       const guests = await countGuests(session._id);

@@ -258,6 +258,8 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                               <div class="lp-op-type">Full</div>
                             } @else if (s.maxGuests != null && s.currentGuests >= s.maxGuests) {
                               <div class="lp-op-type">Guest spots full</div>
+                            } @else if (s.premiumEvent) {
+                              <div class="lp-op-type" title="Premium Event — only DUPR+ linked club members may join">Members only (DUPR+)</div>
                             } @else {
                               <button class="lp-op-join-btn"
                                 (click)="openGuestJoinForm(s._id)"
@@ -1469,6 +1471,7 @@ export class GuestBookComponent implements OnInit, OnDestroy {
     guestFeePerPlayer: number; maxGuests: number | null; currentGuests: number;
     maxPlayers: number; currentPlayers: number; status: 'open' | 'full';
     venueLogo?: string | null;
+    premiumEvent?: boolean;
   }[] = [];
   clubMobile = '';
   clubEmail = '';
