@@ -18,6 +18,16 @@
 > under External API Reality). `VERIFIED_L1` remains unaddressed — no CourtGo resource
 > needs identity verification today, still worth confirming with DUPR.
 >
+> **2026-07-30: production keys received and switched over.** Premium Event support was
+> committed, deployed, and live-verified first (real UAT-linked accounts: unlinked and
+> `BASIC_L1`-only players blocked, a `PREMIUM_L1` player allowed through). The claimed
+> prod base URL below (`api.dupr.com`) turned out to be **wrong** — that host doesn't
+> exist (NXDOMAIN). The real production base URL, confirmed live via a real token
+> request that succeeded, is `https://prod.mydupr.com/api` (per GitBook's
+> `get-started/partner-access-token-generation` page — the correct source this time).
+> Production credentials are now live in Netlify; webhook re-registration against
+> production is the next step, to be done by the account owner directly (not Claude).
+>
 > Remaining, no longer blocking: wiring an external cron/Netlify scheduled function to
 > call the retry-sweep endpoint on a timer (works manually, nothing calls it
 > automatically), and the still-unexplained webhook `message.token` field worth asking
@@ -61,7 +71,7 @@ Groundwork already exists (deliberately stubbed "Phase 0"): `User.duprRating` + 
   **2026-07-29 update — Premium Event support (`PREMIUM_L1` gating) SHIPPED for Hosted Play.** DUPR's GitBook Platform Requirements state Premium Event support is a *mandatory* production-key requirement, not optional — confirmed live on a review call with DUPR PM Haresh Chandiramani. Built: `HostedPlay.premiumEvent` (Boolean, settable only when `isDuprConfigured()` + `club.duprEnabled` + `sport === "pickleball"`), a `premiumEventError()` gate mirroring the `BASIC_L1` shape (checked at the main join route, fixed-doubles partner-invite-accept, and member walk-ins; guest walk-ins are blocked outright on premium sessions since a guest can never hold `PREMIUM_L1`), an admin creation-form toggle, and a player-facing "Premium (DUPR+)" badge + join-time error message.
 
   **2026-07-30 confirmed via written reply from Haresh:** "Premium is a requirement... While this is not mandatory, it is required to have the option for creating an event." — i.e. CourtGo isn't required to actually run/use a Premium event, only to have the *capability* (an admin-facing option to create one, with working `PREMIUM_L1` gating) — exactly what was built above. This closes out the `PREMIUM_L1` question for good. `VERIFIED_L1` still has no CourtGo resource to gate (no identity-verification-gated feature) — not addressed, still worth confirming with DUPR whether that's acceptable as-is.
-- Environments: UAT `https://uat.mydupr.com/api` (dashboard `uat.dupr.gg`), Prod `https://api.dupr.com/api` (dashboard `dashboard.dupr.com`). Full docs: `dupr.gitbook.io/dupr-raas`.
+- Environments: UAT `https://uat.mydupr.com/api` (dashboard `uat.dupr.gg`), Prod `https://prod.mydupr.com/api` (dashboard `dashboard.dupr.com`) — **corrected 2026-07-30**, confirmed live via a real token request; the previously-stated `api.dupr.com` does not exist. Full docs: `dupr.gitbook.io/dupr-raas`.
 - **Access is not self-serve**: requires a signed partner agreement + a manual production-review pass (see onboarding checklist item 5) before production keys are issued — UAT access alone doesn't imply compliance. DUPR is **pickleball-only**.
 
 **RecClub (Reclub) — no public/developer API.** Its own DUPR integration is club-to-club (manual form: play.reclub.co/DUPR_Club_Form; Reclub staff link the clubs); the platform is mobile-only.
