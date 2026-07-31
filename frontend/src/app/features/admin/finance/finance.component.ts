@@ -2086,7 +2086,9 @@ export class FinanceComponent implements OnInit {
   reservationsLoaded = false;
   bookingStartDate = '';
   bookingEndDate = '';
-  bookingStatusFilter: 'all' | 'confirmed' | 'pending_payment' | 'cancelled' = 'all';
+  // Defaults to 'confirmed' so Total Hours / Approved Earnings match /admin/finance-reports
+  // for the same date range out of the box (that report only counts confirmed reservations).
+  bookingStatusFilter: 'all' | 'confirmed' | 'pending_payment' | 'cancelled' = 'confirmed';
 
   convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs' = 'per_hour';
   convenienceFeeMonthlyAmount = 0;

@@ -39,6 +39,39 @@ export interface FinanceReportMonthRow {
   net: number;
 }
 
+export interface NamedFeeTotal {
+  name: string;
+  total: number;
+}
+
+export interface HoursAndFees {
+  totalHours: number;
+  excessPersonFee: number;
+  coachingFee: number;
+  // One row per Additional Booking Fee configured for this club (superadmin club settings),
+  // even if it wasn't charged in this period — so admins see it's applicable to this club.
+  additionalFees: NamedFeeTotal[];
+  // Catch-all for extra fees charged under a name no longer in the club's current config.
+  otherFee: number;
+}
+
+export interface BookingDetailRow {
+  date: string;
+  timeSlot: string;
+  durationHours: number;
+  amount: number;
+  chargeStatus: 'paid' | 'unpaid';
+  paymentMethod?: string;
+  courtFee: number;
+  lightFee: number;
+  ballBoyFee: number;
+  guestFee: number;
+  rentalFee: number;
+  coachingFee: number;
+  additionalFees: NamedFeeTotal[];
+  otherFee: number;
+}
+
 export interface ClubFinanceReport {
   totalIncome: number;
   totalExpenses: number;
@@ -47,6 +80,8 @@ export interface ClubFinanceReport {
   manualIncome: { total: number; byCategory: CategoryTotal[] };
   expenses: { total: number; byCategory: CategoryTotal[] };
   byMonth: FinanceReportMonthRow[];
+  hoursAndFees: HoursAndFees;
+  bookings: BookingDetailRow[];
 }
 
 @Injectable({ providedIn: 'root' })

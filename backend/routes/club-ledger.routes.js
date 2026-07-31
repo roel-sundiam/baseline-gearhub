@@ -4,6 +4,7 @@ const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
 const Club = require("../models/Club");
 const Charge = require("../models/Charge");
+const Reservation = require("../models/Reservation");
 const ClubLedgerEntry = require("../models/ClubLedgerEntry");
 const { ownsClub } = require("../utils/scope");
 const { ensureFinanceReportBilling } = require("../utils/financeReportBilling");
@@ -131,12 +132,81 @@ router.get("/report", auth, admin, resolveReportClub, async (req, res) => {
     const dateFilter = dateRangeFilter(from, to);
     const hasRange = Object.keys(dateFilter).length > 0;
     const clubObjId = new mongoose.Types.ObjectId(req.targetClubId);
+    const reservationMatch = { clubId: clubObjId, status: "confirmed", ...(hasRange ? { date: dateFilter } : {}) };
 
-    // Charge income is recognized on paidAt (createdAt fallback for legacy docs)
-    // and excludes the platform convenience fee, which is remitted to CourtGo.
-    const chargeIncomeExpr = { $subtract: ["$amount", { $ifNull: ["$breakdown.convenienceFee", 0] }] };
-    const chargePipeline = [
-      { $match: { clubId: clubObjId, status: "paid" } },
+    // Reservation income is recognized by the reservation's court date (not payment date),
+    // for confirmed reservations only — matching the Bookings tab on /admin/finance. It
+    // includes charges regardless of paid/unpaid status and does not net out the convenience
+    // fee, so the two pages tally for the same date range.
+    const reservationIncomePipeline = [
+      { $match: reservationMatch },
+      { $lookup: { from: "charges", localField: "_id", foreignField: "reservationId", as: "charges" } },
+      { $unwind: "$charges" },
+      {
+        $facet: {
+          byCategory: [
+            {
+              $group: {
+                _id: null,
+                courtFee: { $sum: { $ifNull: ["$charges.breakdown.withoutLightFee", 0] } },
+                lightFee: { $sum: { $ifNull: ["$charges.breakdown.lightFee", 0] } },
+                ballBoyFee: { $sum: { $ifNull: ["$charges.breakdown.ballBoyFee", 0] } },
+                guestFee: { $sum: { $ifNull: ["$charges.breakdown.guestFee", 0] } },
+                rentalFee: { $sum: { $ifNull: ["$charges.breakdown.rentalFee", 0] } },
+                coachingFee: { $sum: { $ifNull: ["$charges.breakdown.coachingFee", 0] } },
+                extraFeeTotal: { $sum: { $ifNull: ["$charges.breakdown.extraFeeTotal", 0] } },
+                total: { $sum: "$charges.amount" },
+              },
+            },
+          ],
+          byMonth: [
+            {
+              $group: {
+                _id: { $dateToString: { format: "%Y-%m", date: "$date" } },
+                income: { $sum: "$charges.amount" },
+              },
+            },
+          ],
+          extraFeesByName: [
+            { $unwind: "$charges.breakdown.extraFees" },
+            {
+              $group: {
+                _id: { $toLower: { $trim: { input: "$charges.breakdown.extraFees.name" } } },
+                total: { $sum: "$charges.breakdown.extraFees.amount" },
+              },
+            },
+          ],
+          bookings: [
+            {
+              $project: {
+                _id: 0,
+                date: "$date",
+                timeSlot: "$timeSlot",
+                durationHours: { $ifNull: ["$durationHours", 1] },
+                amount: "$charges.amount",
+                chargeStatus: "$charges.status",
+                paymentMethod: "$charges.paymentMethod",
+                courtFee: { $ifNull: ["$charges.breakdown.withoutLightFee", 0] },
+                lightFee: { $ifNull: ["$charges.breakdown.lightFee", 0] },
+                ballBoyFee: { $ifNull: ["$charges.breakdown.ballBoyFee", 0] },
+                guestFee: { $ifNull: ["$charges.breakdown.guestFee", 0] },
+                rentalFee: { $ifNull: ["$charges.breakdown.rentalFee", 0] },
+                coachingFee: { $ifNull: ["$charges.breakdown.coachingFee", 0] },
+                extraFees: { $ifNull: ["$charges.breakdown.extraFees", []] },
+              },
+            },
+            { $sort: { date: 1, timeSlot: 1 } },
+          ],
+        },
+      },
+    ];
+
+    // Non-reservation charges (open play, per-game, hosted play, session) have no Bookings-tab
+    // equivalent to reconcile against, so they keep the original cash-basis definition: paid
+    // only, keyed by payment date, net of the convenience fee (remitted to CourtGo).
+    const otherChargeIncomeExpr = { $subtract: ["$amount", { $ifNull: ["$breakdown.convenienceFee", 0] }] };
+    const otherChargePipeline = [
+      { $match: { clubId: clubObjId, chargeType: { $ne: "reservation" }, status: "paid" } },
       { $addFields: { incomeDate: { $ifNull: ["$paidAt", "$createdAt"] } } },
       ...(hasRange ? [{ $match: { incomeDate: dateFilter } }] : []),
       {
@@ -145,17 +215,10 @@ router.get("/report", auth, admin, resolveReportClub, async (req, res) => {
             {
               $group: {
                 _id: null,
-                courtFee: { $sum: { $ifNull: ["$breakdown.withoutLightFee", 0] } },
-                lightFee: { $sum: { $ifNull: ["$breakdown.lightFee", 0] } },
-                ballBoyFee: { $sum: { $ifNull: ["$breakdown.ballBoyFee", 0] } },
-                guestFee: { $sum: { $ifNull: ["$breakdown.guestFee", 0] } },
-                rentalFee: { $sum: { $ifNull: ["$breakdown.rentalFee", 0] } },
-                coachingFee: { $sum: { $ifNull: ["$breakdown.coachingFee", 0] } },
                 gameFee: { $sum: { $ifNull: ["$breakdown.gameFee", 0] } },
                 hostedPlayFee: { $sum: { $ifNull: ["$breakdown.hostedPlayFee", 0] } },
-                extraFeeTotal: { $sum: { $ifNull: ["$breakdown.extraFeeTotal", 0] } },
                 convenienceFeesExcluded: { $sum: { $ifNull: ["$breakdown.convenienceFee", 0] } },
-                total: { $sum: chargeIncomeExpr },
+                total: { $sum: otherChargeIncomeExpr },
               },
             },
           ],
@@ -163,7 +226,7 @@ router.get("/report", auth, admin, resolveReportClub, async (req, res) => {
             {
               $group: {
                 _id: { $dateToString: { format: "%Y-%m", date: "$incomeDate" } },
-                income: { $sum: chargeIncomeExpr },
+                income: { $sum: otherChargeIncomeExpr },
               },
             },
           ],
@@ -173,8 +236,9 @@ router.get("/report", auth, admin, resolveReportClub, async (req, res) => {
 
     const manualMatch = { clubId: clubObjId, ...(hasRange ? { date: dateFilter } : {}) };
 
-    const [[chargeResult], manualByCategory, manualByMonth] = await Promise.all([
-      Charge.aggregate(chargePipeline),
+    const [[reservationResult], [otherResult], manualByCategory, manualByMonth, [hoursResult]] = await Promise.all([
+      Reservation.aggregate(reservationIncomePipeline),
+      Charge.aggregate(otherChargePipeline),
       ClubLedgerEntry.aggregate([
         { $match: manualMatch },
         { $group: { _id: { category: "$category", type: "$type" }, total: { $sum: "$amount" } } },
@@ -190,17 +254,70 @@ router.get("/report", auth, admin, resolveReportClub, async (req, res) => {
           },
         },
       ]),
+      Reservation.aggregate([
+        { $match: reservationMatch },
+        { $group: { _id: null, totalHours: { $sum: { $ifNull: ["$durationHours", 1] } } } },
+      ]),
     ]);
 
-    const catTotals = chargeResult.byCategory[0] ?? {};
+    const resTotals = reservationResult.byCategory[0] ?? {};
+    const otherTotals = otherResult.byCategory[0] ?? {};
     const chargeCategoryKeys = [
-      "courtFee", "lightFee", "ballBoyFee", "guestFee", "rentalFee",
-      "coachingFee", "gameFee", "hostedPlayFee", "extraFeeTotal",
+      { key: "courtFee", source: resTotals },
+      { key: "lightFee", source: resTotals },
+      { key: "ballBoyFee", source: resTotals },
+      { key: "guestFee", source: resTotals },
+      { key: "rentalFee", source: resTotals },
+      { key: "coachingFee", source: resTotals },
+      { key: "gameFee", source: otherTotals },
+      { key: "hostedPlayFee", source: otherTotals },
+      { key: "extraFeeTotal", source: resTotals },
     ];
     const chargeByCategory = chargeCategoryKeys
-      .map((key) => ({ category: key, total: round2(catTotals[key]) }))
+      .map(({ key, source }) => ({ category: key, total: round2(source[key]) }))
       .filter((row) => row.total !== 0);
-    const chargeTotal = round2(catTotals.total);
+    const chargeTotal = round2((resTotals.total ?? 0) + (otherTotals.total ?? 0));
+
+    // Break out each of the club's currently-configured Additional Booking Fees (set up by the
+    // superadmin on the club) as its own named row — even if it wasn't charged in this period,
+    // so admins can see it's an applicable fee for this club. Any charged extra fee whose name
+    // no longer matches a configured fee (renamed/removed since) falls into a catch-all "Other".
+    const configuredByKey = new Map();
+    for (const fee of req.club.additionalFees ?? []) {
+      const name = (fee.name ?? "").trim();
+      if (name) configuredByKey.set(name.toLowerCase(), name);
+    }
+    const chargedByKey = new Map((reservationResult.extraFeesByName ?? []).map((row) => [row._id, row.total]));
+
+    const additionalFees = [...configuredByKey.entries()]
+      .map(([key, name]) => ({ name, total: round2(chargedByKey.get(key) ?? 0) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    let otherFeeTotal = 0;
+    for (const [key, total] of chargedByKey.entries()) {
+      if (!configuredByKey.has(key)) otherFeeTotal += total;
+    }
+
+    // Give each booking row the same per-club additional-fee breakdown as the summary above,
+    // so the Bookings Detail export has one column per fee this club has actually configured.
+    const bookings = (reservationResult.bookings ?? []).map((b) => {
+      const rowExtraByKey = new Map();
+      for (const ef of b.extraFees ?? []) {
+        const key = (ef.name ?? "").trim().toLowerCase();
+        if (!key) continue;
+        rowExtraByKey.set(key, (rowExtraByKey.get(key) ?? 0) + (ef.amount ?? 0));
+      }
+      const rowAdditionalFees = additionalFees.map(({ name }) => ({
+        name,
+        total: round2(rowExtraByKey.get(name.toLowerCase()) ?? 0),
+      }));
+      let rowOtherFee = 0;
+      for (const [key, total] of rowExtraByKey.entries()) {
+        if (!configuredByKey.has(key)) rowOtherFee += total;
+      }
+      const { extraFees, ...rest } = b;
+      return { ...rest, additionalFees: rowAdditionalFees, otherFee: round2(rowOtherFee) };
+    });
 
     const manualIncomeByCategory = manualByCategory
       .filter((r) => r.type === "income")
@@ -214,8 +331,11 @@ router.get("/report", auth, admin, resolveReportClub, async (req, res) => {
     // Merge charge income + manual entries into one month-keyed trend.
     const months = {};
     const monthRow = (month) => (months[month] ??= { month, chargeIncome: 0, manualIncome: 0, expenses: 0 });
-    for (const r of chargeResult.byMonth) {
-      if (r._id) monthRow(r._id).chargeIncome = round2(r.income);
+    for (const r of reservationResult.byMonth) {
+      if (r._id) monthRow(r._id).chargeIncome = round2(monthRow(r._id).chargeIncome + r.income);
+    }
+    for (const r of otherResult.byMonth) {
+      if (r._id) monthRow(r._id).chargeIncome = round2(monthRow(r._id).chargeIncome + r.income);
     }
     for (const r of manualByMonth) {
       const row = monthRow(r._id.month);
@@ -238,11 +358,19 @@ router.get("/report", auth, admin, resolveReportClub, async (req, res) => {
       chargeIncome: {
         total: chargeTotal,
         byCategory: chargeByCategory,
-        convenienceFeesExcluded: round2(catTotals.convenienceFeesExcluded),
+        convenienceFeesExcluded: round2(otherTotals.convenienceFeesExcluded),
       },
       manualIncome: { total: manualIncomeTotal, byCategory: manualIncomeByCategory },
       expenses: { total: expensesTotal, byCategory: expensesByCategory },
       byMonth,
+      hoursAndFees: {
+        totalHours: round2(hoursResult?.totalHours ?? 0),
+        excessPersonFee: round2(resTotals.guestFee),
+        coachingFee: round2(resTotals.coachingFee),
+        additionalFees,
+        otherFee: round2(otherFeeTotal),
+      },
+      bookings,
     });
   } catch (err) {
     console.error(err);

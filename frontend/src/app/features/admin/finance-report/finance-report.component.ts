@@ -3,7 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AppServicePaymentsService, FeeInfo } from '../../../core/services/app-service-payments.service';
 import { ClubService } from '../../../core/services/club.service';
-import { ClubLedgerService, ClubLedgerEntry, ClubFinanceReport } from '../../../core/services/club-ledger.service';
+import { ClubLedgerService, ClubLedgerEntry, ClubFinanceReport, BookingDetailRow } from '../../../core/services/club-ledger.service';
+import { Workbook } from 'exceljs';
+import { styleSectionRow, styleColumnHeaderRow, styleTotalsRow, styleGridRow, currencyCell, CURRENCY_FMT } from '../../../core/utils/excel-report.util';
 
 const CHARGE_CATEGORY_LABELS: Record<string, string> = {
   courtFee: 'Court fees',
@@ -114,8 +116,8 @@ type Preset = 'thisMonth' | 'lastMonth' | 'quarter' | 'year' | 'custom';
                 </div>
               }
               <div class="export-actions">
-                <button class="btn-ghost btn-sm" [disabled]="!report()" (click)="exportCsv()">
-                  <i class="fas fa-download"></i> Export CSV
+                <button class="btn-ghost btn-sm" [disabled]="!report()" (click)="exportExcel()">
+                  <i class="fas fa-file-excel"></i> Export Excel
                 </button>
                 <button class="btn-ghost btn-sm" [disabled]="!report()" (click)="printReport()">
                   <i class="fas fa-print"></i> Print
@@ -144,6 +146,25 @@ type Preset = 'thisMonth' | 'lastMonth' | 'quarter' | 'year' | 'custom';
                   <p class="summary-label">Net</p>
                   <p class="summary-value">{{ r.net | currency: 'PHP' : 'symbol' : '1.2-2' }}</p>
                 </div>
+              </div>
+
+              <!-- Hours & fees detail -->
+              <div class="breakdown-section">
+                <h3 class="breakdown-title">Hours &amp; Fees Detail</h3>
+                <table class="entries-table">
+                  <thead><tr><th>Metric</th><th class="col-amount">Total</th></tr></thead>
+                  <tbody>
+                    <tr><td>Total hours booked</td><td class="col-amount">{{ r.hoursAndFees.totalHours }}</td></tr>
+                    <tr><td>Excess-person fees</td><td class="col-amount amt--income">{{ r.hoursAndFees.excessPersonFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</td></tr>
+                    <tr><td>Coaching fees</td><td class="col-amount amt--income">{{ r.hoursAndFees.coachingFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</td></tr>
+                    @for (fee of r.hoursAndFees.additionalFees; track fee.name) {
+                      <tr><td>{{ fee.name }}</td><td class="col-amount amt--income">{{ fee.total | currency: 'PHP' : 'symbol' : '1.2-2' }}</td></tr>
+                    }
+                    @if (r.hoursAndFees.otherFee > 0) {
+                      <tr><td>Other fees</td><td class="col-amount amt--income">{{ r.hoursAndFees.otherFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</td></tr>
+                    }
+                  </tbody>
+                </table>
               </div>
 
               <!-- Income by source -->
@@ -175,12 +196,6 @@ type Preset = 'thisMonth' | 'lastMonth' | 'quarter' | 'year' | 'custom';
                       </tr>
                     </tbody>
                   </table>
-                  @if (r.chargeIncome.convenienceFeesExcluded > 0) {
-                    <p class="footnote">
-                      <i class="fas fa-info-circle"></i>
-                      {{ r.chargeIncome.convenienceFeesExcluded | currency: 'PHP' : 'symbol' : '1.2-2' }} in convenience fees excluded (remitted to CourtGo).
-                    </p>
-                  }
                 }
               </div>
 
@@ -1269,49 +1284,135 @@ export class FinanceReportComponent implements OnInit {
     });
   }
 
-  exportCsv() {
+  async exportExcel() {
     const r = this.report();
     if (!r) return;
-    const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
-    const lines: string[] = [];
 
-    lines.push(`Finance Report,${esc(this.rangeLabel())}`);
-    lines.push('');
-    lines.push('TOTALS');
-    lines.push('Total Income,' + r.totalIncome.toFixed(2));
-    lines.push('Total Expenses,' + r.totalExpenses.toFixed(2));
-    lines.push('Net,' + r.net.toFixed(2));
-    lines.push('');
-    lines.push('INCOME BY SOURCE');
-    lines.push('Source,Total');
-    for (const row of r.chargeIncome.byCategory) {
-      lines.push(`${esc(this.chargeCategoryLabel(row.category))},${row.total.toFixed(2)}`);
-    }
-    for (const row of r.manualIncome.byCategory) {
-      lines.push(`${esc(row.category + ' (manual)')},${row.total.toFixed(2)}`);
-    }
-    if (r.chargeIncome.convenienceFeesExcluded > 0) {
-      lines.push(`${esc('Convenience fees excluded (remitted to CourtGo)')},${r.chargeIncome.convenienceFeesExcluded.toFixed(2)}`);
-    }
-    lines.push('');
-    lines.push('EXPENSES BY CATEGORY');
-    lines.push('Category,Total');
-    for (const row of r.expenses.byCategory) {
-      lines.push(`${esc(row.category)},${row.total.toFixed(2)}`);
-    }
-    lines.push('');
-    lines.push('MONTHLY TREND');
-    lines.push('Month,Income,Expenses,Net');
+    const wb = new Workbook();
+    wb.creator = 'CourtGo';
+    wb.created = new Date();
+
+    const summary = wb.addWorksheet('Summary');
+    summary.columns = [{ width: 34 }, { width: 16 }, { width: 16 }, { width: 16 }];
+    summary.addRow(['Finance Report', this.rangeLabel()]).font = { bold: true, size: 13 };
+    summary.addRow([]);
+    styleSectionRow(summary.addRow(['TOTALS']));
+    currencyCell(summary.addRow(['Total Income', r.totalIncome]), 2);
+    currencyCell(summary.addRow(['Total Expenses', r.totalExpenses]), 2);
+    currencyCell(summary.addRow(['Net', r.net]), 2);
+    summary.addRow([]);
+    styleSectionRow(summary.addRow(['HOURS & FEES DETAIL']));
+    styleColumnHeaderRow(summary.addRow(['Metric', 'Total']));
+    summary.addRow(['Total hours booked', r.hoursAndFees.totalHours]);
+    currencyCell(summary.addRow(['Excess-person fees', r.hoursAndFees.excessPersonFee]), 2);
+    currencyCell(summary.addRow(['Coaching fees', r.hoursAndFees.coachingFee]), 2);
+    for (const fee of r.hoursAndFees.additionalFees) currencyCell(summary.addRow([fee.name, fee.total]), 2);
+    if (r.hoursAndFees.otherFee > 0) currencyCell(summary.addRow(['Other fees', r.hoursAndFees.otherFee]), 2);
+    summary.addRow([]);
+    styleSectionRow(summary.addRow(['INCOME BY SOURCE']));
+    styleColumnHeaderRow(summary.addRow(['Source', 'Total']));
+    for (const row of r.chargeIncome.byCategory) currencyCell(summary.addRow([this.chargeCategoryLabel(row.category), row.total]), 2);
+    for (const row of r.manualIncome.byCategory) currencyCell(summary.addRow([`${row.category} (manual)`, row.total]), 2);
+    summary.addRow([]);
+    styleSectionRow(summary.addRow(['EXPENSES BY CATEGORY']));
+    styleColumnHeaderRow(summary.addRow(['Category', 'Total']));
+    for (const row of r.expenses.byCategory) currencyCell(summary.addRow([row.category, row.total]), 2);
+    summary.addRow([]);
+    styleSectionRow(summary.addRow(['MONTHLY TREND']));
+    styleColumnHeaderRow(summary.addRow(['Month', 'Income', 'Expenses', 'Net']));
     for (const m of r.byMonth) {
-      lines.push(`${m.month},${m.income.toFixed(2)},${m.expenses.toFixed(2)},${m.net.toFixed(2)}`);
+      const row = summary.addRow([m.month, m.income, m.expenses, m.net]);
+      currencyCell(row, 2);
+      currencyCell(row, 3);
+      currencyCell(row, 4);
     }
 
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const bookings = wb.addWorksheet('Bookings Detail');
+    // One column per Additional Booking Fee actually configured on this club (e.g. "Food and
+    // Drinks", "Speaker"), plus a catch-all "Other" column only if there's anything to show there.
+    const feeNames = r.hoursAndFees.additionalFees.map((f) => f.name);
+    const showOtherCol = r.hoursAndFees.otherFee > 0;
+    const feeColumnKey = (i: number) => `fee${i}`;
+    bookings.columns = [
+      { header: 'Date', key: 'date', width: 12 },
+      { header: 'Time', key: 'time', width: 10 },
+      { header: 'Duration (hrs)', key: 'duration', width: 14 },
+      { header: 'Court Fee', key: 'courtFee', width: 12 },
+      { header: 'Lighting', key: 'lightFee', width: 12 },
+      { header: 'Ball Boy', key: 'ballBoyFee', width: 12 },
+      { header: 'Guest Fee', key: 'guestFee', width: 12 },
+      { header: 'Rental', key: 'rentalFee', width: 12 },
+      { header: 'Coaching', key: 'coachingFee', width: 12 },
+      ...feeNames.map((name, i) => ({ header: name, key: feeColumnKey(i), width: 12 })),
+      ...(showOtherCol ? [{ header: 'Other', key: 'otherFee', width: 12 }] : []),
+      { header: 'Amount', key: 'amount', width: 12 },
+      { header: 'Status', key: 'status', width: 10 },
+      { header: 'Payment Method', key: 'paymentMethod', width: 16 },
+    ];
+    styleColumnHeaderRow(bookings.getRow(1));
+    bookings.views = [{ state: 'frozen', ySplit: 1 }];
+    const currencyKeys = new Set([
+      'courtFee', 'lightFee', 'ballBoyFee', 'guestFee', 'rentalFee', 'coachingFee', 'amount',
+      ...feeNames.map((_, i) => feeColumnKey(i)),
+      ...(showOtherCol ? ['otherFee'] : []),
+    ]);
+    const applyCurrencyCols = (row: import('exceljs').Row) => {
+      bookings.columns.forEach((col, idx) => {
+        if (col.key && currencyKeys.has(col.key)) row.getCell(idx + 1).numFmt = CURRENCY_FMT;
+      });
+    };
+
+    const feeTotalFor = (b: BookingDetailRow, name: string) => b.additionalFees.find((f) => f.name === name)?.total ?? 0;
+    r.bookings.forEach((b, i) => {
+      const rowData: Record<string, string | number> = {
+        date: new Date(b.date).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' }),
+        time: b.timeSlot,
+        duration: b.durationHours,
+        courtFee: b.courtFee,
+        lightFee: b.lightFee,
+        ballBoyFee: b.ballBoyFee,
+        guestFee: b.guestFee,
+        rentalFee: b.rentalFee,
+        coachingFee: b.coachingFee,
+        amount: b.amount,
+        status: b.chargeStatus === 'paid' ? 'Paid' : 'Unpaid',
+        paymentMethod: b.paymentMethod ?? '—',
+      };
+      feeNames.forEach((name, fi) => (rowData[feeColumnKey(fi)] = feeTotalFor(b, name)));
+      if (showOtherCol) rowData['otherFee'] = b.otherFee;
+      const row = bookings.addRow(rowData);
+      styleGridRow(row, i % 2 === 1);
+      applyCurrencyCols(row);
+    });
+    if (r.bookings.length) {
+      const sum = (key: keyof BookingDetailRow) => r.bookings.reduce((s, b) => s + (b[key] as number), 0);
+      const totalsRow: Record<string, string | number> = {
+        date: `Total (${r.bookings.length} bookings)`,
+        duration: sum('durationHours'),
+        courtFee: sum('courtFee'),
+        lightFee: sum('lightFee'),
+        ballBoyFee: sum('ballBoyFee'),
+        guestFee: sum('guestFee'),
+        rentalFee: sum('rentalFee'),
+        coachingFee: sum('coachingFee'),
+        amount: sum('amount'),
+      };
+      feeNames.forEach((name, i) => {
+        totalsRow[feeColumnKey(i)] = r.bookings.reduce((s, b) => s + feeTotalFor(b, name), 0);
+      });
+      if (showOtherCol) totalsRow['otherFee'] = sum('otherFee');
+      const row = bookings.addRow(totalsRow);
+      styleTotalsRow(row);
+      applyCurrencyCols(row);
+    }
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     const label = this.reportFrom && this.reportTo ? `${this.reportFrom}-to-${this.reportTo}` : 'all-time';
-    a.download = `finance-report-${label}.csv`;
+    a.download = `finance-report-${label}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   }
