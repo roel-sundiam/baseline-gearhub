@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { forkJoin, Observable } from 'rxjs';
 import { UsersService, User } from '../../../core/services/users.service';
 import { MembershipService } from '../../../core/services/membership.service';
+import { AppServicePaymentsService, FeeInfo } from '../../../core/services/app-service-payments.service';
 
 @Component({
   selector: 'app-admin-users',
@@ -82,6 +83,12 @@ import { MembershipService } from '../../../core/services/membership.service';
                         <div class="member-meta"><i class="fas fa-calendar-alt"></i> Requested {{ (user.membershipJoinedAt || user.createdAt) | date:'MMM d, yyyy' }}</div>
                       } @else {
                         <div class="member-meta"><i class="fas fa-calendar-alt"></i> Registered {{ user.createdAt | date:'MMM d, yyyy' }}</div>
+                      }
+                      @if (wouldTriggerActivationFee) {
+                        <div class="fee-disclaimer">
+                          <i class="fas fa-triangle-exclamation"></i>
+                          Approving will incur a one-time {{ feeInfo!.memberActivationFee | currency: 'PHP' : 'symbol' : '1.0-2' }} activation fee — this club has reached its free member limit ({{ feeInfo!.memberFreeTierCount }}).
+                        </div>
                       }
                     </div>
                     <div class="member-actions">
@@ -288,6 +295,12 @@ import { MembershipService } from '../../../core/services/membership.service';
     .member-name { font-size: 0.95rem; font-weight: 700; color: #ffffff; }
     .member-email { font-size: 0.8rem; color: var(--dm-accent); margin-top: 3px; display: flex; align-items: center; gap: 5px; }
     .member-meta { font-size: 0.78rem; color: rgba(255,255,255,0.58); margin-top: 3px; display: flex; align-items: center; gap: 5px; }
+    .fee-disclaimer {
+      font-size: 0.76rem; color: #fcd34d; margin-top: 8px; padding: 6px 10px;
+      background: rgba(245,158,11,0.14); border: 1px solid rgba(245,158,11,0.3);
+      border-radius: 6px; display: flex; align-items: flex-start; gap: 6px; line-height: 1.35;
+    }
+    .fee-disclaimer i { margin-top: 2px; flex-shrink: 0; }
     .member-actions { display: flex; gap: 8px; flex-shrink: 0; }
     .action-btn {
       display: flex; align-items: center; gap: 6px; padding: 8px 16px;
@@ -376,14 +389,24 @@ export class AdminUsersComponent implements OnInit {
   loading = true;
   processing: string | null = null;
   searchQuery = '';
+  feeInfo: FeeInfo | null = null;
 
   get activeCount() {
     return this.allUsers.filter(u => u.status === 'active').length;
   }
 
+  // True once the next approval would push this club past its free member
+  // tier, so it would incur the one-time activation fee.
+  get wouldTriggerActivationFee(): boolean {
+    const fi = this.feeInfo;
+    if (!fi || !(fi.memberActivationFee > 0)) return false;
+    return fi.approvedMemberCount >= fi.memberFreeTierCount;
+  }
+
   constructor(
     private usersService: UsersService,
     private membershipService: MembershipService,
+    private appServicePaymentsService: AppServicePaymentsService,
     private cdr: ChangeDetectorRef,
     private router: Router,
   ) {}
@@ -397,11 +420,13 @@ export class AdminUsersComponent implements OnInit {
     forkJoin({
       pending: this.usersService.getPendingUsers(),
       all: this.usersService.getAllUsers(),
+      feeInfo: this.appServicePaymentsService.getFeeInfo(),
     }).subscribe({
-      next: ({ pending, all }) => {
+      next: ({ pending, all, feeInfo }) => {
         this.pendingUsers = pending;
         this.allUsers = all;
         this.filteredUsers = all;
+        this.feeInfo = feeInfo;
         this.loading = false;
         this.cdr.detectChanges();
       },

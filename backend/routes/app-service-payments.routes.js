@@ -6,6 +6,7 @@ const AppServicePayment = require("../models/AppServicePayment");
 const Charge = require("../models/Charge");
 const Club = require("../models/Club");
 const { ensureFinanceReportBilling, getEffectiveFinanceReportFee } = require("../utils/financeReportBilling");
+const { getEffectiveMemberActivationFee, getMemberFreeTierCount, countApprovedMembers } = require("../utils/memberActivationBilling");
 
 const router = express.Router();
 
@@ -356,6 +357,9 @@ router.get("/fee-info", auth, admin, async (req, res) => {
     if (!clubForBilling) return res.status(404).json({ error: "Club not found" });
     await ensureFinanceReportBilling(clubForBilling, req.user.userId);
     const financeReportMonthlyFee = await getEffectiveFinanceReportFee(clubForBilling);
+    const memberActivationFee = await getEffectiveMemberActivationFee();
+    const memberFreeTierCount = await getMemberFreeTierCount();
+    const approvedMemberCount = await countApprovedMembers(clubId);
 
     const [club, chargeAgg, paymentAgg, waiverAgg, billingAgg] = await Promise.all([
       Club.findById(clubId).select("convenienceFeeMode convenienceFeeMonthlyAmount balanceAlertEnabled").lean(),
@@ -439,6 +443,9 @@ router.get("/fee-info", auth, admin, async (req, res) => {
       financeReportSubscribedAt: clubForBilling.financeReportSubscribedAt ?? null,
       // Effective price, returned even when unsubscribed so the paywall can show it
       financeReportMonthlyFee,
+      memberActivationFee,
+      memberFreeTierCount,
+      approvedMemberCount,
     });
   } catch (err) {
     res.status(500).json({ error: "Server error" });

@@ -621,6 +621,12 @@ router.post("/sessions", auth, admin, async (req, res) => {
     const normFixedDoubles = normalizeFixedDoubles(queueMode, fixedDoublesInput, maxPlayers);
     if (normFixedDoubles.error) return res.status(400).json({ error: normFixedDoubles.error });
 
+    const effectiveQueueModeCreate = queueMode !== undefined ? queueMode : "fcfs";
+    if (effectiveQueueModeCreate === "fixed_doubles_rotation"
+        && playersPerCourt !== undefined && Number(playersPerCourt) !== 4) {
+      return res.status(400).json({ error: "Fixed Doubles Rotation requires playersPerCourt of 4" });
+    }
+
     const normMaxGuests = normalizeMaxGuests(maxGuests);
     if (normMaxGuests !== null && normMaxGuests > Number(maxPlayers)) {
       return res.status(400).json({ error: "Max guests cannot exceed maximum players" });
@@ -714,6 +720,14 @@ router.put("/sessions/:id", auth, admin, async (req, res) => {
       );
       if (normFixedDoubles.error) return res.status(400).json({ error: normFixedDoubles.error });
       if (normFixedDoubles.fixedDoubles) session.fixedDoubles = normFixedDoubles.fixedDoubles;
+    }
+
+    if (effectiveQueueMode === "fixed_doubles_rotation") {
+      const effectivePlayersPerCourt = playersPerCourt !== undefined
+        ? Number(playersPerCourt) : session.playersPerCourt;
+      if (effectivePlayersPerCourt !== 4) {
+        return res.status(400).json({ error: "Fixed Doubles Rotation requires playersPerCourt of 4" });
+      }
     }
 
     if (maxGuests !== undefined) {

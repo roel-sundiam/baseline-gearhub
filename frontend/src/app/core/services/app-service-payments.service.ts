@@ -102,6 +102,9 @@ export interface FeeInfo {
   financeReportEnabled: boolean;
   financeReportSubscribedAt?: string | null;
   financeReportMonthlyFee: number;
+  memberActivationFee: number;
+  memberFreeTierCount: number;
+  approvedMemberCount: number;
 }
 
 export interface ServiceSummaryTotals {

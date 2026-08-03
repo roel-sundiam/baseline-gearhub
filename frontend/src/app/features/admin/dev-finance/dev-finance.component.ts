@@ -270,6 +270,40 @@ import {
             </table>
           </div>
 
+          <!-- Member Activation Fee -->
+          <div class="section-header payments-section-header">
+            <i class="fas fa-user-plus section-icon"></i>
+            <h3 class="section-title">Member Activation Fee</h3>
+            <span class="section-note">One-time fee per club for each approved member beyond the free tier</span>
+          </div>
+
+          <div class="addon-default-bar">
+            <span class="addon-default-label">Free members</span>
+            <input
+              type="number"
+              class="fee-rate-input"
+              [(ngModel)]="memberFreeTierCountValue"
+              min="0" step="1"
+              style="width:70px"
+            />
+            <span class="addon-default-label">Fee after that</span>
+            <input
+              type="number"
+              class="fee-rate-input"
+              [(ngModel)]="memberActivationFeeValue"
+              min="0" step="1"
+              style="width:90px"
+            />
+            <span class="fee-rate-pct">₱ / member</span>
+            <button class="btn-fee-save" (click)="saveMemberActivationFee()" [disabled]="savingMemberActivationFee">
+              @if (savingMemberActivationFee) { <i class="fas fa-circle-notch fa-spin"></i> }
+              @else { <i class="fas fa-check"></i> Save }
+            </button>
+            @if (memberActivationFeeSaved) {
+              <span class="addon-saved-note"><i class="fas fa-check-circle"></i> Saved</span>
+            }
+          </div>
+
           <!-- All App Service Payments -->
           <div class="section-header payments-section-header">
             <i class="fas fa-receipt section-icon"></i>
@@ -717,6 +751,11 @@ export class DevFinanceComponent implements OnInit {
   editingAddonFeeValue = 0;
   savingAddonFee = false;
 
+  memberActivationFeeValue = 0;
+  memberFreeTierCountValue = 0;
+  savingMemberActivationFee = false;
+  memberActivationFeeSaved = false;
+
   get outstandingClubCount() { return this.clubs.filter(c => c.balance > 0).length; }
   get totalPaymentsSum() { return this.payments.reduce((s, p) => s + p.amount, 0); }
   get totalHostedPlaySessionFees() { return this.clubs.reduce((s, c) => s + (c.totalHostedPlaySessionFees ?? 0), 0); }
@@ -744,12 +783,15 @@ export class DevFinanceComponent implements OnInit {
       summary: this.appServicePaymentsService.getSummary(),
       payments: this.appServicePaymentsService.getAll(),
       globalFee: this.clubLedgerService.getGlobalFee(),
+      memberActivationFee: this.clubLedgerService.getMemberActivationFee(),
     }).subscribe({
-      next: ({ summary, payments, globalFee }) => {
+      next: ({ summary, payments, globalFee, memberActivationFee }) => {
         this.clubs = summary.clubs;
         this.totals = summary.totals;
         this.payments = payments;
         this.globalFeeValue = globalFee.financeReportMonthlyFee;
+        this.memberActivationFeeValue = memberActivationFee.memberActivationFee;
+        this.memberFreeTierCountValue = memberActivationFee.memberFreeTierCount;
         this.loading = false;
         this.cdr.detectChanges();
       },
@@ -850,6 +892,27 @@ export class DevFinanceComponent implements OnInit {
       },
       error: () => {
         this.savingGlobalFee = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  saveMemberActivationFee() {
+    const amount = Number(this.memberActivationFeeValue);
+    const freeTierCount = Number(this.memberFreeTierCountValue);
+    if (!Number.isFinite(amount) || amount < 0 || !Number.isFinite(freeTierCount) || freeTierCount < 0) return;
+    this.savingMemberActivationFee = true;
+    this.memberActivationFeeSaved = false;
+    this.clubLedgerService.setMemberActivationFee(amount, freeTierCount).subscribe({
+      next: (res) => {
+        this.memberActivationFeeValue = res.memberActivationFee;
+        this.memberFreeTierCountValue = res.memberFreeTierCount;
+        this.savingMemberActivationFee = false;
+        this.memberActivationFeeSaved = true;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.savingMemberActivationFee = false;
         this.cdr.detectChanges();
       },
     });

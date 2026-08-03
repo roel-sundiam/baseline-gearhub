@@ -77,10 +77,17 @@ const userSchema = new mongoose.Schema(
     clubId: { type: mongoose.Schema.Types.ObjectId, ref: "Club" },
     termsAcceptedAt: { type: Date, default: null },
     termsAcceptedVersion: { type: Number, default: null },
+    announcementAcceptedVersion: { type: Number, default: null },
   },
   { timestamps: true },
 );
 
-userSchema.index({ "duprLink.duprPlayerId": 1 }, { unique: true, sparse: true });
+// Partial index (not sparse) — duprPlayerId defaults to null, so sparse alone
+// would only exclude documents where the field is entirely absent, not
+// present-and-null, letting a second new user collide on the null slot.
+userSchema.index(
+  { "duprLink.duprPlayerId": 1 },
+  { unique: true, partialFilterExpression: { "duprLink.duprPlayerId": { $type: "string" } } },
+);
 
 module.exports = mongoose.model("User", userSchema);

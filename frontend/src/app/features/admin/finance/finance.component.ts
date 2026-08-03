@@ -314,6 +314,12 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                   <div class="summary-label">Finance Report Add-on</div>
                 </div>
               }
+              @if (memberActivationBillingTotal > 0) {
+                <div class="summary-item highlight-green">
+                  <div class="summary-value">{{ memberActivationBillingTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
+                  <div class="summary-label">Member Activation Fees</div>
+                </div>
+              }
               <div class="summary-item">
                 <div class="summary-value">{{ totalPaid | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
                 <div class="summary-label">Paid to Dev</div>
@@ -619,6 +625,10 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                         } @else if (p.type === 'billing' && isFinanceReportBilling(p)) {
                           <span class="method-badge method-finance-report">
                             <i class="fas fa-chart-line"></i> Finance Report Add-on
+                          </span>
+                        } @else if (p.type === 'billing' && isMemberActivationFee(p)) {
+                          <span class="method-badge method-member-activation">
+                            <i class="fas fa-user-plus"></i> Member Activation Fee
                           </span>
                         } @else if (p.type === 'billing') {
                           <span class="method-badge method-billing">
@@ -956,6 +966,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .paid-fee-card-billing { border-left: 3px solid rgba(96,165,250,0.4); }
     .paid-fee-icon-billing { background: rgba(96,165,250,0.16) !important; color: #93c5fd !important; }
     .method-finance-report { background: rgba(250,204,21,0.16); color: #facc15; display: inline-flex; align-items: center; gap: 4px; }
+    .method-member-activation { background: rgba(74,222,128,0.16); color: #4ade80; display: inline-flex; align-items: center; gap: 4px; }
     .waived-total { color: #c4b5fd; }
 
     .filter-bar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: flex-end; }
@@ -2124,6 +2135,13 @@ export class FinanceComponent implements OnInit {
       .filter(p => p.type === 'billing' && (p.billingKey ?? '').startsWith('finance_report:'))
       .reduce((s, p) => s + p.amount, 0);
   }
+  // Member activation fees are tagged with billingKey "member_activation:<userId>" — segregate
+  // them out of "Conv. Fees Owed" too, for the same reason as the Finance Report add-on.
+  get memberActivationBillingTotal() {
+    return this.appServicePayments
+      .filter(p => p.type === 'billing' && (p.billingKey ?? '').startsWith('member_activation:'))
+      .reduce((s, p) => s + p.amount, 0);
+  }
   get appServiceTotal() {
     // Monthly flat replaces reservation/open-play/per-game fees, but Hosted Play convenience fees
     // are billed per transaction independently of the plan, and billed entries (queue management,
@@ -2133,8 +2151,9 @@ export class FinanceComponent implements OnInit {
       : this.reservationServiceFee + this.openPlayServiceFee + this.perGameServiceFee + this.hostedPlayServiceFee + this.billingTotal;
   }
   // appServiceTotal/balance stay the grand total (what's actually owed to CourtGo); this is just
-  // the true convenience-fee portion, with the Finance Report add-on billing pulled out.
-  get convenienceFeesOwedTotal() { return this.appServiceTotal - this.financeReportBillingTotal; }
+  // the true convenience-fee portion, with the Finance Report add-on and member activation
+  // fee billing pulled out.
+  get convenienceFeesOwedTotal() { return this.appServiceTotal - this.financeReportBillingTotal - this.memberActivationBillingTotal; }
   get totalPaid() { return this.appServicePayments.filter(p => p.type === 'payment').reduce((s, p) => s + p.amount, 0); }
   get totalWaived() { return this.appServicePayments.filter(p => p.type === 'waiver').reduce((s, p) => s + p.amount, 0); }
   get balance() {
@@ -2325,6 +2344,10 @@ export class FinanceComponent implements OnInit {
 
   isFinanceReportBilling(p: AppServicePayment): boolean {
     return (p.billingKey ?? '').startsWith('finance_report:');
+  }
+
+  isMemberActivationFee(p: AppServicePayment): boolean {
+    return (p.billingKey ?? '').startsWith('member_activation:');
   }
 
   // True when a charge was paid using a mix of account credit and an external method.

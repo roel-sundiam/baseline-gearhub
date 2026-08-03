@@ -124,4 +124,17 @@ export class ClubLedgerService {
   setGlobalFee(amount: number): Observable<{ financeReportMonthlyFee: number }> {
     return this.http.put<{ financeReportMonthlyFee: number }>(`${environment.apiUrl}/config/finance-report-fee`, { amount });
   }
+
+  getMemberActivationFee(): Observable<{ memberActivationFee: number; memberFreeTierCount: number }> {
+    return this.http.get<{ memberActivationFee: number; memberFreeTierCount: number }>(
+      `${environment.apiUrl}/config/member-activation-fee`,
+    );
+  }
+
+  setMemberActivationFee(amount: number, freeTierCount: number): Observable<{ memberActivationFee: number; memberFreeTierCount: number }> {
+    return this.http.put<{ memberActivationFee: number; memberFreeTierCount: number }>(
+      `${environment.apiUrl}/config/member-activation-fee`,
+      { amount, freeTierCount },
+    );
+  }
 }

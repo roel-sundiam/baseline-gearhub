@@ -1,15 +1,16 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { AuthService } from '../../../core/services/auth.service';
-import { AnnouncementService } from '../../../core/services/announcement.service';
+import { AnnouncementService, AnnouncementConfirmation } from '../../../core/services/announcement.service';
 import { marked } from 'marked';
 
 @Component({
   selector: 'app-announcement-editor',
   standalone: true,
-  imports: [FormsModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="ae-shell">
       <header class="ae-topbar">
@@ -143,6 +144,87 @@ import { marked } from 'marked';
                 </div>
               }
             </section>
+          </section>
+
+          <section class="confirmations-panel">
+            <div class="panel-head">
+              <div>
+                <span class="panel-kicker">Audit trail</span>
+                <h3>{{ confirmationsTab() === 'current' ? 'Confirmations — v' + version() : 'Confirmation History' }}</h3>
+              </div>
+              <div class="tab-row">
+                <button
+                  type="button"
+                  class="tab-btn"
+                  [class.active]="confirmationsTab() === 'current'"
+                  (click)="confirmationsTab.set('current')"
+                >Current</button>
+                <button
+                  type="button"
+                  class="tab-btn"
+                  [class.active]="confirmationsTab() === 'history'"
+                  (click)="onHistoryTab()"
+                >History</button>
+              </div>
+            </div>
+
+            @if (confirmationsTab() === 'current') {
+              @if (confirmationsLoading()) {
+                <div class="confirmations-empty">Loading confirmations...</div>
+              } @else if (confirmations().length === 0) {
+                <div class="confirmations-empty">No admins have confirmed this version yet.</div>
+              } @else {
+                <table class="confirmations-table">
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Admin</th>
+                      <th>Club</th>
+                      <th>Confirmed At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (c of confirmations(); track c.username + c.confirmedAt) {
+                      <tr>
+                        <td>{{ c.announcementTitle || 'Untitled' }}</td>
+                        <td>{{ c.username }}</td>
+                        <td>{{ c.clubName || 'Unknown' }}</td>
+                        <td>{{ c.confirmedAt | date: 'medium' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              }
+            } @else {
+              @if (historyLoading()) {
+                <div class="confirmations-empty">Loading history...</div>
+              } @else if (history().length === 0) {
+                <div class="confirmations-empty">No confirmations recorded yet.</div>
+              } @else {
+                <table class="confirmations-table">
+                  <thead>
+                    <tr>
+                      <th>Version</th>
+                      <th>Title</th>
+                      <th>Admin</th>
+                      <th>Club</th>
+                      <th>Confirmed At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (c of history(); track c.username + c.confirmedAt) {
+                      <tr>
+                        <td>v{{ c.announcementVersion }}</td>
+                        <td>{{ c.announcementTitle || 'Untitled' }}</td>
+                        <td>{{ c.username }}</td>
+                        <td>{{ c.clubName || 'Unknown' }}</td>
+                        <td>{{ c.confirmedAt | date: 'medium' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              }
+            }
           </section>
 
           @if (successMsg()) {
@@ -392,6 +474,26 @@ import { marked } from 'marked';
     }
     .panel-head h3 { margin: .12rem 0 0; font-size: 1.1rem; line-height: 1.2; }
 
+    .tab-row { display: flex; gap: .4rem; flex-shrink: 0; }
+    .tab-btn {
+      font-family: inherit;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 800;
+      padding: .45rem .8rem;
+      border-radius: 999px;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      background: rgba(163,230,53,.14);
+      border-color: rgba(163,230,53,.4);
+      color: var(--accent);
+    }
+
     .editor {
       width: 100%;
       min-height: 460px;
@@ -456,6 +558,43 @@ import { marked } from 'marked';
     .empty-preview i { color: var(--accent); font-size: 1.6rem; }
     .empty-preview strong { color: var(--text); }
     .empty-preview span { max-width: 360px; font-size: .86rem; line-height: 1.45; }
+
+    .confirmations-panel {
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      box-shadow: 0 12px 32px rgba(0,0,0,.2);
+      overflow: hidden;
+    }
+
+    .confirmations-empty {
+      padding: 1.25rem;
+      color: var(--muted);
+      font-size: .85rem;
+      text-align: center;
+    }
+
+    .confirmations-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .85rem;
+    }
+    .confirmations-table th {
+      text-align: left;
+      padding: .65rem 1rem;
+      color: var(--muted);
+      font-size: .72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .confirmations-table td {
+      padding: .65rem 1rem;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+      color: var(--text);
+    }
+    .confirmations-table tr:last-child td { border-bottom: 0; }
 
     .toast {
       padding: .75rem .9rem;
@@ -535,6 +674,14 @@ export class AnnouncementEditorComponent implements OnInit {
   updatedBy = signal('');
   previewHtml = signal<SafeHtml>('');
 
+  confirmations = signal<AnnouncementConfirmation[]>([]);
+  confirmationsLoading = signal(false);
+
+  confirmationsTab = signal<'current' | 'history'>('current');
+  history = signal<AnnouncementConfirmation[]>([]);
+  historyLoading = signal(false);
+  private historyLoaded = false;
+
   titleValue = '';
   textValue = '';
 
@@ -552,11 +699,37 @@ export class AnnouncementEditorComponent implements OnInit {
         this.updatedBy.set(announcement.updatedBy || '');
         this.previewHtml.set(this.parseMarkdown(announcement.text));
         this.loading.set(false);
+        this.loadConfirmations();
       },
       error: () => {
         this.errorMsg.set('Failed to load data. Please refresh.');
         this.loading.set(false);
       },
+    });
+  }
+
+  loadConfirmations() {
+    this.confirmationsLoading.set(true);
+    this.announcementService.getConfirmations(this.version()).subscribe({
+      next: (res) => {
+        this.confirmations.set(res.confirmations);
+        this.confirmationsLoading.set(false);
+      },
+      error: () => this.confirmationsLoading.set(false),
+    });
+  }
+
+  onHistoryTab() {
+    this.confirmationsTab.set('history');
+    if (this.historyLoaded) return;
+    this.historyLoading.set(true);
+    this.announcementService.getConfirmationHistory().subscribe({
+      next: (res) => {
+        this.history.set(res.confirmations);
+        this.historyLoading.set(false);
+        this.historyLoaded = true;
+      },
+      error: () => this.historyLoading.set(false),
     });
   }
 
@@ -571,6 +744,8 @@ export class AnnouncementEditorComponent implements OnInit {
         this.updatedBy.set(res.updatedBy || '');
         this.successMsg.set(`Announcement published - version ${res.version}.`);
         this.saving.set(false);
+        this.loadConfirmations();
+        this.historyLoaded = false;
       },
       error: () => {
         this.errorMsg.set('Save failed. Please try again.');

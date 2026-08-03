@@ -6,6 +6,7 @@ const superadmin = require("../middleware/superadmin");
 const User = require("../models/User");
 const ClubMembership = require("../models/ClubMembership");
 const { ownsClub } = require("../utils/scope");
+const { ensureMemberActivationFee } = require("../utils/memberActivationBilling");
 
 const router = express.Router();
 
@@ -210,6 +211,7 @@ router.put("/:id/approve", auth, admin, async (req, res) => {
       { userId: user._id, clubId: target.clubId },
       { $set: { status: "active", approvedAt: new Date() } },
     );
+    await ensureMemberActivationFee(target.clubId, user._id, req.user.userId);
     res.json(user);
   } catch (err) {
     console.error(err);

@@ -7,6 +7,7 @@ const ClubMembership = require("../models/ClubMembership");
 const Notification = require("../models/Notification");
 const { ownsClub } = require("../utils/scope");
 const { sendPushToUser } = require("../utils/push");
+const { ensureMemberActivationFee } = require("../utils/memberActivationBilling");
 
 const router = express.Router();
 
@@ -150,6 +151,7 @@ router.put("/:id/approve", auth, admin, async (req, res) => {
     membership.approvedAt = new Date();
     await membership.save();
     await syncHomeStatus(membership, "active");
+    await ensureMemberActivationFee(membership.clubId, membership.userId, req.user.userId);
 
     const club = await Club.findById(membership.clubId).select("name").lean();
     try {

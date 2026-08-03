@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const AppSettings = require("../models/AppSettings");
+const User = require("../models/User");
+const AnnouncementConfirmation = require("../models/AnnouncementConfirmation");
 const auth = require("../middleware/auth");
 const superadmin = require("../middleware/superadmin");
 
@@ -92,6 +94,50 @@ router.put("/finance-report-fee", auth, superadmin, async (req, res) => {
   }
 });
 
+// GET /api/config/member-activation-fee — global one-time member activation fee + free tier (superadmin only)
+router.get("/member-activation-fee", auth, superadmin, async (req, res) => {
+  try {
+    const settings = await AppSettings.findOneAndUpdate(
+      { _id: "global" },
+      {},
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).lean();
+    res.json({
+      memberActivationFee: settings.memberActivationFee ?? 0,
+      memberFreeTierCount: settings.memberFreeTierCount ?? 0,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PUT /api/config/member-activation-fee — update the global fee/free-tier (superadmin only)
+router.put("/member-activation-fee", auth, superadmin, async (req, res) => {
+  try {
+    const amount = Number(req.body.amount);
+    const freeTierCount = Number(req.body.freeTierCount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      return res.status(400).json({ error: "amount must be a non-negative number" });
+    }
+    if (!Number.isFinite(freeTierCount) || freeTierCount < 0) {
+      return res.status(400).json({ error: "freeTierCount must be a non-negative number" });
+    }
+    const updated = await AppSettings.findOneAndUpdate(
+      { _id: "global" },
+      { $set: { memberActivationFee: amount, memberFreeTierCount: freeTierCount } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).lean();
+    res.json({
+      memberActivationFee: updated.memberActivationFee,
+      memberFreeTierCount: updated.memberFreeTierCount,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // GET /api/config/announcement — any authenticated user; club admins poll this on dashboard load
 router.get("/announcement", auth, async (req, res) => {
   try {
@@ -100,11 +146,73 @@ router.get("/announcement", auth, async (req, res) => {
       {},
       { upsert: true, new: true, setDefaultsOnInsert: true },
     ).lean();
+    const requester = await User.findById(req.user.userId, "announcementAcceptedVersion").lean();
     res.json({
       enabled: settings.announcementEnabled,
       title: settings.announcementTitle,
       text: settings.announcementText,
       version: settings.announcementVersion,
+      acceptedVersion: requester?.announcementAcceptedVersion ?? null,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/config/announcement/accept — admin only; records that this admin has
+// confirmed the currently-published announcement version
+router.post("/announcement/accept", auth, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    const settings = await AppSettings.findOne({ _id: "global" }, "announcementVersion announcementTitle").lean();
+    const version = settings?.announcementVersion ?? 0;
+    await User.findByIdAndUpdate(req.user.userId, { announcementAcceptedVersion: version });
+    await AnnouncementConfirmation.create({
+      userId: req.user.userId,
+      username: req.user.username,
+      clubId: req.user.clubId,
+      announcementVersion: version,
+      announcementTitle: settings?.announcementTitle || "",
+    });
+    res.json({ version });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /api/config/announcement/confirmations — superadmin only; who confirmed
+// which version, and when. Defaults to the currently-published version;
+// ?all=true returns confirmations across every past version (history view).
+router.get("/announcement/confirmations", auth, superadmin, async (req, res) => {
+  try {
+    const all = req.query.all === "true";
+    let version = null;
+    let query = {};
+    if (!all) {
+      version = parseInt(req.query.version, 10);
+      if (!Number.isFinite(version)) {
+        const settings = await AppSettings.findOne({ _id: "global" }, "announcementVersion").lean();
+        version = settings?.announcementVersion ?? 0;
+      }
+      query = { announcementVersion: version };
+    }
+    const confirmations = await AnnouncementConfirmation.find(query)
+      .sort({ announcementVersion: -1, confirmedAt: -1 })
+      .populate("clubId", "name")
+      .lean();
+    res.json({
+      version,
+      confirmations: confirmations.map((c) => ({
+        username: c.username,
+        clubName: c.clubId?.name ?? null,
+        confirmedAt: c.confirmedAt,
+        announcementVersion: c.announcementVersion,
+        announcementTitle: c.announcementTitle || "",
+      })),
     });
   } catch (err) {
     console.error(err);

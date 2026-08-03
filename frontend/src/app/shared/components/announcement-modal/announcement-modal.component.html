@@ -4,6 +4,9 @@
     <div class="ann-header">
       <i class="fas fa-bullhorn ann-icon"></i>
       <span id="ann-title">{{ title }}</span>
+      <button type="button" class="ann-close-btn" aria-label="Close" [disabled]="confirming" (click)="closed.emit()">
+        <i class="fas fa-xmark"></i>
+      </button>
     </div>
 
     <div class="ann-body">
@@ -11,8 +14,12 @@
     </div>
 
     <div class="ann-footer">
-      <button type="button" class="ann-dismiss-btn" (click)="dismissed.emit()">
-        Got it
+      <label class="ann-agree">
+        <input type="checkbox" [(ngModel)]="agreed" [disabled]="confirming" />
+        I agree
+      </label>
+      <button type="button" class="ann-dismiss-btn" [disabled]="confirming || !agreed" (click)="confirmed.emit()">
+        {{ confirming ? 'Saving…' : 'Got it' }}
       </button>
     </div>
 

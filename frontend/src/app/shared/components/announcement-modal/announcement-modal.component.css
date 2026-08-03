@@ -38,6 +38,35 @@
   color: #16a34a;
 }
 
+.ann-header span {
+  flex: 1;
+}
+
+.ann-close-btn {
+  border: none;
+  background: transparent;
+  color: #166534;
+  font-size: 1rem;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.ann-close-btn:hover:not(:disabled) {
+  background: rgba(22, 101, 52, 0.1);
+}
+
+.ann-close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .ann-body {
   padding: 20px;
   overflow-y: auto;
@@ -60,8 +89,27 @@
 .ann-footer {
   padding: 14px 20px;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   border-top: 1px solid #f3f4f6;
+}
+
+.ann-agree {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: #374151;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ann-agree input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #16a34a;
+  cursor: pointer;
 }
 
 .ann-dismiss-btn {
@@ -76,6 +124,11 @@
   transition: background 0.15s;
 }
 
-.ann-dismiss-btn:hover {
+.ann-dismiss-btn:hover:not(:disabled) {
   background: #15803d;
+}
+
+.ann-dismiss-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

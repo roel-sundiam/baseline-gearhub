@@ -326,8 +326,18 @@ type FormModel = HostedPlayInput;
                   <label class="field"><span>Number of Courts *</span>
                     <input type="number" min="1" step="1" [(ngModel)]="form.numberOfCourts" />
                   </label>
+                  <label class="field"><span>Match Format</span>
+                    <select [ngModel]="form.playersPerCourt" (ngModelChange)="onPlayersPerCourtChange($event)"
+                            [disabled]="form.queueMode === 'fixed_doubles_rotation'">
+                      <option [ngValue]="2">Singles (1v1)</option>
+                      <option [ngValue]="4">Doubles (2v2)</option>
+                    </select>
+                    @if (form.queueMode === 'fixed_doubles_rotation') {
+                      <div class="field-hint">Fixed Doubles Rotation is always 2v2.</div>
+                    }
+                  </label>
                   <label class="field"><span>Rotation Format</span>
-                    <select [(ngModel)]="form.queueMode">
+                    <select [ngModel]="form.queueMode" (ngModelChange)="onQueueModeChange($event)">
                       <option value="fcfs">First come, first served</option>
                       <option value="winner_stays">Winner stays (challenge court)</option>
                       <option value="king_of_court">King of the court</option>
@@ -1268,7 +1278,7 @@ export class AdminHostedPlayComponent implements OnInit {
       title: '', sport: 'pickleball', date: '', startTime: '', endTime: '',
       venue: '', court: '', address: '', feePerPlayer: 0, sessionFee: 0, guestFeePerPlayer: null,
       maxPlayers: 8, maxGuests: null, description: '',
-      numberOfCourts: 1, queueMode: 'fcfs',
+      numberOfCourts: 1, queueMode: 'fcfs', playersPerCourt: 4,
       fixedDoubles: { pairCount: 4 },
       minSkillLevel: null, maxSkillLevel: null,
       scoreTarget: 11, winByTwo: true, premiumEvent: false,
@@ -1278,6 +1288,16 @@ export class AdminHostedPlayComponent implements OnInit {
   /** Updates a single field of form.fixedDoubles, creating the object if needed (ngModel needs it to exist to bind into). */
   setFixedDoublesField(field: 'pairCount', value: number | null) {
     this.form.fixedDoubles = { ...(this.form.fixedDoubles ?? {}), [field]: value === null ? null : Number(value) };
+  }
+
+  onQueueModeChange(mode: string) {
+    this.form.queueMode = mode;
+    // Fixed Doubles Rotation is always 2v2 — don't let a stale Singles selection linger.
+    if (mode === 'fixed_doubles_rotation') this.form.playersPerCourt = 4;
+  }
+
+  onPlayersPerCourtChange(value: number) {
+    this.form.playersPerCourt = Number(value);
   }
 
   statusLabel(s: string): string {
@@ -1461,6 +1481,7 @@ export class AdminHostedPlayComponent implements OnInit {
       address: s.address || '', feePerPlayer: s.feePerPlayer, sessionFee: s.sessionFee ?? 0, guestFeePerPlayer: s.guestFeePerPlayer ?? null,
       maxPlayers: s.maxPlayers, maxGuests: s.maxGuests ?? null,
       description: s.description || '', numberOfCourts: s.numberOfCourts ?? 1,
+      playersPerCourt: s.playersPerCourt ?? 4,
       queueMode: s.queueMode || 'fcfs',
       fixedDoubles: { pairCount: s.fixedDoubles?.pairCount ?? 4 },
       minSkillLevel: s.minSkillLevel ?? null, maxSkillLevel: s.maxSkillLevel ?? null,
@@ -1511,6 +1532,10 @@ export class AdminHostedPlayComponent implements OnInit {
     }
     if (step === 3 && this.queueEnabled() && (!this.form.numberOfCourts || this.form.numberOfCourts < 1)) {
       return 'Number of courts must be at least 1.';
+    }
+    if (step === 3 && this.queueEnabled() && this.form.playersPerCourt != null
+        && ![2, 4].includes(this.form.playersPerCourt)) {
+      return 'Match Format must be Singles or Doubles.';
     }
     if (step === 3 && this.queueEnabled() && this.form.queueMode === 'fixed_doubles_rotation') {
       const fd = this.form.fixedDoubles;

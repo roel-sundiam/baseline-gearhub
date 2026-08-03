@@ -630,7 +630,9 @@ import QRCode from 'qrcode';
       <app-announcement-modal
         [title]="announcementTitle()"
         [html]="announcementHtml()"
-        (dismissed)="showAnnouncementModal.set(false)"
+        [confirming]="announcementConfirming()"
+        (confirmed)="onAnnouncementConfirmed()"
+        (closed)="showAnnouncementModal.set(false)"
       />
     }
   `,
@@ -1909,6 +1911,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   showAnnouncementModal = signal(false);
   announcementTitle = signal('');
   announcementHtml = signal<SafeHtml>('');
+  announcementConfirming = signal(false);
 
   // ── App service balance due card ──
   feeInfo = signal<{ balance: number; convenienceFeeMode: string; convenienceFeeMonthlyAmount: number; balanceAlertEnabled: boolean } | null>(null);
@@ -2087,7 +2090,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
       this.announcementService.getAnnouncement().subscribe({
         next: (announcement) => {
-          if (announcement.enabled) {
+          if (announcement.enabled && announcement.acceptedVersion !== announcement.version) {
             this.announcementTitle.set(announcement.title || 'Announcement');
             const html = marked.parse(announcement.text || '') as string;
             this.announcementHtml.set(this.sanitizer.bypassSecurityTrustHtml(html));
@@ -2098,6 +2101,23 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
         error: (err) => console.error('Announcement check failed:', err),
       });
     }
+  }
+
+  onAnnouncementConfirmed(): void {
+    if (this.announcementConfirming()) return;
+    this.announcementConfirming.set(true);
+    this.announcementService.acceptAnnouncement().subscribe({
+      next: () => {
+        this.announcementConfirming.set(false);
+        this.showAnnouncementModal.set(false);
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Announcement confirm failed:', err);
+        this.announcementConfirming.set(false);
+        this.cdr.detectChanges();
+      },
+    });
   }
 
   getPlayerName(charge: Charge): string {

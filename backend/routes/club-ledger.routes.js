@@ -140,6 +140,42 @@ router.get("/report", auth, admin, resolveReportClub, async (req, res) => {
     // fee, so the two pages tally for the same date range.
     const reservationIncomePipeline = [
       { $match: reservationMatch },
+      // Split the combined rentalFee (charges.breakdown.rentalFee) back into its four priced
+      // equipment types, recomputed the same way reservations.routes.js derives it at booking
+      // time: count/flag * rate-snapshotted-at-booking * durationHours. Summed together these
+      // equal charges.breakdown.rentalFee, so the two views always reconcile.
+      {
+        $addFields: {
+          rentalRacketFee: {
+            $multiply: [
+              { $ifNull: ["$rentals.rackets", 0] },
+              { $ifNull: ["$ratesUsed.rentalRacketRate", 0] },
+              { $ifNull: ["$durationHours", 1] },
+            ],
+          },
+          rentalBalls50Fee: {
+            $multiply: [
+              { $ifNull: ["$rentals.balls50", 0] },
+              { $ifNull: ["$ratesUsed.rentalBalls50Rate", 0] },
+              { $ifNull: ["$durationHours", 1] },
+            ],
+          },
+          rentalBalls100Fee: {
+            $multiply: [
+              { $ifNull: ["$rentals.balls100", 0] },
+              { $ifNull: ["$ratesUsed.rentalBalls100Rate", 0] },
+              { $ifNull: ["$durationHours", 1] },
+            ],
+          },
+          rentalBallMachineFee: {
+            $multiply: [
+              { $cond: [{ $eq: ["$rentals.ballMachine", true] }, 1, 0] },
+              { $ifNull: ["$ratesUsed.rentalBallMachineRate", 0] },
+              { $ifNull: ["$durationHours", 1] },
+            ],
+          },
+        },
+      },
       { $lookup: { from: "charges", localField: "_id", foreignField: "reservationId", as: "charges" } },
       { $unwind: "$charges" },
       {
@@ -152,7 +188,10 @@ router.get("/report", auth, admin, resolveReportClub, async (req, res) => {
                 lightFee: { $sum: { $ifNull: ["$charges.breakdown.lightFee", 0] } },
                 ballBoyFee: { $sum: { $ifNull: ["$charges.breakdown.ballBoyFee", 0] } },
                 guestFee: { $sum: { $ifNull: ["$charges.breakdown.guestFee", 0] } },
-                rentalFee: { $sum: { $ifNull: ["$charges.breakdown.rentalFee", 0] } },
+                rentalRacketFee: { $sum: "$rentalRacketFee" },
+                rentalBalls50Fee: { $sum: "$rentalBalls50Fee" },
+                rentalBalls100Fee: { $sum: "$rentalBalls100Fee" },
+                rentalBallMachineFee: { $sum: "$rentalBallMachineFee" },
                 coachingFee: { $sum: { $ifNull: ["$charges.breakdown.coachingFee", 0] } },
                 extraFeeTotal: { $sum: { $ifNull: ["$charges.breakdown.extraFeeTotal", 0] } },
                 total: { $sum: "$charges.amount" },
@@ -267,7 +306,10 @@ router.get("/report", auth, admin, resolveReportClub, async (req, res) => {
       { key: "lightFee", source: resTotals },
       { key: "ballBoyFee", source: resTotals },
       { key: "guestFee", source: resTotals },
-      { key: "rentalFee", source: resTotals },
+      { key: "rentalRacketFee", source: resTotals },
+      { key: "rentalBalls50Fee", source: resTotals },
+      { key: "rentalBalls100Fee", source: resTotals },
+      { key: "rentalBallMachineFee", source: resTotals },
       { key: "coachingFee", source: resTotals },
       { key: "gameFee", source: otherTotals },
       { key: "hostedPlayFee", source: otherTotals },
