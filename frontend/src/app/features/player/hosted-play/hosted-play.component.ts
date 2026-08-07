@@ -1282,7 +1282,11 @@ export class PlayerHostedPlayComponent implements OnInit {
     this.screenshotPreviewUrl = URL.createObjectURL(file);
     this.cdr.detectChanges();
     try {
-      this.paymentScreenshotUrl = await this.cloudinary.uploadImage(file, 'payment-screenshots');
+      const clubId = this.auth.user()?.clubId || this.clubService.getSelectedClubId();
+      this.paymentScreenshotUrl = await this.cloudinary.uploadImage(
+        file,
+        clubId ? `payment-screenshots/${clubId}` : 'payment-screenshots'
+      );
     } catch {
       this.paymentError = 'Failed to upload screenshot. Please try again.';
       this.paymentScreenshotUrl = null;

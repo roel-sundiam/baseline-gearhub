@@ -1434,7 +1434,11 @@ export class PlayerPaymentsComponent implements OnInit, OnDestroy {
     let screenshotUrl: string | undefined;
     if (this.paymentScreenshot) {
       try {
-        screenshotUrl = await this.cloudinaryService.uploadImage(this.paymentScreenshot, 'payment-screenshots');
+        const clubId = this.clubService.getSelectedClubId() || this.auth.user()?.clubId;
+        screenshotUrl = await this.cloudinaryService.uploadImage(
+          this.paymentScreenshot,
+          clubId ? `payment-screenshots/${clubId}` : 'payment-screenshots'
+        );
       } catch {
         alert('Failed to upload payment screenshot. Please try again.');
         this.submittingPayment = false;

@@ -1753,7 +1753,7 @@ export class GuestBookComponent implements OnInit, OnDestroy {
     this.guestJoinError.set('');
     this.guestJoinScreenshotPreview.set(URL.createObjectURL(file));
     try {
-      const url = await this.cloudinary.uploadImage(file, 'payment-screenshots');
+      const url = await this.cloudinary.uploadImage(file, `payment-screenshots/${this.clubId}`);
       this.guestJoinScreenshotUrl.set(url);
     } catch {
       this.guestJoinError.set('Failed to upload screenshot. Please try again.');
