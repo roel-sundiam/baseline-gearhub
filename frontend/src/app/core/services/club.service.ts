@@ -61,6 +61,9 @@ export interface Club {
   financeReportEnabled?: boolean;
   financeReportSubscribedAt?: string | null;
   financeReportFeeOverride?: number | null;
+  emailConfirmationsEnabled?: boolean;
+  emailConfirmationsSubscribedAt?: string | null;
+  emailConfirmationsFeeOverride?: number | null;
   duprClubId?: string | null;
   duprEnabled?: boolean;
   courts?: Court[];
@@ -149,6 +152,14 @@ export class ClubService {
 
   patchFinanceReportFee(id: string, override: number | null) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/finance-report-fee`, { override });
+  }
+
+  patchMyEmailConfirmationsAddon(enabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/email-confirmations-addon`, { enabled });
+  }
+
+  patchEmailConfirmationsFee(id: string, override: number | null) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/email-confirmations-fee`, { override });
   }
 
   patchHostedPlayQueue(id: string, enabled: boolean) {

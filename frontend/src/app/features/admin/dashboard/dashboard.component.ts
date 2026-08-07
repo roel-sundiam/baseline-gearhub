@@ -353,6 +353,25 @@ import QRCode from 'qrcode';
                 </span>
               </a>
             }
+            @if (!authService.isSuperAdmin()) {
+              <div class="action-card action-card--toggle action-card--premium">
+                <div class="action-card-header">
+                  <span class="action-icon action-icon--premium"><i class="fas fa-envelope-circle-check"></i></span>
+                  <label class="hpq-switch">
+                    <input #emailConfirmationsToggleEl type="checkbox" [checked]="!!club?.emailConfirmationsEnabled" [disabled]="togglingEmailConfirmationsAddon" (change)="onEmailConfirmationsToggleChange($any($event.target).checked, emailConfirmationsToggleEl)" />
+                    <span class="hpq-slider"></span>
+                  </label>
+                </div>
+                <span class="action-title">Booking Confirmation Emails
+                  <span class="premium-badge"><i class="fas fa-crown"></i> Premium</span>
+                </span>
+                <span class="action-sub">
+                  {{ club?.emailConfirmationsEnabled
+                    ? ('Active' + (feeInfo()?.emailConfirmationsMonthlyFee ? ' · ' + (feeInfo()!.emailConfirmationsMonthlyFee | currency: 'PHP' : 'symbol' : '1.0-2') + '/mo' : ''))
+                    : ('Add-on — subscribe to email players a confirmation on every booking' + (feeInfo()?.emailConfirmationsMonthlyFee ? ' (' + (feeInfo()!.emailConfirmationsMonthlyFee | currency: 'PHP' : 'symbol' : '1.0-2') + '/mo)' : '')) }}
+                </span>
+              </div>
+            }
             @if (authService.isSuperAdmin()) {
               <a routerLink="/features" target="_blank" class="action-card action-card--features">
                 <span class="action-icon"><i class="fas fa-star"></i></span>
@@ -634,6 +653,35 @@ import QRCode from 'qrcode';
         (confirmed)="onAnnouncementConfirmed()"
         (closed)="showAnnouncementModal.set(false)"
       />
+    }
+
+    @if (showEmailConfirmationsConfirm) {
+      <div class="modal-backdrop" (click)="cancelEmailConfirmationsSubscribe()">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <div class="modal-title"><i class="fas fa-envelope-circle-check"></i> Subscribe to Email Confirmations</div>
+            <button class="modal-close" (click)="cancelEmailConfirmationsSubscribe()"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="modal-body">
+            <p>
+              This subscribes your club to the Email Confirmations add-on for
+              <strong>{{ (feeInfo()?.emailConfirmationsMonthlyFee ?? 199) | currency: 'PHP' : 'symbol' : '1.0-2' }}/month</strong>.
+            </p>
+            <ul class="modal-bullets">
+              <li>Players automatically get a booking confirmation email for every reservation.</li>
+              <li>The current month is billed immediately, then again automatically each month while it stays enabled.</li>
+              <li>The charge is added to your App Service balance — same as your other add-ons and convenience fees.</li>
+            </ul>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-cancel" (click)="cancelEmailConfirmationsSubscribe()" [disabled]="togglingEmailConfirmationsAddon">Cancel</button>
+            <button class="btn-confirm-subscribe" (click)="confirmEmailConfirmationsSubscribe()" [disabled]="togglingEmailConfirmationsAddon">
+              @if (togglingEmailConfirmationsAddon) { <i class="fas fa-circle-notch fa-spin"></i> Subscribing... }
+              @else { <i class="fas fa-check"></i> Subscribe }
+            </button>
+          </div>
+        </div>
+      </div>
     }
   `,
   styles: [
@@ -1082,7 +1130,14 @@ import QRCode from 'qrcode';
         font-size: 0.9rem;
         display: flex;
         align-items: center;
-        gap: .45rem;
+        flex-wrap: wrap;
+        gap: .3rem .45rem;
+      }
+
+      .action-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
       }
 
       .action-sub {
@@ -1183,6 +1238,52 @@ import QRCode from 'qrcode';
         border-radius: 99px;
         padding: .1rem .4rem;
       }
+
+      .modal-backdrop {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+        z-index: 100; display: flex; align-items: center; justify-content: center;
+        padding: 20px;
+      }
+      .modal {
+        background: var(--dm-surface); border-radius: 14px; width: 100%; max-width: 440px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+        border: 1px solid rgba(250,204,21,0.24); overflow: hidden;
+      }
+      .modal-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.08);
+        background: rgba(250,204,21,0.08);
+      }
+      .modal-title {
+        font-size: 1rem; font-weight: 800; color: #facc15;
+        display: flex; align-items: center; gap: 8px;
+      }
+      .modal-close {
+        background: none; border: none; font-size: 1rem; color: rgba(255,255,255,0.5);
+        cursor: pointer; padding: 4px 8px; border-radius: 4px;
+      }
+      .modal-close:hover { background: rgba(255,255,255,0.08); color: #ffffff; }
+      .modal-body { padding: 18px 20px; font-size: 0.88rem; color: rgba(255,255,255,0.85); line-height: 1.5; }
+      .modal-body p { margin: 0 0 10px; }
+      .modal-bullets { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 6px; }
+      .modal-footer {
+        display: flex; justify-content: flex-end; gap: 10px;
+        padding: 14px 20px; border-top: 1px solid rgba(255,255,255,0.08);
+        background: rgba(255,255,255,0.02);
+      }
+      .btn-cancel {
+        padding: 8px 16px; background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.7);
+        border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; font-size: 0.875rem; cursor: pointer; font-family: inherit;
+      }
+      .btn-cancel:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
+      .btn-confirm-subscribe {
+        padding: 8px 18px; background: rgba(250,204,21,0.2); color: #facc15;
+        border: 1px solid rgba(250,204,21,0.4); border-radius: 8px; font-size: 0.875rem; font-weight: 700;
+        cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: inherit;
+        transition: background 0.15s;
+      }
+      .btn-confirm-subscribe:hover:not(:disabled) { background: rgba(250,204,21,0.32); }
+      .btn-confirm-subscribe:disabled, .btn-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
       .queue-live-badge i {
         font-size: .45rem;
         animation: pulse-dot 1.4s ease-in-out infinite;
@@ -1893,6 +1994,9 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   // ── Hosted Play add-on toggle (reservation-mode clubs) ──
   togglingHostedPlayAddon = false;
+  togglingEmailConfirmationsAddon = false;
+  showEmailConfirmationsConfirm = false;
+  private pendingEmailConfirmationsToggleEl: HTMLInputElement | null = null;
   get isReservationClub() {
     return !!this.club && (this.club.bookingProcess ?? 'reservation') === 'reservation';
   }
@@ -1914,7 +2018,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   announcementConfirming = signal(false);
 
   // ── App service balance due card ──
-  feeInfo = signal<{ balance: number; convenienceFeeMode: string; convenienceFeeMonthlyAmount: number; balanceAlertEnabled: boolean } | null>(null);
+  feeInfo = signal<{ balance: number; convenienceFeeMode: string; convenienceFeeMonthlyAmount: number; balanceAlertEnabled: boolean; emailConfirmationsMonthlyFee?: number } | null>(null);
   readonly monthEndDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
 
   constructor(
@@ -1988,6 +2092,58 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.togglingHostedPlayAddon = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  onEmailConfirmationsToggleChange(checked: boolean, inputEl: HTMLInputElement) {
+    if (checked) {
+      // Turning on costs money — confirm before actually subscribing. Angular's [checked]
+      // binding won't revert the DOM checkbox on cancel (its bound value never changes), so
+      // we hang onto the element and reset it manually if the user backs out.
+      this.pendingEmailConfirmationsToggleEl = inputEl;
+      this.showEmailConfirmationsConfirm = true;
+    } else {
+      this.toggleEmailConfirmationsAddon(false);
+    }
+  }
+
+  cancelEmailConfirmationsSubscribe() {
+    if (this.togglingEmailConfirmationsAddon) return;
+    if (this.pendingEmailConfirmationsToggleEl) {
+      this.pendingEmailConfirmationsToggleEl.checked = false;
+      this.pendingEmailConfirmationsToggleEl = null;
+    }
+    this.showEmailConfirmationsConfirm = false;
+    this.cdr.detectChanges();
+  }
+
+  confirmEmailConfirmationsSubscribe() {
+    this.pendingEmailConfirmationsToggleEl = null;
+    this.toggleEmailConfirmationsAddon(true);
+    this.showEmailConfirmationsConfirm = false;
+  }
+
+  toggleEmailConfirmationsAddon(enabled: boolean) {
+    if (!this.club || this.togglingEmailConfirmationsAddon) return;
+    this.togglingEmailConfirmationsAddon = true;
+    this.clubService.patchMyEmailConfirmationsAddon(enabled).subscribe({
+      next: (club) => {
+        this.club = {
+          ...this.club!,
+          emailConfirmationsEnabled: !!club.emailConfirmationsEnabled,
+          emailConfirmationsSubscribedAt: club.emailConfirmationsSubscribedAt ?? null,
+        };
+        this.togglingEmailConfirmationsAddon = false;
+        this.appServicePayments.getFeeInfo().subscribe({
+          next: (info) => this.feeInfo.set(info),
+          error: () => {},
+        });
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.togglingEmailConfirmationsAddon = false;
         this.cdr.detectChanges();
       },
     });

@@ -12,6 +12,7 @@ const HostedPlay = require("../models/HostedPlay");
 const HostedPlayParticipant = require("../models/HostedPlayParticipant");
 const AppReview = require("../models/AppReview");
 const { sendPushToClubAdmins } = require("../utils/push");
+const { sendReservationConfirmationEmail } = require("../utils/email");
 const { computePlayerFees } = require("../utils/fees");
 const { resolveGuestFee, countGuests, countGuestsBySession } = require("../utils/guests");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
@@ -819,6 +820,13 @@ router.post("/:clubId/reserve", async (req, res) => {
       url: '/admin/reservations',
       tag: 'new-guest-booking',
     }, { clubName: club.name }).catch(() => {});
+
+    if (club.emailConfirmationsEnabled) {
+      sendReservationConfirmationEmail(reservation, charge, {
+        clubName: club.name,
+        recipients: [guestInfo.email.trim()],
+      }).catch(() => {});
+    }
 
     res.status(201).json({ reservation, charge });
   } catch (err) {

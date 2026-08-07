@@ -125,6 +125,14 @@ export class ClubLedgerService {
     return this.http.put<{ financeReportMonthlyFee: number }>(`${environment.apiUrl}/config/finance-report-fee`, { amount });
   }
 
+  getGlobalEmailConfirmationsFee(): Observable<{ emailConfirmationsMonthlyFee: number }> {
+    return this.http.get<{ emailConfirmationsMonthlyFee: number }>(`${environment.apiUrl}/config/email-confirmations-fee`);
+  }
+
+  setGlobalEmailConfirmationsFee(amount: number): Observable<{ emailConfirmationsMonthlyFee: number }> {
+    return this.http.put<{ emailConfirmationsMonthlyFee: number }>(`${environment.apiUrl}/config/email-confirmations-fee`, { amount });
+  }
+
   getMemberActivationFee(): Observable<{ memberActivationFee: number; memberFreeTierCount: number }> {
     return this.http.get<{ memberActivationFee: number; memberFreeTierCount: number }>(
       `${environment.apiUrl}/config/member-activation-fee`,

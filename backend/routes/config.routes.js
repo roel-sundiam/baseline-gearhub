@@ -94,6 +94,40 @@ router.put("/finance-report-fee", auth, superadmin, async (req, res) => {
   }
 });
 
+// GET /api/config/email-confirmations-fee — global default Email Confirmations add-on price (superadmin only)
+router.get("/email-confirmations-fee", auth, superadmin, async (req, res) => {
+  try {
+    const settings = await AppSettings.findOneAndUpdate(
+      { _id: "global" },
+      {},
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).lean();
+    res.json({ emailConfirmationsMonthlyFee: settings.emailConfirmationsMonthlyFee ?? 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PUT /api/config/email-confirmations-fee — update the global default price (superadmin only)
+router.put("/email-confirmations-fee", auth, superadmin, async (req, res) => {
+  try {
+    const amount = Number(req.body.amount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      return res.status(400).json({ error: "amount must be a non-negative number" });
+    }
+    const updated = await AppSettings.findOneAndUpdate(
+      { _id: "global" },
+      { $set: { emailConfirmationsMonthlyFee: amount } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).lean();
+    res.json({ emailConfirmationsMonthlyFee: updated.emailConfirmationsMonthlyFee });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // GET /api/config/member-activation-fee — global one-time member activation fee + free tier (superadmin only)
 router.get("/member-activation-fee", auth, superadmin, async (req, res) => {
   try {

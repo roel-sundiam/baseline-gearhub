@@ -5,7 +5,9 @@ const Reservation = require("../models/Reservation");
 const Charge = require("../models/Charge");
 const Rates = require("../models/Rates");
 const Club = require("../models/Club");
+const User = require("../models/User");
 const { sendPushToClubAdmins } = require("../utils/push");
+const { sendReservationConfirmationEmail } = require("../utils/email");
 const { ownsClub } = require("../utils/scope");
 const OpenPlaySession = require("../models/OpenPlaySession");
 const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
@@ -270,7 +272,7 @@ router.post("/", auth, async (req, res) => {
     if (!Number.isInteger(courtNum) || courtNum < 1) {
       return res.status(400).json({ error: "court must be a positive integer" });
     }
-    const clubDoc = await Club.findById(clubId).select('name courtCount openingHour closingHour convenienceFeeRate convenienceFeeMode additionalFees').lean();
+    const clubDoc = await Club.findById(clubId).select('name courtCount openingHour closingHour convenienceFeeRate convenienceFeeMode additionalFees emailConfirmationsEnabled').lean();
     const courtCount = clubDoc?.courtCount ?? 2;
     if (courtNum > courtCount) {
       return res.status(400).json({ error: `court must be between 1 and ${courtCount}` });
@@ -454,6 +456,18 @@ router.post("/", auth, async (req, res) => {
       url: '/admin/reservations',
       tag: 'new-reservation',
     }, { clubName: clubDoc?.name }).catch(() => {});
+
+    if (clubDoc?.emailConfirmationsEnabled) {
+      User.find({ _id: { $in: [req.user.userId, ...additionalPlayers] } }).select('email').lean()
+        .then((bookedUsers) => {
+          const recipients = [
+            ...bookedUsers.map((u) => u.email),
+            reservation.guestInfo?.email,
+          ];
+          return sendReservationConfirmationEmail(reservation, charge, { clubName: clubDoc?.name, recipients });
+        })
+        .catch(() => {});
+    }
 
     res.status(201).json({ reservation, charge });
   } catch (err) {

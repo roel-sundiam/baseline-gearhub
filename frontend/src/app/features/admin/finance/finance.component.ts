@@ -314,6 +314,12 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                   <div class="summary-label">Finance Report Add-on</div>
                 </div>
               }
+              @if (emailConfirmationsBillingTotal > 0) {
+                <div class="summary-item highlight-gold">
+                  <div class="summary-value">{{ emailConfirmationsBillingTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
+                  <div class="summary-label">Email Confirmations Add-on</div>
+                </div>
+              }
               @if (memberActivationBillingTotal > 0) {
                 <div class="summary-item highlight-green">
                   <div class="summary-value">{{ memberActivationBillingTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
@@ -629,6 +635,10 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                         } @else if (p.type === 'billing' && isMemberActivationFee(p)) {
                           <span class="method-badge method-member-activation">
                             <i class="fas fa-user-plus"></i> Member Activation Fee
+                          </span>
+                        } @else if (p.type === 'billing' && isEmailConfirmationsBilling(p)) {
+                          <span class="method-badge method-email-confirmations">
+                            <i class="fas fa-envelope-circle-check"></i> Email Confirmations Add-on
                           </span>
                         } @else if (p.type === 'billing') {
                           <span class="method-badge method-billing">
@@ -967,6 +977,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .paid-fee-icon-billing { background: rgba(96,165,250,0.16) !important; color: #93c5fd !important; }
     .method-finance-report { background: rgba(250,204,21,0.16); color: #facc15; display: inline-flex; align-items: center; gap: 4px; }
     .method-member-activation { background: rgba(74,222,128,0.16); color: #4ade80; display: inline-flex; align-items: center; gap: 4px; }
+    .method-email-confirmations { background: rgba(250,204,21,0.16); color: #facc15; display: inline-flex; align-items: center; gap: 4px; }
     .waived-total { color: #c4b5fd; }
 
     .filter-bar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: flex-end; }
@@ -2142,6 +2153,13 @@ export class FinanceComponent implements OnInit {
       .filter(p => p.type === 'billing' && (p.billingKey ?? '').startsWith('member_activation:'))
       .reduce((s, p) => s + p.amount, 0);
   }
+  // Email Confirmations add-on billing is tagged with billingKey "email_confirmations:YYYY-MM" —
+  // segregate it out of "Conv. Fees Owed" too, for the same reason as the Finance Report add-on.
+  get emailConfirmationsBillingTotal() {
+    return this.appServicePayments
+      .filter(p => p.type === 'billing' && (p.billingKey ?? '').startsWith('email_confirmations:'))
+      .reduce((s, p) => s + p.amount, 0);
+  }
   get appServiceTotal() {
     // Monthly flat replaces reservation/open-play/per-game fees, but Hosted Play convenience fees
     // are billed per transaction independently of the plan, and billed entries (queue management,
@@ -2153,7 +2171,7 @@ export class FinanceComponent implements OnInit {
   // appServiceTotal/balance stay the grand total (what's actually owed to CourtGo); this is just
   // the true convenience-fee portion, with the Finance Report add-on and member activation
   // fee billing pulled out.
-  get convenienceFeesOwedTotal() { return this.appServiceTotal - this.financeReportBillingTotal - this.memberActivationBillingTotal; }
+  get convenienceFeesOwedTotal() { return this.appServiceTotal - this.financeReportBillingTotal - this.memberActivationBillingTotal - this.emailConfirmationsBillingTotal; }
   get totalPaid() { return this.appServicePayments.filter(p => p.type === 'payment').reduce((s, p) => s + p.amount, 0); }
   get totalWaived() { return this.appServicePayments.filter(p => p.type === 'waiver').reduce((s, p) => s + p.amount, 0); }
   get balance() {
@@ -2348,6 +2366,10 @@ export class FinanceComponent implements OnInit {
 
   isMemberActivationFee(p: AppServicePayment): boolean {
     return (p.billingKey ?? '').startsWith('member_activation:');
+  }
+
+  isEmailConfirmationsBilling(p: AppServicePayment): boolean {
+    return (p.billingKey ?? '').startsWith('email_confirmations:');
   }
 
   // True when a charge was paid using a mix of account credit and an external method.

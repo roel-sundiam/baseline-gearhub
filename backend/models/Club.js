@@ -55,6 +55,12 @@ const clubSchema = new mongoose.Schema(
     // This club's own DUPR Club ID, entered manually by a superadmin. Reserved
     // for a future phase once a real DUPR API partnership/credentials exist -
     // not validated against DUPR today.
+    // Email Confirmations add-on: club admin self-subscribes; the monthly fee accrues
+    // as AppServicePayment billing entries while enabled, same pattern as Finance Report.
+    emailConfirmationsEnabled: { type: Boolean, default: false },
+    emailConfirmationsSubscribedAt: { type: Date, default: null },
+    emailConfirmationsFeeOverride: { type: Number, default: null, min: 0 }, // null => global default
+
     duprClubId: { type: String, trim: true, default: null },
     // Club-level opt-in for submitting Hosted Play pickleball match scores to DUPR.
     // No-ops entirely when the platform-level DUPR_* env vars are unset.

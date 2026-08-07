@@ -8,6 +8,7 @@ const Reservation = require("../models/Reservation");
 const ClubLedgerEntry = require("../models/ClubLedgerEntry");
 const { ownsClub } = require("../utils/scope");
 const { ensureFinanceReportBilling } = require("../utils/financeReportBilling");
+const { ensureEmailConfirmationsBilling } = require("../utils/emailConfirmationsBilling");
 
 const router = express.Router();
 
@@ -127,6 +128,7 @@ router.get("/", auth, admin, resolveReportClub, async (req, res) => {
 router.get("/report", auth, admin, resolveReportClub, async (req, res) => {
   try {
     await ensureFinanceReportBilling(req.club, req.user.userId);
+    await ensureEmailConfirmationsBilling(req.club, req.user.userId);
 
     const { from, to } = req.query;
     const dateFilter = dateRangeFilter(from, to);

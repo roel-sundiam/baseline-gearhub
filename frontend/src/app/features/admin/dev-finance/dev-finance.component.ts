@@ -270,6 +270,104 @@ import {
             </table>
           </div>
 
+          <!-- Email Confirmations Add-on -->
+          <div class="section-header payments-section-header">
+            <i class="fas fa-envelope-circle-check section-icon"></i>
+            <h3 class="section-title">Email Confirmations Add-on</h3>
+            <span class="section-note">Booking confirmation emails — billed monthly per club</span>
+          </div>
+
+          <div class="addon-default-bar">
+            <span class="addon-default-label">Default price</span>
+            <input
+              type="number"
+              class="fee-rate-input"
+              [(ngModel)]="emailGlobalFeeValue"
+              min="0" step="1"
+              style="width:90px"
+            />
+            <span class="fee-rate-pct">₱ / month</span>
+            <button class="btn-fee-save" (click)="saveEmailGlobalFee()" [disabled]="savingEmailGlobalFee">
+              @if (savingEmailGlobalFee) { <i class="fas fa-circle-notch fa-spin"></i> }
+              @else { <i class="fas fa-check"></i> Save }
+            </button>
+            @if (emailGlobalFeeSaved) {
+              <span class="addon-saved-note"><i class="fas fa-check-circle"></i> Saved</span>
+            }
+          </div>
+
+          <div class="clubs-table-wrap">
+            <table class="clubs-table">
+              <thead>
+                <tr>
+                  <th>Club</th>
+                  <th class="col-center">Status</th>
+                  <th class="col-center">Monthly Fee</th>
+                  <th class="col-right" title="Total Email Confirmations add-on billing to date — kept separate from Conv. Fee Owed above">Fees Billed</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (club of clubs; track club.clubId) {
+                  <tr>
+                    <td class="col-club">{{ club.clubName }}</td>
+                    <td class="col-center">
+                      @if (club.emailConfirmationsEnabled) {
+                        <span class="status-chip status-paid">
+                          <i class="fas fa-crown"></i>
+                          Subscribed{{ club.emailConfirmationsSubscribedAt ? ' · ' + (club.emailConfirmationsSubscribedAt | date: 'MMM d, y') : '' }}
+                        </span>
+                      } @else {
+                        <span class="col-muted">—</span>
+                      }
+                    </td>
+                    <td class="col-center">
+                      <div class="fee-rate-cell">
+                        @if (editingEmailAddonFeeClubId === club.clubId) {
+                          <input
+                            type="number"
+                            class="fee-rate-input"
+                            [(ngModel)]="editingEmailAddonFeeValue"
+                            min="0" step="1"
+                            style="width:80px"
+                          />
+                          <button class="btn-fee-save" (click)="saveEmailAddonFee(club)" [disabled]="savingEmailAddonFee">
+                            @if (savingEmailAddonFee) { <i class="fas fa-circle-notch fa-spin"></i> }
+                            @else { <i class="fas fa-check"></i> }
+                          </button>
+                          @if (club.emailConfirmationsFeeOverride != null) {
+                            <button class="btn-fee-cancel" title="Reset to default" (click)="resetEmailAddonFee(club)" [disabled]="savingEmailAddonFee">
+                              <i class="fas fa-rotate-left"></i>
+                            </button>
+                          }
+                          <button class="btn-fee-cancel" (click)="cancelEmailAddonFee()"><i class="fas fa-times"></i></button>
+                        } @else {
+                          <span class="fee-rate-badge">
+                            {{ club.emailConfirmationsMonthlyFee | currency: 'PHP' : 'symbol' : '1.0-2' }}/mo
+                            @if (club.emailConfirmationsFeeOverride != null) {
+                              <span class="override-tag">override</span>
+                            }
+                          </span>
+                          <button class="btn-fee-edit" (click)="startEditEmailAddonFee(club)" title="Edit add-on fee">
+                            <i class="fas fa-pen"></i>
+                          </button>
+                        }
+                      </div>
+                    </td>
+                    <td class="col-right col-blue">{{ club.emailConfirmationsFeesBilled | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td class="foot-label">Total</td>
+                  <td></td>
+                  <td></td>
+                  <td class="col-right foot-blue">{{ totals.emailConfirmationsFeesBilled | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
           <!-- Member Activation Fee -->
           <div class="section-header payments-section-header">
             <i class="fas fa-user-plus section-icon"></i>
@@ -727,7 +825,7 @@ import {
 })
 export class DevFinanceComponent implements OnInit {
   clubs: ClubServiceSummary[] = [];
-  totals: ServiceSummaryTotals = { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0, convenienceFeesOwed: 0, financeReportFeesBilled: 0 };
+  totals: ServiceSummaryTotals = { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0, convenienceFeesOwed: 0, financeReportFeesBilled: 0, emailConfirmationsFeesBilled: 0 };
   payments: AppServicePayment[] = [];
   loading = true;
 
@@ -750,6 +848,13 @@ export class DevFinanceComponent implements OnInit {
   editingAddonFeeClubId: string | null = null;
   editingAddonFeeValue = 0;
   savingAddonFee = false;
+
+  emailGlobalFeeValue = 0;
+  savingEmailGlobalFee = false;
+  emailGlobalFeeSaved = false;
+  editingEmailAddonFeeClubId: string | null = null;
+  editingEmailAddonFeeValue = 0;
+  savingEmailAddonFee = false;
 
   memberActivationFeeValue = 0;
   memberFreeTierCountValue = 0;
@@ -783,13 +888,15 @@ export class DevFinanceComponent implements OnInit {
       summary: this.appServicePaymentsService.getSummary(),
       payments: this.appServicePaymentsService.getAll(),
       globalFee: this.clubLedgerService.getGlobalFee(),
+      emailGlobalFee: this.clubLedgerService.getGlobalEmailConfirmationsFee(),
       memberActivationFee: this.clubLedgerService.getMemberActivationFee(),
     }).subscribe({
-      next: ({ summary, payments, globalFee, memberActivationFee }) => {
+      next: ({ summary, payments, globalFee, emailGlobalFee, memberActivationFee }) => {
         this.clubs = summary.clubs;
         this.totals = summary.totals;
         this.payments = payments;
         this.globalFeeValue = globalFee.financeReportMonthlyFee;
+        this.emailGlobalFeeValue = emailGlobalFee.emailConfirmationsMonthlyFee;
         this.memberActivationFeeValue = memberActivationFee.memberActivationFee;
         this.memberFreeTierCountValue = memberActivationFee.memberFreeTierCount;
         this.loading = false;
@@ -892,6 +999,75 @@ export class DevFinanceComponent implements OnInit {
       },
       error: () => {
         this.savingGlobalFee = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  saveEmailGlobalFee() {
+    const amount = Number(this.emailGlobalFeeValue);
+    if (!Number.isFinite(amount) || amount < 0) return;
+    this.savingEmailGlobalFee = true;
+    this.emailGlobalFeeSaved = false;
+    this.clubLedgerService.setGlobalEmailConfirmationsFee(amount).subscribe({
+      next: (res) => {
+        this.emailGlobalFeeValue = res.emailConfirmationsMonthlyFee;
+        // Refresh effective fees for clubs without an override
+        this.clubs = this.clubs.map((c) =>
+          c.emailConfirmationsFeeOverride == null ? { ...c, emailConfirmationsMonthlyFee: res.emailConfirmationsMonthlyFee } : c,
+        );
+        this.savingEmailGlobalFee = false;
+        this.emailGlobalFeeSaved = true;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.savingEmailGlobalFee = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  startEditEmailAddonFee(club: ClubServiceSummary) {
+    this.editingEmailAddonFeeClubId = club.clubId;
+    this.editingEmailAddonFeeValue = club.emailConfirmationsMonthlyFee ?? this.emailGlobalFeeValue;
+  }
+
+  cancelEmailAddonFee() {
+    this.editingEmailAddonFeeClubId = null;
+    this.savingEmailAddonFee = false;
+  }
+
+  saveEmailAddonFee(club: ClubServiceSummary) {
+    const amount = Number(this.editingEmailAddonFeeValue);
+    if (!Number.isFinite(amount) || amount < 0) return;
+    this.savingEmailAddonFee = true;
+    this.clubService.patchEmailConfirmationsFee(club.clubId, amount).subscribe({
+      next: () => {
+        club.emailConfirmationsFeeOverride = amount;
+        club.emailConfirmationsMonthlyFee = amount;
+        this.editingEmailAddonFeeClubId = null;
+        this.savingEmailAddonFee = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.savingEmailAddonFee = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  resetEmailAddonFee(club: ClubServiceSummary) {
+    this.savingEmailAddonFee = true;
+    this.clubService.patchEmailConfirmationsFee(club.clubId, null).subscribe({
+      next: () => {
+        club.emailConfirmationsFeeOverride = null;
+        club.emailConfirmationsMonthlyFee = this.emailGlobalFeeValue;
+        this.editingEmailAddonFeeClubId = null;
+        this.savingEmailAddonFee = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.savingEmailAddonFee = false;
         this.cdr.detectChanges();
       },
     });
