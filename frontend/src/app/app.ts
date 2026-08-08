@@ -336,7 +336,7 @@ export class App {
 
   isAuthRoute(): boolean {
     const url = this.router.url.split('?')[0].split('#')[0];
-    return url === '/' || url === '' || url.includes('/player-login') || url.includes('/register') || url.startsWith('/book') || url.startsWith('/features') || url.startsWith('/review');
+    return url === '/' || url === '' || url.includes('/player-login') || url.includes('/register') || url.startsWith('/book') || url.startsWith('/features') || url.startsWith('/review') || url.startsWith('/partner-with-us');
   }
 
   isTvDisplayRoute(): boolean {

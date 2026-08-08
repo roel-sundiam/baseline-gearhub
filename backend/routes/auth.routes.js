@@ -6,23 +6,10 @@ const Club = require("../models/Club");
 const ClubMembership = require("../models/ClubMembership");
 const Rates = require("../models/Rates");
 const LoginHistory = require("../models/LoginHistory");
-const Notification = require("../models/Notification");
 const authMiddleware = require("../middleware/auth");
 const superadminMiddleware = require("../middleware/superadmin");
-const { sendPushToUser } = require("../utils/push");
+const { notifySuperadmins } = require("../utils/notify");
 const AppSettings = require("../models/AppSettings");
-
-async function notifySuperadmins(title, body, data = {}) {
-  try {
-    const superadmins = await User.find({ role: "superadmin" }, "_id").lean();
-    await Promise.all(superadmins.map(async (sa) => {
-      await Notification.create({ userId: sa._id, type: data.type || "info", title, body, data });
-      await sendPushToUser(sa._id, { title, body, data });
-    }));
-  } catch (err) {
-    console.error("notifySuperadmins error:", err.message);
-  }
-}
 
 const router = express.Router();
 

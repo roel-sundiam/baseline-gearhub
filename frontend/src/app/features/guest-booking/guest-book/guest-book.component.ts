@@ -2,8 +2,19 @@ import { Component, OnInit, OnDestroy, ChangeDetectorRef, Renderer2, signal, com
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { PublicBookingService } from '../../../core/services/public-booking.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
+import { environment } from '../../../../environments/environment';
+
+interface PublicSponsor {
+  _id: string;
+  businessName: string;
+  logoUrl: string;
+  description: string;
+  promoText?: string;
+  link: string;
+}
 
 @Component({
   selector: 'app-guest-book',
@@ -457,6 +468,35 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                   }
                 </div>
               </div>
+            </div>
+
+            <!-- Partners -->
+            <div class="lp-card lp-partners-card">
+              <div class="lp-section-label"><i class="fas fa-handshake"></i> Our Partners</div>
+              <p class="lp-card-desc" style="margin-bottom:0.9rem">Local businesses supporting the CourtGo community.</p>
+              @if (sponsors.length > 0) {
+                <div class="lp-partners-grid">
+                  @for (sponsor of sponsors; track sponsor._id) {
+                    <div class="lp-partner-tile">
+                      <img [src]="sponsor.logoUrl" [alt]="sponsor.businessName" class="lp-partner-logo" />
+                      <div class="lp-partner-info">
+                        <span class="lp-partner-badge">Sponsored</span>
+                        <div class="lp-partner-name">{{ sponsor.businessName }}</div>
+                        <p class="lp-partner-desc">{{ sponsor.description }}</p>
+                        @if (sponsor.promoText) { <p class="lp-partner-promo">{{ sponsor.promoText }}</p> }
+                        <a [href]="sponsor.link" target="_blank" rel="noopener" class="lp-partner-link">
+                          Visit <i class="fas fa-arrow-up-right-from-square"></i>
+                        </a>
+                      </div>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <p class="lp-partners-empty">Be the first local business featured here.</p>
+              }
+              <a routerLink="/partner-with-us" class="lp-partners-cta">
+                Become a Partner <i class="fas fa-arrow-up-right-from-square"></i>
+              </a>
             </div>
 
             <!-- Lightbox -->
@@ -1038,6 +1078,54 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
     .lp-slots-empty { font-size: 0.78rem; color: rgba(255,255,255,0.28); font-style: italic; padding: 0.25rem 0; }
     .lp-social-ig { background: rgba(228,64,95,0.09); border-color: rgba(228,64,95,0.2); }
 
+    /* ── Partners ── */
+    .lp-partners-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 0.75rem;
+    }
+    .lp-partner-tile {
+      display: flex;
+      gap: 0.75rem;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 0.9rem;
+    }
+    .lp-partner-logo {
+      width: 42px; height: 42px;
+      border-radius: 10px;
+      object-fit: cover;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .lp-partner-info { min-width: 0; }
+    .lp-partner-badge {
+      display: inline-block; font-size: 0.6rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.06);
+      padding: 0.12rem 0.45rem; border-radius: 100px; margin-bottom: 0.3rem;
+    }
+    .lp-partner-name { font-size: 0.87rem; font-weight: 700; color: #fff; margin-bottom: 0.3rem; }
+    .lp-partner-desc { font-size: 0.78rem; color: rgba(255,255,255,0.45); line-height: 1.55; margin: 0 0 0.35rem; }
+    .lp-partner-promo { font-size: 0.76rem; color: #fbbf24; margin: 0 0 0.5rem; }
+    .lp-partner-link {
+      display: inline-flex; align-items: center; gap: 0.32rem;
+      font-size: 0.75rem; font-weight: 700; color: #a3e635;
+      text-decoration: none; padding: 0.32rem 0.7rem; border-radius: 100px;
+      border: 1px solid rgba(163,230,53,0.3);
+      transition: background 0.15s;
+    }
+    .lp-partner-link:hover { background: rgba(163,230,53,0.1); }
+    .lp-partners-empty { font-size: 0.82rem; color: rgba(255,255,255,0.3); font-style: italic; margin: 0 0 0.9rem; }
+    .lp-partners-cta {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      font-size: 0.8rem; font-weight: 700; color: #a3e635; text-decoration: none;
+      border: 1px solid rgba(163,230,53,0.3); border-radius: 100px;
+      padding: 0.45rem 1rem; transition: background 0.15s;
+    }
+    .lp-partners-cta:hover { background: rgba(163,230,53,0.1); }
+
     /* ── Features ── */
     .lp-features-grid {
       display: grid;
@@ -1498,6 +1586,7 @@ export class GuestBookComponent implements OnInit, OnDestroy {
     { icon: 'fa-trophy', title: 'Events & Tournaments', desc: 'Join our regular events and tournaments throughout the year.' },
   ];
   readonly fallbackPhotoPlaceholders = [1, 2, 3, 4];
+  sponsors: PublicSponsor[] = [];
   lightboxPhoto: string | null = null;
   showOpenPlay = false;
   openPlaySessions: { _id: string; title: string; sport: string; sessionDate: string; startTime: string; endTime: string; matchType: string; maxPlayers: number; joinedPlayers: number }[] = [];
@@ -1548,6 +1637,7 @@ export class GuestBookComponent implements OnInit, OnDestroy {
     private cloudinary: CloudinaryService,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
+    private http: HttpClient,
   ) {}
 
   ngOnInit() {
@@ -1559,6 +1649,11 @@ export class GuestBookComponent implements OnInit, OnDestroy {
       this.clubError = 'Invalid booking link.';
       return;
     }
+
+    this.http.get<PublicSponsor[]>(`${environment.apiUrl}/public/sponsors`).subscribe({
+      next: (s) => { this.sponsors = s; this.cdr.detectChanges(); },
+      error: () => {},
+    });
 
     this.publicBookingService.getClub(this.clubId).subscribe({
       next: (club) => {

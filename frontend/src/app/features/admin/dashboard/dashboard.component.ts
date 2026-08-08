@@ -19,6 +19,7 @@ import { AppServicePaymentsService } from '../../../core/services/app-service-pa
 import { AnnouncementService } from '../../../core/services/announcement.service';
 import { HostedPlayService, HostedPlaySession } from '../../../core/services/hosted-play.service';
 import { DuprService } from '../../../core/services/dupr.service';
+import { SponsorService } from '../../../core/services/sponsor.service';
 import { forkJoin, timeout, of, catchError } from 'rxjs';
 import { marked } from 'marked';
 import QRCode from 'qrcode';
@@ -224,6 +225,16 @@ import QRCode from 'qrcode';
                 <span class="action-icon"><i class="fas fa-calendar-alt"></i></span>
                 <span class="action-title">Club Calendar</span>
                 <span class="action-sub">View any club's court reservations by month</span>
+              </a>
+              <a routerLink="/admin/sponsors" class="action-card">
+                <span class="action-icon" style="position:relative;display:inline-block;">
+                  <i class="fas fa-handshake"></i>
+                  @if (pendingSponsorInquiriesCount > 0) {
+                    <span class="msg-badge">{{ pendingSponsorInquiriesCount }}</span>
+                  }
+                </span>
+                <span class="action-title">Sponsored Partners</span>
+                <span class="action-sub">Manage paid business placements</span>
               </a>
               <a routerLink="/admin/admins" class="action-card">
                 <span class="action-icon" style="position:relative;display:inline-block;">
@@ -2022,6 +2033,9 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   // ── Support chat (club admin only) ──
   messageUnreadCount = 0;
   supportChatOpen = false;
+
+  // ── Sponsor partner applications (superadmin only) ──
+  pendingSponsorInquiriesCount = 0;
   supportContactId = '';
   supportContactName = 'CourtGo Support';
   private msgPollInterval: ReturnType<typeof setInterval> | null = null;
@@ -2071,6 +2085,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     private hostedPlayService: HostedPlayService,
     private sanitizer: DomSanitizer,
     private duprService: DuprService,
+    private sponsorService: SponsorService,
   ) {}
 
   duprConfigured = false;
@@ -2208,6 +2223,14 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     if (!this.authService.isSuperAdmin()) {
       this.duprService.getStatus().subscribe({
         next: (status) => { this.duprConfigured = status.configured; this.cdr.detectChanges(); },
+        error: () => {},
+      });
+    } else {
+      this.sponsorService.getInquiries().subscribe({
+        next: (items) => {
+          this.pendingSponsorInquiriesCount = items.filter(i => i.status === 'new').length;
+          this.cdr.detectChanges();
+        },
         error: () => {},
       });
     }

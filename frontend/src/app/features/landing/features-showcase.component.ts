@@ -33,7 +33,7 @@ interface Feature {
           <a routerLink="/book" class="nav-link">Find Courts</a>
         </nav>
         <div class="header-ctas">
-          <a href="https://app.courtgo.club/player-login" class="btn-outline">Sign In</a>
+          <a routerLink="/player-login" class="btn-outline">Sign In</a>
           <a routerLink="/register-club" class="btn-primary">Register for Free</a>
         </div>
       </header>
@@ -86,7 +86,7 @@ interface Feature {
       </section>
 
       <footer class="footer">
-        <span>&copy; 2025 CourtGo</span>
+        <span>&copy; 2026 CourtGo</span>
         <a routerLink="/" class="footer-link">Back to Home</a>
       </footer>
     </div>

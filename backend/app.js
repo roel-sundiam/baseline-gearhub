@@ -40,6 +40,7 @@ const appServicePaymentsRoutes = require("./routes/app-service-payments.routes")
 const tournamentsRoutes = require("./routes/tournaments.routes");
 const clubsRoutes = require("./routes/clubs.routes");
 const newsRoutes = require("./routes/news.routes");
+const sponsorsRoutes = require("./routes/sponsors.routes");
 const publicRoutes = require("./routes/public.routes");
 const inquiriesRoutes = require("./routes/inquiries.routes");
 const pushRoutes = require("./routes/push.routes");
@@ -156,6 +157,7 @@ app.use("/api/app-service-payments", appServicePaymentsRoutes);
 app.use("/api/tournaments", tournamentsRoutes);
 app.use("/api/clubs", clubsRoutes);
 app.use("/api/news", newsRoutes);
+app.use("/api/sponsors", sponsorsRoutes);
 app.use("/api/public", publicRoutes);
 app.use("/api/inquiries", inquiriesRoutes);
 app.use("/api/push", pushRoutes);

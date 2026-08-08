@@ -11,7 +11,10 @@ const OpenPlaySessionPlayer = require("../models/OpenPlaySessionPlayer");
 const HostedPlay = require("../models/HostedPlay");
 const HostedPlayParticipant = require("../models/HostedPlayParticipant");
 const AppReview = require("../models/AppReview");
+const Sponsor = require("../models/Sponsor");
+const SponsorInquiry = require("../models/SponsorInquiry");
 const { sendPushToClubAdmins } = require("../utils/push");
+const { notifySuperadmins } = require("../utils/notify");
 const { sendReservationConfirmationEmail } = require("../utils/email");
 const { computePlayerFees } = require("../utils/fees");
 const { resolveGuestFee, countGuests, countGuestsBySession } = require("../utils/guests");
@@ -104,6 +107,57 @@ router.get("/app-reviews", async (req, res) => {
       clubSlug: r.clubId?.slug ?? null,
       clubLogo: r.clubId?.logo ?? null,
     })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /api/public/sponsors — currently live sponsors, for the landing page (no auth)
+router.get("/sponsors", async (req, res) => {
+  try {
+    const now = new Date();
+    const items = await Sponsor.find({
+      status: "active",
+      paymentVerified: true,
+      startDate: { $lte: now },
+      endDate: { $gte: now },
+    })
+      .select("businessName logoUrl description promoText link")
+      .sort({ startDate: 1 })
+      .lean();
+    res.json(items);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/public/partner-inquiries — business applies to become a sponsor (no auth)
+router.post("/partner-inquiries", async (req, res) => {
+  try {
+    const { businessName, contactName, email, phone, message } = req.body;
+
+    if (!businessName?.trim()) return res.status(400).json({ error: "businessName is required" });
+    if (!contactName?.trim()) return res.status(400).json({ error: "contactName is required" });
+    if (!email?.trim() || !email.includes("@")) return res.status(400).json({ error: "A valid email address is required" });
+    if (!message?.trim()) return res.status(400).json({ error: "message is required" });
+
+    await SponsorInquiry.create({
+      businessName: businessName.trim(),
+      contactName: contactName.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone?.trim() || undefined,
+      message: message.trim(),
+    });
+
+    notifySuperadmins(
+      "New Partner Application",
+      `${businessName.trim()} applied to become a CourtGo partner.`,
+      { type: "sponsor_inquiry" },
+    );
+
+    res.status(201).json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

@@ -13,6 +13,15 @@ interface AppReview {
   clubLogo: string | null;
 }
 
+interface PublicSponsor {
+  _id: string;
+  businessName: string;
+  logoUrl: string;
+  description: string;
+  promoText?: string;
+  link: string;
+}
+
 @Component({
   selector: 'app-landing',
   standalone: true,
@@ -41,11 +50,8 @@ interface AppReview {
             <span class="nav-search-short">Find Clubs</span>
           </a>
           <nav class="nav-links">
-            <a href="#" class="nav-link">Pricing</a>
-            <a href="#" class="nav-link">How It Works</a>
-            <a href="#" class="nav-link nav-link-drop">Resources
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
-            </a>
+            <a href="#booking-types" class="nav-link">How It Works</a>
+            <a routerLink="/features" class="nav-link">Features</a>
           </nav>
         </div>
 
@@ -70,9 +76,15 @@ interface AppReview {
       <!-- Hero -->
       <section class="hero">
         <div class="hero-left">
-          <div class="hero-badge">
-            <span class="badge-dot"></span>
-            Racket Sports Club Platform
+          <div class="hero-badges">
+            <div class="hero-badge">
+              <span class="badge-dot"></span>
+              Racket Sports Club Platform
+            </div>
+            <div class="hero-badge hero-badge-dupr">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+              Official DUPR Integration
+            </div>
           </div>
           <h1 class="hero-headline">
             The modern way to<br>
@@ -81,8 +93,8 @@ interface AppReview {
           </h1>
           <p class="hero-sub">
             Real-time reservations, club management, tournaments,
-            and live support — all in one place. For tennis, pickleball,
-            squash, and more.
+            and official DUPR ratings — all in one place. For tennis,
+            pickleball, squash, and more.
           </p>
           <div class="hero-ctas">
             <a routerLink="/register-club" class="btn-primary btn-hero">
@@ -97,7 +109,7 @@ interface AppReview {
               <div class="av av-2"></div>
               <div class="av av-3"></div>
             </div>
-            <p class="proof-text">Join <strong>1,000+</strong> clubs &amp; players already using CourtGo</p>
+            <p class="proof-text">Join the clubs &amp; players already using CourtGo</p>
           </div>
         </div>
 
@@ -231,6 +243,15 @@ interface AppReview {
             <p>Native iOS &amp; Android apps with a seamless web experience.</p>
           </div>
 
+          <div class="feature-card feature-card-dupr">
+            <span class="fc-official-tag">Official Integration</span>
+            <div class="fi fi-dupr">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+            </div>
+            <h3>DUPR Integration</h3>
+            <p>Link your official DUPR rating to track your progress and unlock premium events.</p>
+          </div>
+
         </div>
       </section>
 
@@ -273,6 +294,47 @@ interface AppReview {
         </section>
       }
 
+      <!-- Partners -->
+      <section class="partners" id="partners">
+        <div class="partners-head">
+          <h2 class="partners-title">Our Partners</h2>
+          <p class="partners-sub">Local businesses supporting the CourtGo community.</p>
+        </div>
+
+        @if (sponsors().length > 0) {
+          <div class="partners-grid">
+            @for (sponsor of sponsors(); track sponsor._id) {
+              <div class="partner-card">
+                <div class="partner-card-top">
+                  <img [src]="sponsor.logoUrl" [alt]="sponsor.businessName" class="partner-logo" />
+                  <div>
+                    <span class="partner-badge">Sponsored</span>
+                    <h3 class="partner-name">{{ sponsor.businessName }}</h3>
+                  </div>
+                </div>
+                <p class="partner-desc">{{ sponsor.description }}</p>
+                @if (sponsor.promoText) {
+                  <p class="partner-promo">{{ sponsor.promoText }}</p>
+                }
+                <a [href]="sponsor.link" target="_blank" rel="noopener" class="partner-link">
+                  Visit
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+                </a>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="partners-empty">Be the first local business featured here.</p>
+        }
+
+        <div class="partners-cta">
+          <a routerLink="/partner-with-us" class="partners-cta-link">
+            Become a Partner
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+          </a>
+        </div>
+      </section>
+
       <!-- CTA strip -->
       <section class="cta-strip">
         <h2>Ready to get started?</h2>
@@ -282,7 +344,7 @@ interface AppReview {
 
       <!-- Footer -->
       <footer class="footer">
-        <span>&copy; 2025 CourtGo</span>
+        <span>&copy; 2026 CourtGo</span>
         <span class="version">v{{ version }}</span>
       </footer>
 
@@ -460,6 +522,11 @@ interface AppReview {
 
     .hero-left { flex: 1; min-width: 0; }
 
+    .hero-badges {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem;
+      margin-bottom: 1.75rem;
+    }
+
     .hero-badge {
       display: inline-flex; align-items: center; gap: 0.5rem;
       font-size: 0.7rem; font-weight: 700; letter-spacing: 0.11em;
@@ -467,7 +534,7 @@ interface AppReview {
       background: rgba(255,255,255,0.05);
       border: 1px solid rgba(255,255,255,0.11);
       padding: 0.32rem 0.85rem; border-radius: 100px;
-      margin-bottom: 1.75rem;
+      margin-bottom: 0;
     }
     .badge-dot {
       width: 7px; height: 7px; border-radius: 50%;
@@ -475,6 +542,13 @@ interface AppReview {
       box-shadow: 0 0 7px rgba(124,255,78,0.9);
       flex-shrink: 0;
     }
+
+    .hero-badge-dupr {
+      color: #38bdf8;
+      background: rgba(56,189,248,0.1);
+      border-color: rgba(56,189,248,0.28);
+    }
+    .hero-badge-dupr svg { flex-shrink: 0; }
 
     .hero-headline {
       font-size: clamp(2.4rem, 3.8vw, 4.2rem);
@@ -609,11 +683,12 @@ interface AppReview {
 
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
       gap: 1.25rem;
     }
 
     .feature-card {
+      position: relative;
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.07);
       border-radius: 16px; padding: 1.75rem 1.5rem;
@@ -625,11 +700,32 @@ interface AppReview {
       transform: translateY(-4px);
     }
 
+    .feature-card-dupr {
+      border-color: rgba(56,189,248,0.3);
+      background: rgba(56,189,248,0.045);
+    }
+    .feature-card-dupr:hover {
+      border-color: rgba(56,189,248,0.5);
+      background: rgba(56,189,248,0.08);
+    }
+
+    .fc-official-tag {
+      position: absolute; top: 1.1rem; right: 1.1rem;
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em;
+      text-transform: uppercase; color: #38bdf8;
+      background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.3);
+      padding: 0.2rem 0.55rem; border-radius: 100px;
+    }
+
     .fi {
       width: 46px; height: 46px; border-radius: 12px;
       background: rgba(124,255,78,0.1); border: 1px solid rgba(124,255,78,0.18);
       display: flex; align-items: center; justify-content: center;
       color: #7cff4e; margin-bottom: 1.1rem; flex-shrink: 0;
+    }
+    .fi-dupr {
+      background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.28);
+      color: #38bdf8;
     }
 
     .feature-card h3 {
@@ -945,6 +1041,92 @@ interface AppReview {
       .reviews { padding: 2.5rem 1rem 3rem; }
       .reviews-grid { grid-template-columns: 1fr; }
     }
+
+    /* ── Partners ─────────────────────────────── */
+    .partners {
+      position: relative; z-index: 1;
+      padding: 4rem 3.5rem 5rem;
+      max-width: 1280px;
+      margin: 0 auto;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .partners-head { text-align: center; margin-bottom: 3rem; }
+    .partners-title {
+      font-size: clamp(1.6rem, 2.8vw, 2.2rem);
+      font-weight: 800; color: #fff;
+      margin: 0 0 0.6rem; letter-spacing: -0.02em;
+    }
+    .partners-sub { font-size: 0.95rem; color: rgba(255,255,255,0.4); margin: 0; }
+
+    .partners-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .partner-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex; flex-direction: column; gap: 0.75rem;
+      transition: border-color 0.2s, background 0.2s, transform 0.2s;
+    }
+    .partner-card:hover {
+      border-color: rgba(124,255,78,0.22);
+      background: rgba(124,255,78,0.04);
+      transform: translateY(-3px);
+    }
+
+    .partner-card-top { display: flex; align-items: flex-start; gap: 0.75rem; }
+    .partner-logo {
+      width: 44px; height: 44px; border-radius: 10px; object-fit: cover;
+      flex-shrink: 0; background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .partner-badge {
+      display: inline-block; font-size: 0.62rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.06);
+      padding: 0.15rem 0.5rem; border-radius: 100px; margin-bottom: 0.3rem;
+    }
+    .partner-name { font-size: 1rem; font-weight: 700; color: #fff; margin: 0; }
+    .partner-desc { font-size: 0.85rem; color: rgba(255,255,255,0.55); line-height: 1.6; margin: 0; }
+    .partner-promo { font-size: 0.82rem; color: #f59e0b; margin: 0; }
+
+    .partner-link {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      font-size: 0.78rem; font-weight: 700; color: #7cff4e;
+      text-decoration: none; margin-top: auto; align-self: flex-start;
+      padding: 0.4rem 0.85rem; border-radius: 100px;
+      border: 1px solid rgba(124,255,78,0.3);
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .partner-link:hover { background: rgba(124,255,78,0.08); border-color: rgba(124,255,78,0.55); }
+
+    .partners-empty {
+      text-align: center; font-size: 0.9rem; color: rgba(255,255,255,0.32);
+      font-style: italic; padding: 1.5rem 0;
+    }
+    .partners-cta { text-align: center; margin-top: 2.25rem; }
+    .partners-cta-link {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-size: 0.85rem; font-weight: 700; color: #081209;
+      background: #7cff4e; text-decoration: none;
+      padding: 0.65rem 1.4rem; border-radius: 100px;
+      transition: background 0.15s, transform 0.12s;
+    }
+    .partners-cta-link:hover { background: #8fff5e; transform: translateY(-1px); }
+
+    @media (max-width: 900px) {
+      .partners { padding: 3rem 1.5rem 4rem; }
+      .partners-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .partners { padding: 2.5rem 1rem 3rem; }
+      .partners-grid { grid-template-columns: 1fr; }
+    }
   `],
 })
 export class LandingComponent {
@@ -952,11 +1134,14 @@ export class LandingComponent {
   readonly starsArray = [1, 2, 3, 4, 5];
 
   reviews = signal<AppReview[]>([]);
+  sponsors = signal<PublicSponsor[]>([]);
 
   private http = inject(HttpClient);
 
   constructor() {
     this.http.get<AppReview[]>(`${environment.apiUrl}/public/app-reviews`)
       .subscribe({ next: r => this.reviews.set(r), error: () => {} });
+    this.http.get<PublicSponsor[]>(`${environment.apiUrl}/public/sponsors`)
+      .subscribe({ next: s => this.sponsors.set(s), error: () => {} });
   }
 }

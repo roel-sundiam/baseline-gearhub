@@ -37,50 +37,63 @@ interface AdminUser {
 
       <!-- ── Hero ── -->
       <header class="hero-panel">
-        <div class="hero-left">
-          <div class="hero-badge hero-badge-logo"><img src="/CG.png" alt="CourtGo" class="hero-badge-img" /></div>
-          <div class="hero-text">
-            <p class="hero-kicker"><i class="fas fa-bolt"></i> Superadmin Workspace</p>
-            <h2 class="hero-title">Club Portfolio</h2>
-            <p class="hero-sub">Manage clubs, admins, payments, and app service fees.</p>
-            @if (dbStatus()) {
-              <span class="db-badge" [class.db-local]="dbStatus()!.db === 'local'" [class.db-atlas]="dbStatus()!.db === 'atlas'">
-                <i class="fas fa-database"></i>
-                {{ dbStatus()!.db === 'local' ? 'Local DB' : 'Production DB' }} &middot; {{ dbStatus()!.dbHost }}
-              </span>
-              <span class="db-badge" [class.db-local]="dbStatus()!.runtime === 'local'" [class.db-atlas]="dbStatus()!.runtime !== 'local'">
-                <i class="fas fa-server"></i>
-                {{ dbStatus()!.runtime === 'render' ? 'Render' : dbStatus()!.runtime === 'netlify' ? 'Netlify Functions' : 'Local Server' }}
-              </span>
-            }
+        <div class="hero-main">
+          <div class="hero-left">
+            <div class="hero-badge hero-badge-logo"><img src="/CG.png" alt="CourtGo" class="hero-badge-img" /></div>
+            <div class="hero-text">
+              <p class="hero-kicker"><i class="fas fa-bolt"></i> Superadmin workspace</p>
+              <h2 class="hero-title">Club Portfolio</h2>
+              <p class="hero-sub">Manage every club, administrator, subscription, and platform payment in one place.</p>
+            </div>
+          </div>
+
+          <div class="hero-primary-actions">
+            <button type="button" class="btn btn-notif" (click)="showNotifications = !showNotifications" title="Notifications" aria-label="Notifications">
+              <i class="fas fa-bell"></i>
+              @if (notifService.unreadCount() > 0) {
+                <span class="notif-badge">{{ notifService.unreadCount() }}</span>
+              }
+            </button>
+            <span class="portfolio-count">
+              <i class="fas fa-building"></i>
+              <strong>{{ clubs.length }}</strong>
+              <span>{{ clubs.length === 1 ? 'club managed' : 'clubs managed' }}</span>
+            </span>
+            <a routerLink="/admin/clubs/new" class="btn btn-primary hero-new-club">
+              <i class="fas fa-plus"></i> New Club
+            </a>
           </div>
         </div>
-        <div class="hero-actions">
-          <button type="button" class="btn btn-notif" (click)="showNotifications = !showNotifications" title="Notifications">
-            <i class="fas fa-bell"></i>
-            @if (notifService.unreadCount() > 0) {
-              <span class="notif-badge">{{ notifService.unreadCount() }}</span>
-            }
-          </button>
-          <span class="count-chip">
-            <i class="fas fa-shield-alt"></i>
-            {{ clubs.length }} {{ clubs.length === 1 ? 'Club' : 'Clubs' }}
-          </span>
-          <a routerLink="/player/dashboard" class="btn btn-purple">
-            <i class="fas fa-user"></i> Player Dashboard
-          </a>
-          <a routerLink="/admin/terms-editor" class="btn btn-dev">
-            <i class="fas fa-file-contract"></i> T&amp;C Editor
-          </a>
-          <a routerLink="/admin/announcement-editor" class="btn btn-dev">
-            <i class="fas fa-bullhorn"></i> Announcements
-          </a>
-          <a routerLink="/admin/dev-finance" class="btn btn-dev">
-            <i class="fas fa-chart-line"></i> Dev Finance
-          </a>
-          <a routerLink="/admin/clubs/new" class="btn btn-primary">
-            <i class="fas fa-plus"></i> New Club
-          </a>
+
+        <div class="hero-footer">
+          @if (dbStatus()) {
+            <div class="environment-status" aria-label="Environment status">
+              <span class="environment-dot" [class.environment-dot--production]="dbStatus()!.db !== 'local'"></span>
+              <span class="environment-label">Environment</span>
+              <span class="environment-value">
+                {{ dbStatus()!.db === 'local' ? 'Local database' : 'Production database' }}
+              </span>
+              <span class="environment-separator"></span>
+              <span class="environment-value">
+                {{ dbStatus()!.runtime === 'render' ? 'Render' : dbStatus()!.runtime === 'netlify' ? 'Netlify Functions' : 'Local server' }}
+              </span>
+            </div>
+          }
+
+          <nav class="hero-actions" aria-label="Workspace shortcuts">
+            <a routerLink="/player/dashboard" class="btn hero-tool-link">
+              <i class="fas fa-user"></i> Player Dashboard
+            </a>
+            <a routerLink="/admin/terms-editor" class="btn hero-tool-link">
+              <i class="fas fa-file-contract"></i> T&amp;C Editor
+            </a>
+            <a routerLink="/admin/announcement-editor" class="btn hero-tool-link">
+              <i class="fas fa-bullhorn"></i> Announcements
+            </a>
+            <a routerLink="/admin/dev-finance" class="btn hero-tool-link">
+              <i class="fas fa-chart-line"></i> Dev Finance
+            </a>
+          </nav>
         </div>
       </header>
 
@@ -101,7 +114,7 @@ interface AdminUser {
             @for (notif of notifService.notifications(); track notif._id) {
               <div class="notif-item" [class.notif-unread]="!notif.read" (click)="notifService.markRead(notif._id)">
                 <div class="notif-icon">
-                  <i class="fas fa-building"></i>
+                  <i class="fas" [class.fa-handshake]="notif.type === 'sponsor_inquiry'" [class.fa-building]="notif.type !== 'sponsor_inquiry'"></i>
                 </div>
                 <div class="notif-content">
                   <p class="notif-title">{{ notif.title }}</p>
@@ -4067,6 +4080,113 @@ interface AdminUser {
       color: #f87171;
     }
     .btn-danger-ghost:hover { background: rgba(239,68,68,0.16); }
+
+    /* Refined portfolio hero */
+    .hero-panel {
+      display: grid;
+      gap: 0;
+      padding: 0;
+      background:
+        radial-gradient(560px 250px at 0% 0%, rgba(163,230,53,0.15), transparent 72%),
+        radial-gradient(420px 230px at 100% 20%, rgba(20,184,166,0.09), transparent 72%),
+        linear-gradient(135deg, #1d3729 0%, #12261d 100%);
+      border: 1px solid rgba(163,230,53,0.15);
+      border-radius: 22px;
+      box-shadow: 0 18px 46px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.045);
+    }
+    .hero-panel::after {
+      right: -85px; top: -125px; width: 280px; height: 280px;
+      background: transparent; border: 34px solid rgba(163,230,53,0.045); border-radius: 50%;
+    }
+    .hero-main {
+      position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between;
+      gap: 1.5rem; padding: 1.65rem 1.75rem 1.35rem;
+    }
+    .hero-left { gap: 1.15rem; }
+    .hero-badge {
+      width: 72px; height: 72px; border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.22);
+      box-shadow: 0 12px 26px rgba(0,0,0,0.32), 0 0 0 5px rgba(163,230,53,0.06);
+    }
+    .hero-text { display: grid; align-content: center; }
+    .hero-kicker { margin-bottom: 0.35rem; font-size: 0.65rem; letter-spacing: 0.16em; }
+    .hero-title { margin: 0; font-size: clamp(1.75rem, 3vw, 2.25rem); line-height: 1.05; letter-spacing: -0.035em; }
+    .hero-sub { max-width: 540px; margin-top: 0.5rem; color: rgba(255,255,255,0.57); font-size: 0.83rem; line-height: 1.45; }
+
+    .hero-primary-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.65rem; flex: 0 0 auto; }
+    .hero-primary-actions .btn-notif {
+      position: relative; width: 42px; height: 42px; padding: 0; border-radius: 12px;
+      color: rgba(255,255,255,0.66); background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.1);
+    }
+    .hero-primary-actions .btn-notif:hover { color: #a3e635; background: rgba(163,230,53,0.09); border-color: rgba(163,230,53,0.22); }
+    .portfolio-count {
+      display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; align-items: center;
+      column-gap: 0.5rem; min-height: 42px; padding: 0.35rem 0.75rem; box-sizing: border-box;
+      border: 1px solid rgba(255,255,255,0.09); border-radius: 12px; background: rgba(255,255,255,0.045);
+    }
+    .portfolio-count > i { grid-row: 1 / span 2; color: #a3e635; font-size: 0.8rem; }
+    .portfolio-count strong { align-self: end; color: #fff; font-size: 0.85rem; line-height: 1; }
+    .portfolio-count span { align-self: start; color: rgba(255,255,255,0.42); font-size: 0.58rem; line-height: 1.1; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+    .hero-actions .btn-primary, .hero-new-club {
+      min-height: 42px; padding-inline: 1rem; border-radius: 12px;
+      background: linear-gradient(135deg, #b5ef45, #8bd414); color: #102015;
+      box-shadow: 0 8px 20px rgba(163,230,53,0.22);
+    }
+
+    .hero-footer {
+      position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      min-height: 56px; padding: 0.55rem 0.65rem 0.55rem 1.75rem; box-sizing: border-box;
+      border-top: 1px solid rgba(255,255,255,0.07); background: rgba(5,18,11,0.2);
+    }
+    .environment-status { display: flex; align-items: center; gap: 0.45rem; min-width: 0; white-space: nowrap; }
+    .environment-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: #a3e635; box-shadow: 0 0 0 4px rgba(163,230,53,0.1); }
+    .environment-dot--production { background: #2dd4bf; box-shadow: 0 0 0 4px rgba(45,212,191,0.1); }
+    .environment-label { color: rgba(255,255,255,0.34); font-size: 0.59rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+    .environment-value { color: rgba(255,255,255,0.58); font-size: 0.67rem; font-weight: 650; }
+    .environment-separator { width: 1px; height: 14px; margin: 0 0.15rem; background: rgba(255,255,255,0.1); }
+
+    .hero-actions { width: auto; gap: 0.2rem; flex-wrap: nowrap; }
+    .hero-tool-link {
+      min-height: 36px; padding: 0 0.68rem; border-radius: 9px;
+      color: rgba(255,255,255,0.55); background: transparent; border-color: transparent;
+      font-size: 0.7rem; box-shadow: none;
+    }
+    .hero-tool-link i { color: #a3e635; opacity: 0.82; }
+    .hero-tool-link:hover { color: #fff; background: rgba(255,255,255,0.055); border-color: rgba(255,255,255,0.07); transform: none; }
+
+    @media (max-width: 1050px) {
+      .hero-main { align-items: flex-start; }
+      .hero-primary-actions { flex-wrap: wrap; }
+      .hero-footer { align-items: flex-start; flex-direction: column; padding: 0.7rem 1rem; }
+      .hero-actions { width: 100%; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+      .hero-actions::-webkit-scrollbar { display: none; }
+    }
+
+    @media (max-width: 768px) {
+      .hero-panel { padding: 0; }
+      .hero-main { flex-direction: column; gap: 1rem; padding: 1.2rem; }
+      .hero-left { align-items: flex-start; }
+      .hero-badge { width: 56px; height: 56px; border-radius: 16px; }
+      .hero-title { font-size: 1.65rem; }
+      .hero-sub { font-size: 0.76rem; }
+      .hero-primary-actions { width: 100%; justify-content: flex-start; flex-wrap: nowrap; }
+      .hero-new-club { width: auto; margin-left: auto; }
+      .hero-footer { padding: 0.7rem 1.2rem; }
+    }
+
+    @media (max-width: 520px) {
+      .hero-main { padding: 1rem; }
+      .hero-left { gap: 0.75rem; }
+      .hero-badge { width: 48px; height: 48px; flex-basis: 48px; border-radius: 14px; }
+      .hero-kicker { font-size: 0.56rem; }
+      .hero-title { font-size: 1.4rem; }
+      .hero-sub { display: none; }
+      .portfolio-count { display: none; }
+      .hero-new-club { flex: 1; justify-content: center; }
+      .environment-status { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+      .hero-footer { padding-inline: 1rem; }
+      .hero-tool-link { min-height: 34px; }
+    }
   `],
 })
 export class AdminClubsComponent implements OnInit, OnDestroy {

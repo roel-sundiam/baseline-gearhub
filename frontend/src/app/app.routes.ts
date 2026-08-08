@@ -188,6 +188,16 @@ export const routes: Routes = [
           import('./features/admin/news/admin-news.component').then((m) => m.AdminNewsComponent),
       },
       {
+        path: 'sponsors',
+        loadComponent: () =>
+          import('./features/admin/sponsors/admin-sponsors.component').then((m) => m.AdminSponsorsComponent),
+      },
+      {
+        path: 'sponsor-inquiries',
+        loadComponent: () =>
+          import('./features/admin/sponsors/admin-sponsor-inquiries.component').then((m) => m.AdminSponsorInquiriesComponent),
+      },
+      {
         path: 'inquiries',
         loadComponent: () =>
           import('./features/admin/inquiries/inquiries.component').then((m) => m.InquiriesComponent),
@@ -445,6 +455,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'partners',
+        loadComponent: () =>
+          import('./features/player/partners/partners.component').then(
+            (m) => m.PlayerPartnersComponent,
+          ),
+      },
+      {
         path: 'open-play',
         loadComponent: () =>
           import('./features/player/open-play/player-open-play.component').then(
@@ -500,6 +517,11 @@ export const routes: Routes = [
     path: 'review/:clubId',
     loadComponent: () =>
       import('./features/review-form/review-form.component').then((m) => m.ReviewFormComponent),
+  },
+  {
+    path: 'partner-with-us',
+    loadComponent: () =>
+      import('./features/partner-apply/partner-apply.component').then((m) => m.PartnerApplyComponent),
   },
   { path: '**', redirectTo: '', pathMatch: 'full' },
 ];

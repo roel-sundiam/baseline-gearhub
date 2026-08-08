@@ -329,6 +329,11 @@ import { forkJoin } from 'rxjs';
               <span class="dm-ac-title">Rules & Pricing</span>
               <span class="dm-ac-sub">Club guidelines</span>
             </button>
+            <button class="dm-action-card" (click)="navigateTo('/player/partners')">
+              <div class="dm-ac-icon dm-ac-purple"><i class="fas fa-handshake"></i></div>
+              <span class="dm-ac-title">Partners</span>
+              <span class="dm-ac-sub">Local business offers</span>
+            </button>
             @if (!isPerGame && !isHostedPlay) {
               <button class="dm-action-card" (click)="toggleAvailability()">
                 <div class="dm-ac-icon dm-ac-teal"><i class="fas fa-th"></i></div>
