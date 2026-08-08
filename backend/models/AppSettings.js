@@ -66,6 +66,8 @@ const appSettingsSchema = new mongoose.Schema(
     financeReportMonthlyFee: { type: Number, default: 199, min: 0 },
     // Default monthly price of the Email Confirmations add-on (per-club override on Club).
     emailConfirmationsMonthlyFee: { type: Number, default: 199, min: 0 },
+    // Default monthly price of the Advanced Analytics & Reports add-on (per-club override on Club).
+    advancedAnalyticsMonthlyFee: { type: Number, default: 399, min: 0 },
     // One-time fee charged for each approved club member beyond memberFreeTierCount.
     memberActivationFee: { type: Number, default: 50, min: 0 },
     memberFreeTierCount: { type: Number, default: 50, min: 0 },

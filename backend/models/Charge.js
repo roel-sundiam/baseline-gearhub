@@ -59,4 +59,9 @@ const chargeSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Supports the non-reservation revenue/analytics match shape ({clubId, chargeType, status:"paid"})
+// and the incomeDate (paidAt ?? createdAt) grouping/filtering used by clubRevenue.js.
+chargeSchema.index({ clubId: 1, chargeType: 1, status: 1 });
+chargeSchema.index({ clubId: 1, paidAt: 1 });
+
 module.exports = mongoose.model("Charge", chargeSchema);

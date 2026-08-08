@@ -9,10 +9,16 @@ const ClubLedgerEntry = require("../models/ClubLedgerEntry");
 const { ownsClub } = require("../utils/scope");
 const { ensureFinanceReportBilling } = require("../utils/financeReportBilling");
 const { ensureEmailConfirmationsBilling } = require("../utils/emailConfirmationsBilling");
+const {
+  round2,
+  dateRangeFilter,
+  reservationRevenueMatch,
+  otherChargeMatch,
+  buildReservationIncomePipeline,
+  buildOtherChargeIncomePipeline,
+} = require("../utils/clubRevenue");
 
 const router = express.Router();
-
-const round2 = (n) => parseFloat((n ?? 0).toFixed(2));
 
 // Gates POST/PUT/DELETE on an active Finance Report subscription for the caller's own club.
 // Only club admins manage their own club's manual entries — superadmin oversight is read-only
@@ -78,17 +84,6 @@ function parseEntryBody(body) {
   };
 }
 
-function dateRangeFilter(from, to) {
-  const filter = {};
-  if (from) filter.$gte = new Date(from);
-  if (to) {
-    const end = new Date(to);
-    end.setUTCHours(23, 59, 59, 999);
-    filter.$lte = end;
-  }
-  return filter;
-}
-
 // POST /api/club-ledger — create a manual income/expense entry
 router.post("/", auth, admin, requireFinanceReport, async (req, res) => {
   try {
@@ -134,146 +129,18 @@ router.get("/report", auth, admin, resolveReportClub, async (req, res) => {
     const dateFilter = dateRangeFilter(from, to);
     const hasRange = Object.keys(dateFilter).length > 0;
     const clubObjId = new mongoose.Types.ObjectId(req.targetClubId);
-    const reservationMatch = { clubId: clubObjId, status: "confirmed", ...(hasRange ? { date: dateFilter } : {}) };
+    const reservationMatch = reservationRevenueMatch(clubObjId, dateFilter, hasRange);
 
     // Reservation income is recognized by the reservation's court date (not payment date),
     // for confirmed reservations only — matching the Bookings tab on /admin/finance. It
     // includes charges regardless of paid/unpaid status and does not net out the convenience
     // fee, so the two pages tally for the same date range.
-    const reservationIncomePipeline = [
-      { $match: reservationMatch },
-      // Split the combined rentalFee (charges.breakdown.rentalFee) back into its four priced
-      // equipment types, recomputed the same way reservations.routes.js derives it at booking
-      // time: count/flag * rate-snapshotted-at-booking * durationHours. Summed together these
-      // equal charges.breakdown.rentalFee, so the two views always reconcile.
-      {
-        $addFields: {
-          rentalRacketFee: {
-            $multiply: [
-              { $ifNull: ["$rentals.rackets", 0] },
-              { $ifNull: ["$ratesUsed.rentalRacketRate", 0] },
-              { $ifNull: ["$durationHours", 1] },
-            ],
-          },
-          rentalBalls50Fee: {
-            $multiply: [
-              { $ifNull: ["$rentals.balls50", 0] },
-              { $ifNull: ["$ratesUsed.rentalBalls50Rate", 0] },
-              { $ifNull: ["$durationHours", 1] },
-            ],
-          },
-          rentalBalls100Fee: {
-            $multiply: [
-              { $ifNull: ["$rentals.balls100", 0] },
-              { $ifNull: ["$ratesUsed.rentalBalls100Rate", 0] },
-              { $ifNull: ["$durationHours", 1] },
-            ],
-          },
-          rentalBallMachineFee: {
-            $multiply: [
-              { $cond: [{ $eq: ["$rentals.ballMachine", true] }, 1, 0] },
-              { $ifNull: ["$ratesUsed.rentalBallMachineRate", 0] },
-              { $ifNull: ["$durationHours", 1] },
-            ],
-          },
-        },
-      },
-      { $lookup: { from: "charges", localField: "_id", foreignField: "reservationId", as: "charges" } },
-      { $unwind: "$charges" },
-      {
-        $facet: {
-          byCategory: [
-            {
-              $group: {
-                _id: null,
-                courtFee: { $sum: { $ifNull: ["$charges.breakdown.withoutLightFee", 0] } },
-                lightFee: { $sum: { $ifNull: ["$charges.breakdown.lightFee", 0] } },
-                ballBoyFee: { $sum: { $ifNull: ["$charges.breakdown.ballBoyFee", 0] } },
-                guestFee: { $sum: { $ifNull: ["$charges.breakdown.guestFee", 0] } },
-                rentalRacketFee: { $sum: "$rentalRacketFee" },
-                rentalBalls50Fee: { $sum: "$rentalBalls50Fee" },
-                rentalBalls100Fee: { $sum: "$rentalBalls100Fee" },
-                rentalBallMachineFee: { $sum: "$rentalBallMachineFee" },
-                coachingFee: { $sum: { $ifNull: ["$charges.breakdown.coachingFee", 0] } },
-                extraFeeTotal: { $sum: { $ifNull: ["$charges.breakdown.extraFeeTotal", 0] } },
-                total: { $sum: "$charges.amount" },
-              },
-            },
-          ],
-          byMonth: [
-            {
-              $group: {
-                _id: { $dateToString: { format: "%Y-%m", date: "$date" } },
-                income: { $sum: "$charges.amount" },
-              },
-            },
-          ],
-          extraFeesByName: [
-            { $unwind: "$charges.breakdown.extraFees" },
-            {
-              $group: {
-                _id: { $toLower: { $trim: { input: "$charges.breakdown.extraFees.name" } } },
-                total: { $sum: "$charges.breakdown.extraFees.amount" },
-              },
-            },
-          ],
-          bookings: [
-            {
-              $project: {
-                _id: 0,
-                date: "$date",
-                timeSlot: "$timeSlot",
-                durationHours: { $ifNull: ["$durationHours", 1] },
-                amount: "$charges.amount",
-                chargeStatus: "$charges.status",
-                paymentMethod: "$charges.paymentMethod",
-                courtFee: { $ifNull: ["$charges.breakdown.withoutLightFee", 0] },
-                lightFee: { $ifNull: ["$charges.breakdown.lightFee", 0] },
-                ballBoyFee: { $ifNull: ["$charges.breakdown.ballBoyFee", 0] },
-                guestFee: { $ifNull: ["$charges.breakdown.guestFee", 0] },
-                rentalFee: { $ifNull: ["$charges.breakdown.rentalFee", 0] },
-                coachingFee: { $ifNull: ["$charges.breakdown.coachingFee", 0] },
-                extraFees: { $ifNull: ["$charges.breakdown.extraFees", []] },
-              },
-            },
-            { $sort: { date: 1, timeSlot: 1 } },
-          ],
-        },
-      },
-    ];
+    const reservationIncomePipeline = buildReservationIncomePipeline(reservationMatch);
 
     // Non-reservation charges (open play, per-game, hosted play, session) have no Bookings-tab
     // equivalent to reconcile against, so they keep the original cash-basis definition: paid
     // only, keyed by payment date, net of the convenience fee (remitted to CourtGo).
-    const otherChargeIncomeExpr = { $subtract: ["$amount", { $ifNull: ["$breakdown.convenienceFee", 0] }] };
-    const otherChargePipeline = [
-      { $match: { clubId: clubObjId, chargeType: { $ne: "reservation" }, status: "paid" } },
-      { $addFields: { incomeDate: { $ifNull: ["$paidAt", "$createdAt"] } } },
-      ...(hasRange ? [{ $match: { incomeDate: dateFilter } }] : []),
-      {
-        $facet: {
-          byCategory: [
-            {
-              $group: {
-                _id: null,
-                gameFee: { $sum: { $ifNull: ["$breakdown.gameFee", 0] } },
-                hostedPlayFee: { $sum: { $ifNull: ["$breakdown.hostedPlayFee", 0] } },
-                convenienceFeesExcluded: { $sum: { $ifNull: ["$breakdown.convenienceFee", 0] } },
-                total: { $sum: otherChargeIncomeExpr },
-              },
-            },
-          ],
-          byMonth: [
-            {
-              $group: {
-                _id: { $dateToString: { format: "%Y-%m", date: "$incomeDate" } },
-                income: { $sum: otherChargeIncomeExpr },
-              },
-            },
-          ],
-        },
-      },
-    ];
+    const otherChargePipeline = buildOtherChargeIncomePipeline(otherChargeMatch(clubObjId), dateFilter, hasRange);
 
     const manualMatch = { clubId: clubObjId, ...(hasRange ? { date: dateFilter } : {}) };
 

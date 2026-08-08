@@ -7,6 +7,7 @@ const Charge = require("../models/Charge");
 const Club = require("../models/Club");
 const { ensureFinanceReportBilling, getEffectiveFinanceReportFee } = require("../utils/financeReportBilling");
 const { ensureEmailConfirmationsBilling, getEffectiveEmailConfirmationsFee } = require("../utils/emailConfirmationsBilling");
+const { ensureAdvancedAnalyticsBilling, getEffectiveAdvancedAnalyticsFee } = require("../utils/advancedAnalyticsBilling");
 const { getEffectiveMemberActivationFee, getMemberFreeTierCount, countApprovedMembers } = require("../utils/memberActivationBilling");
 
 const router = express.Router();
@@ -162,13 +163,18 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       { emailConfirmationsEnabled: true, status: { $ne: "suspended" } },
       "_id emailConfirmationsEnabled emailConfirmationsSubscribedAt emailConfirmationsFeeOverride",
     ).lean();
+    const advancedAnalyticsClubs = await Club.find(
+      { advancedAnalyticsEnabled: true, status: { $ne: "suspended" } },
+      "_id advancedAnalyticsEnabled advancedAnalyticsSubscribedAt advancedAnalyticsFeeOverride",
+    ).lean();
     await Promise.all([
       ...financeReportClubs.map((c) => ensureFinanceReportBilling(c, req.user.userId)),
       ...emailConfirmationsClubs.map((c) => ensureEmailConfirmationsBilling(c, req.user.userId)),
+      ...advancedAnalyticsClubs.map((c) => ensureAdvancedAnalyticsBilling(c, req.user.userId)),
     ]);
 
-    const [clubs, chargeAgg, openPlayAgg, perGameAgg, hostedPlayAgg, paymentAgg, waiverAgg, billingAgg, defaultFinanceReportFee, defaultEmailConfirmationsFee] = await Promise.all([
-      Club.find({ status: { $ne: "suspended" } }, "_id name convenienceFeeRate convenienceFeeMode convenienceFeeMonthlyAmount financeReportEnabled financeReportSubscribedAt financeReportFeeOverride emailConfirmationsEnabled emailConfirmationsSubscribedAt emailConfirmationsFeeOverride").lean(),
+    const [clubs, chargeAgg, openPlayAgg, perGameAgg, hostedPlayAgg, paymentAgg, waiverAgg, billingAgg, defaultFinanceReportFee, defaultEmailConfirmationsFee, defaultAdvancedAnalyticsFee] = await Promise.all([
+      Club.find({ status: { $ne: "suspended" } }, "_id name convenienceFeeRate convenienceFeeMode convenienceFeeMonthlyAmount financeReportEnabled financeReportSubscribedAt financeReportFeeOverride emailConfirmationsEnabled emailConfirmationsSubscribedAt emailConfirmationsFeeOverride advancedAnalyticsEnabled advancedAnalyticsSubscribedAt advancedAnalyticsFeeOverride").lean(),
       Charge.aggregate([
         { $match: { chargeType: "reservation" } },
         { $lookup: { from: "reservations", localField: "reservationId", foreignField: "_id", as: "reservation" } },
@@ -241,11 +247,23 @@ router.get("/summary", auth, superadmin, async (req, res) => {
                 ],
               },
             },
+            // Advanced Analytics billing docs are tagged with billingKey "advanced_analytics:YYYY-MM" —
+            // segregate them out so they aren't mislabeled as a "convenience fee".
+            totalAdvancedAnalyticsBilled: {
+              $sum: {
+                $cond: [
+                  { $regexMatch: { input: { $ifNull: ["$billingKey", ""] }, regex: /^advanced_analytics:/ } },
+                  "$amount",
+                  0,
+                ],
+              },
+            },
           },
         },
       ]),
       getEffectiveFinanceReportFee(null),
       getEffectiveEmailConfirmationsFee(null),
+      getEffectiveAdvancedAnalyticsFee(null),
     ]);
 
     const chargeMap = Object.fromEntries(chargeAgg.map((r) => [r._id.toString(), { totalCourtFees: r.totalCourtFees, totalConvenienceFees: r.totalConvenienceFees }]));
@@ -257,6 +275,7 @@ router.get("/summary", auth, superadmin, async (req, res) => {
     const billingMap = Object.fromEntries(billingAgg.map((r) => [r._id.toString(), r.totalBilled]));
     const financeReportBilledMap = Object.fromEntries(billingAgg.map((r) => [r._id.toString(), r.totalFinanceReportBilled]));
     const emailConfirmationsBilledMap = Object.fromEntries(billingAgg.map((r) => [r._id.toString(), r.totalEmailConfirmationsBilled]));
+    const advancedAnalyticsBilledMap = Object.fromEntries(billingAgg.map((r) => [r._id.toString(), r.totalAdvancedAnalyticsBilled]));
 
     const clubData = clubs.map((club) => {
       const id = club._id.toString();
@@ -283,11 +302,16 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       const emailConfirmationsMonthlyFee = typeof club.emailConfirmationsFeeOverride === 'number'
         ? club.emailConfirmationsFeeOverride
         : defaultEmailConfirmationsFee;
+      const advancedAnalyticsMonthlyFee = typeof club.advancedAnalyticsFeeOverride === 'number'
+        ? club.advancedAnalyticsFeeOverride
+        : defaultAdvancedAnalyticsFee;
       // feesOwed/balance stay the grand total (what the club must actually settle); this is just
-      // the true convenience-fee portion, with the add-on billing (Finance Report, Email Confirmations) pulled out.
+      // the true convenience-fee portion, with the add-on billing (Finance Report, Email Confirmations,
+      // Advanced Analytics) pulled out.
       const financeReportFeesBilled = parseFloat((financeReportBilledMap[id] ?? 0).toFixed(2));
       const emailConfirmationsFeesBilled = parseFloat((emailConfirmationsBilledMap[id] ?? 0).toFixed(2));
-      const convenienceFeesOwed = parseFloat((feesOwed - financeReportFeesBilled - emailConfirmationsFeesBilled).toFixed(2));
+      const advancedAnalyticsFeesBilled = parseFloat((advancedAnalyticsBilledMap[id] ?? 0).toFixed(2));
+      const convenienceFeesOwed = parseFloat((feesOwed - financeReportFeesBilled - emailConfirmationsFeesBilled - advancedAnalyticsFeesBilled).toFixed(2));
       return {
         clubId: id, clubName: club.name, convenienceFeeRate, convenienceFeeMode, convenienceFeeMonthlyAmount,
         totalCourtFees, totalHostedPlaySessionFees, feesOwed, totalPaid, totalWaived, balance,
@@ -301,6 +325,11 @@ router.get("/summary", auth, superadmin, async (req, res) => {
         emailConfirmationsSubscribedAt: club.emailConfirmationsSubscribedAt ?? null,
         emailConfirmationsFeeOverride: club.emailConfirmationsFeeOverride ?? null,
         emailConfirmationsMonthlyFee,
+        advancedAnalyticsFeesBilled,
+        advancedAnalyticsEnabled: !!club.advancedAnalyticsEnabled,
+        advancedAnalyticsSubscribedAt: club.advancedAnalyticsSubscribedAt ?? null,
+        advancedAnalyticsFeeOverride: club.advancedAnalyticsFeeOverride ?? null,
+        advancedAnalyticsMonthlyFee,
       };
     });
 
@@ -315,9 +344,10 @@ router.get("/summary", auth, superadmin, async (req, res) => {
         acc.convenienceFeesOwed = parseFloat((acc.convenienceFeesOwed + c.convenienceFeesOwed).toFixed(2));
         acc.financeReportFeesBilled = parseFloat((acc.financeReportFeesBilled + c.financeReportFeesBilled).toFixed(2));
         acc.emailConfirmationsFeesBilled = parseFloat((acc.emailConfirmationsFeesBilled + c.emailConfirmationsFeesBilled).toFixed(2));
+        acc.advancedAnalyticsFeesBilled = parseFloat((acc.advancedAnalyticsFeesBilled + c.advancedAnalyticsFeesBilled).toFixed(2));
         return acc;
       },
-      { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0, convenienceFeesOwed: 0, financeReportFeesBilled: 0, emailConfirmationsFeesBilled: 0 },
+      { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0, convenienceFeesOwed: 0, financeReportFeesBilled: 0, emailConfirmationsFeesBilled: 0, advancedAnalyticsFeesBilled: 0 },
     );
 
     res.json({ clubs: clubData, totals });
@@ -383,13 +413,15 @@ router.get("/fee-info", auth, admin, async (req, res) => {
 
     // Accrue any pending Finance Report / Email Confirmations add-on billing before computing the balance
     const clubForBilling = await Club.findById(clubId)
-      .select("financeReportEnabled financeReportSubscribedAt financeReportFeeOverride emailConfirmationsEnabled emailConfirmationsSubscribedAt emailConfirmationsFeeOverride")
+      .select("financeReportEnabled financeReportSubscribedAt financeReportFeeOverride emailConfirmationsEnabled emailConfirmationsSubscribedAt emailConfirmationsFeeOverride advancedAnalyticsEnabled advancedAnalyticsSubscribedAt advancedAnalyticsFeeOverride")
       .lean();
     if (!clubForBilling) return res.status(404).json({ error: "Club not found" });
     await ensureFinanceReportBilling(clubForBilling, req.user.userId);
     await ensureEmailConfirmationsBilling(clubForBilling, req.user.userId);
+    await ensureAdvancedAnalyticsBilling(clubForBilling, req.user.userId);
     const financeReportMonthlyFee = await getEffectiveFinanceReportFee(clubForBilling);
     const emailConfirmationsMonthlyFee = await getEffectiveEmailConfirmationsFee(clubForBilling);
+    const advancedAnalyticsMonthlyFee = await getEffectiveAdvancedAnalyticsFee(clubForBilling);
     const memberActivationFee = await getEffectiveMemberActivationFee();
     const memberFreeTierCount = await getMemberFreeTierCount();
     const approvedMemberCount = await countApprovedMembers(clubId);
@@ -448,6 +480,15 @@ router.get("/fee-info", auth, admin, async (req, res) => {
                 ],
               },
             },
+            totalAdvancedAnalyticsBilled: {
+              $sum: {
+                $cond: [
+                  { $regexMatch: { input: { $ifNull: ["$billingKey", ""] }, regex: /^advanced_analytics:/ } },
+                  "$amount",
+                  0,
+                ],
+              },
+            },
           },
         },
       ]),
@@ -462,6 +503,7 @@ router.get("/fee-info", auth, admin, async (req, res) => {
     const totalBilled = billingAgg[0]?.totalBilled ?? 0;
     const totalFinanceReportBilled = billingAgg[0]?.totalFinanceReportBilled ?? 0;
     const totalEmailConfirmationsBilled = billingAgg[0]?.totalEmailConfirmationsBilled ?? 0;
+    const totalAdvancedAnalyticsBilled = billingAgg[0]?.totalAdvancedAnalyticsBilled ?? 0;
     const totalPaid = paymentAgg[0]?.totalPaid ?? 0;
     const totalWaived = waiverAgg[0]?.totalWaived ?? 0;
 
@@ -472,8 +514,9 @@ router.get("/fee-info", auth, admin, async (req, res) => {
       : totalConvenienceFees + totalBilled;
     const balance = parseFloat(Math.max(0, feesOwed - totalPaid - totalWaived).toFixed(2));
     // feesOwed/balance stay the grand total (what's actually owed); this is just the true
-    // convenience-fee portion, with the add-on billing (Finance Report, Email Confirmations) pulled out.
-    const convenienceFeesOwed = parseFloat((feesOwed - totalFinanceReportBilled - totalEmailConfirmationsBilled).toFixed(2));
+    // convenience-fee portion, with the add-on billing (Finance Report, Email Confirmations,
+    // Advanced Analytics) pulled out.
+    const convenienceFeesOwed = parseFloat((feesOwed - totalFinanceReportBilled - totalEmailConfirmationsBilled - totalAdvancedAnalyticsBilled).toFixed(2));
 
     res.json({
       convenienceFeeMode,
@@ -490,6 +533,10 @@ router.get("/fee-info", auth, admin, async (req, res) => {
       emailConfirmationsEnabled: !!clubForBilling.emailConfirmationsEnabled,
       emailConfirmationsSubscribedAt: clubForBilling.emailConfirmationsSubscribedAt ?? null,
       emailConfirmationsMonthlyFee,
+      advancedAnalyticsFeesBilled: parseFloat(totalAdvancedAnalyticsBilled.toFixed(2)),
+      advancedAnalyticsEnabled: !!clubForBilling.advancedAnalyticsEnabled,
+      advancedAnalyticsSubscribedAt: clubForBilling.advancedAnalyticsSubscribedAt ?? null,
+      advancedAnalyticsMonthlyFee,
       memberActivationFee,
       memberFreeTierCount,
       approvedMemberCount,

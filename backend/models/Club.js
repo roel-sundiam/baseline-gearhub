@@ -61,6 +61,12 @@ const clubSchema = new mongoose.Schema(
     emailConfirmationsSubscribedAt: { type: Date, default: null },
     emailConfirmationsFeeOverride: { type: Number, default: null, min: 0 }, // null => global default
 
+    // Advanced Analytics & Reports premium add-on: club admin self-subscribes; the monthly fee
+    // accrues as AppServicePayment billing entries while enabled, same pattern as Finance Report.
+    advancedAnalyticsEnabled: { type: Boolean, default: false },
+    advancedAnalyticsSubscribedAt: { type: Date, default: null },
+    advancedAnalyticsFeeOverride: { type: Number, default: null, min: 0 }, // null => global default
+
     duprClubId: { type: String, trim: true, default: null },
     // Club-level opt-in for submitting Hosted Play pickleball match scores to DUPR.
     // No-ops entirely when the platform-level DUPR_* env vars are unset.

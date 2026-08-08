@@ -95,6 +95,11 @@ export interface ClubServiceSummary {
   emailConfirmationsSubscribedAt?: string | null;
   emailConfirmationsFeeOverride?: number | null;
   emailConfirmationsMonthlyFee: number;
+  advancedAnalyticsFeesBilled: number;
+  advancedAnalyticsEnabled: boolean;
+  advancedAnalyticsSubscribedAt?: string | null;
+  advancedAnalyticsFeeOverride?: number | null;
+  advancedAnalyticsMonthlyFee: number;
 }
 
 export interface FeeInfo {
@@ -111,6 +116,10 @@ export interface FeeInfo {
   emailConfirmationsEnabled: boolean;
   emailConfirmationsSubscribedAt?: string | null;
   emailConfirmationsMonthlyFee: number;
+  advancedAnalyticsFeesBilled: number;
+  advancedAnalyticsEnabled: boolean;
+  advancedAnalyticsSubscribedAt?: string | null;
+  advancedAnalyticsMonthlyFee: number;
   memberActivationFee: number;
   memberFreeTierCount: number;
   approvedMemberCount: number;
@@ -124,6 +133,7 @@ export interface ServiceSummaryTotals {
   convenienceFeesOwed: number;
   financeReportFeesBilled: number;
   emailConfirmationsFeesBilled: number;
+  advancedAnalyticsFeesBilled: number;
 }
 
 @Injectable({ providedIn: 'root' })

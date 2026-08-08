@@ -368,6 +368,114 @@ import {
             </table>
           </div>
 
+          <!-- Advanced Analytics Add-on -->
+          <div class="section-header payments-section-header">
+            <i class="fas fa-chart-pie section-icon"></i>
+            <h3 class="section-title">Advanced Analytics &amp; Reports Add-on</h3>
+            <span class="section-note">Booking/revenue analytics &amp; reports — billed monthly per club</span>
+            <button class="btn-view-reports" (click)="viewAllAnalytics()">
+              <i class="fas fa-magnifying-glass-chart"></i> View All Analytics
+            </button>
+          </div>
+
+          <div class="addon-default-bar">
+            <span class="addon-default-label">Default price</span>
+            <input
+              type="number"
+              class="fee-rate-input"
+              [(ngModel)]="advancedAnalyticsGlobalFeeValue"
+              min="0" step="1"
+              style="width:90px"
+            />
+            <span class="fee-rate-pct">₱ / month</span>
+            <button class="btn-fee-save" (click)="saveAdvancedAnalyticsGlobalFee()" [disabled]="savingAdvancedAnalyticsGlobalFee">
+              @if (savingAdvancedAnalyticsGlobalFee) { <i class="fas fa-circle-notch fa-spin"></i> }
+              @else { <i class="fas fa-check"></i> Save }
+            </button>
+            @if (advancedAnalyticsGlobalFeeSaved) {
+              <span class="addon-saved-note"><i class="fas fa-check-circle"></i> Saved</span>
+            }
+          </div>
+
+          <div class="clubs-table-wrap">
+            <table class="clubs-table">
+              <thead>
+                <tr>
+                  <th>Club</th>
+                  <th class="col-center">Status</th>
+                  <th class="col-center">Monthly Fee</th>
+                  <th class="col-right" title="Total Advanced Analytics add-on billing to date — kept separate from Conv. Fee Owed above">Fees Billed</th>
+                  <th class="col-center">Analytics</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (club of clubs; track club.clubId) {
+                  <tr>
+                    <td class="col-club">{{ club.clubName }}</td>
+                    <td class="col-center">
+                      @if (club.advancedAnalyticsEnabled) {
+                        <span class="status-chip status-paid">
+                          <i class="fas fa-crown"></i>
+                          Subscribed{{ club.advancedAnalyticsSubscribedAt ? ' · ' + (club.advancedAnalyticsSubscribedAt | date: 'MMM d, y') : '' }}
+                        </span>
+                      } @else {
+                        <span class="col-muted">—</span>
+                      }
+                    </td>
+                    <td class="col-center">
+                      <div class="fee-rate-cell">
+                        @if (editingAdvancedAnalyticsFeeClubId === club.clubId) {
+                          <input
+                            type="number"
+                            class="fee-rate-input"
+                            [(ngModel)]="editingAdvancedAnalyticsFeeValue"
+                            min="0" step="1"
+                            style="width:80px"
+                          />
+                          <button class="btn-fee-save" (click)="saveAdvancedAnalyticsFee(club)" [disabled]="savingAdvancedAnalyticsFee">
+                            @if (savingAdvancedAnalyticsFee) { <i class="fas fa-circle-notch fa-spin"></i> }
+                            @else { <i class="fas fa-check"></i> }
+                          </button>
+                          @if (club.advancedAnalyticsFeeOverride != null) {
+                            <button class="btn-fee-cancel" title="Reset to default" (click)="resetAdvancedAnalyticsFee(club)" [disabled]="savingAdvancedAnalyticsFee">
+                              <i class="fas fa-rotate-left"></i>
+                            </button>
+                          }
+                          <button class="btn-fee-cancel" (click)="cancelAdvancedAnalyticsFee()"><i class="fas fa-times"></i></button>
+                        } @else {
+                          <span class="fee-rate-badge">
+                            {{ club.advancedAnalyticsMonthlyFee | currency: 'PHP' : 'symbol' : '1.0-2' }}/mo
+                            @if (club.advancedAnalyticsFeeOverride != null) {
+                              <span class="override-tag">override</span>
+                            }
+                          </span>
+                          <button class="btn-fee-edit" (click)="startEditAdvancedAnalyticsFee(club)" title="Edit add-on fee">
+                            <i class="fas fa-pen"></i>
+                          </button>
+                        }
+                      </div>
+                    </td>
+                    <td class="col-right col-blue">{{ club.advancedAnalyticsFeesBilled | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                    <td class="col-center">
+                      <button class="btn-waive" (click)="viewAnalytics(club)">
+                        <i class="fas fa-chart-pie"></i> View
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td class="foot-label">Total</td>
+                  <td></td>
+                  <td></td>
+                  <td class="col-right foot-blue">{{ totals.advancedAnalyticsFeesBilled | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
           <!-- Member Activation Fee -->
           <div class="section-header payments-section-header">
             <i class="fas fa-user-plus section-icon"></i>
@@ -825,7 +933,7 @@ import {
 })
 export class DevFinanceComponent implements OnInit {
   clubs: ClubServiceSummary[] = [];
-  totals: ServiceSummaryTotals = { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0, convenienceFeesOwed: 0, financeReportFeesBilled: 0, emailConfirmationsFeesBilled: 0 };
+  totals: ServiceSummaryTotals = { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0, convenienceFeesOwed: 0, financeReportFeesBilled: 0, emailConfirmationsFeesBilled: 0, advancedAnalyticsFeesBilled: 0 };
   payments: AppServicePayment[] = [];
   loading = true;
 
@@ -855,6 +963,13 @@ export class DevFinanceComponent implements OnInit {
   editingEmailAddonFeeClubId: string | null = null;
   editingEmailAddonFeeValue = 0;
   savingEmailAddonFee = false;
+
+  advancedAnalyticsGlobalFeeValue = 0;
+  savingAdvancedAnalyticsGlobalFee = false;
+  advancedAnalyticsGlobalFeeSaved = false;
+  editingAdvancedAnalyticsFeeClubId: string | null = null;
+  editingAdvancedAnalyticsFeeValue = 0;
+  savingAdvancedAnalyticsFee = false;
 
   memberActivationFeeValue = 0;
   memberFreeTierCountValue = 0;
@@ -889,14 +1004,16 @@ export class DevFinanceComponent implements OnInit {
       payments: this.appServicePaymentsService.getAll(),
       globalFee: this.clubLedgerService.getGlobalFee(),
       emailGlobalFee: this.clubLedgerService.getGlobalEmailConfirmationsFee(),
+      advancedAnalyticsGlobalFee: this.clubLedgerService.getGlobalAdvancedAnalyticsFee(),
       memberActivationFee: this.clubLedgerService.getMemberActivationFee(),
     }).subscribe({
-      next: ({ summary, payments, globalFee, emailGlobalFee, memberActivationFee }) => {
+      next: ({ summary, payments, globalFee, emailGlobalFee, advancedAnalyticsGlobalFee, memberActivationFee }) => {
         this.clubs = summary.clubs;
         this.totals = summary.totals;
         this.payments = payments;
         this.globalFeeValue = globalFee.financeReportMonthlyFee;
         this.emailGlobalFeeValue = emailGlobalFee.emailConfirmationsMonthlyFee;
+        this.advancedAnalyticsGlobalFeeValue = advancedAnalyticsGlobalFee.advancedAnalyticsMonthlyFee;
         this.memberActivationFeeValue = memberActivationFee.memberActivationFee;
         this.memberFreeTierCountValue = memberActivationFee.memberFreeTierCount;
         this.loading = false;
@@ -1073,6 +1190,75 @@ export class DevFinanceComponent implements OnInit {
     });
   }
 
+  saveAdvancedAnalyticsGlobalFee() {
+    const amount = Number(this.advancedAnalyticsGlobalFeeValue);
+    if (!Number.isFinite(amount) || amount < 0) return;
+    this.savingAdvancedAnalyticsGlobalFee = true;
+    this.advancedAnalyticsGlobalFeeSaved = false;
+    this.clubLedgerService.setGlobalAdvancedAnalyticsFee(amount).subscribe({
+      next: (res) => {
+        this.advancedAnalyticsGlobalFeeValue = res.advancedAnalyticsMonthlyFee;
+        // Refresh effective fees for clubs without an override
+        this.clubs = this.clubs.map((c) =>
+          c.advancedAnalyticsFeeOverride == null ? { ...c, advancedAnalyticsMonthlyFee: res.advancedAnalyticsMonthlyFee } : c,
+        );
+        this.savingAdvancedAnalyticsGlobalFee = false;
+        this.advancedAnalyticsGlobalFeeSaved = true;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.savingAdvancedAnalyticsGlobalFee = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  startEditAdvancedAnalyticsFee(club: ClubServiceSummary) {
+    this.editingAdvancedAnalyticsFeeClubId = club.clubId;
+    this.editingAdvancedAnalyticsFeeValue = club.advancedAnalyticsMonthlyFee ?? this.advancedAnalyticsGlobalFeeValue;
+  }
+
+  cancelAdvancedAnalyticsFee() {
+    this.editingAdvancedAnalyticsFeeClubId = null;
+    this.savingAdvancedAnalyticsFee = false;
+  }
+
+  saveAdvancedAnalyticsFee(club: ClubServiceSummary) {
+    const amount = Number(this.editingAdvancedAnalyticsFeeValue);
+    if (!Number.isFinite(amount) || amount < 0) return;
+    this.savingAdvancedAnalyticsFee = true;
+    this.clubService.patchAdvancedAnalyticsFee(club.clubId, amount).subscribe({
+      next: () => {
+        club.advancedAnalyticsFeeOverride = amount;
+        club.advancedAnalyticsMonthlyFee = amount;
+        this.editingAdvancedAnalyticsFeeClubId = null;
+        this.savingAdvancedAnalyticsFee = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.savingAdvancedAnalyticsFee = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  resetAdvancedAnalyticsFee(club: ClubServiceSummary) {
+    this.savingAdvancedAnalyticsFee = true;
+    this.clubService.patchAdvancedAnalyticsFee(club.clubId, null).subscribe({
+      next: () => {
+        club.advancedAnalyticsFeeOverride = null;
+        club.advancedAnalyticsMonthlyFee = this.advancedAnalyticsGlobalFeeValue;
+        this.editingAdvancedAnalyticsFeeClubId = null;
+        this.savingAdvancedAnalyticsFee = false;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.savingAdvancedAnalyticsFee = false;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
   saveMemberActivationFee() {
     const amount = Number(this.memberActivationFeeValue);
     const freeTierCount = Number(this.memberFreeTierCountValue);
@@ -1146,6 +1332,14 @@ export class DevFinanceComponent implements OnInit {
 
   viewAllReports() {
     this.router.navigate(['/admin/finance-reports']);
+  }
+
+  viewAnalytics(club: ClubServiceSummary) {
+    this.router.navigate(['/admin/advanced-analytics-all'], { queryParams: { clubId: club.clubId } });
+  }
+
+  viewAllAnalytics() {
+    this.router.navigate(['/admin/advanced-analytics-all']);
   }
 
   goBack() { this.router.navigate(['/admin/dashboard']); }

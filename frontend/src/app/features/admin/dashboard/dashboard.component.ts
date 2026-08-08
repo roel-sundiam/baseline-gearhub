@@ -340,38 +340,6 @@ import QRCode from 'qrcode';
                 }
               </div>
             }
-            @if (!authService.isSuperAdmin()) {
-              <a routerLink="/admin/finance-report" class="action-card action-card--premium">
-                <span class="action-icon action-icon--premium"><i class="fas fa-chart-line"></i></span>
-                <span class="action-title">Finance Report
-                  <span class="premium-badge"><i class="fas fa-crown"></i> Premium</span>
-                </span>
-                <span class="action-sub">
-                  {{ club?.financeReportEnabled
-                    ? 'Income & expenses report for your club'
-                    : 'Add-on — subscribe to unlock income & expense reports' }}
-                </span>
-              </a>
-            }
-            @if (!authService.isSuperAdmin()) {
-              <div class="action-card action-card--toggle action-card--premium">
-                <div class="action-card-header">
-                  <span class="action-icon action-icon--premium"><i class="fas fa-envelope-circle-check"></i></span>
-                  <label class="hpq-switch">
-                    <input #emailConfirmationsToggleEl type="checkbox" [checked]="!!club?.emailConfirmationsEnabled" [disabled]="togglingEmailConfirmationsAddon" (change)="onEmailConfirmationsToggleChange($any($event.target).checked, emailConfirmationsToggleEl)" />
-                    <span class="hpq-slider"></span>
-                  </label>
-                </div>
-                <span class="action-title">Booking Confirmation Emails
-                  <span class="premium-badge"><i class="fas fa-crown"></i> Premium</span>
-                </span>
-                <span class="action-sub">
-                  {{ club?.emailConfirmationsEnabled
-                    ? ('Active' + (feeInfo()?.emailConfirmationsMonthlyFee ? ' · ' + (feeInfo()!.emailConfirmationsMonthlyFee | currency: 'PHP' : 'symbol' : '1.0-2') + '/mo' : ''))
-                    : ('Add-on — subscribe to email players a confirmation on every booking' + (feeInfo()?.emailConfirmationsMonthlyFee ? ' (' + (feeInfo()!.emailConfirmationsMonthlyFee | currency: 'PHP' : 'symbol' : '1.0-2') + '/mo)' : '')) }}
-                </span>
-              </div>
-            }
             @if (authService.isSuperAdmin()) {
               <a routerLink="/features" target="_blank" class="action-card action-card--features">
                 <span class="action-icon"><i class="fas fa-star"></i></span>
@@ -400,6 +368,60 @@ import QRCode from 'qrcode';
             }
           </div>
         </section>
+
+        <!-- ── PREMIUM FEATURES ── -->
+        @if (!authService.isSuperAdmin()) {
+          <section class="premium-features">
+            <div class="section-header">
+              <div>
+                <p class="section-kicker section-kicker--premium"><i class="fas fa-crown"></i> Premium</p>
+                <h3>Premium Features</h3>
+              </div>
+            </div>
+
+            <div class="action-grid">
+              <a routerLink="/admin/finance-report" class="action-card action-card--premium">
+                <span class="action-icon action-icon--premium"><i class="fas fa-chart-line"></i></span>
+                <span class="action-title">Finance Report
+                  <span class="premium-badge"><i class="fas fa-crown"></i> Premium</span>
+                </span>
+                <span class="action-sub">
+                  {{ club?.financeReportEnabled
+                    ? 'Income & expenses report for your club'
+                    : 'Add-on — subscribe to unlock income & expense reports' }}
+                </span>
+              </a>
+              <a routerLink="/admin/advanced-analytics" class="action-card action-card--premium">
+                <span class="action-icon action-icon--premium"><i class="fas fa-chart-pie"></i></span>
+                <span class="action-title">Advanced Analytics &amp; Reports
+                  <span class="premium-badge"><i class="fas fa-crown"></i> Premium</span>
+                </span>
+                <span class="action-sub">
+                  {{ club?.advancedAnalyticsEnabled
+                    ? 'Booking, revenue, and customer analytics for your club'
+                    : 'Add-on — subscribe to unlock booking, revenue, and utilization analytics' }}
+                </span>
+              </a>
+              <div class="action-card action-card--toggle action-card--premium">
+                <div class="action-card-header">
+                  <span class="action-icon action-icon--premium"><i class="fas fa-envelope-circle-check"></i></span>
+                  <label class="hpq-switch">
+                    <input #emailConfirmationsToggleEl type="checkbox" [checked]="!!club?.emailConfirmationsEnabled" [disabled]="togglingEmailConfirmationsAddon" (change)="onEmailConfirmationsToggleChange($any($event.target).checked, emailConfirmationsToggleEl)" />
+                    <span class="hpq-slider"></span>
+                  </label>
+                </div>
+                <span class="action-title">Booking Confirmation Emails
+                  <span class="premium-badge"><i class="fas fa-crown"></i> Premium</span>
+                </span>
+                <span class="action-sub">
+                  {{ club?.emailConfirmationsEnabled
+                    ? ('Active' + (feeInfo()?.emailConfirmationsMonthlyFee ? ' · ' + (feeInfo()!.emailConfirmationsMonthlyFee | currency: 'PHP' : 'symbol' : '1.0-2') + '/mo' : ''))
+                    : ('Add-on — subscribe to email players a confirmation on every booking' + (feeInfo()?.emailConfirmationsMonthlyFee ? ' (' + (feeInfo()!.emailConfirmationsMonthlyFee | currency: 'PHP' : 'symbol' : '1.0-2') + '/mo)' : '')) }}
+                </span>
+              </div>
+            </div>
+          </section>
+        }
 
         <!-- ── AVAILABLE SLOTS POSTER ── -->
         <section class="poster-section">
@@ -913,12 +935,23 @@ import QRCode from 'qrcode';
       }
 
       .approvals-section,
-      .quick-actions {
+      .quick-actions,
+      .premium-features {
         background: var(--card-bg);
         border: 1px solid var(--line);
         border-radius: 16px;
         padding: 0.95rem;
         box-shadow: 0 8px 22px rgba(0,0,0,0.32);
+      }
+
+      .premium-features {
+        border-color: rgba(250,204,21,.28);
+      }
+
+      .section-kicker--premium {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
       }
 
       .section-header {
@@ -1677,6 +1710,7 @@ import QRCode from 'qrcode';
         .state-shell,
         .approvals-section,
         .quick-actions,
+        .premium-features,
         .poster-section,
         .qr-link-section {
           margin: 0 0.75rem;

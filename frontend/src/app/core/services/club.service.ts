@@ -64,6 +64,9 @@ export interface Club {
   emailConfirmationsEnabled?: boolean;
   emailConfirmationsSubscribedAt?: string | null;
   emailConfirmationsFeeOverride?: number | null;
+  advancedAnalyticsEnabled?: boolean;
+  advancedAnalyticsSubscribedAt?: string | null;
+  advancedAnalyticsFeeOverride?: number | null;
   duprClubId?: string | null;
   duprEnabled?: boolean;
   courts?: Court[];
@@ -160,6 +163,14 @@ export class ClubService {
 
   patchEmailConfirmationsFee(id: string, override: number | null) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/email-confirmations-fee`, { override });
+  }
+
+  patchMyAdvancedAnalyticsAddon(enabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/advanced-analytics-addon`, { enabled });
+  }
+
+  patchAdvancedAnalyticsFee(id: string, override: number | null) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/advanced-analytics-fee`, { override });
   }
 
   patchHostedPlayQueue(id: string, enabled: boolean) {

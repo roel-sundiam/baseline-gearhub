@@ -135,6 +135,20 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'advanced-analytics',
+        loadComponent: () =>
+          import('./features/admin/advanced-analytics/advanced-analytics.component').then(
+            (m) => m.AdvancedAnalyticsComponent,
+          ),
+      },
+      {
+        path: 'advanced-analytics-all',
+        loadComponent: () =>
+          import('./features/admin/advanced-analytics-admin/advanced-analytics-admin.component').then(
+            (m) => m.AdvancedAnalyticsAdminComponent,
+          ),
+      },
+      {
         path: 'tournaments',
         loadComponent: () =>
           import('./features/admin/tournaments/tournaments.component').then(

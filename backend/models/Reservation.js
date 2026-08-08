@@ -76,6 +76,11 @@ const reservationSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Supports the revenue/analytics query shape ({clubId, status:"confirmed", date:{$gte,$lte}})
+// used by clubRevenue.js, plus the simpler status-agnostic admin list lookups.
+reservationSchema.index({ clubId: 1, status: 1, date: 1 });
+reservationSchema.index({ clubId: 1, date: 1 });
+
 reservationSchema.pre("validate", function (next) {
   const start = slotToHour(this.timeSlot);
   let lit = false;

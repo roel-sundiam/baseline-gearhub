@@ -133,6 +133,14 @@ export class ClubLedgerService {
     return this.http.put<{ emailConfirmationsMonthlyFee: number }>(`${environment.apiUrl}/config/email-confirmations-fee`, { amount });
   }
 
+  getGlobalAdvancedAnalyticsFee(): Observable<{ advancedAnalyticsMonthlyFee: number }> {
+    return this.http.get<{ advancedAnalyticsMonthlyFee: number }>(`${environment.apiUrl}/config/advanced-analytics-fee`);
+  }
+
+  setGlobalAdvancedAnalyticsFee(amount: number): Observable<{ advancedAnalyticsMonthlyFee: number }> {
+    return this.http.put<{ advancedAnalyticsMonthlyFee: number }>(`${environment.apiUrl}/config/advanced-analytics-fee`, { amount });
+  }
+
   getMemberActivationFee(): Observable<{ memberActivationFee: number; memberFreeTierCount: number }> {
     return this.http.get<{ memberActivationFee: number; memberFreeTierCount: number }>(
       `${environment.apiUrl}/config/member-activation-fee`,

@@ -128,6 +128,40 @@ router.put("/email-confirmations-fee", auth, superadmin, async (req, res) => {
   }
 });
 
+// GET /api/config/advanced-analytics-fee — global default Advanced Analytics add-on price (superadmin only)
+router.get("/advanced-analytics-fee", auth, superadmin, async (req, res) => {
+  try {
+    const settings = await AppSettings.findOneAndUpdate(
+      { _id: "global" },
+      {},
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).lean();
+    res.json({ advancedAnalyticsMonthlyFee: settings.advancedAnalyticsMonthlyFee ?? 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PUT /api/config/advanced-analytics-fee — update the global default price (superadmin only)
+router.put("/advanced-analytics-fee", auth, superadmin, async (req, res) => {
+  try {
+    const amount = Number(req.body.amount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      return res.status(400).json({ error: "amount must be a non-negative number" });
+    }
+    const updated = await AppSettings.findOneAndUpdate(
+      { _id: "global" },
+      { $set: { advancedAnalyticsMonthlyFee: amount } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).lean();
+    res.json({ advancedAnalyticsMonthlyFee: updated.advancedAnalyticsMonthlyFee });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // GET /api/config/member-activation-fee — global one-time member activation fee + free tier (superadmin only)
 router.get("/member-activation-fee", auth, superadmin, async (req, res) => {
   try {

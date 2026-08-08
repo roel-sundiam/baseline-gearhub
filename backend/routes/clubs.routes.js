@@ -7,6 +7,7 @@ const User = require("../models/User");
 const { ownsClub } = require("../utils/scope");
 const { ensureFinanceReportBilling } = require("../utils/financeReportBilling");
 const { ensureEmailConfirmationsBilling } = require("../utils/emailConfirmationsBilling");
+const { ensureAdvancedAnalyticsBilling } = require("../utils/advancedAnalyticsBilling");
 const { isDuprConfigured } = require("../utils/dupr");
 
 const router = express.Router();
@@ -386,6 +387,55 @@ router.patch("/:id/email-confirmations-fee", auth, superadmin, async (req, res) 
     const club = await Club.findByIdAndUpdate(
       req.params.id,
       { emailConfirmationsFeeOverride: override === null ? null : Number(override) },
+      { new: true },
+    ).lean();
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    res.json(club);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /api/clubs/me/advanced-analytics-addon — club admin self-subscribe/cancel the Advanced Analytics add-on
+router.patch("/me/advanced-analytics-addon", auth, admin, async (req, res) => {
+  try {
+    const clubId = req.user.clubId;
+    if (!clubId) return res.status(400).json({ error: "No club associated with this account" });
+    const club = await Club.findById(clubId);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+
+    const enabled = !!req.body.enabled;
+    club.advancedAnalyticsEnabled = enabled;
+    if (enabled) {
+      // Reset the accrual start on every (re)subscribe; gap months are never billed.
+      club.advancedAnalyticsSubscribedAt = new Date();
+    }
+    await club.save();
+    if (enabled) {
+      // Bill the current month immediately (deduped by billingKey on resubscribe).
+      await ensureAdvancedAnalyticsBilling(club, req.user.userId);
+    }
+    res.json(club.toObject());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /api/clubs/:id/advanced-analytics-fee — set per-club Advanced Analytics fee override (superadmin only)
+router.patch("/:id/advanced-analytics-fee", auth, superadmin, async (req, res) => {
+  try {
+    const { override } = req.body;
+    if (override !== null) {
+      const amount = Number(override);
+      if (!Number.isFinite(amount) || amount < 0) {
+        return res.status(400).json({ error: "override must be null or a non-negative number" });
+      }
+    }
+    const club = await Club.findByIdAndUpdate(
+      req.params.id,
+      { advancedAnalyticsFeeOverride: override === null ? null : Number(override) },
       { new: true },
     ).lean();
     if (!club) return res.status(404).json({ error: "Club not found" });

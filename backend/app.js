@@ -52,6 +52,7 @@ const perGameRoutes = require("./routes/game-join.routes");
 const hostedPlayRoutes = require("./routes/hosted-play.routes");
 const configRoutes = require("./routes/config.routes");
 const clubLedgerRoutes = require("./routes/club-ledger.routes");
+const clubAnalyticsRoutes = require("./routes/club-analytics.routes");
 const membershipsRoutes = require("./routes/memberships.routes");
 const duprRoutes = require("./routes/dupr.routes");
 
@@ -167,6 +168,7 @@ app.use("/api/per-game", perGameRoutes);
 app.use("/api/hosted-play", hostedPlayRoutes);
 app.use("/api/config", configRoutes);
 app.use("/api/club-ledger", clubLedgerRoutes);
+app.use("/api/club-analytics", clubAnalyticsRoutes);
 app.use("/api/memberships", membershipsRoutes);
 app.use("/api/dupr", duprRoutes);
 
