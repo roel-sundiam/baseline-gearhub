@@ -18,11 +18,12 @@ import { AuthService } from '../../../../core/services/auth.service';
 import { ClubService, Court } from '../../../../core/services/club.service';
 import { CreditService, MemberBalance } from '../../../../core/services/credit.service';
 import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr.service';
+import { ImportParticipantsModalComponent } from './import-participants-modal.component';
 
 @Component({
   selector: 'app-admin-hosted-play-queue',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ImportParticipantsModalComponent],
   template: `
     <div class="queue-shell">
       <header class="topbar">
@@ -90,6 +91,14 @@ import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr
             }
           </div>
         </div>
+      }
+
+      @if (importModalOpen()) {
+        <app-import-participants-modal
+          [sessionId]="id"
+          (closed)="closeImportModal()"
+          (imported)="onImported($event)"
+        />
       }
 
       @if (umpireLinkModal) {
@@ -638,6 +647,9 @@ import { DuprService, DuprMatchSubmission } from '../../../../core/services/dupr
                   <div class="panel-head-right">
                     <span class="panel-count">{{ checkedInCount() }}/{{ board.roster.length }}</span>
                     @if (board.session.queueStatus !== 'ended') {
+                      <button class="qr-btn" (click)="showImportModal()" title="Import players from Reclub">
+                        <i class="fas fa-file-import"></i>
+                      </button>
                       <button class="qr-btn" (click)="showQr()" title="Show QR check-in code">
                         <i class="fas fa-qrcode"></i>
                       </button>
@@ -1687,6 +1699,8 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
   private pollSub?: Subscription;
   private readonly POLL_MS = 6000;
 
+  importModalOpen = signal(false);
+
   modal: { type: 'remove' | 'end'; player?: QueuePlayer } | null = null;
   qrModal: { generating: boolean; dataUrl?: string; downloadUrl?: string } | null = null;
   umpireLinkModal: { courtNumber: number; generating: boolean; dataUrl?: string; url?: string; copied?: boolean } | null = null;
@@ -2349,6 +2363,14 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
     this.assigningCourt = null;
     this.selectedIds.clear();
     this.act(this.hp.assignCourt(this.id, court, ids));
+  }
+
+  showImportModal() { this.importModalOpen.set(true); }
+  closeImportModal() { this.importModalOpen.set(false); }
+  onImported(board: QueueBoard) {
+    this.importModalOpen.set(false);
+    this.setBoard(board);
+    this.cdr.detectChanges();
   }
 
   showQr() {

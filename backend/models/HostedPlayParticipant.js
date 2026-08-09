@@ -8,6 +8,8 @@ const hostedPlayParticipantSchema = new mongoose.Schema(
     memberId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     memberName: { type: String, trim: true },
     chargeId: { type: mongoose.Schema.Types.ObjectId, ref: "Charge" },
+    // Set when this participant came from a Reclub Participant Import (see ReclubImportRecord).
+    reclubImportId: { type: mongoose.Schema.Types.ObjectId, ref: "ReclubImportRecord" },
 
     // ── Guest (public walk-in) contact info ──
     guestEmail: { type: String, trim: true, lowercase: true },

@@ -1,14 +1,16 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HostedPlayService } from '../../../core/services/hosted-play.service';
+import { AuthService } from '../../../core/services/auth.service';
 
-type CheckInState = 'loading' | 'success' | 'already_checked_in' | 'not_a_participant' | 'invalid_qr' | 'session_ended' | 'error';
+type CheckInState = 'loading' | 'success' | 'already_checked_in' | 'not_a_participant' | 'invalid_qr' | 'session_ended' | 'error' | 'find_name';
 
 @Component({
   selector: 'app-player-self-check-in',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="shell">
       <div class="card">
@@ -37,7 +39,51 @@ type CheckInState = 'loading' | 'success' | 'already_checked_in' | 'not_a_partic
         } @else if (state === 'not_a_participant') {
           <div class="icon-wrap warn-icon"><i class="fas fa-circle-exclamation"></i></div>
           <h2>Not registered</h2>
-          <p>You haven't joined this session. Join the session first before checking in.</p>
+          <p>You haven't joined this session under your account. If you registered through Reclub, look yourself up by name instead.</p>
+          <button class="primary-btn" (click)="showFindName()">
+            <i class="fas fa-magnifying-glass"></i> Find My Name
+          </button>
+          <button class="secondary-btn" (click)="goHome()">
+            <i class="fas fa-arrow-left"></i> Back to Hosted Play
+          </button>
+        } @else if (state === 'find_name') {
+          <div class="icon-wrap info-icon"><i class="fas fa-magnifying-glass"></i></div>
+          <h2>Find your name</h2>
+          <p>No account needed — just search for the name you registered under.</p>
+          <input
+            class="name-search"
+            type="text"
+            placeholder="Type your name…"
+            [(ngModel)]="searchQuery"
+            (ngModelChange)="onSearchChange($event)"
+            autocomplete="off"
+          />
+          @if (searching) {
+            <p class="search-hint"><i class="fas fa-circle-notch fa-spin"></i> Searching…</p>
+          } @else if (searchQuery.trim().length >= 2 && searchResults.length === 0) {
+            <p class="search-hint">No matches. Check the spelling or ask the organizer.</p>
+          } @else if (searchResults.length) {
+            <div class="name-results">
+              @for (r of searchResults; track r._id) {
+                <button
+                  type="button"
+                  class="name-result"
+                  [disabled]="r.checkedIn || checkingInId === r._id"
+                  (click)="checkInAs(r._id)"
+                >
+                  <span>{{ r.memberName }}</span>
+                  @if (r.checkedIn) {
+                    <span class="already-tag">Already in</span>
+                  } @else if (checkingInId === r._id) {
+                    <i class="fas fa-circle-notch fa-spin"></i>
+                  } @else {
+                    <i class="fas fa-chevron-right"></i>
+                  }
+                </button>
+              }
+            </div>
+          }
+          @if (errorMsg) { <p class="search-hint search-error">{{ errorMsg }}</p> }
           <button class="secondary-btn" (click)="goHome()">
             <i class="fas fa-arrow-left"></i> Back to Hosted Play
           </button>
@@ -142,6 +188,48 @@ type CheckInState = 'loading' | 'success' | 'already_checked_in' | 'not_a_partic
     .primary-btn:hover { background: #b4f050; }
     .secondary-btn { background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.14); }
     .secondary-btn:hover { background: rgba(255,255,255,.13); }
+
+    .name-search {
+      width: 100%;
+      min-height: 48px;
+      padding: .7rem .9rem;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.06);
+      color: #fff;
+      font-family: inherit;
+      font-size: .95rem;
+    }
+    .name-search:focus { outline: none; border-color: rgba(163,230,53,.5); }
+    .search-hint { font-size: .85rem; color: rgba(255,255,255,.55); }
+    .search-error { color: #f87171; }
+    .name-results {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .name-result {
+      width: 100%;
+      min-height: 46px;
+      padding: .6rem .9rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.05);
+      color: #fff;
+      font-family: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+    }
+    .name-result:hover:not(:disabled) { border-color: rgba(163,230,53,.4); }
+    .name-result:disabled { opacity: .55; cursor: not-allowed; }
+    .already-tag { font-size: .75rem; font-weight: 800; color: rgba(255,255,255,.5); }
   `],
 })
 export class SelfCheckInComponent implements OnInit {
@@ -150,10 +238,18 @@ export class SelfCheckInComponent implements OnInit {
   errorMsg = '';
   private token = '';
 
+  // ── "Find your name" (no account / not logged in) ──
+  searchQuery = '';
+  searchResults: { _id: string; memberName: string; checkedIn: boolean }[] = [];
+  searching = false;
+  checkingInId: string | null = null;
+  private searchDebounce: ReturnType<typeof setTimeout> | null = null;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private hp: HostedPlayService,
+    private auth: AuthService,
     private cdr: ChangeDetectorRef,
   ) {}
 
@@ -164,6 +260,14 @@ export class SelfCheckInComponent implements OnInit {
 
     if (!this.sessionId || !this.token) {
       this.state = 'invalid_qr';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    // No account (e.g. a Reclub-imported guest never asked to sign up) — go
+    // straight to name search instead of attempting the member-only check-in.
+    if (!this.auth.isLoggedIn()) {
+      this.state = 'find_name';
       this.cdr.detectChanges();
       return;
     }
@@ -183,6 +287,49 @@ export class SelfCheckInComponent implements OnInit {
         else if (code === 'invalid_qr') this.state = 'invalid_qr';
         else if (code === 'session_ended') this.state = 'session_ended';
         else { this.state = 'error'; this.errorMsg = err?.error?.error || ''; }
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  showFindName() {
+    this.state = 'find_name';
+    this.errorMsg = '';
+    this.cdr.detectChanges();
+  }
+
+  onSearchChange(q: string) {
+    if (this.searchDebounce) clearTimeout(this.searchDebounce);
+    const query = q.trim();
+    if (query.length < 2) {
+      this.searchResults = [];
+      this.searching = false;
+      this.cdr.detectChanges();
+      return;
+    }
+    this.searching = true;
+    this.cdr.detectChanges();
+    this.searchDebounce = setTimeout(() => {
+      this.hp.searchParticipants(this.sessionId, query, this.token).subscribe({
+        next: (res) => { this.searchResults = res.results; this.searching = false; this.cdr.detectChanges(); },
+        error: () => { this.searchResults = []; this.searching = false; this.cdr.detectChanges(); },
+      });
+    }, 300);
+  }
+
+  checkInAs(participantId: string) {
+    this.checkingInId = participantId;
+    this.errorMsg = '';
+    this.cdr.detectChanges();
+    this.hp.anonymousCheckIn(this.sessionId, participantId, this.token).subscribe({
+      next: () => { this.checkingInId = null; this.state = 'success'; this.cdr.detectChanges(); },
+      error: (err) => {
+        this.checkingInId = null;
+        const code = err?.error?.error;
+        if (code === 'already_checked_in') this.state = 'already_checked_in';
+        else if (code === 'invalid_qr') this.state = 'invalid_qr';
+        else if (code === 'session_ended') this.state = 'session_ended';
+        else this.errorMsg = 'Could not check you in. Please try again.';
         this.cdr.detectChanges();
       },
     });

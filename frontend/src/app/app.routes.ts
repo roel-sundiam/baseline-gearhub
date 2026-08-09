@@ -325,6 +325,17 @@ export const routes: Routes = [
     ],
   },
   {
+    // Unguarded: reachable by anyone who scans a session's QR code, logged in
+    // or not — check-in itself handles the logged-in-member vs. no-account
+    // (Reclub import guest) cases. Registered above the guarded 'player'
+    // block below so it wins the match for this exact path.
+    path: 'player/hosted-play/check-in',
+    loadComponent: () =>
+      import('./features/player/hosted-play/self-check-in.component').then(
+        (m) => m.SelfCheckInComponent,
+      ),
+  },
+  {
     path: 'player',
     canActivate: [authGuard],
     loadComponent: () =>
@@ -387,13 +398,6 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/player/hosted-play/live-board.component').then(
             (m) => m.PlayerHostedPlayLiveBoardComponent,
-          ),
-      },
-      {
-        path: 'hosted-play/check-in',
-        loadComponent: () =>
-          import('./features/player/hosted-play/self-check-in.component').then(
-            (m) => m.SelfCheckInComponent,
           ),
       },
       {

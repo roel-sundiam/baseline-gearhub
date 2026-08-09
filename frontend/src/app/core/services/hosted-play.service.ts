@@ -126,6 +126,28 @@ export interface QueuePlayer {
   losses?: number;
 }
 
+// ── Reclub Participant Import ──
+export interface ReclubMatchSuggestion {
+  userId: string;
+  name: string;
+  score: number; // 0..1
+  alreadyJoined: boolean;
+}
+
+export interface ReclubImportPreviewRow {
+  rawName: string;
+  suggestions: ReclubMatchSuggestion[];
+  bestMatch: ReclubMatchSuggestion | null;
+  alreadyImportedAsGuest: boolean;
+}
+
+export interface ReclubImportConfirmRow {
+  rawName: string;
+  finalName: string;
+  memberId?: string | null;
+  isGuest: boolean;
+}
+
 export interface QueueCourt {
   courtNumber: number;
   players: QueuePlayer[];
@@ -555,6 +577,17 @@ export class HostedPlayService {
     return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/walkins`, data);
   }
 
+  // ── Reclub Participant Import ──
+  previewImport(id: string, rawNames: string[], method: 'paste' | 'screenshot') {
+    return this.http.post<{ results: ReclubImportPreviewRow[] }>(
+      `${this.base}/sessions/${id}/import-participants/preview`, { rawNames, method });
+  }
+
+  confirmImport(id: string, method: 'paste' | 'screenshot', participants: ReclubImportConfirmRow[]) {
+    return this.http.post<QueueBoard & { imported: number; skipped: number }>(
+      `${this.base}/sessions/${id}/import-participants/confirm`, { method, participants });
+  }
+
   finishCourt(id: string, courtNumber: number, winnerIds: string[] = [], scores?: { team1Score: number; team2Score: number }) {
     return this.http.post<QueueBoard>(`${this.base}/sessions/${id}/courts/${courtNumber}/finish`, { winnerIds, ...(scores ?? {}) });
   }
@@ -627,6 +660,18 @@ export class HostedPlayService {
   selfCheckIn(sessionId: string, token: string) {
     return this.http.post<QueueBoard>(
       `${this.base}/sessions/${sessionId}/self-check-in`, { token });
+  }
+
+  // No-login "find your name" check-in — for participants with no CourtGo
+  // account (e.g. Reclub imports). Same qrToken as selfCheckIn above.
+  searchParticipants(sessionId: string, q: string, token: string) {
+    return this.http.get<{ results: { _id: string; memberName: string; checkedIn: boolean }[] }>(
+      `${this.base}/sessions/${sessionId}/participants/search`, { params: { q, t: token } });
+  }
+
+  anonymousCheckIn(sessionId: string, participantId: string, token: string) {
+    return this.http.post<QueueBoard>(
+      `${this.base}/sessions/${sessionId}/participants/${participantId}/anonymous-check-in`, { token });
   }
 
   // ── Umpire Live Scoring (anonymous, per-court token — no login) ──

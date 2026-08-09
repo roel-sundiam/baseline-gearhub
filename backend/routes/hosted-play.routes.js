@@ -10,6 +10,7 @@ const HostedPlayMatch = require("../models/HostedPlayMatch");
 const HostedPlayPair = require("../models/HostedPlayPair");
 const HostedPlayFixture = require("../models/HostedPlayFixture");
 const User = require("../models/User");
+const ClubMembership = require("../models/ClubMembership");
 const Club = require("../models/Club");
 const Charge = require("../models/Charge");
 const AppServicePayment = require("../models/AppServicePayment");
@@ -19,6 +20,8 @@ const { isDuprConfigured } = dupr;
 const DuprMatchSubmission = require("../models/DuprMatchSubmission");
 const queue = require("../services/queue-engine");
 const fixedDoubles = require("../services/fixed-doubles-engine");
+const ReclubImportRecord = require("../models/ReclubImportRecord");
+const { matchAgainstRoster, normalizeName } = require("../utils/name-match");
 const { sendPushToClubAdmins, sendPushToUser } = require("../utils/push");
 const { computePlayerFees } = require("../utils/fees");
 const { resolveGuestFee, countGuests } = require("../utils/guests");
@@ -1446,7 +1449,8 @@ router.patch("/sessions/:id/participants/:pid/check-in", auth, admin, async (req
   try {
     const ctx = await loadQueueContext(req, res);
     if (!ctx) return;
-    const result = queue.setCheckIn(ctx.session, ctx.participants, req.params.pid, !!req.body.checkedIn);
+    const checkedIn = !!req.body.checkedIn;
+    const result = queue.setCheckIn(ctx.session, ctx.participants, req.params.pid, checkedIn);
     if (result.error === "not_found") return res.status(404).json({ error: "Participant not found" });
     await applyAndRespond(res, ctx.session, ctx.participants, result, ctx.club, ctx.prev);
   } catch (err) {
@@ -1523,6 +1527,77 @@ router.post("/sessions/:id/self-check-in", auth, async (req, res) => {
     }).lean();
     if (!participant || (participant.waitStatus ?? "active") !== "active") {
       return res.status(404).json({ error: "not_a_participant" }); // waitlisted/offered/pending_payment aren't in yet
+    }
+    if (participant.checkedIn) return res.status(409).json({ error: "already_checked_in" });
+
+    const club = await Club.findById(session.clubId)
+      .select("hostedPlayConvenienceFeeRate hostedPlayConvenienceFeeMode numberOfCourts")
+      .lean();
+    const participants = await HostedPlayParticipant.find({ hostedPlayId: session._id, ...ACTIVE_PARTICIPANT })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    const prev = snapshotQueue(session, participants);
+    const result = queue.setCheckIn(session, participants, String(participant._id), true);
+    if (result.error === "not_found") return res.status(404).json({ error: "Participant not found" });
+    await applyAndRespond(res, session, participants, result, club, prev);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/hosted-play/sessions/:id/participants/search — anonymous "find your
+// name" lookup for the QR check-in page. Used by participants with no CourtGo
+// account (e.g. Reclub imports) who can't use the memberId-based self-check-in
+// above. Guarded by the same qrToken as self-check-in — no login required.
+router.get("/sessions/:id/participants/search", async (req, res) => {
+  try {
+    const token = req.query.t;
+    const q = String(req.query.q || "").trim();
+    if (!token) return res.status(400).json({ error: "Token is required" });
+    if (q.length < 2) return res.json({ results: [] });
+
+    const session = await HostedPlay.findById(req.params.id).select("qrToken status").lean();
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (session.qrToken !== token) return res.status(403).json({ error: "invalid_qr" });
+    if (["cancelled", "completed"].includes(session.status)) {
+      return res.status(409).json({ error: "session_ended" });
+    }
+
+    const results = await HostedPlayParticipant.find({
+      hostedPlayId: session._id,
+      ...ACTIVE_PARTICIPANT,
+      memberName: { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" },
+    })
+      .select("memberName checkedIn")
+      .sort({ memberName: 1 })
+      .limit(20)
+      .lean();
+
+    res.json({ results: results.map((p) => ({ _id: p._id, memberName: p.memberName, checkedIn: !!p.checkedIn })) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/participants/:pid/anonymous-check-in — the
+// no-login counterpart to self-check-in, for the participant picked from the
+// name search above. Same qrToken guard; no memberId required.
+router.post("/sessions/:id/participants/:pid/anonymous-check-in", async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Token is required" });
+
+    const session = await HostedPlay.findById(req.params.id).lean();
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (session.qrToken !== token) return res.status(403).json({ error: "invalid_qr" });
+    if (["cancelled", "completed"].includes(session.status)) {
+      return res.status(409).json({ error: "session_ended" });
+    }
+
+    const participant = await HostedPlayParticipant.findOne({ _id: req.params.pid, hostedPlayId: session._id }).lean();
+    if (!participant || (participant.waitStatus ?? "active") !== "active") {
+      return res.status(404).json({ error: "not_a_participant" });
     }
     if (participant.checkedIn) return res.status(409).json({ error: "already_checked_in" });
 
@@ -1681,6 +1756,195 @@ async function addMemberWalkIn(req, res, ctx) {
   ctx.participants.push(walkIn.toObject());
   return applyAndRespond(res, ctx.session, ctx.participants, queue.appendAndAssign(ctx.session, ctx.participants, walkIn._id), ctx.club, ctx.prev);
 }
+
+// ── Reclub Participant Import ──────────────────────────────────────────────
+// Organizer pastes/screenshots a Reclub participant list (parsed to plain
+// names client-side); these two routes match those names against the club
+// roster and, once the organizer confirms, create participants exactly like
+// walk-ins do — just not yet checked in, since the players aren't at the
+// club yet. They enter the live queue later via the QR check-in flow below.
+
+// POST /api/hosted-play/sessions/:id/import-participants/preview — no writes.
+router.post("/sessions/:id/import-participants/preview", auth, admin, async (req, res) => {
+  try {
+    const ctx = await loadQueueContext(req, res);
+    if (!ctx) return;
+
+    const rawNames = Array.isArray(req.body.rawNames) ? req.body.rawNames.map((n) => String(n || "").trim()).filter(Boolean) : [];
+    if (!rawNames.length) return res.status(400).json({ error: "No names to match" });
+
+    // Same "players visible to a club" roster the walk-in member search uses.
+    const memberIds = await ClubMembership.find({ clubId: ctx.session.clubId, status: "active" }).distinct("userId");
+    const roster = await User.find({
+      role: "player",
+      $or: [{ clubId: ctx.session.clubId, status: "active" }, { _id: { $in: memberIds } }],
+    }).select("_id name").lean();
+
+    const alreadyIn = new Set(
+      (await HostedPlayParticipant.find({ hostedPlayId: ctx.session._id, memberId: { $ne: null } }).select("memberId").lean())
+        .map((p) => String(p.memberId)),
+    );
+    // Mirrors the guest-name dedup guard in the confirm route below — lets the
+    // organizer see "already in session" before submitting, e.g. after re-uploading
+    // the same screenshot, instead of silently losing the row to a server-side skip.
+    const existingGuestNames = new Set(
+      (await HostedPlayParticipant.find({ hostedPlayId: ctx.session._id, memberId: null }).select("memberName").lean())
+        .map((p) => normalizeName(p.memberName))
+        .filter(Boolean),
+    );
+
+    const results = rawNames.map((rawName) => {
+      const suggestions = matchAgainstRoster(rawName, roster).map((m) => ({ ...m, alreadyJoined: alreadyIn.has(String(m.userId)) }));
+      const bestMatch = suggestions[0] && !suggestions[0].alreadyJoined && suggestions[0].score >= 0.8 ? suggestions[0] : null;
+      const alreadyImportedAsGuest = !bestMatch && existingGuestNames.has(normalizeName(rawName));
+      return { rawName, suggestions, bestMatch, alreadyImportedAsGuest };
+    });
+
+    res.json({ results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/hosted-play/sessions/:id/import-participants/confirm — creates
+// participants (not checked in) plus one ReclubImportRecord per participant.
+router.post("/sessions/:id/import-participants/confirm", auth, admin, async (req, res) => {
+  try {
+    const ctx = await loadQueueContext(req, res);
+    if (!ctx) return;
+
+    const method = req.body.method;
+    if (!["paste", "screenshot"].includes(method)) return res.status(400).json({ error: "Invalid import method" });
+
+    const rows = Array.isArray(req.body.participants) ? req.body.participants : [];
+    if (!rows.length) return res.status(400).json({ error: "No participants to import" });
+
+    const guestRowCount = rows.filter((r) => r.isGuest).length;
+    if (guestRowCount && ctx.session.premiumEvent) {
+      return res.status(400).json({ error: "This is a Premium Event — guest imports aren't eligible; only DUPR+ linked members may participate." });
+    }
+    if (guestRowCount && ctx.session.maxGuests != null) {
+      const existingGuests = await countGuests(ctx.session._id);
+      if (existingGuests + guestRowCount > ctx.session.maxGuests) {
+        return res.status(400).json({ error: "Not enough guest spots left for this import", code: "guest_spots_full" });
+      }
+    }
+
+    // Reclub-imported participants are charged exactly like guest walk-ins —
+    // baseFee + convenience fee, cash/paid/approved — since they never went
+    // through CourtGo's own checkout, whether or not they matched a member.
+    const { baseFee, convenienceFee, total: importAmount, feeMode } = computePlayerFees(ctx.club, resolveGuestFee(ctx.session));
+
+    // Guest rows have no account/ID to dedup on like matched members do below,
+    // so re-importing the same screenshot (or a paste list with a repeat name)
+    // would otherwise create a second participant + charge for the same person.
+    // Guard on normalized name instead, seeded with guests already in the session
+    // and grown as each row is imported so duplicates within one batch are caught too.
+    const existingGuestNames = new Set(
+      (await HostedPlayParticipant.find({ hostedPlayId: ctx.session._id, memberId: null }).select("memberName").lean())
+        .map((p) => normalizeName(p.memberName))
+        .filter(Boolean),
+    );
+
+    const created = [];
+    let skipped = 0;
+    for (const row of rows) {
+      const finalName = String(row.finalName || row.rawName || "").trim();
+      if (!finalName) { skipped++; continue; }
+
+      let participant;
+      let matchedMemberId = null;
+      let chargeId;
+
+      if (row.memberId && !row.isGuest) {
+        const user = await User.findById(row.memberId).select("name clubId duprLink").lean();
+        if (!user || String(user.clubId) !== String(ctx.session.clubId)) { skipped++; continue; }
+        if (premiumEventError(ctx.session, user)) { skipped++; continue; }
+        const existing = await HostedPlayParticipant.findOne({ hostedPlayId: ctx.session._id, memberId: row.memberId });
+        if (existing) { skipped++; continue; }
+
+        if (importAmount > 0) {
+          const charge = await Charge.create({
+            clubId: ctx.session.clubId,
+            playerId: row.memberId,
+            hostedPlayId: ctx.session._id,
+            amount: importAmount,
+            breakdown: { hostedPlayFee: baseFee, convenienceFee, convenienceFeeMode: feeMode },
+            chargeType: "hosted_play",
+            status: "paid",
+            paymentMethod: "Cash",
+            approvalStatus: "approved",
+          });
+          chargeId = charge._id;
+        }
+
+        participant = await HostedPlayParticipant.create({
+          hostedPlayId: ctx.session._id,
+          clubId: ctx.session.clubId,
+          memberId: row.memberId,
+          isWalkIn: true,
+          memberName: user.name,
+          chargeId: chargeId ?? undefined,
+        });
+        matchedMemberId = row.memberId;
+
+        ctx.session.currentPlayers += 1;
+        if (ctx.session.currentPlayers >= ctx.session.maxPlayers && ctx.session.status === "open") {
+          ctx.session.status = "full";
+        }
+      } else {
+        const normalized = normalizeName(finalName);
+        if (existingGuestNames.has(normalized)) { skipped++; continue; }
+
+        if (importAmount > 0) {
+          const charge = await Charge.create({
+            clubId: ctx.session.clubId,
+            guestName: finalName,
+            hostedPlayId: ctx.session._id,
+            amount: importAmount,
+            breakdown: { hostedPlayFee: baseFee, convenienceFee, convenienceFeeMode: feeMode },
+            chargeType: "hosted_play",
+            status: "paid",
+            paymentMethod: "Cash",
+            approvalStatus: "approved",
+          });
+          chargeId = charge._id;
+        }
+
+        participant = await HostedPlayParticipant.create({
+          hostedPlayId: ctx.session._id,
+          clubId: ctx.session.clubId,
+          isWalkIn: true,
+          memberName: finalName,
+          chargeId: chargeId ?? undefined,
+        });
+        existingGuestNames.add(normalized);
+      }
+
+      const importRecord = await ReclubImportRecord.create({
+        hostedPlayId: ctx.session._id,
+        clubId: ctx.session.clubId,
+        importedBy: req.user.userId,
+        importMethod: method,
+        rawName: String(row.rawName || finalName),
+        finalName,
+        matchedMemberId: matchedMemberId ?? undefined,
+        participantId: participant._id,
+        isGuest: !matchedMemberId,
+      });
+      await HostedPlayParticipant.updateOne({ _id: participant._id }, { $set: { reclubImportId: importRecord._id } });
+
+      ctx.participants.push(participant.toObject());
+      created.push(participant);
+    }
+
+    await HostedPlay.updateOne({ _id: ctx.session._id }, { $set: { currentPlayers: ctx.session.currentPlayers, status: ctx.session.status } });
+
+    await applyAndRespond(res, ctx.session, ctx.participants, { changed: [] }, ctx.club, ctx.prev, { imported: created.length, skipped });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── Match records (per finished game, optional scores) ────────────────────────
 
