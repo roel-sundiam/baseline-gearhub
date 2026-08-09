@@ -28,1104 +28,666 @@ interface PublicSponsor {
   imports: [RouterLink],
   template: `
     <div class="page">
-
-      <!-- Background -->
-      <div class="bg-layer">
-        <div class="orb orb-1"></div>
-        <div class="orb orb-2"></div>
-        <div class="orb orb-3"></div>
-        <div class="grid-overlay"></div>
+      <div class="ambient" aria-hidden="true">
+        <span class="glow glow-one"></span>
+        <span class="glow glow-two"></span>
+        <span class="court-lines"></span>
       </div>
 
-      <!-- Navbar -->
-      <header class="navbar">
-        <img src="/CourtGo.png" alt="CourtGo" class="nav-logo" />
-
-        <div class="nav-center">
-          <a routerLink="/book" class="nav-search">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-            </svg>
-            <span class="nav-search-full">Find Clubs</span>
-            <span class="nav-search-short">Find Clubs</span>
+      <header class="site-header">
+        <div class="nav-shell">
+          <a routerLink="/" class="brand" aria-label="CourtGo home">
+            <img src="/CourtGo.png" alt="CourtGo" />
           </a>
-          <nav class="nav-links">
-            <a href="#booking-types" class="nav-link">How It Works</a>
-            <a routerLink="/features" class="nav-link">Features</a>
-          </nav>
-        </div>
 
-        <div class="nav-right">
-          <a routerLink="/player-login" class="nav-signin">Login as Player</a>
-          <a routerLink="/register-club" class="btn-primary nav-register">Register your Club</a>
+          <nav class="desktop-nav" aria-label="Main navigation">
+            <a href="#play-options">Ways to play</a>
+            <a href="#platform">Platform</a>
+            <a routerLink="/features">All features</a>
+          </nav>
+
+          <div class="nav-actions">
+            <a routerLink="/book" class="nav-discover">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+              <span>Find a club</span>
+            </a>
+            <a routerLink="/player-login" class="nav-login">Player login</a>
+            <a routerLink="/register-club" class="button button-primary nav-club">
+              <span class="nav-club-long">Register your club</span>
+              <span class="nav-club-short">For clubs</span>
+            </a>
+          </div>
         </div>
       </header>
 
-      <!-- Mobile quick-links (hidden on desktop) -->
-      <div class="mobile-quicklinks">
-        <a routerLink="/book" class="mql-link">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          Find Clubs
-        </a>
-        <a routerLink="/player-login" class="mql-link">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Login as Player
-        </a>
-      </div>
-
-      <!-- Hero -->
-      <section class="hero">
-        <div class="hero-left">
-          <div class="hero-badges">
-            <div class="hero-badge">
-              <span class="badge-dot"></span>
-              Racket Sports Club Platform
+      <main>
+        <section class="hero section-shell">
+          <div class="hero-copy">
+            <div class="eyebrow">
+              <span class="eyebrow-mark"></span>
+              The complete racket-sports platform
             </div>
-            <div class="hero-badge hero-badge-dupr">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
-              Official DUPR Integration
+
+            <h1>More court time.<br><span>Less admin.</span></h1>
+            <p class="hero-lead">
+              CourtGo brings reservations, player communities, payments, club operations,
+              and official DUPR workflows into one polished experience.
+            </p>
+
+            <div class="hero-actions">
+              <a routerLink="/book" class="button button-primary button-large">
+                Find a court
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </a>
+              <a routerLink="/register-club" class="button button-secondary button-large">Grow your club</a>
             </div>
-          </div>
-          <h1 class="hero-headline">
-            The modern way to<br>
-            <span class="accent">MANAGE &amp; BOOK</span><br>
-            COURTS.
-          </h1>
-          <p class="hero-sub">
-            Real-time reservations, club management, tournaments,
-            and official DUPR ratings — all in one place. For tennis,
-            pickleball, squash, and more.
-          </p>
-          <div class="hero-ctas">
-            <a routerLink="/register-club" class="btn-primary btn-hero">
-              Register your Club
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="m12 8 4 4-4 4M8 12h8"/></svg>
-            </a>
-            <a routerLink="/book" class="btn-ghost">Book as Guest</a>
-          </div>
-          <div class="hero-proof">
-            <div class="avatars">
-              <div class="av av-1"></div>
-              <div class="av av-2"></div>
-              <div class="av av-3"></div>
-            </div>
-            <p class="proof-text">Join the clubs &amp; players already using CourtGo</p>
-          </div>
-        </div>
 
-        <div class="hero-right">
-          <div class="phone-glow"></div>
-          <div class="rings">
-            <div class="ring r1"></div>
-            <div class="ring r2"></div>
-            <div class="ring r3"></div>
-            <div class="ring r4"></div>
-          </div>
-          <div class="deco-arrows">
-            <svg width="48" height="28" viewBox="0 0 48 28" fill="none" stroke="rgba(124,255,78,0.65)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 25L24 3L45 25"/></svg>
-            <svg width="48" height="28" viewBox="0 0 48 28" fill="none" stroke="rgba(124,255,78,0.4)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 25L24 3L45 25"/></svg>
-            <svg width="48" height="28" viewBox="0 0 48 28" fill="none" stroke="rgba(124,255,78,0.2)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 25L24 3L45 25"/></svg>
-          </div>
-          <div class="hero-phones">
-            <div class="phone phone-1">
-              <img src="/mockup-home.png" alt="CourtGo home screen" />
-            </div>
-            <div class="phone phone-2">
-              <img src="/mockup-courts.png" alt="CourtGo find courts" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Booking Types -->
-      <section class="booking-types" id="booking-types">
-        <div class="bt-head">
-          <div class="bt-tag">
-            <span class="badge-dot"></span>
-            Booking Options
-          </div>
-          <h2 class="bt-title">Three Ways to Book</h2>
-          <p class="bt-sub">Every club is different. CourtGo supports multiple booking models so you always play your way.</p>
-        </div>
-
-        <div class="bt-grid">
-
-          <!-- Reservation -->
-          <div class="bt-card bt-reservation">
-            <div class="bt-icon bt-icon-lime">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
-            </div>
-            <h3 class="bt-card-title">Reservation</h3>
-            <p class="bt-desc">Reserve a specific court for a set time slot. Pick your court, pick your time — confirmed in seconds.</p>
-            <ul class="bt-bullets">
-              <li>Real-time availability</li>
-              <li>Instant confirmation</li>
-              <li>Flexible cancellations</li>
-            </ul>
-            <a routerLink="/book" class="bt-book-link bt-book-lime">
-              Book Now
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
-            </a>
-          </div>
-
-          <!-- Per Game -->
-          <div class="bt-card bt-per-game">
-            <div class="bt-icon bt-icon-sky">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            </div>
-            <h3 class="bt-card-title">Per Game</h3>
-            <p class="bt-desc">Show up and play. Join a session and pay only for the games you play — no hourly commitment needed.</p>
-            <ul class="bt-bullets">
-              <li>Drop-in friendly</li>
-              <li>Pay per game played</li>
-              <li>Join existing sessions</li>
-            </ul>
-            <a routerLink="/book" class="bt-book-link bt-book-sky">
-              Book Now
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
-            </a>
-          </div>
-
-          <!-- Hosted Play -->
-          <div class="bt-card bt-hosted">
-            <div class="bt-icon bt-icon-amber">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            </div>
-            <h3 class="bt-card-title">Hosted Play</h3>
-            <p class="bt-desc">Club-run group sessions with managed court rotation. Great for social play and meeting other members.</p>
-            <ul class="bt-bullets">
-              <li>Club-managed queue</li>
-              <li>Automatic court rotation</li>
-              <li>Open to all skill levels</li>
-            </ul>
-            <a routerLink="/book" class="bt-book-link bt-book-amber">
-              Book Now
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
-            </a>
-          </div>
-
-        </div>
-      </section>
-
-      <!-- Features -->
-      <section class="features" id="features">
-        <div class="features-grid">
-
-          <div class="feature-card">
-            <div class="fi">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            </div>
-            <h3>Instant Reservations</h3>
-            <p>Book any court in seconds with real-time availability.</p>
-          </div>
-
-          <div class="feature-card">
-            <div class="fi">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            </div>
-            <h3>Club Management</h3>
-            <p>Powerful tools for members, courts, payments, and analytics.</p>
-          </div>
-
-          <div class="feature-card">
-            <div class="fi">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-            </div>
-            <h3>Tournaments</h3>
-            <p>Organize and manage tournaments with ease.</p>
-          </div>
-
-          <div class="feature-card">
-            <div class="fi">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="11" x="2" y="3" rx="1"/><rect width="5" height="7" x="17" y="3" rx="1"/><path d="M9 3h6M9 21h6M2 14h5M17 10h5M7 21v-1a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1"/></svg>
-            </div>
-            <h3>Works Everywhere</h3>
-            <p>Native iOS &amp; Android apps with a seamless web experience.</p>
-          </div>
-
-          <div class="feature-card feature-card-dupr">
-            <span class="fc-official-tag">Official Integration</span>
-            <div class="fi fi-dupr">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
-            </div>
-            <h3>DUPR Integration</h3>
-            <p>Link your official DUPR rating to track your progress and unlock premium events.</p>
-          </div>
-
-        </div>
-      </section>
-
-      <!-- Reviews -->
-      @if (reviews().length > 0) {
-        <section class="reviews" id="reviews">
-          <div class="reviews-head">
-            <span class="reviews-stars-deco">★★★★★</span>
-            <h2 class="reviews-title">What Our Clubs Say</h2>
-            <p class="reviews-sub">Trusted by club managers across the country.</p>
-          </div>
-
-          <div class="reviews-grid">
-            @for (review of reviews(); track review._id) {
-              <div class="review-card">
-                <div class="review-card-top">
-                  <div class="review-stars">
-                    @for (i of starsArray; track i) {
-                      <span class="star" [class.star-filled]="i <= review.rating">★</span>
-                    }
-                  </div>
-                  @if (review.clubLogo) {
-                    <img [src]="review.clubLogo" [alt]="review.clubName" class="review-club-logo" />
-                  }
-                </div>
-                <p class="review-text">"{{ review.text }}"</p>
-                <div class="review-author">
-                  <span class="review-name">{{ review.clubName }}</span>
-                  @if (review.clubSlug) {
-                    <a [routerLink]="['/book', review.clubSlug]" class="review-book-link">
-                      Book a Court
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
-                    </a>
-                  }
-                </div>
+            <div class="hero-trust" aria-label="CourtGo highlights">
+              <div class="trust-item">
+                <strong>3</strong>
+                <span>flexible play modes</span>
               </div>
-            }
+              <div class="trust-divider"></div>
+              <div class="trust-item">
+                <strong>Live</strong>
+                <span>court availability</span>
+              </div>
+              <div class="trust-divider"></div>
+              <div class="trust-item">
+                <strong>DUPR</strong>
+                <span>official integration</span>
+              </div>
+            </div>
           </div>
 
+          <div class="hero-visual" aria-label="CourtGo mobile application preview">
+            <div class="visual-grid" aria-hidden="true"></div>
+            <div class="visual-halo" aria-hidden="true"></div>
+
+            <div class="floating-card floating-card-top">
+              <span class="floating-icon floating-icon-lime">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+              </span>
+              <span><small>Booking status</small><strong>Court confirmed</strong></span>
+            </div>
+
+            <div class="phone-stack">
+              <div class="phone phone-back">
+                <span class="phone-speaker"></span>
+                <img src="/mockup-courts.png" alt="CourtGo find courts screen" />
+              </div>
+              <div class="phone phone-front">
+                <span class="phone-speaker"></span>
+                <img src="/mockup-home.png" alt="CourtGo player home screen" />
+              </div>
+            </div>
+
+            <div class="floating-card floating-card-bottom">
+              <span class="floating-icon floating-icon-sky">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M17 8H9.5a3.5 3.5 0 1 0 0 7H15a3 3 0 1 1 0 6H6"/></svg>
+              </span>
+              <span><small>Club operations</small><strong>Payments organized</strong></span>
+            </div>
+          </div>
         </section>
-      }
 
-      <!-- Partners -->
-      <section class="partners" id="partners">
-        <div class="partners-head">
-          <h2 class="partners-title">Our Partners</h2>
-          <p class="partners-sub">Local businesses supporting the CourtGo community.</p>
-        </div>
-
-        @if (sponsors().length > 0) {
-          <div class="partners-grid">
-            @for (sponsor of sponsors(); track sponsor._id) {
-              <div class="partner-card">
-                <div class="partner-card-top">
-                  <img [src]="sponsor.logoUrl" [alt]="sponsor.businessName" class="partner-logo" />
-                  <div>
-                    <span class="partner-badge">Sponsored</span>
-                    <h3 class="partner-name">{{ sponsor.businessName }}</h3>
-                  </div>
-                </div>
-                <p class="partner-desc">{{ sponsor.description }}</p>
-                @if (sponsor.promoText) {
-                  <p class="partner-promo">{{ sponsor.promoText }}</p>
-                }
-                <a [href]="sponsor.link" target="_blank" rel="noopener" class="partner-link">
-                  Visit
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
-                </a>
-              </div>
-            }
+        <section class="confidence-bar" aria-label="Supported sports and access">
+          <div class="section-shell confidence-inner">
+            <p>One platform for the whole club</p>
+            <div class="confidence-items">
+              <span><i></i>Tennis</span>
+              <span><i></i>Pickleball</span>
+              <span><i></i>Badminton</span>
+              <span><i></i>Padel</span>
+              <span><i></i>Squash</span>
+            </div>
           </div>
-        } @else {
-          <p class="partners-empty">Be the first local business featured here.</p>
+        </section>
+
+        <section class="play-options section-shell" id="play-options">
+          <div class="section-heading">
+            <div>
+              <span class="section-kicker">Built around how people play</span>
+              <h2>Choose the experience that fits.</h2>
+            </div>
+            <p>Whether players plan ahead, drop in, or join a club-led session, CourtGo keeps every step simple.</p>
+          </div>
+
+          <div class="experience-grid">
+            <article class="experience-card card-reservation">
+              <div class="experience-media">
+                <img src="/images/landing/reservation-experience.jpg" alt="Players confirming a pickleball court reservation" loading="lazy" decoding="async" />
+                <span class="experience-number">01</span>
+                <span class="experience-label">Plan ahead</span>
+              </div>
+              <div class="experience-body">
+                <div class="experience-title-row">
+                  <span class="experience-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18m-12 5 2 2 4-4"/></svg>
+                  </span>
+                  <div><small>Book by court and time</small><h3>Reservation</h3></div>
+                </div>
+                <p>See live availability, select the exact court and time, and get confirmation in seconds.</p>
+                <ul>
+                  <li>Real-time schedule</li>
+                  <li>Instant confirmation</li>
+                  <li>Easy booking management</li>
+                </ul>
+                <a routerLink="/book" class="text-link">Reserve a court <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+              </div>
+            </article>
+
+            <article class="experience-card card-per-game">
+              <div class="experience-media">
+                <img src="/images/landing/per-game-experience.jpg" alt="A social pickleball doubles game" loading="lazy" decoding="async" />
+                <span class="experience-number">02</span>
+                <span class="experience-label">Drop in and play</span>
+              </div>
+              <div class="experience-body">
+                <div class="experience-title-row">
+                  <span class="experience-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-9 12h8l-1 8 9-12h-8l1-8Z"/></svg>
+                  </span>
+                  <div><small>Pay for what you play</small><h3>Per Game</h3></div>
+                </div>
+                <p>Join a session when it suits you and pay only for the games you actually play.</p>
+                <ul>
+                  <li>Flexible drop-in access</li>
+                  <li>Simple game tracking</li>
+                  <li>No hourly commitment</li>
+                </ul>
+                <a routerLink="/book" class="text-link">Find a game <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+              </div>
+            </article>
+
+            <article class="experience-card card-hosted">
+              <div class="experience-media">
+                <img src="/images/landing/hosted-play-experience.jpg" alt="A host welcoming players to a group pickleball session" loading="lazy" decoding="async" />
+                <span class="experience-number">03</span>
+                <span class="experience-label">Play together</span>
+              </div>
+              <div class="experience-body">
+                <div class="experience-title-row">
+                  <span class="experience-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  </span>
+                  <div><small>Club-led social sessions</small><h3>Hosted Play</h3></div>
+                </div>
+                <p>Bring your community together with check-in, queues, and court rotation managed in one flow.</p>
+                <ul>
+                  <li>Smart player queue</li>
+                  <li>Managed court rotation</li>
+                  <li>Skill-friendly sessions</li>
+                </ul>
+                <a routerLink="/book" class="text-link">Join hosted play <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="platform section-shell" id="platform">
+          <div class="platform-intro">
+            <span class="section-kicker">More than booking software</span>
+            <h2>Run the club.<br><span>Build the community.</span></h2>
+            <p>Every tool shares one source of truth, so staff spend less time reconciling details and more time improving the player experience.</p>
+            <a routerLink="/features" class="button button-secondary">Explore all features</a>
+          </div>
+
+          <div class="platform-grid">
+            <article class="platform-card platform-card-wide">
+              <span class="platform-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/></svg>
+              </span>
+              <div><h3>Clear club operations</h3><p>Payments, reports, member activity, and court performance stay organized and visible.</p></div>
+              <span class="mini-chart" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+            </article>
+
+            <article class="platform-card">
+              <span class="platform-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.87"/></svg>
+              </span>
+              <h3>Member management</h3>
+              <p>Welcome, approve, communicate with, and support your entire roster.</p>
+            </article>
+
+            <article class="platform-card platform-card-dupr">
+              <span class="official-chip">Official integration</span>
+              <span class="platform-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="m15.5 13 1.5 9-5-3-5 3 1.5-9"/></svg>
+              </span>
+              <h3>DUPR-ready play</h3>
+              <p>Connect competitive sessions and official player ratings without fragmented workflows.</p>
+            </article>
+
+            <article class="platform-card">
+              <span class="platform-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Z"/><path d="m9 15 2 2 4-4"/></svg>
+              </span>
+              <h3>Tournaments and events</h3>
+              <p>Turn interest into participation with structured, easy-to-manage events.</p>
+            </article>
+
+            <article class="platform-card platform-card-wide platform-card-access">
+              <div>
+                <span class="platform-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M9 6h6M11 18h2"/></svg>
+                </span>
+                <h3>One experience on every screen</h3>
+                <p>Players and staff get a fast, focused workflow on desktop, tablet, or mobile.</p>
+              </div>
+              <div class="device-pills" aria-label="Supported devices"><span>Web</span><span>Tablet</span><span>Mobile</span></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="how-it-works section-shell">
+          <div class="section-heading compact-heading">
+            <div><span class="section-kicker">Simple from the first tap</span><h2>Get on court in three steps.</h2></div>
+          </div>
+          <div class="steps">
+            <article><span>1</span><div><h3>Find your club</h3><p>Browse nearby clubs and see the ways you can play.</p></div></article>
+            <i class="step-line" aria-hidden="true"></i>
+            <article><span>2</span><div><h3>Choose your session</h3><p>Reserve a court, join per game, or enter hosted play.</p></div></article>
+            <i class="step-line" aria-hidden="true"></i>
+            <article><span>3</span><div><h3>Show up and play</h3><p>Everything you need is confirmed and ready in CourtGo.</p></div></article>
+          </div>
+        </section>
+
+        @if (reviews().length > 0) {
+          <section class="reviews-wrap">
+            <div class="section-shell reviews">
+              <div class="reviews-heading">
+                <span class="section-kicker">From the community</span>
+                <h2>Trusted where it matters—at the club.</h2>
+              </div>
+              <div class="reviews-grid">
+                @for (review of reviews(); track review._id) {
+                  <article class="review-card">
+                    <div class="review-top">
+                      <div class="review-stars" [attr.aria-label]="review.rating + ' out of 5 stars'">
+                        @for (i of starsArray; track i) { <span [class.muted]="i > review.rating">★</span> }
+                      </div>
+                      <svg class="quote-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 11H6.5A3.5 3.5 0 0 0 3 14.5V18h7v-7Zm11 0h-3.5a3.5 3.5 0 0 0-3.5 3.5V18h7v-7Z"/></svg>
+                    </div>
+                    <p>“{{ review.text }}”</p>
+                    <div class="review-author">
+                      @if (review.clubLogo) { <img [src]="review.clubLogo" [alt]="review.clubName + ' logo'" /> }
+                      <div><strong>{{ review.clubName }}</strong><span>Verified CourtGo club</span></div>
+                      @if (review.clubSlug) { <a [routerLink]="['/book', review.clubSlug]" aria-label="Book at this club">Visit <span>↗</span></a> }
+                    </div>
+                  </article>
+                }
+              </div>
+            </div>
+          </section>
         }
 
-        <div class="partners-cta">
-          <a routerLink="/partner-with-us" class="partners-cta-link">
-            Become a Partner
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
-          </a>
-        </div>
-      </section>
+        @if (sponsors().length > 0) {
+          <section class="partners section-shell" id="partners">
+            <div class="partners-heading">
+              <span>Community partners</span>
+              <p>Local businesses supporting more play.</p>
+            </div>
+            <div class="partner-list">
+              @for (sponsor of sponsors(); track sponsor._id) {
+                <a [href]="sponsor.link" target="_blank" rel="noopener" class="partner-item">
+                  <img [src]="sponsor.logoUrl" [alt]="sponsor.businessName" />
+                  <span><strong>{{ sponsor.businessName }}</strong><small>{{ sponsor.promoText || sponsor.description }}</small></span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
+                </a>
+              }
+            </div>
+            <a routerLink="/partner-with-us" class="partner-cta">Partner with CourtGo</a>
+          </section>
+        }
 
-      <!-- CTA strip -->
-      <section class="cta-strip">
-        <h2>Ready to get started?</h2>
-        <p>Join your club today — free for players, any sport.</p>
-        <a routerLink="/register-club" class="btn-primary btn-large">Register your Club</a>
-      </section>
+        <section class="final-cta section-shell">
+          <div class="cta-content">
+            <span class="section-kicker">Your next game starts here</span>
+            <h2>Ready to spend more time on court?</h2>
+            <p>Find a club to play at today, or bring your entire club onto one modern platform.</p>
+            <div class="cta-actions">
+              <a routerLink="/book" class="button button-primary button-large">Find a court</a>
+              <a routerLink="/register-club" class="button button-light button-large">Register your club</a>
+            </div>
+          </div>
+          <div class="cta-ball" aria-hidden="true"><span></span></div>
+        </section>
+      </main>
 
-      <!-- Footer -->
       <footer class="footer">
-        <span>&copy; 2026 CourtGo</span>
-        <span class="version">v{{ version }}</span>
+        <div class="section-shell footer-inner">
+          <div class="footer-brand"><img src="/CourtGo.png" alt="CourtGo" /><p>More court time. Less admin.</p></div>
+          <nav aria-label="Footer navigation"><a routerLink="/book">Find clubs</a><a routerLink="/features">Features</a><a routerLink="/player-login">Player login</a><a routerLink="/partner-with-us">Partners</a></nav>
+          <div class="footer-meta"><span>© 2026 CourtGo</span><span>v{{ version }}</span></div>
+        </div>
       </footer>
-
     </div>
   `,
   styles: [`
     :host { display: block; }
+    *, *::before, *::after { box-sizing: border-box; }
 
     .page {
+      --green-950: #06160d;
+      --green-900: #0a2114;
+      --green-850: #0e2a1a;
+      --green-800: #123521;
+      --green-700: #1c4a2c;
+      --lime: #8ce61a;
+      --lime-bright: #a4f52d;
+      --mint: #bdf7c9;
+      --sky: #66d6dd;
+      --amber: #ffc66b;
+      --paper: #f4f8f2;
+      --muted: #9cb1a3;
       min-height: 100vh;
-      background: #0a1610;
-      color: #fff;
+      overflow: hidden;
       position: relative;
-      overflow-x: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--paper);
+      background: var(--green-950);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    /* ── Background ─────────────────────────── */
-    .bg-layer { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+    a { color: inherit; }
+    svg { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+    .section-shell { width: min(1240px, calc(100% - 64px)); margin-inline: auto; position: relative; z-index: 1; }
 
-    .orb {
-      position: absolute; border-radius: 50%; filter: blur(32px);
-      animation: floatOrb ease-in-out infinite alternate;
-    }
-    .orb-1 {
-      width: 560px; height: 560px; top: -180px; left: -180px;
-      background: radial-gradient(circle, rgba(124,255,78,0.18) 0%, transparent 70%);
-      animation-duration: 13s;
-    }
-    .orb-2 {
-      width: 320px; height: 320px; top: 38%; right: -90px;
-      background: radial-gradient(circle, rgba(124,255,78,0.12) 0%, transparent 70%);
-      animation-duration: 10s; animation-delay: -4s;
-    }
-    .orb-3 {
-      width: 220px; height: 220px; bottom: 12%; left: 22%;
-      background: radial-gradient(circle, rgba(124,255,78,0.09) 0%, transparent 70%);
-      animation-duration: 15s; animation-delay: -7s;
-    }
-    @keyframes floatOrb {
-      from { transform: translateY(0) scale(1); }
-      to   { transform: translateY(-44px) scale(1.07); }
-    }
+    .ambient { position: absolute; inset: 0 0 auto; height: 980px; pointer-events: none; overflow: hidden; }
+    .glow { position: absolute; border-radius: 999px; filter: blur(4px); }
+    .glow-one { width: 700px; height: 700px; top: -330px; right: -160px; background: radial-gradient(circle, rgba(83, 169, 65, .22), transparent 68%); }
+    .glow-two { width: 520px; height: 520px; top: 350px; left: -280px; background: radial-gradient(circle, rgba(140, 230, 26, .1), transparent 70%); }
+    .court-lines { position: absolute; width: 670px; height: 670px; right: -170px; top: 80px; opacity: .11; transform: rotate(-14deg); border: 1px solid var(--lime); border-radius: 30px; }
+    .court-lines::before, .court-lines::after { content: ''; position: absolute; background: var(--lime); }
+    .court-lines::before { width: 1px; height: 100%; left: 50%; }
+    .court-lines::after { height: 1px; width: 100%; top: 50%; }
 
-    .grid-overlay {
-      position: absolute; inset: 0;
-      background-image:
-        repeating-linear-gradient(0deg,  rgba(124,255,78,0.032) 0, rgba(124,255,78,0.032) 1px, transparent 1px, transparent 80px),
-        repeating-linear-gradient(90deg, rgba(124,255,78,0.032) 0, rgba(124,255,78,0.032) 1px, transparent 1px, transparent 80px);
-    }
+    .site-header { position: sticky; top: 0; z-index: 50; background: rgba(6, 22, 13, .86); border-bottom: 1px solid rgba(190, 244, 183, .1); backdrop-filter: blur(18px); }
+    .nav-shell { width: min(1320px, calc(100% - 48px)); height: 76px; margin: auto; display: flex; align-items: center; gap: 36px; }
+    .brand { display: inline-flex; flex: 0 0 auto; }
+    .brand img { display: block; height: 36px; width: auto; }
+    .desktop-nav { display: flex; gap: 6px; margin-left: auto; }
+    .desktop-nav a, .nav-login { padding: 10px 12px; color: #b7c8bc; font-size: .84rem; font-weight: 650; text-decoration: none; transition: color .2s, background .2s; border-radius: 10px; }
+    .desktop-nav a:hover, .nav-login:hover { color: #fff; background: rgba(255, 255, 255, .05); }
+    .nav-actions { display: flex; align-items: center; gap: 8px; }
+    .nav-discover { display: inline-flex; align-items: center; gap: 8px; padding: 10px 13px; border: 1px solid rgba(164, 245, 45, .22); border-radius: 10px; text-decoration: none; color: var(--lime-bright); font-size: .82rem; font-weight: 750; }
+    .nav-discover svg { width: 16px; height: 16px; }
+    .nav-club-short { display: none; }
 
-    /* ── Navbar ─────────────────────────────── */
-    .navbar {
-      position: relative; z-index: 10;
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 1rem 2.5rem;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      gap: 1rem;
-    }
+    .button { min-height: 44px; padding: 0 18px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: 1px solid transparent; border-radius: 11px; font-size: .86rem; font-weight: 800; text-decoration: none; transition: transform .2s, box-shadow .2s, background .2s, border-color .2s; }
+    .button:hover { transform: translateY(-2px); }
+    .button svg { width: 18px; height: 18px; }
+    .button-primary { background: linear-gradient(135deg, var(--lime-bright), #79da0d); color: #10200d; box-shadow: 0 10px 28px rgba(122, 218, 13, .18); }
+    .button-primary:hover { box-shadow: 0 14px 34px rgba(122, 218, 13, .28); }
+    .button-secondary { color: #eff7ed; border-color: rgba(226, 246, 220, .2); background: rgba(255, 255, 255, .045); }
+    .button-secondary:hover { border-color: rgba(164, 245, 45, .45); background: rgba(164, 245, 45, .07); }
+    .button-light { color: var(--green-900); background: #eef6eb; }
+    .button-large { min-height: 52px; padding-inline: 23px; border-radius: 13px; font-size: .93rem; }
 
-    .nav-logo { height: 34px; width: auto; flex-shrink: 0; }
+    .hero { min-height: 720px; padding-block: 82px 72px; display: grid; grid-template-columns: minmax(0, .95fr) minmax(500px, 1.05fr); align-items: center; gap: 46px; }
+    .hero-copy { max-width: 640px; }
+    .eyebrow, .section-kicker { color: var(--lime-bright); font-size: .73rem; font-weight: 850; text-transform: uppercase; letter-spacing: .14em; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid rgba(164, 245, 45, .18); background: rgba(164, 245, 45, .06); border-radius: 999px; }
+    .eyebrow-mark { width: 7px; height: 7px; border-radius: 50%; background: var(--lime-bright); box-shadow: 0 0 0 5px rgba(164, 245, 45, .1); }
+    .hero h1 { margin: 24px 0 22px; color: #f8fbf6; font-size: clamp(3.35rem, 5.6vw, 5.65rem); line-height: .94; letter-spacing: -.065em; font-weight: 880; }
+    .hero h1 span { color: var(--lime-bright); }
+    .hero-lead { max-width: 590px; margin: 0; color: #adbfaf; font-size: clamp(1rem, 1.45vw, 1.14rem); line-height: 1.7; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 11px; margin-top: 30px; }
+    .hero-trust { display: flex; align-items: center; gap: 19px; margin-top: 38px; }
+    .trust-item { display: grid; gap: 2px; }
+    .trust-item strong { color: #f4f9f1; font-size: .9rem; }
+    .trust-item span { color: #78907f; font-size: .68rem; }
+    .trust-divider { width: 1px; height: 28px; background: rgba(255, 255, 255, .12); }
 
-    .nav-center {
-      display: flex; align-items: center; gap: 0.75rem;
-      flex: 1; justify-content: center;
-    }
+    .hero-visual { height: 570px; position: relative; display: grid; place-items: center; }
+    .visual-grid { position: absolute; inset: 7% 2% 3% 5%; border-radius: 46% 46% 30px 30px; background-image: linear-gradient(rgba(164,245,45,.075) 1px, transparent 1px), linear-gradient(90deg, rgba(164,245,45,.075) 1px, transparent 1px); background-size: 44px 44px; mask-image: linear-gradient(to bottom, #000 45%, transparent 95%); }
+    .visual-halo { position: absolute; width: 440px; height: 440px; border-radius: 50%; background: radial-gradient(circle, rgba(140, 230, 26, .22), rgba(23, 84, 45, .1) 52%, transparent 70%); }
+    .phone-stack { position: relative; width: 420px; height: 540px; }
+    .phone { position: absolute; width: 226px; height: 490px; padding: 7px; overflow: hidden; border: 1px solid rgba(230, 250, 226, .28); border-radius: 36px; background: #12301d; box-shadow: 0 28px 70px rgba(1, 16, 8, .45), inset 0 0 0 1px rgba(255, 255, 255, .08); }
+    .phone img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: top; border-radius: 29px; }
+    .phone-speaker { position: absolute; top: 14px; left: 50%; z-index: 2; width: 76px; height: 20px; transform: translateX(-50%); border-radius: 999px; background: var(--green-950); }
+    .phone-back { top: 26px; left: 23px; transform: rotate(-8deg); opacity: .82; }
+    .phone-front { right: 16px; top: 8px; transform: rotate(5deg); }
+    .floating-card { position: absolute; z-index: 4; min-width: 190px; padding: 11px 14px; display: flex; align-items: center; gap: 10px; border: 1px solid rgba(222, 246, 216, .18); border-radius: 14px; background: rgba(14, 42, 26, .88); box-shadow: 0 20px 45px rgba(3, 20, 10, .3); backdrop-filter: blur(14px); }
+    .floating-card-top { top: 62px; right: -5px; }
+    .floating-card-bottom { bottom: 55px; left: -15px; }
+    .floating-card > span:last-child { display: grid; gap: 2px; }
+    .floating-card small { color: #829a88; font-size: .62rem; }
+    .floating-card strong { color: #eff8ed; font-size: .76rem; }
+    .floating-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; }
+    .floating-icon svg { width: 17px; height: 17px; stroke-width: 2.2; }
+    .floating-icon-lime { color: var(--lime-bright); background: rgba(164, 245, 45, .12); }
+    .floating-icon-sky { color: var(--sky); background: rgba(102, 214, 221, .12); }
 
-    .nav-search {
-      display: flex; align-items: center; gap: 0.45rem;
-      font-size: 0.8rem; font-weight: 600; color: #7cff4e;
-      text-decoration: none;
-      padding: 0.44rem 1rem;
-      border: 1px solid rgba(124,255,78,0.3);
-      border-radius: 100px; white-space: nowrap;
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .nav-search:hover { background: rgba(124,255,78,0.08); border-color: rgba(124,255,78,0.5); }
-    .nav-search-short { display: none; }
+    .confidence-bar { position: relative; z-index: 2; border-block: 1px solid rgba(194, 238, 187, .09); background: #0b2014; }
+    .confidence-inner { min-height: 84px; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
+    .confidence-inner p { margin: 0; color: #708778; font-size: .73rem; font-weight: 800; text-transform: uppercase; letter-spacing: .13em; }
+    .confidence-items { display: flex; align-items: center; gap: clamp(20px, 4vw, 50px); }
+    .confidence-items span { display: inline-flex; align-items: center; gap: 8px; color: #bccbbe; font-size: .82rem; font-weight: 700; }
+    .confidence-items i { width: 6px; height: 6px; border-radius: 50%; background: #5d7e67; }
 
-    .nav-links { display: flex; align-items: center; gap: 0.1rem; }
-    .nav-link {
-      display: inline-flex; align-items: center; gap: 3px;
-      font-size: 0.85rem; font-weight: 500; color: rgba(255,255,255,0.62);
-      text-decoration: none; padding: 0.4rem 0.7rem; border-radius: 6px;
-      white-space: nowrap; transition: color 0.15s, background 0.15s;
-    }
-    .nav-link:hover { color: #fff; background: rgba(255,255,255,0.06); }
+    .play-options { padding-block: 110px 120px; }
+    .section-heading { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(300px, .65fr); align-items: end; gap: 70px; margin-bottom: 42px; }
+    .section-heading h2, .platform-intro h2, .reviews-heading h2 { margin: 10px 0 0; color: #f4f9f2; font-size: clamp(2.25rem, 4vw, 3.65rem); line-height: 1.04; letter-spacing: -.05em; }
+    .section-heading > p { margin: 0; color: #8da293; font-size: .95rem; line-height: 1.7; }
+    .experience-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    .experience-card { min-width: 0; overflow: hidden; border: 1px solid rgba(198, 239, 190, .11); border-radius: 22px; background: #0d2819; box-shadow: 0 22px 48px rgba(2, 18, 9, .14); transition: transform .25s, border-color .25s; }
+    .experience-card:hover { transform: translateY(-5px); border-color: rgba(164, 245, 45, .27); }
+    .experience-media { height: 238px; position: relative; overflow: hidden; background: #153721; }
+    .experience-media::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 48%, rgba(6, 22, 13, .7)); }
+    .experience-media img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s; }
+    .experience-card:hover .experience-media img { transform: scale(1.035); }
+    .experience-number, .experience-label { position: absolute; z-index: 2; top: 15px; border-radius: 999px; backdrop-filter: blur(12px); }
+    .experience-number { left: 15px; padding: 7px 9px; color: #eaf4e6; background: rgba(7, 26, 15, .76); font-size: .7rem; font-weight: 850; }
+    .experience-label { right: 15px; padding: 7px 10px; color: #eff8eb; background: rgba(7, 26, 15, .76); font-size: .66rem; font-weight: 750; }
+    .experience-body { padding: 25px 24px 27px; }
+    .experience-title-row { display: flex; align-items: center; gap: 13px; }
+    .experience-title-row small { display: block; margin-bottom: 2px; color: #718978; font-size: .65rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+    .experience-title-row h3 { margin: 0; font-size: 1.38rem; letter-spacing: -.025em; }
+    .experience-icon { flex: 0 0 auto; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 13px; color: var(--lime-bright); background: rgba(164, 245, 45, .1); }
+    .experience-icon svg { width: 21px; height: 21px; }
+    .card-per-game .experience-icon, .card-per-game .text-link { color: var(--sky); }
+    .card-per-game .experience-icon { background: rgba(102, 214, 221, .1); }
+    .card-hosted .experience-icon, .card-hosted .text-link { color: var(--amber); }
+    .card-hosted .experience-icon { background: rgba(255, 198, 107, .1); }
+    .experience-body > p { min-height: 67px; margin: 19px 0; color: #91a596; font-size: .86rem; line-height: 1.65; }
+    .experience-body ul { display: grid; gap: 9px; margin: 0 0 23px; padding: 0; list-style: none; }
+    .experience-body li { display: flex; align-items: center; gap: 9px; color: #c6d3c8; font-size: .78rem; font-weight: 650; }
+    .experience-body li::before { content: '✓'; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; color: var(--lime-bright); background: rgba(164,245,45,.09); font-size: .65rem; }
+    .card-per-game li::before { color: var(--sky); background: rgba(102,214,221,.09); }
+    .card-hosted li::before { color: var(--amber); background: rgba(255,198,107,.09); }
+    .text-link { display: inline-flex; align-items: center; gap: 7px; color: var(--lime-bright); text-decoration: none; font-size: .79rem; font-weight: 850; }
+    .text-link svg { width: 15px; height: 15px; transition: transform .2s; }
+    .text-link:hover svg { transform: translateX(3px); }
 
-    .nav-right { display: flex; align-items: center; gap: 0.65rem; flex-shrink: 0; }
+    .platform { padding-block: 112px; display: grid; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.28fr); gap: 70px; align-items: start; }
+    .platform::before { content: ''; position: absolute; inset: 0 -100vw; z-index: -1; background: #0b2115; border-block: 1px solid rgba(201, 241, 194, .08); }
+    .platform-intro { position: sticky; top: 116px; }
+    .platform-intro h2 span { color: var(--lime-bright); }
+    .platform-intro p { margin: 24px 0 28px; max-width: 420px; color: #8fa394; line-height: 1.75; font-size: .93rem; }
+    .platform-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .platform-card { min-height: 240px; padding: 25px; position: relative; overflow: hidden; border: 1px solid rgba(205, 240, 198, .1); border-radius: 20px; background: linear-gradient(145deg, #12321f, #0d291a); }
+    .platform-card-wide { grid-column: 1 / -1; min-height: 220px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 20px; }
+    .platform-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 13px; color: var(--lime-bright); background: rgba(164,245,45,.1); border: 1px solid rgba(164,245,45,.11); }
+    .platform-icon svg { width: 22px; height: 22px; }
+    .platform-card h3 { margin: 28px 0 10px; font-size: 1.13rem; letter-spacing: -.02em; }
+    .platform-card p { max-width: 450px; margin: 0; color: #8ca191; font-size: .82rem; line-height: 1.65; }
+    .platform-card-wide h3 { margin-top: 0; }
+    .mini-chart { height: 78px; display: flex; align-items: end; gap: 7px; padding: 8px; border-bottom: 1px solid rgba(164,245,45,.22); }
+    .mini-chart i { width: 11px; border-radius: 5px 5px 1px 1px; background: linear-gradient(to top, #4b8f26, var(--lime-bright)); }
+    .mini-chart i:nth-child(1) { height: 25%; } .mini-chart i:nth-child(2) { height: 42%; } .mini-chart i:nth-child(3) { height: 35%; } .mini-chart i:nth-child(4) { height: 66%; } .mini-chart i:nth-child(5) { height: 92%; }
+    .official-chip { position: absolute; top: 20px; right: 20px; padding: 6px 8px; border-radius: 999px; color: var(--mint); background: rgba(189,247,201,.08); border: 1px solid rgba(189,247,201,.12); font-size: .58rem; font-weight: 850; text-transform: uppercase; letter-spacing: .08em; }
+    .platform-card-access { grid-template-columns: minmax(0, 1fr) auto; }
+    .platform-card-access .platform-icon { margin-bottom: 20px; }
+    .device-pills { display: flex; flex-direction: column; gap: 8px; }
+    .device-pills span { padding: 8px 12px; color: #a9bdaa; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 9px; font-size: .68rem; font-weight: 750; text-align: center; }
 
-    .nav-signin {
-      font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.72);
-      text-decoration: none; padding: 0.44rem 1rem;
-      border: 1px solid rgba(255,255,255,0.14); border-radius: 8px;
-      white-space: nowrap; transition: color 0.15s, border-color 0.15s;
-    }
-    .nav-signin:hover { color: #7cff4e; border-color: rgba(124,255,78,0.35); }
+    .how-it-works { padding-block: 110px; }
+    .compact-heading { grid-template-columns: 1fr; margin-bottom: 50px; }
+    .steps { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: center; gap: 25px; }
+    .steps article { display: flex; align-items: flex-start; gap: 16px; }
+    .steps article > span { flex: 0 0 auto; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; color: var(--green-900); background: var(--lime-bright); font-weight: 900; }
+    .steps h3 { margin: 1px 0 7px; font-size: .98rem; }
+    .steps p { margin: 0; color: #7f9585; font-size: .78rem; line-height: 1.55; }
+    .step-line { width: 54px; height: 1px; background: linear-gradient(to right, rgba(164,245,45,.1), rgba(164,245,45,.55), rgba(164,245,45,.1)); }
 
-    .nav-register { font-size: 0.83rem; padding: 0.44rem 1.05rem; }
+    .reviews-wrap { padding-block: 100px; background: #0a2014; border-block: 1px solid rgba(199, 238, 192, .08); }
+    .reviews-heading { max-width: 650px; margin-bottom: 38px; }
+    .reviews-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .review-card { min-height: 255px; padding: 25px; display: flex; flex-direction: column; border: 1px solid rgba(204, 239, 198, .1); border-radius: 18px; background: #102c1c; }
+    .review-top { display: flex; align-items: center; justify-content: space-between; }
+    .review-stars { display: flex; gap: 2px; color: var(--lime-bright); font-size: .8rem; }
+    .review-stars .muted { color: #35503e; }
+    .quote-mark { width: 29px; height: 29px; color: #2c5235; fill: currentColor; stroke: none; }
+    .review-card > p { flex: 1; margin: 25px 0; color: #d3ded4; font-size: .88rem; line-height: 1.7; }
+    .review-author { display: flex; align-items: center; gap: 11px; }
+    .review-author img { width: 38px; height: 38px; object-fit: cover; border-radius: 10px; background: #173824; }
+    .review-author div { display: grid; gap: 3px; min-width: 0; }
+    .review-author strong { overflow: hidden; color: #f1f7ef; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
+    .review-author small, .review-author span { color: #718777; font-size: .63rem; }
+    .review-author a { margin-left: auto; color: var(--lime-bright); font-size: .68rem; font-weight: 800; text-decoration: none; }
 
-    /* ── Buttons ─────────────────────────────── */
-    .btn-primary {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      padding: 0.78rem 1.7rem;
-      background: #7cff4e; color: #081209;
-      font-weight: 700; font-size: 0.9rem;
-      border-radius: 10px; text-decoration: none;
-      letter-spacing: 0.01em;
-      transition: background 0.15s, box-shadow 0.15s, transform 0.12s;
-      box-shadow: 0 0 22px rgba(124,255,78,0.38), 0 4px 14px rgba(0,0,0,0.3);
-    }
-    .btn-primary:hover {
-      background: #8fff5e;
-      box-shadow: 0 0 36px rgba(124,255,78,0.58), 0 4px 18px rgba(0,0,0,0.3);
-      transform: translateY(-1px);
-    }
+    .partners { padding-block: 80px; display: grid; grid-template-columns: 220px minmax(0, 1fr) auto; gap: 32px; align-items: center; }
+    .partners-heading span { color: #dce7dc; font-size: .87rem; font-weight: 850; }
+    .partners-heading p { margin: 6px 0 0; color: #718777; font-size: .72rem; }
+    .partner-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .partner-item { min-width: 0; padding: 11px; display: flex; align-items: center; gap: 11px; border: 1px solid rgba(202,239,195,.09); border-radius: 13px; background: #0e291a; text-decoration: none; }
+    .partner-item img { width: 40px; height: 40px; flex: 0 0 auto; object-fit: cover; border-radius: 9px; background: #173623; }
+    .partner-item > span { min-width: 0; display: grid; gap: 3px; }
+    .partner-item strong, .partner-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .partner-item strong { color: #e3ece1; font-size: .72rem; }
+    .partner-item small { color: #718777; font-size: .62rem; }
+    .partner-item svg { width: 16px; margin-left: auto; color: #6d8873; }
+    .partner-cta { color: var(--lime-bright); font-size: .72rem; font-weight: 800; text-decoration: none; white-space: nowrap; }
 
-    .btn-ghost {
-      display: inline-flex; align-items: center;
-      padding: 0.78rem 1.7rem;
-      background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.82);
-      font-weight: 600; font-size: 0.9rem;
-      border-radius: 10px; text-decoration: none;
-      border: 1px solid rgba(255,255,255,0.13);
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .btn-ghost:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.22); }
+    .final-cta { min-height: 385px; margin-bottom: 80px; padding: 64px 70px; display: flex; align-items: center; overflow: hidden; border: 1px solid rgba(178, 235, 128, .22); border-radius: 30px; background: linear-gradient(125deg, #173e24 0%, #22552c 63%, #437816 100%); box-shadow: 0 30px 70px rgba(1, 15, 7, .23); }
+    .final-cta::before { content: ''; position: absolute; inset: 0; opacity: .12; background-image: linear-gradient(rgba(255,255,255,.2) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.2) 1px, transparent 1px); background-size: 46px 46px; mask-image: linear-gradient(to right, #000, transparent 75%); }
+    .cta-content { max-width: 720px; position: relative; z-index: 2; }
+    .final-cta .section-kicker { color: #c8ff7c; }
+    .final-cta h2 { margin: 12px 0 14px; font-size: clamp(2.25rem, 4.4vw, 4rem); line-height: 1; letter-spacing: -.055em; }
+    .final-cta p { max-width: 590px; margin: 0; color: #c2d6c3; font-size: .94rem; line-height: 1.65; }
+    .cta-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 27px; }
+    .cta-ball { position: absolute; right: -75px; top: -70px; width: 350px; height: 350px; border-radius: 50%; background: #9ff024; box-shadow: inset -35px -35px 70px rgba(45,102,4,.28), 0 30px 60px rgba(8,35,10,.2); }
+    .cta-ball::before, .cta-ball::after { content: ''; position: absolute; border: 5px solid rgba(80, 135, 10, .38); border-radius: 50%; }
+    .cta-ball::before { width: 250px; height: 470px; left: -135px; top: -60px; }
+    .cta-ball::after { width: 250px; height: 470px; right: -135px; top: -60px; }
 
-    .btn-hero { padding: 0.9rem 2rem; font-size: 0.95rem; }
-    .btn-large { padding: 1rem 2.5rem; font-size: 1rem; }
+    .footer { border-top: 1px solid rgba(200, 239, 192, .09); background: #081b11; }
+    .footer-inner { min-height: 170px; display: grid; grid-template-columns: 1fr auto; gap: 25px 60px; align-items: center; }
+    .footer-brand img { height: 34px; }
+    .footer-brand p { margin: 8px 0 0; color: #6c8272; font-size: .72rem; }
+    .footer nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 24px; }
+    .footer nav a { color: #8ca08f; font-size: .72rem; font-weight: 650; text-decoration: none; }
+    .footer nav a:hover { color: var(--lime-bright); }
+    .footer-meta { grid-column: 1 / -1; padding-top: 18px; display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,.06); color: #52685a; font-size: .65rem; }
 
-    /* ── Mobile quick-links ─────────────────────── */
-    .mobile-quicklinks {
-      display: none;
-    }
-
-    @media (max-width: 768px) {
-      .mobile-quicklinks {
-        display: flex;
-        position: relative; z-index: 10;
-        padding: 0.55rem 1.25rem 0.7rem;
-        gap: 0.6rem;
-        border-bottom: 1px solid rgba(255,255,255,0.06);
-        background: rgba(10,22,16,0.6);
-      }
-
-      .mql-link {
-        flex: 1;
-        display: flex; align-items: center; justify-content: center; gap: 0.4rem;
-        font-size: 0.82rem; font-weight: 600;
-        color: rgba(255,255,255,0.7);
-        text-decoration: none;
-        padding: 0.5rem 0.75rem;
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 8px;
-        transition: color 0.15s, border-color 0.15s, background 0.15s;
-      }
-      .mql-link:hover {
-        color: #7cff4e;
-        border-color: rgba(124,255,78,0.3);
-        background: rgba(124,255,78,0.05);
-      }
-    }
-
-    /* ── Hero ─────────────────────────────────── */
-    .hero {
-      position: relative; z-index: 1;
-      display: flex; align-items: center;
-      padding: 4rem 3.5rem 4rem 3.5rem;
-      gap: 2.5rem;
-      min-height: calc(100vh - 65px);
-      max-width: 1280px;
-      margin: 0 auto;
-    }
-
-    .hero-left { flex: 1; min-width: 0; }
-
-    .hero-badges {
-      display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem;
-      margin-bottom: 1.75rem;
-    }
-
-    .hero-badge {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.11em;
-      text-transform: uppercase; color: rgba(255,255,255,0.7);
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.11);
-      padding: 0.32rem 0.85rem; border-radius: 100px;
-      margin-bottom: 0;
-    }
-    .badge-dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: #7cff4e;
-      box-shadow: 0 0 7px rgba(124,255,78,0.9);
-      flex-shrink: 0;
-    }
-
-    .hero-badge-dupr {
-      color: #38bdf8;
-      background: rgba(56,189,248,0.1);
-      border-color: rgba(56,189,248,0.28);
-    }
-    .hero-badge-dupr svg { flex-shrink: 0; }
-
-    .hero-headline {
-      font-size: clamp(2.4rem, 3.8vw, 4.2rem);
-      font-weight: 800; line-height: 1.08;
-      letter-spacing: -0.03em; color: #fff;
-      margin: 0 0 1.5rem;
-    }
-    .accent { color: #7cff4e; display: block; }
-
-    .hero-sub {
-      font-size: 1.05rem; color: rgba(255,255,255,0.48);
-      line-height: 1.72; margin: 0 0 2.5rem;
-      max-width: 490px;
-    }
-
-    .hero-ctas {
-      display: flex; align-items: center; gap: 1rem;
-      flex-wrap: wrap; margin-bottom: 2.25rem;
-    }
-
-    .hero-proof { display: flex; align-items: center; gap: 0.85rem; }
-
-    .avatars { display: flex; }
-    .av {
-      width: 34px; height: 34px; border-radius: 50%;
-      border: 2px solid #0a1610;
-      margin-right: -10px;
-    }
-    .av-1 { background: linear-gradient(135deg, #1e4a28, #3d8a48); z-index: 3; }
-    .av-2 { background: linear-gradient(135deg, #2a3a22, #4a6838); z-index: 2; }
-    .av-3 { background: linear-gradient(135deg, #182e1c, #2e5a34); z-index: 1; }
-
-    .proof-text {
-      font-size: 0.82rem; color: rgba(255,255,255,0.42);
-      margin: 0; padding-left: 10px;
-    }
-    .proof-text strong { color: rgba(255,255,255,0.72); font-weight: 600; }
-
-    /* ── Hero phones ─────────────────────────── */
-    .hero-right {
-      flex: 0 0 500px;
-      position: relative;
-      display: flex; align-items: center; justify-content: center;
-      height: 560px;
-      overflow: visible;
-    }
-
-    .phone-glow {
-      position: absolute; width: 360px; height: 360px;
-      border-radius: 50%;
-      background: radial-gradient(ellipse at center, rgba(124,255,78,0.42) 0%, rgba(124,255,78,0.18) 30%, rgba(124,255,78,0.05) 60%, transparent 75%);
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      pointer-events: none; z-index: 0;
-      filter: blur(8px);
-    }
-
-    .rings {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 0; pointer-events: none;
-    }
-
-    .ring {
-      position: absolute; border-radius: 50%;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      border: 1px solid rgba(124,255,78,0.14);
-    }
-    .r1 { width: 380px; height: 380px; border-color: rgba(124,255,78,0.18); }
-    .r2 { width: 480px; height: 480px; border-color: rgba(124,255,78,0.11); }
-    .r3 { width: 580px; height: 580px; border-color: rgba(124,255,78,0.07); }
-    .r4 { width: 680px; height: 680px; border-color: rgba(124,255,78,0.04); }
-
-    .deco-arrows {
-      position: absolute;
-      right: -30px; top: 50%;
-      transform: translateY(-50%);
-      display: flex; flex-direction: column; gap: 6px;
-      z-index: 2;
-    }
-
-    .hero-phones {
-      position: relative;
-      width: 460px; height: 540px;
-      z-index: 1;
-    }
-
-    .phone {
-      position: absolute;
-      border-radius: 36px; overflow: hidden;
-      border: 1.5px solid rgba(255,255,255,0.13);
-      box-shadow: 0 28px 70px rgba(0,0,0,0.6), 0 0 0 1px rgba(124,255,78,0.07), inset 0 1px 0 rgba(255,255,255,0.08);
-    }
-
-    .phone img {
-      width: 100%; height: 100%;
-      object-fit: cover; object-position: top center;
-      display: block;
-    }
-
-    .phone-1 {
-      width: 228px; height: 494px;
-      top: 16px; left: 24px; z-index: 2;
-      animation: float1 5s ease-in-out infinite alternate;
-    }
-
-    .phone-2 {
-      width: 202px; height: 438px;
-      top: 66px; right: 6px; z-index: 3;
-      animation: float2 5s ease-in-out 2.5s infinite alternate;
-    }
-
-    @keyframes float1 {
-      from { transform: rotate(-9deg) translateY(0px); }
-      to   { transform: rotate(-9deg) translateY(-22px); }
-    }
-
-    @keyframes float2 {
-      from { transform: rotate(6deg) translateY(0px); }
-      to   { transform: rotate(6deg) translateY(-22px); }
-    }
-
-    /* ── Features ────────────────────────────── */
-    .features {
-      position: relative; z-index: 1;
-      padding: 1.5rem 3.5rem 5rem;
-      max-width: 1280px;
-      margin: 0 auto;
-    }
-
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-      gap: 1.25rem;
-    }
-
-    .feature-card {
-      position: relative;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 16px; padding: 1.75rem 1.5rem;
-      transition: border-color 0.2s, background 0.2s, transform 0.2s;
-    }
-    .feature-card:hover {
-      border-color: rgba(124,255,78,0.22);
-      background: rgba(124,255,78,0.04);
-      transform: translateY(-4px);
-    }
-
-    .feature-card-dupr {
-      border-color: rgba(56,189,248,0.3);
-      background: rgba(56,189,248,0.045);
-    }
-    .feature-card-dupr:hover {
-      border-color: rgba(56,189,248,0.5);
-      background: rgba(56,189,248,0.08);
-    }
-
-    .fc-official-tag {
-      position: absolute; top: 1.1rem; right: 1.1rem;
-      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em;
-      text-transform: uppercase; color: #38bdf8;
-      background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.3);
-      padding: 0.2rem 0.55rem; border-radius: 100px;
-    }
-
-    .fi {
-      width: 46px; height: 46px; border-radius: 12px;
-      background: rgba(124,255,78,0.1); border: 1px solid rgba(124,255,78,0.18);
-      display: flex; align-items: center; justify-content: center;
-      color: #7cff4e; margin-bottom: 1.1rem; flex-shrink: 0;
-    }
-    .fi-dupr {
-      background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.28);
-      color: #38bdf8;
-    }
-
-    .feature-card h3 {
-      font-size: 1rem; font-weight: 700; color: #fff;
-      margin: 0 0 0.55rem;
-    }
-
-    .feature-card p {
-      font-size: 0.855rem; color: rgba(255,255,255,0.4);
-      line-height: 1.65; margin: 0;
-    }
-
-    /* ── CTA strip ────────────────────────────── */
-    .cta-strip {
-      position: relative; z-index: 1;
-      text-align: center; padding: 5rem 2rem;
-      border-top: 1px solid rgba(255,255,255,0.06);
-    }
-    .cta-strip h2 {
-      font-size: clamp(1.75rem, 3vw, 2.5rem);
-      font-weight: 800; margin: 0 0 0.75rem; color: #fff;
-    }
-    .cta-strip p { font-size: 1rem; color: rgba(255,255,255,0.42); margin: 0 0 2rem; }
-
-    /* ── Footer ────────────────────────────────── */
-    .footer {
-      position: relative; z-index: 1;
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 1.25rem 3rem;
-      border-top: 1px solid rgba(255,255,255,0.06);
-      font-size: 0.78rem; color: rgba(255,255,255,0.24);
-    }
-    .version { letter-spacing: 0.06em; }
-
-    /* ── Responsive ──────────────────────────── */
     @media (max-width: 1100px) {
-      .hero { padding: 3.5rem 2rem; gap: 2rem; }
-      .hero-right { flex: 0 0 430px; height: 500px; }
-      .hero-phones { width: 400px; height: 480px; }
-      .phone-1 { width: 200px; height: 433px; }
-      .phone-2 { width: 178px; height: 385px; top: 55px; }
-      .phone-glow { width: 380px; height: 380px; }
-      .features { padding: 1.5rem 2rem 4.5rem; }
-      .nav-link:nth-child(n+3) { display: none; }
+      .desktop-nav { display: none; }
+      .nav-actions { margin-left: auto; }
+      .hero { min-height: auto; padding-top: 70px; grid-template-columns: 1fr; text-align: center; }
+      .hero-copy { max-width: 760px; margin: auto; }
+      .hero-lead { margin-inline: auto; }
+      .hero-actions, .hero-trust { justify-content: center; }
+      .hero-visual { width: min(620px, 100%); margin: -10px auto 0; }
+      .experience-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .experience-card:first-child { grid-column: 1 / -1; display: grid; grid-template-columns: 1.05fr .95fr; }
+      .experience-card:first-child .experience-media { height: 100%; min-height: 430px; }
+      .platform { gap: 40px; }
+      .platform-card-wide { grid-template-columns: auto 1fr; }
+      .mini-chart { display: none; }
+      .partners { grid-template-columns: 1fr; }
+      .partner-cta { justify-self: start; }
     }
 
-    @media (max-width: 900px) {
-      .hero {
-        flex-direction: column-reverse; text-align: center;
-        padding: 3rem 1.5rem 2rem; min-height: auto; gap: 2rem;
-      }
-      .hero-sub { max-width: 100%; }
-      .hero-ctas { justify-content: center; }
-      .hero-proof { justify-content: center; }
-      .hero-left { order: 2; }
-      .hero-right { flex: none; width: 100%; height: 380px; order: 1; }
-      .hero-phones { width: 360px; height: 380px; }
-      .phone-1 { width: 178px; height: 385px; top: 0; left: 16px; }
-      .phone-2 { width: 158px; height: 342px; top: 36px; right: 16px; }
-      .phone-glow { width: 320px; height: 320px; }
-      .deco-arrows { display: none; }
-      .features-grid { grid-template-columns: repeat(2, 1fr); }
+    @media (max-width: 820px) {
+      .section-shell { width: min(100% - 36px, 720px); }
+      .nav-shell { width: calc(100% - 28px); height: 68px; gap: 14px; }
+      .brand img { height: 31px; }
+      .nav-login { display: none; }
+      .nav-discover span { display: none; }
+      .nav-discover { width: 42px; height: 42px; justify-content: center; padding: 0; }
+      .hero { padding-block: 58px 55px; }
+      .hero h1 { font-size: clamp(3.05rem, 11vw, 5rem); }
+      .confidence-inner { padding-block: 22px; flex-direction: column; justify-content: center; gap: 16px; }
+      .confidence-items { width: 100%; justify-content: center; flex-wrap: wrap; gap: 12px 25px; }
+      .play-options { padding-block: 82px; }
+      .section-heading { grid-template-columns: 1fr; gap: 18px; }
+      .section-heading > p { max-width: 560px; }
+      .platform { padding-block: 82px; grid-template-columns: 1fr; }
+      .platform-intro { position: static; }
+      .platform-intro p { max-width: 590px; }
+      .steps { grid-template-columns: 1fr; gap: 24px; }
+      .step-line { width: 1px; height: 25px; margin-left: 21px; background: linear-gradient(to bottom, rgba(164,245,45,.1), rgba(164,245,45,.55)); }
+      .reviews-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .partner-list { grid-template-columns: 1fr; }
+      .final-cta { padding: 55px 45px; }
+      .cta-content { max-width: 580px; }
+      .cta-ball { right: -190px; opacity: .55; }
     }
 
-    @media (max-width: 768px) {
-      .navbar { padding: 0.9rem 1.25rem; }
-      .nav-center { display: none; }
-      .nav-signin { display: none; }
-      .footer { padding: 1rem 1.25rem; }
-    }
-
-    @media (max-width: 480px) {
-      .hero { padding: 2.5rem 1rem 1.5rem; }
-      .hero-right { height: 330px; }
-      .hero-phones { width: 300px; height: 330px; }
-      .phone-1 { width: 152px; height: 329px; left: 8px; }
-      .phone-2 { width: 135px; height: 292px; right: 8px; top: 30px; }
-      .phone-glow { width: 270px; height: 270px; }
-      .features-grid { grid-template-columns: 1fr; }
-      .features { padding: 1rem 1rem 3.5rem; }
-      .cta-strip { padding: 3.5rem 1.25rem; }
-    }
-
-    /* ── Booking Types ──────────────────────────── */
-    .booking-types {
-      position: relative; z-index: 1;
-      padding: 5rem 3.5rem;
-      max-width: 1280px; margin: 0 auto;
-    }
-
-    .bt-head {
-      text-align: center; margin-bottom: 3.5rem;
-    }
-    .bt-tag {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.11em;
-      text-transform: uppercase; color: rgba(255,255,255,0.7);
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.11);
-      padding: 0.32rem 0.85rem; border-radius: 100px;
-      margin-bottom: 1.25rem;
-    }
-    .bt-title {
-      font-size: clamp(1.8rem, 2.5vw, 2.6rem);
-      font-weight: 800; letter-spacing: -0.025em;
-      color: #fff; margin: 0 0 1rem;
-    }
-    .bt-sub {
-      font-size: 1rem; color: rgba(255,255,255,0.48);
-      line-height: 1.7; max-width: 520px; margin: 0 auto;
-    }
-
-    .bt-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1.5rem;
-    }
-
-    .bt-card {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 20px;
-      padding: 2rem 1.75rem;
-      display: flex; flex-direction: column; gap: 1rem;
-      transition: border-color 0.2s, background 0.2s, transform 0.2s;
-    }
-    .bt-card:hover { transform: translateY(-4px); }
-
-    .bt-reservation { border-top: 3px solid #7cff4e; }
-    .bt-reservation:hover { border-color: rgba(124,255,78,0.3); background: rgba(124,255,78,0.03); }
-    .bt-per-game    { border-top: 3px solid #38bdf8; }
-    .bt-per-game:hover { border-color: rgba(56,189,248,0.3); background: rgba(56,189,248,0.03); }
-    .bt-hosted      { border-top: 3px solid #f59e0b; }
-    .bt-hosted:hover { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.03); }
-
-    .bt-icon {
-      width: 48px; height: 48px; border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
-    .bt-icon-lime  { background: rgba(124,255,78,0.12); color: #7cff4e; }
-    .bt-icon-sky   { background: rgba(56,189,248,0.12); color: #38bdf8; }
-    .bt-icon-amber { background: rgba(245,158,11,0.12); color: #f59e0b; }
-
-    .bt-card-title { font-size: 1.15rem; font-weight: 700; color: #fff; margin: 0; }
-    .bt-desc {
-      font-size: 0.9rem; color: rgba(255,255,255,0.52);
-      line-height: 1.65; margin: 0;
-    }
-
-    .bt-bullets {
-      list-style: none; padding: 0; margin: 0;
-      display: flex; flex-direction: column; gap: 0.45rem;
-    }
-    .bt-bullets li {
-      font-size: 0.82rem; color: rgba(255,255,255,0.42);
-      padding-left: 1.1rem; position: relative;
-    }
-    .bt-bullets li::before { content: '·'; position: absolute; left: 0; font-size: 1rem; }
-
-    .bt-book-link {
-      display: inline-flex; align-items: center; gap: 0.4rem;
-      font-size: 0.82rem; font-weight: 700;
-      text-decoration: none; margin-top: auto;
-      padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid;
-      transition: background 0.15s, box-shadow 0.15s;
-      align-self: flex-start;
-    }
-    .bt-book-lime  { color: #7cff4e; border-color: rgba(124,255,78,0.3); }
-    .bt-book-lime:hover  { background: rgba(124,255,78,0.1); }
-    .bt-book-sky   { color: #38bdf8; border-color: rgba(56,189,248,0.3); }
-    .bt-book-sky:hover   { background: rgba(56,189,248,0.1); }
-    .bt-book-amber { color: #f59e0b; border-color: rgba(245,158,11,0.3); }
-    .bt-book-amber:hover { background: rgba(245,158,11,0.1); }
-
-    @media (max-width: 900px) {
-      .bt-grid { grid-template-columns: 1fr 1fr; }
-      .booking-types { padding: 3.5rem 2rem; }
-    }
-    @media (max-width: 600px) {
-      .bt-grid { grid-template-columns: 1fr; }
-      .booking-types { padding: 2.5rem 1.25rem; }
-    }
-
-    /* ── Reviews ──────────────────────────────── */
-    .reviews {
-      position: relative; z-index: 1;
-      padding: 4rem 3.5rem 5rem;
-      max-width: 1280px;
-      margin: 0 auto;
-      border-top: 1px solid rgba(255,255,255,0.06);
-    }
-
-    .reviews-head {
-      text-align: center;
-      margin-bottom: 3rem;
-    }
-
-    .reviews-stars-deco {
-      display: block;
-      font-size: 1.4rem;
-      letter-spacing: 4px;
-      color: #7cff4e;
-      margin-bottom: 1rem;
-      filter: drop-shadow(0 0 6px rgba(124,255,78,0.5));
-    }
-
-    .reviews-title {
-      font-size: clamp(1.6rem, 2.8vw, 2.2rem);
-      font-weight: 800;
-      color: #fff;
-      margin: 0 0 0.6rem;
-      letter-spacing: -0.02em;
-    }
-
-    .reviews-sub {
-      font-size: 0.95rem;
-      color: rgba(255,255,255,0.4);
-      margin: 0;
-    }
-
-    .reviews-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 1.25rem;
-    }
-
-    .review-card {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 16px;
-      padding: 1.75rem 1.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      transition: border-color 0.2s, background 0.2s, transform 0.2s;
-    }
-    .review-card:hover {
-      border-color: rgba(124,255,78,0.22);
-      background: rgba(124,255,78,0.04);
-      transform: translateY(-3px);
-    }
-
-    .review-card-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.5rem;
-      margin-bottom: 0.15rem;
-    }
-    .review-club-logo {
-      height: 36px;
-      width: 36px;
-      object-fit: cover;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.06);
-      flex-shrink: 0;
-    }
-
-    .review-stars { display: flex; gap: 2px; }
-    .star { font-size: 1.1rem; color: rgba(255,255,255,0.15); }
-    .star-filled { color: #7cff4e; filter: drop-shadow(0 0 4px rgba(124,255,78,0.6)); }
-
-    .review-text {
-      font-size: 0.9rem;
-      color: rgba(255,255,255,0.65);
-      line-height: 1.7;
-      margin: 0;
-      flex: 1;
-    }
-
-    .review-author {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.5rem;
-      padding-top: 0.75rem;
-      border-top: 1px solid rgba(255,255,255,0.06);
-      flex-wrap: wrap;
-    }
-
-    .review-name {
-      font-size: 0.88rem;
-      font-weight: 700;
-      color: #fff;
-    }
-
-    .review-book-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      font-size: 0.75rem;
-      font-weight: 700;
-      color: #7cff4e;
-      text-decoration: none;
-      padding: 0.25rem 0.65rem;
-      border: 1px solid rgba(124,255,78,0.3);
-      border-radius: 100px;
-      transition: background 0.15s, border-color 0.15s;
-      white-space: nowrap;
-    }
-    .review-book-link:hover {
-      background: rgba(124,255,78,0.08);
-      border-color: rgba(124,255,78,0.55);
-    }
-
-    @media (max-width: 900px) {
-      .reviews { padding: 3rem 1.5rem 4rem; }
-      .reviews-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-
-    @media (max-width: 600px) {
-      .reviews { padding: 2.5rem 1rem 3rem; }
+    @media (max-width: 620px) {
+      .section-shell { width: calc(100% - 28px); }
+      .site-header { backdrop-filter: blur(14px); }
+      .nav-club-long { display: none; }
+      .nav-club-short { display: inline; }
+      .nav-club { min-height: 42px; padding-inline: 13px; }
+      .hero { padding-top: 44px; }
+      .eyebrow { font-size: .62rem; letter-spacing: .1em; }
+      .hero h1 { margin-top: 20px; font-size: clamp(2.8rem, 15vw, 4.25rem); }
+      .hero-lead { font-size: .93rem; line-height: 1.62; }
+      .hero-actions { display: grid; grid-template-columns: 1fr; }
+      .hero-actions .button { width: 100%; }
+      .hero-trust { gap: 11px; margin-top: 29px; }
+      .trust-item span { max-width: 78px; }
+      .hero-visual { height: 410px; margin-top: 8px; }
+      .visual-grid { inset-inline: 0; }
+      .visual-halo { width: 330px; height: 330px; }
+      .phone-stack { width: 300px; height: 400px; }
+      .phone { width: 164px; height: 355px; padding: 5px; border-radius: 27px; }
+      .phone img { border-radius: 22px; }
+      .phone-speaker { top: 10px; width: 55px; height: 14px; }
+      .phone-back { left: 7px; top: 25px; }
+      .phone-front { right: 4px; }
+      .floating-card { min-width: 160px; padding: 9px 10px; }
+      .floating-card-top { top: 44px; right: -5px; }
+      .floating-card-bottom { bottom: 23px; left: -5px; }
+      .floating-card small { font-size: .55rem; }
+      .floating-card strong { font-size: .65rem; }
+      .floating-icon { width: 29px; height: 29px; }
+      .confidence-items span { font-size: .72rem; }
+      .section-heading h2, .platform-intro h2, .reviews-heading h2 { font-size: clamp(2rem, 10vw, 2.8rem); }
+      .experience-grid { grid-template-columns: 1fr; }
+      .experience-card:first-child { grid-column: auto; display: block; }
+      .experience-card:first-child .experience-media, .experience-media { height: 220px; min-height: 0; }
+      .experience-body > p { min-height: 0; }
+      .platform-grid { grid-template-columns: 1fr; }
+      .platform-card-wide { grid-column: auto; min-height: 240px; display: block; }
+      .platform-card-wide .platform-icon { margin-bottom: 20px; }
+      .platform-card-wide h3 { margin-top: 0; }
+      .device-pills { margin-top: 25px; flex-direction: row; flex-wrap: wrap; }
+      .how-it-works { padding-block: 80px; }
+      .reviews-wrap { padding-block: 78px; }
       .reviews-grid { grid-template-columns: 1fr; }
+      .partners { padding-block: 60px; }
+      .final-cta { width: calc(100% - 28px); min-height: 480px; margin-bottom: 60px; padding: 45px 25px 180px; align-items: flex-start; border-radius: 24px; text-align: center; }
+      .cta-actions { display: grid; grid-template-columns: 1fr; }
+      .cta-ball { width: 260px; height: 260px; right: 50%; top: auto; bottom: -135px; transform: translateX(50%); opacity: .8; }
+      .footer-inner { padding-block: 40px 25px; grid-template-columns: 1fr; text-align: center; }
+      .footer nav { justify-content: center; }
+      .footer-meta { text-align: left; }
     }
 
-    /* ── Partners ─────────────────────────────── */
-    .partners {
-      position: relative; z-index: 1;
-      padding: 4rem 3.5rem 5rem;
-      max-width: 1280px;
-      margin: 0 auto;
-      border-top: 1px solid rgba(255,255,255,0.06);
+    @media (max-width: 380px) {
+      .brand img { height: 27px; }
+      .nav-discover { display: none; }
+      .hero-trust { align-items: flex-start; }
+      .trust-divider { height: 37px; }
+      .floating-card-top { right: -10px; }
+      .floating-card-bottom { left: -10px; }
     }
 
-    .partners-head { text-align: center; margin-bottom: 3rem; }
-    .partners-title {
-      font-size: clamp(1.6rem, 2.8vw, 2.2rem);
-      font-weight: 800; color: #fff;
-      margin: 0 0 0.6rem; letter-spacing: -0.02em;
-    }
-    .partners-sub { font-size: 0.95rem; color: rgba(255,255,255,0.4); margin: 0; }
-
-    .partners-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 1.25rem;
-    }
-
-    .partner-card {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 16px;
-      padding: 1.5rem;
-      display: flex; flex-direction: column; gap: 0.75rem;
-      transition: border-color 0.2s, background 0.2s, transform 0.2s;
-    }
-    .partner-card:hover {
-      border-color: rgba(124,255,78,0.22);
-      background: rgba(124,255,78,0.04);
-      transform: translateY(-3px);
-    }
-
-    .partner-card-top { display: flex; align-items: flex-start; gap: 0.75rem; }
-    .partner-logo {
-      width: 44px; height: 44px; border-radius: 10px; object-fit: cover;
-      flex-shrink: 0; background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-    .partner-badge {
-      display: inline-block; font-size: 0.62rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.06em;
-      color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.06);
-      padding: 0.15rem 0.5rem; border-radius: 100px; margin-bottom: 0.3rem;
-    }
-    .partner-name { font-size: 1rem; font-weight: 700; color: #fff; margin: 0; }
-    .partner-desc { font-size: 0.85rem; color: rgba(255,255,255,0.55); line-height: 1.6; margin: 0; }
-    .partner-promo { font-size: 0.82rem; color: #f59e0b; margin: 0; }
-
-    .partner-link {
-      display: inline-flex; align-items: center; gap: 0.35rem;
-      font-size: 0.78rem; font-weight: 700; color: #7cff4e;
-      text-decoration: none; margin-top: auto; align-self: flex-start;
-      padding: 0.4rem 0.85rem; border-radius: 100px;
-      border: 1px solid rgba(124,255,78,0.3);
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .partner-link:hover { background: rgba(124,255,78,0.08); border-color: rgba(124,255,78,0.55); }
-
-    .partners-empty {
-      text-align: center; font-size: 0.9rem; color: rgba(255,255,255,0.32);
-      font-style: italic; padding: 1.5rem 0;
-    }
-    .partners-cta { text-align: center; margin-top: 2.25rem; }
-    .partners-cta-link {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      font-size: 0.85rem; font-weight: 700; color: #081209;
-      background: #7cff4e; text-decoration: none;
-      padding: 0.65rem 1.4rem; border-radius: 100px;
-      transition: background 0.15s, transform 0.12s;
-    }
-    .partners-cta-link:hover { background: #8fff5e; transform: translateY(-1px); }
-
-    @media (max-width: 900px) {
-      .partners { padding: 3rem 1.5rem 4rem; }
-      .partners-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-    @media (max-width: 600px) {
-      .partners { padding: 2.5rem 1rem 3rem; }
-      .partners-grid { grid-template-columns: 1fr; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
     }
   `],
 })
@@ -1140,8 +702,8 @@ export class LandingComponent {
 
   constructor() {
     this.http.get<AppReview[]>(`${environment.apiUrl}/public/app-reviews`)
-      .subscribe({ next: r => this.reviews.set(r), error: () => {} });
+      .subscribe({ next: reviews => this.reviews.set(reviews), error: () => {} });
     this.http.get<PublicSponsor[]>(`${environment.apiUrl}/public/sponsors`)
-      .subscribe({ next: s => this.sponsors.set(s), error: () => {} });
+      .subscribe({ next: sponsors => this.sponsors.set(sponsors), error: () => {} });
   }
 }
