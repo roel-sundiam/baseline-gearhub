@@ -51,7 +51,10 @@ interface PublicSponsor {
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
               <span>Find a club</span>
             </a>
-            <a routerLink="/player-login" class="nav-login">Player login</a>
+            <a routerLink="/player-login" class="nav-login">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>Player login</span>
+            </a>
             <a routerLink="/register-club" class="button button-primary nav-club">
               <span class="nav-club-long">Register your club</span>
               <span class="nav-club-short">For clubs</span>
@@ -409,6 +412,8 @@ interface PublicSponsor {
     .desktop-nav { display: flex; gap: 6px; margin-left: auto; }
     .desktop-nav a, .nav-login { padding: 10px 12px; color: #b7c8bc; font-size: .84rem; font-weight: 650; text-decoration: none; transition: color .2s, background .2s; border-radius: 10px; }
     .desktop-nav a:hover, .nav-login:hover { color: #fff; background: rgba(255, 255, 255, .05); }
+    .nav-login { display: inline-flex; align-items: center; gap: 8px; }
+    .nav-login svg { width: 16px; height: 16px; display: none; }
     .nav-actions { display: flex; align-items: center; gap: 8px; }
     .nav-discover { display: inline-flex; align-items: center; gap: 8px; padding: 10px 13px; border: 1px solid rgba(164, 245, 45, .22); border-radius: 10px; text-decoration: none; color: var(--lime-bright); font-size: .82rem; font-weight: 750; }
     .nav-discover svg { width: 16px; height: 16px; }
@@ -603,7 +608,9 @@ interface PublicSponsor {
       .section-shell { width: min(100% - 36px, 720px); }
       .nav-shell { width: calc(100% - 28px); height: 68px; gap: 14px; }
       .brand img { height: 31px; }
-      .nav-login { display: none; }
+      .nav-login { width: 42px; height: 42px; justify-content: center; padding: 0; border: 1px solid rgba(226, 246, 220, .16); border-radius: 10px; color: #d7e6da; }
+      .nav-login span { display: none; }
+      .nav-login svg { display: block; }
       .nav-discover span { display: none; }
       .nav-discover { width: 42px; height: 42px; justify-content: center; padding: 0; }
       .hero { padding-block: 58px 55px; }
