@@ -10,7 +10,7 @@ const { sendPushToClubAdmins } = require("../utils/push");
 const { sendReservationConfirmationEmail } = require("../utils/email");
 const { ownsClub } = require("../utils/scope");
 const OpenPlaySession = require("../models/OpenPlaySession");
-const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
+const { computeCourtFee } = require("../utils/pricing");
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
 
 function computeLightHours(timeSlot, durationHours) {
@@ -315,10 +315,15 @@ router.post("/", auth, async (req, res) => {
     )];
 
     const rawRates = await Rates.findOne({ clubId }).lean();
+    const pricingModel = rawRates?.pricingModel === "tiered" ? "tiered" : "flat";
     const ratesUsed = {
+      pricingModel,
       weekdayRate: Number(rawRates?.reservationWeekdayRate ?? 0),
       weekendRate: Number(rawRates?.reservationWeekendRate ?? 0),
       holidayRate: Number(rawRates?.reservationHolidayRate ?? 0),
+      daytimeRate: Number(rawRates?.reservationDaytimeRate ?? 0),
+      eveningRate: Number(rawRates?.reservationEveningRate ?? 0),
+      overnightRate: Number(rawRates?.reservationOvernightRate ?? 0),
       lightsRate: Number(rawRates?.lightRate ?? 0),
       ballBoyRate: Number(rawRates?.ballBoyRate ?? 0),
       guestFee: Number(rawRates?.reservationGuestFee ?? 0),
@@ -348,19 +353,13 @@ router.post("/", auth, async (req, res) => {
       sanitizedRentals.rackets * ratesUsed.rentalRacketRate;
 
     const dayOfWeek = parsedDate.getUTCDay();
-    const isWeekend = WEEKEND_DAYS.has(dayOfWeek);
-
-    let hourlyRate;
-    if (isHoliday) {
-      hourlyRate = ratesUsed.holidayRate;
-    } else if (isWeekend) {
-      hourlyRate = ratesUsed.weekendRate;
-    } else {
-      hourlyRate = ratesUsed.weekdayRate;
-    }
+    const { courtFee: baseCourtFee, effectiveHourlyRate: hourlyRate } = computeCourtFee(
+      pricingModel,
+      { startHour: slotToHour(timeSlot), dayOfWeek, isHoliday, durationHours },
+      ratesUsed,
+    );
 
     const sanitizedGuestCount = Math.max(0, Math.floor(Number(guestCount) || 0));
-    const baseCourtFee = hourlyRate * durationHours;
     const lightHours = lightsRequested ? computeLightHours(timeSlot, durationHours) : 0;
     const lightsFee = lightHours * ratesUsed.lightsRate;
     const ballBoyFee = ballBoy ? ratesUsed.ballBoyRate * durationHours : 0;
@@ -546,10 +545,15 @@ router.patch("/:id", auth, async (req, res) => {
     }
 
     const rawRates = await Rates.findOne({ clubId: reservation.clubId }).lean();
+    const pricingModel = rawRates?.pricingModel === "tiered" ? "tiered" : "flat";
     const ratesUsed = {
+      pricingModel,
       weekdayRate:          Number(rawRates?.reservationWeekdayRate ?? 0),
       weekendRate:          Number(rawRates?.reservationWeekendRate ?? 0),
       holidayRate:          Number(rawRates?.reservationHolidayRate ?? 0),
+      daytimeRate:          Number(rawRates?.reservationDaytimeRate ?? 0),
+      eveningRate:          Number(rawRates?.reservationEveningRate ?? 0),
+      overnightRate:        Number(rawRates?.reservationOvernightRate ?? 0),
       lightsRate:           Number(rawRates?.lightRate ?? 0),
       ballBoyRate:          Number(rawRates?.ballBoyRate ?? 0),
       guestFee:             Number(rawRates?.reservationGuestFee ?? 0),
@@ -568,11 +572,11 @@ router.patch("/:id", auth, async (req, res) => {
     const sanitizedGuestCount = Math.max(0, Math.floor(Number(guestCount) || 0));
 
     const dayOfWeek = parsedDate.getUTCDay();
-    const isWeekend = WEEKEND_DAYS.has(dayOfWeek);
-    const hourlyRate = Boolean(isHoliday) ? ratesUsed.holidayRate
-      : isWeekend ? ratesUsed.weekendRate : ratesUsed.weekdayRate;
-
-    const baseCourtFee = hourlyRate * durationHours;
+    const { courtFee: baseCourtFee, effectiveHourlyRate: hourlyRate } = computeCourtFee(
+      pricingModel,
+      { startHour: slotToHour(timeSlot), dayOfWeek, isHoliday: Boolean(isHoliday), durationHours },
+      ratesUsed,
+    );
     const lightHoursEdit = Boolean(lightsRequested) ? computeLightHours(timeSlot, durationHours) : 0;
     const lightsFee    = lightHoursEdit * ratesUsed.lightsRate;
     const ballBoyFee   = Boolean(ballBoy) ? ratesUsed.ballBoyRate * durationHours : 0;

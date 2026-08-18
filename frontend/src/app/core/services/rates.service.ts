@@ -12,6 +12,10 @@ export interface Rates {
   reservationWeekdayRate: number;
   reservationWeekendRate: number;
   reservationHolidayRate: number;
+  pricingModel: 'flat' | 'tiered';
+  reservationDaytimeRate: number;
+  reservationEveningRate: number;
+  reservationOvernightRate: number;
   reservationGuestFee: number;
   reservationGuestFeeThreshold: number;
   perGameFee: number;
@@ -53,6 +57,10 @@ export class RatesService {
     reservationWeekdayRate: number;
     reservationWeekendRate: number;
     reservationHolidayRate: number;
+    pricingModel?: 'flat' | 'tiered';
+    reservationDaytimeRate?: number;
+    reservationEveningRate?: number;
+    reservationOvernightRate?: number;
     reservationGuestFee: number;
     reservationGuestFeeThreshold: number;
     perGameFee?: number;

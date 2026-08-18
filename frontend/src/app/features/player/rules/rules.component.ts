@@ -61,7 +61,23 @@ import { AuthService } from '../../../core/services/auth.service';
 
           @if (!isHostedPlay) {
           <section class="quick-grid" aria-label="Pricing highlights">
-            @if (isReservation) {
+            @if (isReservation && rates()!.pricingModel === 'tiered') {
+              <div class="quick-card">
+                <span class="quick-label">Daytime court</span>
+                <strong>{{ rates()!.reservationDaytimeRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <span class="quick-note">per hour</span>
+              </div>
+              <div class="quick-card">
+                <span class="quick-label">Evening court</span>
+                <strong>{{ rates()!.reservationEveningRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <span class="quick-note">per hour</span>
+              </div>
+              <div class="quick-card">
+                <span class="quick-label">Guest fee</span>
+                <strong>{{ rates()!.reservationGuestFee | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                <span class="quick-note">per guest</span>
+              </div>
+            } @else if (isReservation) {
               <div class="quick-card">
                 <span class="quick-label">Weekday court</span>
                 <strong>{{ rates()!.reservationWeekdayRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
@@ -192,18 +208,33 @@ import { AuthService } from '../../../core/services/auth.service';
                   </div>
                 </div>
                 <div class="rate-list">
-                  <div class="rate-row">
-                    <span><i class="fas fa-briefcase"></i> Weekday <small>Mon - Thu</small></span>
-                    <strong>{{ rates()!.reservationWeekdayRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-                  </div>
-                  <div class="rate-row">
-                    <span><i class="fas fa-umbrella-beach"></i> Weekend <small>Fri - Sun</small></span>
-                    <strong>{{ rates()!.reservationWeekendRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-                  </div>
-                  <div class="rate-row">
-                    <span><i class="fas fa-star"></i> Holiday</span>
-                    <strong>{{ rates()!.reservationHolidayRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
-                  </div>
+                  @if (rates()!.pricingModel === 'tiered') {
+                    <div class="rate-row">
+                      <span><i class="fas fa-sun"></i> Daytime <small>6am - 5pm</small></span>
+                      <strong>{{ rates()!.reservationDaytimeRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                    </div>
+                    <div class="rate-row">
+                      <span><i class="fas fa-cloud-moon"></i> Evening <small>5pm - 12am</small></span>
+                      <strong>{{ rates()!.reservationEveningRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                    </div>
+                    <div class="rate-row">
+                      <span><i class="fas fa-moon"></i> Overnight <small>12am - 6am</small></span>
+                      <strong>{{ rates()!.reservationOvernightRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                    </div>
+                  } @else {
+                    <div class="rate-row">
+                      <span><i class="fas fa-briefcase"></i> Weekday <small>Mon - Thu</small></span>
+                      <strong>{{ rates()!.reservationWeekdayRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                    </div>
+                    <div class="rate-row">
+                      <span><i class="fas fa-umbrella-beach"></i> Weekend <small>Fri - Sun</small></span>
+                      <strong>{{ rates()!.reservationWeekendRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                    </div>
+                    <div class="rate-row">
+                      <span><i class="fas fa-star"></i> Holiday</span>
+                      <strong>{{ rates()!.reservationHolidayRate | currency:'PHP':'symbol':'1.0-0' }}</strong>
+                    </div>
+                  }
                 </div>
               </article>
 

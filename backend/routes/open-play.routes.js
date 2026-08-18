@@ -10,7 +10,7 @@ const Club = require("../models/Club");
 const User = require("../models/User");
 const Charge = require("../models/Charge");
 const Rates = require("../models/Rates");
-const WEEKEND_DAYS = new Set([0, 5, 6]);
+const { computeCourtFee } = require("../utils/pricing");
 
 // ── Shared helper: attach player names to match documents ─────────────────────
 
@@ -355,15 +355,18 @@ router.post("/sessions", auth, admin, async (req, res) => {
       Rates.findOne({ clubId: req.user.clubId }).lean(),
     ]);
     const sessionDay = new Date(sessionDate).getUTCDay();
-    const hourlyRate = WEEKEND_DAYS.has(sessionDay)
-      ? (rates?.reservationWeekendRate ?? 0)
-      : (rates?.reservationWeekdayRate ?? 0);
-    const sessionHours = parseInt(endTime.split(":")[0], 10) - parseInt(startTime.split(":")[0], 10);
+    const sessionHours = Math.max(0, parseInt(endTime.split(":")[0], 10) - parseInt(startTime.split(":")[0], 10));
+    const pricingModel = rates?.pricingModel === "tiered" ? "tiered" : "flat";
+    const { courtFee: baseCourtFee } = computeCourtFee(
+      pricingModel,
+      { startHour: parseInt(startTime.split(":")[0], 10), dayOfWeek: sessionDay, isHoliday: false, durationHours: sessionHours },
+      rates ?? {},
+    );
     const feeMode = club?.convenienceFeeMode ?? 'per_hour';
     const feeRate = typeof club?.convenienceFeeRate === "number" ? club.convenienceFeeRate : 0.10;
     const fee = (feeMode === 'monthly_flat' || feeMode === 'club_absorbs')
       ? 0
-      : parseFloat((hourlyRate * Math.max(sessionHours, 0) * feeRate).toFixed(2));
+      : parseFloat((baseCourtFee * feeRate).toFixed(2));
 
     await Charge.create({
       openPlaySessionId: session._id,

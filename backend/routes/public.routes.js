@@ -18,7 +18,7 @@ const { notifySuperadmins } = require("../utils/notify");
 const { sendReservationConfirmationEmail } = require("../utils/email");
 const { computePlayerFees } = require("../utils/fees");
 const { resolveGuestFee, countGuests, countGuestsBySession } = require("../utils/guests");
-const WEEKEND_DAYS = new Set([0, 5, 6]); // Sunday=0, Friday=5, Saturday=6
+const { computeCourtFee } = require("../utils/pricing");
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
 
 function computeLightHours(timeSlot, durationHours) {
@@ -603,6 +603,10 @@ router.get("/:clubId/rates", async (req, res) => {
       reservationWeekdayRate: rates.reservationWeekdayRate,
       reservationWeekendRate: rates.reservationWeekendRate,
       reservationHolidayRate: rates.reservationHolidayRate,
+      pricingModel: rates.pricingModel === "tiered" ? "tiered" : "flat",
+      reservationDaytimeRate: rates.reservationDaytimeRate ?? 0,
+      reservationEveningRate: rates.reservationEveningRate ?? 0,
+      reservationOvernightRate: rates.reservationOvernightRate ?? 0,
       reservationGuestFee: rates.reservationGuestFee,
       reservationGuestFeeThreshold: rates.reservationGuestFeeThreshold ?? 0,
       exclusiveEventEnabled: rates.exclusiveEventEnabled ?? false,
@@ -700,10 +704,15 @@ router.post("/:clubId/reserve", async (req, res) => {
     if (conflict) return res.status(409).json({ error: "One or more of those slots is already booked" });
 
     const rawRates = await Rates.findOne({ clubId: resolvedClubId }).lean();
+    const pricingModel = rawRates?.pricingModel === "tiered" ? "tiered" : "flat";
     const ratesUsed = {
+      pricingModel,
       weekdayRate: Number(rawRates?.reservationWeekdayRate ?? 0),
       weekendRate: Number(rawRates?.reservationWeekendRate ?? 0),
       holidayRate: Number(rawRates?.reservationHolidayRate ?? 0),
+      daytimeRate: Number(rawRates?.reservationDaytimeRate ?? 0),
+      eveningRate: Number(rawRates?.reservationEveningRate ?? 0),
+      overnightRate: Number(rawRates?.reservationOvernightRate ?? 0),
       lightsRate: Number(rawRates?.lightRate ?? 0),
       ballBoyRate: Number(rawRates?.ballBoyRate ?? 0),
       guestFee: Number(rawRates?.reservationGuestFee ?? 0),
@@ -733,16 +742,11 @@ router.post("/:clubId/reserve", async (req, res) => {
       sanitizedRentals.rackets * ratesUsed.rentalRacketRate;
 
     const dayOfWeek = parsedDate.getUTCDay();
-    const isWeekend = WEEKEND_DAYS.has(dayOfWeek);
-
-    let hourlyRate;
-    if (isHoliday) {
-      hourlyRate = ratesUsed.holidayRate;
-    } else if (isWeekend) {
-      hourlyRate = ratesUsed.weekendRate;
-    } else {
-      hourlyRate = ratesUsed.weekdayRate;
-    }
+    const { courtFee: tieredBaseCourtFee, effectiveHourlyRate: hourlyRate } = computeCourtFee(
+      pricingModel,
+      { startHour: slotToHour(timeSlot), dayOfWeek, isHoliday, durationHours },
+      ratesUsed,
+    );
 
     const sanitizedGuestCount = Math.max(0, Math.floor(Number(guestCount) || 0));
     const isExclusiveEvent = bookingType === 'exclusive_event' && (rawRates?.exclusiveEventEnabled ?? false);
@@ -762,7 +766,7 @@ router.post("/:clubId/reserve", async (req, res) => {
       baseCourtFee = eventRate * durationHours;
       guestTotalFee = Math.max(0, sanitizedGuestCount - includedPax) * excessFee;
     } else {
-      baseCourtFee = hourlyRate * durationHours;
+      baseCourtFee = tieredBaseCourtFee;
       const chargeableGuests = Math.max(0, sanitizedGuestCount - ratesUsed.guestFeeThreshold);
       guestTotalFee = chargeableGuests * ratesUsed.guestFee;
     }

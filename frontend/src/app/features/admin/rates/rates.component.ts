@@ -81,48 +81,108 @@ import { AuthService } from '../../../core/services/auth.service';
             </div>
 
             <div class="section-divider"><span>Court Reservation Fees (per hour)</span></div>
-            <p class="section-text">Mon–Thu use the weekday rate, Fri–Sun use the weekend rate. Players can mark a booking as a holiday to apply the holiday rate.</p>
 
-            <div class="rates-grid">
-              <div class="rate-item">
-                <div class="rate-icon">📅</div>
-                <div class="form-group">
-                  <label for="reservationWeekdayRate">Weekday Rate — Mon to Thu (per hour)</label>
-                  <div class="input-prefix">
-                    <span>₱</span>
-                    <input id="reservationWeekdayRate" type="number" [(ngModel)]="reservationWeekdayRate"
-                      name="reservationWeekdayRate" required min="0" step="0.01" placeholder="0.00" />
-                  </div>
-                  <p class="field-help">Flat rate applied to all time slots on weekdays.</p>
-                </div>
-              </div>
-
-              <div class="rate-item">
-                <div class="rate-icon">🎉</div>
-                <div class="form-group">
-                  <label for="reservationWeekendRate">Weekend Rate — Fri to Sun (per hour)</label>
-                  <div class="input-prefix">
-                    <span>₱</span>
-                    <input id="reservationWeekendRate" type="number" [(ngModel)]="reservationWeekendRate"
-                      name="reservationWeekendRate" required min="0" step="0.01" placeholder="0.00" />
-                  </div>
-                  <p class="field-help">Flat rate applied to all time slots on weekends.</p>
-                </div>
-              </div>
-
-              <div class="rate-item">
-                <div class="rate-icon">🏖️</div>
-                <div class="form-group">
-                  <label for="reservationHolidayRate">Holiday Rate (per hour)</label>
-                  <div class="input-prefix">
-                    <span>₱</span>
-                    <input id="reservationHolidayRate" type="number" [(ngModel)]="reservationHolidayRate"
-                      name="reservationHolidayRate" required min="0" step="0.01" placeholder="0.00" />
-                  </div>
-                  <p class="field-help">Applied when the player marks the booking as a holiday.</p>
-                </div>
+            <div class="form-group">
+              <label>Pricing Model</label>
+              <div class="pricing-model-toggle">
+                <label class="pricing-model-option">
+                  <input type="radio" name="pricingModel" value="flat" [(ngModel)]="pricingModel" />
+                  <span>Flat rate (weekday / weekend / holiday)</span>
+                </label>
+                <label class="pricing-model-option">
+                  <input type="radio" name="pricingModel" value="tiered" [(ngModel)]="pricingModel" />
+                  <span>Time-of-day tiers</span>
+                </label>
               </div>
             </div>
+
+            @if (pricingModel === 'flat') {
+              <p class="section-text">Mon–Thu use the weekday rate, Fri–Sun use the weekend rate. Players can mark a booking as a holiday to apply the holiday rate.</p>
+
+              <div class="rates-grid">
+                <div class="rate-item">
+                  <div class="rate-icon">📅</div>
+                  <div class="form-group">
+                    <label for="reservationWeekdayRate">Weekday Rate — Mon to Thu (per hour)</label>
+                    <div class="input-prefix">
+                      <span>₱</span>
+                      <input id="reservationWeekdayRate" type="number" [(ngModel)]="reservationWeekdayRate"
+                        name="reservationWeekdayRate" required min="0" step="0.01" placeholder="0.00" />
+                    </div>
+                    <p class="field-help">Flat rate applied to all time slots on weekdays.</p>
+                  </div>
+                </div>
+
+                <div class="rate-item">
+                  <div class="rate-icon">🎉</div>
+                  <div class="form-group">
+                    <label for="reservationWeekendRate">Weekend Rate — Fri to Sun (per hour)</label>
+                    <div class="input-prefix">
+                      <span>₱</span>
+                      <input id="reservationWeekendRate" type="number" [(ngModel)]="reservationWeekendRate"
+                        name="reservationWeekendRate" required min="0" step="0.01" placeholder="0.00" />
+                    </div>
+                    <p class="field-help">Flat rate applied to all time slots on weekends.</p>
+                  </div>
+                </div>
+
+                <div class="rate-item">
+                  <div class="rate-icon">🏖️</div>
+                  <div class="form-group">
+                    <label for="reservationHolidayRate">Holiday Rate (per hour)</label>
+                    <div class="input-prefix">
+                      <span>₱</span>
+                      <input id="reservationHolidayRate" type="number" [(ngModel)]="reservationHolidayRate"
+                        name="reservationHolidayRate" required min="0" step="0.01" placeholder="0.00" />
+                    </div>
+                    <p class="field-help">Applied when the player marks the booking as a holiday.</p>
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <p class="section-text">Bookings are billed by time of day. A booking spanning two tiers is charged proportionally per hour (e.g. a 4pm–6pm booking is 1 hour Daytime + 1 hour Evening).</p>
+
+              <div class="rates-grid">
+                <div class="rate-item">
+                  <div class="rate-icon">🌤️</div>
+                  <div class="form-group">
+                    <label for="reservationDaytimeRate">Daytime Rate — 6am to 5pm (per hour)</label>
+                    <div class="input-prefix">
+                      <span>₱</span>
+                      <input id="reservationDaytimeRate" type="number" [(ngModel)]="reservationDaytimeRate"
+                        name="reservationDaytimeRate" required min="0" step="0.01" placeholder="0.00" />
+                    </div>
+                    <p class="field-help">Applied to hours between 6am and 5pm.</p>
+                  </div>
+                </div>
+
+                <div class="rate-item">
+                  <div class="rate-icon">🌆</div>
+                  <div class="form-group">
+                    <label for="reservationEveningRate">Evening Rate — 5pm to 12am (per hour)</label>
+                    <div class="input-prefix">
+                      <span>₱</span>
+                      <input id="reservationEveningRate" type="number" [(ngModel)]="reservationEveningRate"
+                        name="reservationEveningRate" required min="0" step="0.01" placeholder="0.00" />
+                    </div>
+                    <p class="field-help">Applied to hours between 5pm and midnight.</p>
+                  </div>
+                </div>
+
+                <div class="rate-item">
+                  <div class="rate-icon">🌙</div>
+                  <div class="form-group">
+                    <label for="reservationOvernightRate">Overnight Rate — 12am to 6am (per hour)</label>
+                    <div class="input-prefix">
+                      <span>₱</span>
+                      <input id="reservationOvernightRate" type="number" [(ngModel)]="reservationOvernightRate"
+                        name="reservationOvernightRate" required min="0" step="0.01" placeholder="0.00" />
+                    </div>
+                    <p class="field-help">Applied to hours between midnight and 6am.</p>
+                  </div>
+                </div>
+              </div>
+            }
 
             <p class="section-note">
               <i class="fas fa-lightbulb"></i> Lights fee on reservations uses the <strong>With Light Rate</strong> from Session Billing above.
@@ -457,18 +517,33 @@ import { AuthService } from '../../../core/services/auth.service';
               <span>🙋 Ball Boy Fee</span>
               <span>= {{ ballBoyRate | currency: 'PHP' : 'symbol' }} / hr</span>
             </div>
-            <div class="formula-row accent-green">
-              <span>📅 Reservation — Weekday (Mon–Thu)</span>
-              <span>= {{ reservationWeekdayRate | currency: 'PHP' : 'symbol' }} / hr</span>
-            </div>
-            <div class="formula-row accent-amber">
-              <span>🎉 Reservation — Weekend (Fri–Sun)</span>
-              <span>= {{ reservationWeekendRate | currency: 'PHP' : 'symbol' }} / hr</span>
-            </div>
-            <div class="formula-row accent-purple">
-              <span>🏖️ Reservation — Holiday</span>
-              <span>= {{ reservationHolidayRate | currency: 'PHP' : 'symbol' }} / hr</span>
-            </div>
+            @if (pricingModel === 'flat') {
+              <div class="formula-row accent-green">
+                <span>📅 Reservation — Weekday (Mon–Thu)</span>
+                <span>= {{ reservationWeekdayRate | currency: 'PHP' : 'symbol' }} / hr</span>
+              </div>
+              <div class="formula-row accent-amber">
+                <span>🎉 Reservation — Weekend (Fri–Sun)</span>
+                <span>= {{ reservationWeekendRate | currency: 'PHP' : 'symbol' }} / hr</span>
+              </div>
+              <div class="formula-row accent-purple">
+                <span>🏖️ Reservation — Holiday</span>
+                <span>= {{ reservationHolidayRate | currency: 'PHP' : 'symbol' }} / hr</span>
+              </div>
+            } @else {
+              <div class="formula-row accent-green">
+                <span>🌤️ Reservation — Daytime (6am–5pm)</span>
+                <span>= {{ reservationDaytimeRate | currency: 'PHP' : 'symbol' }} / hr</span>
+              </div>
+              <div class="formula-row accent-amber">
+                <span>🌆 Reservation — Evening (5pm–12am)</span>
+                <span>= {{ reservationEveningRate | currency: 'PHP' : 'symbol' }} / hr</span>
+              </div>
+              <div class="formula-row accent-purple">
+                <span>🌙 Reservation — Overnight (12am–6am)</span>
+                <span>= {{ reservationOvernightRate | currency: 'PHP' : 'symbol' }} / hr</span>
+              </div>
+            }
             <div class="formula-row">
               <span>💡 Lights add-on</span>
               <span>= + {{ lightRate | currency: 'PHP' : 'symbol' }}</span>
@@ -617,6 +692,29 @@ import { AuthService } from '../../../core/services/auth.service';
         color: rgba(255,255,255,0.55);
         line-height: 1.45;
       }
+
+      /* ── Pricing model toggle ── */
+      .pricing-model-toggle {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.9rem;
+      }
+
+      .pricing-model-option {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(163,230,53,0.15);
+        border-radius: 10px;
+        padding: 0.6rem 0.9rem;
+        font-size: 0.85rem;
+        color: rgba(255,255,255,0.85);
+        cursor: pointer;
+      }
+
+      .pricing-model-option input { accent-color: #a3e635; }
 
       /* ── Rate grid ── */
       .rates-grid {
@@ -930,6 +1028,10 @@ export class AdminRatesComponent implements OnInit {
   reservationWeekdayRate = 0;
   reservationWeekendRate = 0;
   reservationHolidayRate = 0;
+  pricingModel: 'flat' | 'tiered' = 'flat';
+  reservationDaytimeRate = 0;
+  reservationEveningRate = 0;
+  reservationOvernightRate = 0;
   reservationGuestFee = 0;
   reservationGuestFeeThreshold = 0;
   perGameFee = 0;
@@ -983,6 +1085,10 @@ export class AdminRatesComponent implements OnInit {
           this.reservationWeekdayRate = rates.reservationWeekdayRate ?? 0;
           this.reservationWeekendRate = rates.reservationWeekendRate ?? 0;
           this.reservationHolidayRate = rates.reservationHolidayRate ?? 0;
+          this.pricingModel = rates.pricingModel === 'tiered' ? 'tiered' : 'flat';
+          this.reservationDaytimeRate = rates.reservationDaytimeRate ?? 0;
+          this.reservationEveningRate = rates.reservationEveningRate ?? 0;
+          this.reservationOvernightRate = rates.reservationOvernightRate ?? 0;
           this.reservationGuestFee = rates.reservationGuestFee ?? 0;
           this.reservationGuestFeeThreshold = rates.reservationGuestFeeThreshold ?? 0;
           this.perGameFee = rates.perGameFee ?? 0;
@@ -1033,6 +1139,10 @@ export class AdminRatesComponent implements OnInit {
       reservationWeekdayRate: Number(this.reservationWeekdayRate),
       reservationWeekendRate: Number(this.reservationWeekendRate),
       reservationHolidayRate: Number(this.reservationHolidayRate),
+      pricingModel: this.pricingModel,
+      reservationDaytimeRate: Number(this.reservationDaytimeRate),
+      reservationEveningRate: Number(this.reservationEveningRate),
+      reservationOvernightRate: Number(this.reservationOvernightRate),
       reservationGuestFee: Number(this.reservationGuestFee),
       reservationGuestFeeThreshold: Number(this.reservationGuestFeeThreshold),
       perGameFee: Number(this.perGameFee),

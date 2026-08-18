@@ -46,9 +46,13 @@ const reservationSchema = new mongoose.Schema(
     convenienceFee: { type: Number, default: 0, min: 0 },
     convenienceFeeRate: { type: Number, default: 0.10, min: 0 },
     ratesUsed: {
+      pricingModel: { type: String, enum: ["flat", "tiered"], default: "flat" },
       weekdayRate: { type: Number, required: true, default: 0 },
       weekendRate: { type: Number, required: true, default: 0 },
       holidayRate: { type: Number, required: true, default: 0 },
+      daytimeRate: { type: Number, default: 0 },
+      eveningRate: { type: Number, default: 0 },
+      overnightRate: { type: Number, default: 0 },
       lightsRate: { type: Number, required: true, default: 0 },
       ballBoyRate: { type: Number, required: true, default: 0 },
       guestFee: { type: Number, required: true, default: 0 },

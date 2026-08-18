@@ -16,6 +16,8 @@ router.get("/", auth, async (req, res) => {
       training2WithoutLightRate: 0, training2LightRate: 0,
       ballBoyRate: 0,
       reservationWeekdayRate: 0, reservationWeekendRate: 0, reservationHolidayRate: 0,
+      pricingModel: "flat",
+      reservationDaytimeRate: 0, reservationEveningRate: 0, reservationOvernightRate: 0,
       reservationGuestFee: 0,
       perGameFee: 0, perGameGuestFee: 0,
       rentalBalls50Rate: 0, rentalBalls100Rate: 0, rentalBallMachineRate: 0, rentalRacketRate: 0,
@@ -50,6 +52,10 @@ router.put("/", auth, admin, async (req, res) => {
     const reservationWeekdayRate = Number(req.body.reservationWeekdayRate ?? 0);
     const reservationWeekendRate = Number(req.body.reservationWeekendRate ?? 0);
     const reservationHolidayRate = Number(req.body.reservationHolidayRate ?? 0);
+    const pricingModel = req.body.pricingModel === "tiered" ? "tiered" : "flat";
+    const reservationDaytimeRate = Number(req.body.reservationDaytimeRate ?? 0);
+    const reservationEveningRate = Number(req.body.reservationEveningRate ?? 0);
+    const reservationOvernightRate = Number(req.body.reservationOvernightRate ?? 0);
     const reservationGuestFee = Number(req.body.reservationGuestFee ?? 0);
     const reservationGuestFeeThreshold = Number(req.body.reservationGuestFeeThreshold ?? 0);
     const perGameFee = Number(req.body.perGameFee ?? 0);
@@ -78,6 +84,7 @@ router.put("/", auth, admin, async (req, res) => {
       training2WithoutLightRate, training2LightRate,
       ballBoyRate,
       reservationWeekdayRate, reservationWeekendRate, reservationHolidayRate,
+      reservationDaytimeRate, reservationEveningRate, reservationOvernightRate,
       reservationGuestFee, reservationGuestFeeThreshold,
       perGameFee, perGameGuestFee,
       rentalBalls50Rate, rentalBalls100Rate, rentalBallMachineRate, rentalRacketRate,
@@ -100,6 +107,8 @@ router.put("/", auth, admin, async (req, res) => {
         training2WithoutLightRate, training2LightRate,
         ballBoyRate,
         reservationWeekdayRate, reservationWeekendRate, reservationHolidayRate,
+        pricingModel,
+        reservationDaytimeRate, reservationEveningRate, reservationOvernightRate,
         reservationGuestFee, reservationGuestFeeThreshold,
         perGameFee, perGameGuestFee,
         exclusiveEventEnabled, exclusiveEventRate, exclusiveEventIncludedPax,

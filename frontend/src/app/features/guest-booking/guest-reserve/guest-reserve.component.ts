@@ -6,10 +6,10 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { PublicBookingService, PublicRates, GuestBookingResult } from '../../../core/services/public-booking.service';
 import { AdditionalFee } from '../../../core/services/club.service';
 import { CloudinaryService } from '../../../core/services/cloudinary.service';
+import { computeCourtFee, PricingModel } from '../../../core/utils/pricing.util';
 import { marked } from 'marked';
 
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
-const WEEKEND_DAYS = new Set([0, 5, 6]);
 
 function slotToHour(slot: string): number {
   const m = slot.match(/^(\d+)(am|pm)$/);
@@ -235,14 +235,20 @@ function localDateStr(): string {
 
                     <!-- Rate info -->
                     <div class="gr-rate-info">
-                      @if (weekdayRate > 0) {
-                        <div>Weekday: <strong>{{ weekdayRate | currency: 'PHP' : 'symbol' }}/hr</strong></div>
-                      }
-                      @if (weekendRate > 0) {
-                        <div>Weekend: <strong>{{ weekendRate | currency: 'PHP' : 'symbol' }}/hr</strong></div>
-                      }
-                      @if (holidayRate > 0) {
-                        <div>Holiday: <strong>{{ holidayRate | currency: 'PHP' : 'symbol' }}/hr</strong></div>
+                      @if (pricingModel === 'flat') {
+                        @if (weekdayRate > 0) {
+                          <div>Weekday: <strong>{{ weekdayRate | currency: 'PHP' : 'symbol' }}/hr</strong></div>
+                        }
+                        @if (weekendRate > 0) {
+                          <div>Weekend: <strong>{{ weekendRate | currency: 'PHP' : 'symbol' }}/hr</strong></div>
+                        }
+                        @if (holidayRate > 0) {
+                          <div>Holiday: <strong>{{ holidayRate | currency: 'PHP' : 'symbol' }}/hr</strong></div>
+                        }
+                      } @else {
+                        <div>Daytime (6am-5pm): <strong>{{ daytimeRate | currency: 'PHP' : 'symbol' }}/hr</strong></div>
+                        <div>Evening (5pm-12am): <strong>{{ eveningRate | currency: 'PHP' : 'symbol' }}/hr</strong></div>
+                        <div>Overnight (12am-6am): <strong>{{ overnightRate | currency: 'PHP' : 'symbol' }}/hr</strong></div>
                       }
                     </div>
 
@@ -257,7 +263,7 @@ function localDateStr(): string {
 
                     <!-- Toggles -->
                     <div class="gr-toggles-col">
-                      @if (holidayRate > 0) {
+                      @if (pricingModel === 'flat' && holidayRate > 0) {
                         <label class="gr-sw-row">
                           <span class="gr-sw-label">&#127958; Holiday rate</span>
                           <span class="gr-sw-meta">{{ holidayRate | currency:'PHP':'symbol' }}/hr</span>
@@ -681,8 +687,10 @@ function localDateStr(): string {
                     <div class="gr-info-row"><span class="gr-info-icon">&#128205;</span><span>{{ clubLocation }}</span></div>
                   }
                   <div class="gr-info-row"><span class="gr-info-icon">&#127955;</span><span>{{ courtCount() }} court{{ courtCount() !== 1 ? 's' : '' }}</span></div>
-                  @if (weekdayRate > 0) {
+                  @if (pricingModel === 'flat' && weekdayRate > 0) {
                     <div class="gr-info-row"><span class="gr-info-icon">&#128176;</span><span>{{ weekdayRate | currency: 'PHP' : 'symbol' }}/hr (weekday)</span></div>
+                  } @else if (pricingModel === 'tiered' && daytimeRate > 0) {
+                    <div class="gr-info-row"><span class="gr-info-icon">&#128176;</span><span>{{ daytimeRate | currency: 'PHP' : 'symbol' }}/hr (daytime)</span></div>
                   }
                   @if (clubMobile) {
                     <div class="gr-info-row"><span class="gr-info-icon">&#128222;</span><a [href]="'tel:' + clubMobile" class="gr-info-link">{{ clubMobile }}</a></div>
@@ -1767,9 +1775,13 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs' = 'per_hour';
   availableExtraFees: AdditionalFee[] = [];
   selectedExtraFeeNames = new Set<string>();
+  pricingModel: PricingModel = 'flat';
   weekdayRate = 0;
   weekendRate = 0;
   holidayRate = 0;
+  daytimeRate = 0;
+  eveningRate = 0;
+  overnightRate = 0;
   lightsRate = 0;
   ballBoyRate = 0;
   guestFeeRate = 0;
@@ -1871,20 +1883,20 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
       || this.rentalBallMachineRate > 0 || this.rentalRacketRate > 0;
   }
 
-  get dayType(): 'weekday' | 'weekend' | 'holiday' {
-    if (this.isHoliday) return 'holiday';
-    const date = this.navDate();
-    if (!date) return 'weekday';
-    const day = new Date(date + 'T00:00:00Z').getUTCDay();
-    return WEEKEND_DAYS.has(day) ? 'weekend' : 'weekday';
-  }
 
   get baseHourlyRate(): number {
-    switch (this.dayType) {
-      case 'holiday': return this.holidayRate;
-      case 'weekend': return this.weekendRate;
-      default:        return this.weekdayRate;
-    }
+    if (!this.selectedSlot) return 0;
+    const date = this.navDate();
+    const dayOfWeek = date ? new Date(date + 'T00:00:00Z').getUTCDay() : 0;
+    const result = computeCourtFee(
+      this.pricingModel,
+      { startHour: slotToHour(this.selectedSlot), dayOfWeek, isHoliday: this.isHoliday, durationHours: this.selectedDuration },
+      {
+        weekdayRate: this.weekdayRate, weekendRate: this.weekendRate, holidayRate: this.holidayRate,
+        daytimeRate: this.daytimeRate, eveningRate: this.eveningRate, overnightRate: this.overnightRate,
+      },
+    );
+    return result.effectiveHourlyRate;
   }
 
   get effectiveHourlyRate(): number {
@@ -2060,9 +2072,13 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
 
     this.publicBookingService.getRates(this.clubId).subscribe({
       next: (rates: PublicRates) => {
+        this.pricingModel = rates.pricingModel === 'tiered' ? 'tiered' : 'flat';
         this.weekdayRate = rates.reservationWeekdayRate ?? 0;
         this.weekendRate = rates.reservationWeekendRate ?? 0;
         this.holidayRate = rates.reservationHolidayRate ?? 0;
+        this.daytimeRate = rates.reservationDaytimeRate ?? 0;
+        this.eveningRate = rates.reservationEveningRate ?? 0;
+        this.overnightRate = rates.reservationOvernightRate ?? 0;
         this.lightsRate = rates.lightRate ?? 0;
         this.ballBoyRate = rates.ballBoyRate ?? 0;
         this.guestFeeRate = rates.reservationGuestFee ?? 0;

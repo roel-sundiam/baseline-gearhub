@@ -10,6 +10,10 @@ const ratesSchema = new mongoose.Schema({
   reservationWeekdayRate: { type: Number, default: 0, min: 0 },
   reservationWeekendRate: { type: Number, default: 0, min: 0 },
   reservationHolidayRate: { type: Number, default: 0, min: 0 },
+  pricingModel: { type: String, enum: ["flat", "tiered"], default: "flat" },
+  reservationDaytimeRate: { type: Number, default: 0, min: 0 }, // 6am-5pm
+  reservationEveningRate: { type: Number, default: 0, min: 0 }, // 5pm-12am
+  reservationOvernightRate: { type: Number, default: 0, min: 0 }, // 12am-6am
   reservationGuestFee: { type: Number, default: 0, min: 0 },
   reservationGuestFeeThreshold: { type: Number, default: 0, min: 0 },
   perGameFee: { type: Number, default: 0, min: 0 },

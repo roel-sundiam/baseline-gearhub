@@ -8,6 +8,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { RatesService } from '../../../core/services/rates.service';
 import { SoundService } from '../../../core/services/sound.service';
 import { ClubService, AdditionalFee } from '../../../core/services/club.service';
+import { computeCourtFee, tierForHour, PricingModel } from '../../../core/utils/pricing.util';
 
 const LIGHT_SLOTS = new Set(['5am','6pm','7pm','8pm','9pm','10pm','11pm','12am']);
 
@@ -205,7 +206,7 @@ interface ActivePlayer { _id: string; name: string; email: string; }
         </div>
 
         <!-- Holiday -->
-        @if (holidayRate > 0) {
+        @if (pricingModel === 'flat' && holidayRate > 0) {
           <div class="dm-section">
             <div class="dm-section-label">Holiday <span class="dm-optional">optional</span></div>
             <label class="dm-toggle-row">
@@ -357,14 +358,21 @@ interface ActivePlayer { _id: string; name: string; email: string; }
               <span>Lights</span>
               <strong>{{ lightsRequested ? 'Yes 💡' : 'No 🌙' }}</strong>
             </div>
-            <div class="dm-summary-row">
-              <span>Day Type</span>
-              <strong>
-                @if (dayType === 'holiday') { Holiday 🏖️ }
-                @else if (dayType === 'weekend') { Weekend 🎉 }
-                @else { Weekday 📅 }
-              </strong>
-            </div>
+            @if (pricingModel === 'flat') {
+              <div class="dm-summary-row">
+                <span>Day Type</span>
+                <strong>
+                  @if (dayType === 'holiday') { Holiday 🏖️ }
+                  @else if (dayType === 'weekend') { Weekend 🎉 }
+                  @else { Weekday 📅 }
+                </strong>
+              </div>
+            } @else {
+              <div class="dm-summary-row">
+                <span>Rate Tier</span>
+                <strong>{{ tierSummaryLabel }}</strong>
+              </div>
+            }
             <div class="dm-summary-row"><span>Ball Boy</span><strong>{{ ballBoyRequested ? 'Yes 🎾' : 'No' }}</strong></div>
             @if (addedPlayers.length > 0) {
               <div class="dm-summary-row">
@@ -1104,9 +1112,13 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   convenienceFeeMode: 'per_transaction' | 'per_hour' | 'monthly_flat' | 'club_absorbs' = 'per_hour';
   availableExtraFees: AdditionalFee[] = [];
   selectedExtraFeeNames = new Set<string>();
+  pricingModel: PricingModel = 'flat';
   weekdayRate = 0;
   weekendRate = 0;
   holidayRate = 0;
+  daytimeRate = 0;
+  eveningRate = 0;
+  overnightRate = 0;
   lightsRate = 0;
   ballBoyRate = 0;
   guestFeeRate = 0;
@@ -1164,17 +1176,41 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
     return this.WEEKEND_DAYS.has(day) ? 'weekend' : 'weekday';
   }
 
-  get baseHourlyRate(): number {
-    if (!this.selectedSlot) return 0;
-    switch (this.dayType) {
-      case 'holiday': return this.holidayRate;
-      case 'weekend': return this.weekendRate;
-      default:        return this.weekdayRate;
+  get tiersInBooking(): Array<'daytime' | 'evening' | 'overnight'> {
+    if (!this.selectedSlot) return [];
+    const startHour = slotToHour(this.selectedSlot);
+    const tiers: Array<'daytime' | 'evening' | 'overnight'> = [];
+    for (let i = 0; i < this.selectedDuration; i++) {
+      const tier = tierForHour(startHour + i);
+      if (!tiers.includes(tier)) tiers.push(tier);
     }
+    return tiers;
+  }
+
+  get tierSummaryLabel(): string {
+    const labels: Record<string, string> = { daytime: 'Daytime 🌤️', evening: 'Evening 🌆', overnight: 'Overnight 🌙' };
+    return this.tiersInBooking.map(t => labels[t]).join(' + ') || '—';
+  }
+
+  get courtFeeResult(): { courtFee: number; effectiveHourlyRate: number } {
+    if (!this.selectedSlot) return { courtFee: 0, effectiveHourlyRate: 0 };
+    const dayOfWeek = this.selectedDate ? new Date(this.selectedDate + 'T00:00:00Z').getUTCDay() : 0;
+    return computeCourtFee(
+      this.pricingModel,
+      { startHour: slotToHour(this.selectedSlot), dayOfWeek, isHoliday: this.isHoliday, durationHours: this.selectedDuration },
+      {
+        weekdayRate: this.weekdayRate, weekendRate: this.weekendRate, holidayRate: this.holidayRate,
+        daytimeRate: this.daytimeRate, eveningRate: this.eveningRate, overnightRate: this.overnightRate,
+      },
+    );
+  }
+
+  get baseHourlyRate(): number {
+    return this.courtFeeResult.effectiveHourlyRate;
   }
 
   get baseCourtFee(): number {
-    return this.baseHourlyRate * this.selectedDuration;
+    return this.courtFeeResult.courtFee;
   }
 
   get lightsFee(): number { return this.lightHours * this.lightsRate; }
@@ -1278,9 +1314,13 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
 
     this.ratesService.getRates().subscribe({
       next: (rates) => {
+        this.pricingModel = rates.pricingModel === 'tiered' ? 'tiered' : 'flat';
         this.weekdayRate = rates.reservationWeekdayRate ?? 0;
         this.weekendRate = rates.reservationWeekendRate ?? 0;
         this.holidayRate = rates.reservationHolidayRate ?? 0;
+        this.daytimeRate = rates.reservationDaytimeRate ?? 0;
+        this.eveningRate = rates.reservationEveningRate ?? 0;
+        this.overnightRate = rates.reservationOvernightRate ?? 0;
         this.lightsRate = rates.lightRate ?? 0;
         this.ballBoyRate = rates.ballBoyRate ?? 0;
         this.guestFeeRate = rates.reservationGuestFee ?? 0;

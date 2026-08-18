@@ -10,6 +10,7 @@ import { SoundService } from '../../../core/services/sound.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ClubService } from '../../../core/services/club.service';
 import { CalendarViewComponent } from '../../../shared/components/calendar-view/calendar-view.component';
+import { computeCourtFee, PricingModel } from '../../../core/utils/pricing.util';
 
 interface ActivePlayer { _id: string; name: string; email: string; }
 
@@ -35,7 +36,6 @@ function hoursToSlots(openingHour: number, closingHour: number): string[] {
   }
   return slots;
 }
-const WEEKEND_DAYS = new Set([0, 5, 6]);
 
 type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
 
@@ -395,7 +395,7 @@ type Tab = 'upcoming' | 'history' | 'all' | 'calendar';
                 @if (editBallBoyRate > 0) {
                   <label class="dm-check"><input type="checkbox" [(ngModel)]="editBallBoy" /><span>Ball Boy</span></label>
                 }
-                @if (editHolidayRate > 0) {
+                @if (editPricingModel === 'flat' && editHolidayRate > 0) {
                   <label class="dm-check"><input type="checkbox" [(ngModel)]="editIsHoliday" /><span>Holiday Rate</span></label>
                 }
               </div>
@@ -1259,9 +1259,13 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
   editFilteredPlayers: ActivePlayer[] = [];
   editShowDropdown = false;
 
+  editPricingModel: PricingModel = 'flat';
   editWeekdayRate = 0;
   editWeekendRate = 0;
   editHolidayRate = 0;
+  editDaytimeRate = 0;
+  editEveningRate = 0;
+  editOvernightRate = 0;
   editLightsRate = 0;
   editBallBoyRate = 0;
   editGuestFeeRate = 0;
@@ -1276,20 +1280,18 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
 
   get editHasLights(): boolean { return LIGHT_SLOTS.has(this.editSlot); }
 
-  get editDayType(): 'weekday' | 'weekend' | 'holiday' {
-    if (this.editIsHoliday) return 'holiday';
-    if (!this.editDate) return 'weekday';
-    const day = new Date(this.editDate + 'T00:00:00Z').getUTCDay();
-    return WEEKEND_DAYS.has(day) ? 'weekend' : 'weekday';
-  }
-
   get editBaseCourtFee(): number {
     if (!this.editSlot) return 0;
-    switch (this.editDayType) {
-      case 'holiday': return this.editHolidayRate;
-      case 'weekend': return this.editWeekendRate;
-      default:        return this.editWeekdayRate;
-    }
+    const dayOfWeek = this.editDate ? new Date(this.editDate + 'T00:00:00Z').getUTCDay() : 0;
+    const result = computeCourtFee(
+      this.editPricingModel,
+      { startHour: slotToHour(this.editSlot), dayOfWeek, isHoliday: this.editIsHoliday, durationHours: this.editDuration },
+      {
+        weekdayRate: this.editWeekdayRate, weekendRate: this.editWeekendRate, holidayRate: this.editHolidayRate,
+        daytimeRate: this.editDaytimeRate, eveningRate: this.editEveningRate, overnightRate: this.editOvernightRate,
+      },
+    );
+    return result.courtFee;
   }
 
   get editComputedFee(): number {
@@ -1472,9 +1474,13 @@ export class MyReservationsComponent implements OnInit, OnDestroy {
     if (!this.editRatesLoaded) {
       this.ratesService.getRates().subscribe({
         next: (rates) => {
+          this.editPricingModel         = rates.pricingModel === 'tiered' ? 'tiered' : 'flat';
           this.editWeekdayRate          = rates.reservationWeekdayRate ?? 0;
           this.editWeekendRate          = rates.reservationWeekendRate ?? 0;
           this.editHolidayRate          = rates.reservationHolidayRate ?? 0;
+          this.editDaytimeRate          = rates.reservationDaytimeRate ?? 0;
+          this.editEveningRate          = rates.reservationEveningRate ?? 0;
+          this.editOvernightRate        = rates.reservationOvernightRate ?? 0;
           this.editLightsRate           = rates.lightRate ?? 0;
           this.editBallBoyRate          = rates.ballBoyRate ?? 0;
           this.editGuestFeeRate         = rates.reservationGuestFee ?? 0;

@@ -539,6 +539,24 @@ interface PublicSponsor {
                       </div>
                     }
                   </div>
+                } @else if (pricingModel === 'tiered') {
+                  <div class="lp-pricing-grid">
+                    <div class="lp-price-tile">
+                      <div class="lp-price-label">Daytime (6AM – 5PM)</div>
+                      <div class="lp-price-amount">₱{{ daytimeRate | number }}</div>
+                      <div class="lp-price-unit">/ hour</div>
+                    </div>
+                    <div class="lp-price-tile">
+                      <div class="lp-price-label">Evening (5PM – 12AM)</div>
+                      <div class="lp-price-amount">₱{{ eveningRate | number }}</div>
+                      <div class="lp-price-unit">/ hour</div>
+                    </div>
+                    <div class="lp-price-tile">
+                      <div class="lp-price-label">Overnight (12AM – 6AM)</div>
+                      <div class="lp-price-amount">₱{{ overnightRate | number }}</div>
+                      <div class="lp-price-unit">/ hour</div>
+                    </div>
+                  </div>
                 } @else {
                   <div class="lp-pricing-grid">
                     <div class="lp-price-tile">
@@ -1573,6 +1591,10 @@ export class GuestBookComponent implements OnInit, OnDestroy {
   closingHour = 22;
   weekdayRate = 0;
   weekendRate = 0;
+  pricingModel: 'flat' | 'tiered' = 'flat';
+  daytimeRate = 0;
+  eveningRate = 0;
+  overnightRate = 0;
   perGameFee = 0;
   perGameGuestFee = 0;
   ratesLoaded = false;
@@ -1698,6 +1720,10 @@ export class GuestBookComponent implements OnInit, OnDestroy {
       next: (rates) => {
         this.weekdayRate = rates.reservationWeekdayRate;
         this.weekendRate = rates.reservationWeekendRate;
+        this.pricingModel = rates.pricingModel === 'tiered' ? 'tiered' : 'flat';
+        this.daytimeRate = rates.reservationDaytimeRate ?? 0;
+        this.eveningRate = rates.reservationEveningRate ?? 0;
+        this.overnightRate = rates.reservationOvernightRate ?? 0;
         this.perGameFee = rates.perGameFee ?? 0;
         this.perGameGuestFee = rates.perGameGuestFee ?? 0;
         this.ratesLoaded = true;
