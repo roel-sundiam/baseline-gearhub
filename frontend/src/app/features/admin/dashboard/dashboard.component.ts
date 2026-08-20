@@ -486,9 +486,10 @@ import QRCode from 'qrcode';
           @if (loadingPosterSlots) {
             <div class="poster-loading"><i class="fas fa-circle-notch fa-spin"></i> Loading slots…</div>
           } @else {
-            <div class="poster-scroll-wrap">
-              <div #posterCardRef [ngStyle]="posterCardStyle()">
-                <div [ngStyle]="posterOverlayStyle()">
+            <div class="poster-scroll-wrap" #posterScrollWrapRef>
+              <div class="poster-scale-box" [ngStyle]="posterScaleBoxStyle()">
+                <div #posterCardRef [ngStyle]="posterCardStyle()">
+                  <div [ngStyle]="posterOverlayStyle()">
 
                   <!-- ── Centered header ── -->
                   <div [ngStyle]="{ textAlign: 'center', marginBottom: '14px' }">
@@ -609,6 +610,7 @@ import QRCode from 'qrcode';
                   </div>
 
                 </div>
+              </div>
               </div>
             </div>
           }
@@ -738,6 +740,10 @@ import QRCode from 'qrcode';
         gap: 1rem;
         padding: 1.5rem;
         min-height: calc(100vh - 60px);
+      }
+
+      .dashboard-shell > * {
+        min-width: 0;
       }
 
       .hero-panel {
@@ -1463,10 +1469,6 @@ import QRCode from 'qrcode';
           width: 100%;
         }
 
-        .stats-grid {
-          grid-template-columns: 1fr;
-        }
-
         .approval-info {
           min-width: 0;
         }
@@ -1474,10 +1476,6 @@ import QRCode from 'qrcode';
         .approval-actions {
           width: 100%;
           justify-content: flex-start;
-        }
-
-        .action-grid {
-          grid-template-columns: 1fr;
         }
       }
 
@@ -1595,6 +1593,8 @@ import QRCode from 'qrcode';
       }
 
       .poster-scroll-wrap {
+        display: flex;
+        justify-content: center;
         overflow-x: auto;
         padding-bottom: 8px;
       }
@@ -1899,12 +1899,19 @@ import QRCode from 'qrcode';
         .poster-ctrl-row,
         .poster-ctrl-actions {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 0.55rem;
           align-items: stretch;
         }
 
+        .poster-ctrl-row {
+          /* input[type=date] and <select> both have a native minimum content
+             width on mobile that doesn't reliably shrink to a 50% column,
+             so stack them instead of sitting them side by side. */
+          grid-template-columns: 1fr;
+        }
+
         .poster-ctrl-actions {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           grid-column: 1 / -1;
         }
 
@@ -1954,48 +1961,6 @@ import QRCode from 'qrcode';
           min-height: 40px;
         }
 
-        /* Swipeable dashboard cards on phones */
-        .stats-grid,
-        .action-grid {
-          display: flex;
-          grid-template-columns: none;
-          overflow-x: auto;
-          overflow-y: hidden;
-          scroll-snap-type: x mandatory;
-          scroll-padding-inline: 0.75rem;
-          overscroll-behavior-inline: contain;
-          -webkit-overflow-scrolling: touch;
-          scrollbar-width: thin;
-          scrollbar-color: rgba(163,230,53,0.45) rgba(255,255,255,0.06);
-          padding-bottom: 0.6rem;
-        }
-
-        .stats-grid::-webkit-scrollbar,
-        .action-grid::-webkit-scrollbar {
-          height: 4px;
-        }
-
-        .stats-grid::-webkit-scrollbar-track,
-        .action-grid::-webkit-scrollbar-track {
-          background: rgba(255,255,255,0.06);
-          border-radius: 999px;
-        }
-
-        .stats-grid::-webkit-scrollbar-thumb,
-        .action-grid::-webkit-scrollbar-thumb {
-          background: rgba(163,230,53,0.45);
-          border-radius: 999px;
-        }
-
-        .stats-grid .stat-card {
-          flex: 0 0 min(72vw, 250px);
-          scroll-snap-align: start;
-        }
-
-        .action-grid .action-card {
-          flex: 0 0 min(76vw, 270px);
-          scroll-snap-align: start;
-        }
       }
     `,
   ],
@@ -2012,6 +1977,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   // ── Poster ──
   @ViewChild('posterCardRef') posterCardRef!: ElementRef;
+  @ViewChild('posterScrollWrapRef') posterScrollWrapRef!: ElementRef;
   club: Club | null = null;
   posterDate = '';
   posterCourt = 1;
@@ -2021,6 +1987,9 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   uploadingPosterQr = false;
   capturingPoster = false;
   posterCopied = false;
+  posterPreviewScale = 1;
+  posterPreviewHeight: number | null = null;
+  private posterResizeHandler = () => this.recomputePosterPreviewScale();
 
   // ── Booking link QR ──
   @ViewChild('qrLinkCardRef') qrLinkCardRef!: ElementRef;
@@ -2199,6 +2168,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    window.addEventListener('resize', this.posterResizeHandler);
     const today = new Date();
     this.posterDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const clubId = this.authService.user()?.clubId;
@@ -2377,6 +2347,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
         this.posterSlots = slots;
         this.loadingPosterSlots = false;
         this.cdr.detectChanges();
+        this.recomputePosterPreviewScale();
       },
       error: () => { this.loadingPosterSlots = false; this.cdr.detectChanges(); },
     });
@@ -2393,6 +2364,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
           .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
         this.loadingPosterSlots = false;
         this.cdr.detectChanges();
+        this.recomputePosterPreviewScale();
       },
       error: () => { this.loadingPosterSlots = false; this.cdr.detectChanges(); },
     });
@@ -2501,27 +2473,50 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
+  private async captureUnscaledPoster<T>(action: () => Promise<T>): Promise<T> {
+    const el = this.posterCardRef.nativeElement as HTMLElement;
+    const prevTransform = el.style.transform;
+    el.style.transform = 'none';
+    try {
+      return await action();
+    } finally {
+      el.style.transform = prevTransform;
+    }
+  }
+
+  private renderPosterBlob(): Promise<Blob> {
+    return (async () => {
+      const { default: html2canvas } = await import('html2canvas');
+      const canvas = await this.captureUnscaledPoster(() =>
+        html2canvas(this.posterCardRef.nativeElement, { scale: 2, useCORS: true, backgroundColor: null })
+      );
+      return await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('No blob'))), 'image/png');
+      });
+    })();
+  }
+
   async copyPosterImage() {
     if (!this.posterCardRef) return;
+    if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+      alert('Copying images isn\'t supported in this browser. Please use Download instead.');
+      return;
+    }
     this.capturingPoster = true;
     this.posterCopied = false;
     this.cdr.detectChanges();
     try {
-      const { default: html2canvas } = await import('html2canvas');
-      const canvas = await html2canvas(this.posterCardRef.nativeElement, { scale: 2, useCORS: true, backgroundColor: null });
-      await new Promise<void>((resolve, reject) => {
-        canvas.toBlob(async (blob) => {
-          if (!blob) { reject(new Error('No blob')); return; }
-          try {
-            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-            resolve();
-          } catch (e) { reject(e); }
-        }, 'image/png');
-      });
+      // Pass the blob as a pending Promise so the clipboard write call itself stays
+      // synchronous with the click — Safari revokes clipboard permission if the write
+      // is issued after an `await` breaks the user-gesture chain.
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': this.renderPosterBlob() }),
+      ]);
       this.posterCopied = true;
       setTimeout(() => { this.posterCopied = false; this.cdr.detectChanges(); }, 2500);
     } catch (e) {
       console.error('Copy poster failed', e);
+      alert('Could not copy the image. Please try Download instead.');
     } finally {
       this.capturingPoster = false;
       this.cdr.detectChanges();
@@ -2581,31 +2576,62 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
+  private renderQrLinkBlob(): Promise<Blob> {
+    return (async () => {
+      const { default: html2canvas } = await import('html2canvas');
+      const canvas = await html2canvas(this.qrLinkCardRef.nativeElement, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      return await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('No blob'))), 'image/png');
+      });
+    })();
+  }
+
   async copyQrLinkImage() {
     if (!this.qrLinkCardRef) return;
+    if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+      alert('Copying images isn\'t supported in this browser.');
+      return;
+    }
     this.capturingQrLinkImage = true;
     this.qrLinkImageCopied = false;
     this.cdr.detectChanges();
     try {
-      const { default: html2canvas } = await import('html2canvas');
-      const canvas = await html2canvas(this.qrLinkCardRef.nativeElement, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      await new Promise<void>((resolve, reject) => {
-        canvas.toBlob(async (blob) => {
-          if (!blob) { reject(new Error('No blob')); return; }
-          try {
-            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-            resolve();
-          } catch (e) { reject(e); }
-        }, 'image/png');
-      });
+      // Same Safari-safe pattern as copyPosterImage(): pass a pending Promise so the
+      // clipboard write call stays synchronous with the click.
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': this.renderQrLinkBlob() }),
+      ]);
       this.qrLinkImageCopied = true;
       setTimeout(() => { this.qrLinkImageCopied = false; this.cdr.detectChanges(); }, 2500);
     } catch (e) {
       console.error('Copy QR link image failed', e);
+      alert('Could not copy the image. Please try again.');
     } finally {
       this.capturingQrLinkImage = false;
       this.cdr.detectChanges();
     }
+  }
+
+  private async saveOrShareImage(blob: Blob, filename: string): Promise<void> {
+    const file = new File([blob], filename, { type: 'image/png' });
+    const nav = navigator as Navigator & { canShare?: (data?: ShareData) => boolean; share?: (data: ShareData) => Promise<void> };
+    if (nav.canShare?.({ files: [file] }) && nav.share) {
+      try {
+        await nav.share({ files: [file] });
+        return;
+      } catch (e) {
+        if ((e as { name?: string })?.name === 'AbortError') return;
+        // Fall through to the link-download fallback below.
+      }
+    }
+    // iOS Safari doesn't support the `download` attribute — Web Share (above) is the
+    // only reliable way to save an image there. This path covers desktop/Android.
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = url;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async downloadPosterImage() {
@@ -2613,12 +2639,11 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
     this.capturingPoster = true;
     this.cdr.detectChanges();
     try {
-      const { default: html2canvas } = await import('html2canvas');
-      const canvas = await html2canvas(this.posterCardRef.nativeElement, { scale: 2, useCORS: true, backgroundColor: null });
-      const link = document.createElement('a');
-      link.download = `slots-court${this.posterCourt}-${this.posterDate}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      const blob = await this.renderPosterBlob();
+      await this.saveOrShareImage(blob, `slots-court${this.posterCourt}-${this.posterDate}.png`);
+    } catch (e) {
+      console.error('Download poster failed', e);
+      alert('Could not save the image. Please try again.');
     } finally {
       this.capturingPoster = false;
       this.cdr.detectChanges();
@@ -2652,7 +2677,28 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       backgroundPosition: 'center',
       flexShrink: '0',
       display: 'flex',
+      transform: `scale(${this.posterPreviewScale})`,
+      transformOrigin: 'top left',
     };
+  }
+
+  posterScaleBoxStyle(): Record<string, string> {
+    return {
+      width: `${540 * this.posterPreviewScale}px`,
+      height: this.posterPreviewHeight != null ? `${this.posterPreviewHeight}px` : 'auto',
+      overflow: 'hidden',
+    };
+  }
+
+  private recomputePosterPreviewScale() {
+    const wrap = this.posterScrollWrapRef?.nativeElement as HTMLElement | undefined;
+    const card = this.posterCardRef?.nativeElement as HTMLElement | undefined;
+    if (!wrap || !card) return;
+    const cardWidth = 540;
+    const scale = wrap.clientWidth > 0 ? Math.min(1, wrap.clientWidth / cardWidth) : 1;
+    this.posterPreviewScale = scale;
+    this.posterPreviewHeight = card.offsetHeight * scale;
+    this.cdr.detectChanges();
   }
 
   posterOverlayStyle(): Record<string, string> {
@@ -2734,6 +2780,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     if (this.msgPollInterval) clearInterval(this.msgPollInterval);
+    window.removeEventListener('resize', this.posterResizeHandler);
   }
 
   openSupportChat() {
