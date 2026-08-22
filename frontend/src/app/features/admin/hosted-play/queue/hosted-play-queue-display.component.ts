@@ -337,7 +337,7 @@ const MAX_VISIBLE_WAITING = 9;
       background: #f5df18; color: #1a1400; display: flex; align-items: center; justify-content: center;
       font-size: .78rem; box-shadow: 0 4px 10px rgba(245,223,24,.4);
     }
-    .lb-name { display: flex; align-items: center; gap: .5rem; font-size: 1.15rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-name { display: flex; align-items: center; gap: .5rem; font-size: 1.7rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .lb-dupr { flex-shrink: 0; color: #60a5fa; font-size: .78rem; font-weight: 700; }
     .lb-w, .lb-l { text-align: center; font-size: 1.2rem; font-weight: 900; font-variant-numeric: tabular-nums; }
     .lb-w { color: #4ade80; }
@@ -405,7 +405,7 @@ const MAX_VISIBLE_WAITING = 9;
       font-weight: 950; font-size: .64rem; overflow: hidden;
     }
     .lb-avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
-    .pname { flex: 1; min-width: 0; font-size: 1.05rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pname { flex: 1; min-width: 0; font-size: 1.55rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .walk-tag {
       flex-shrink: 0; font-size: .68rem; font-weight: 950; text-transform: uppercase;
       color: var(--blue); background: rgba(56,189,248,.14); border: 1px solid rgba(56,189,248,.18);
@@ -440,7 +440,7 @@ const MAX_VISIBLE_WAITING = 9;
     .lb-mini .lb-card { grid-template-columns: 1.7rem 1fr 2rem 2rem; gap: .5rem; padding: .5rem .65rem; border-radius: 12px; }
     .lb-mini .lb-rank { width: 1.7rem; height: 1.7rem; font-size: .78rem; }
     .lb-mini .lb-trophy { width: 1rem; height: 1rem; font-size: .48rem; top: .25rem; left: 1.85rem; }
-    .lb-mini .lb-name { font-size: .9rem; gap: .35rem; }
+    .lb-mini .lb-name { font-size: 1.3rem; gap: .35rem; }
     .lb-mini .lb-avatar { width: 20px; height: 20px; }
     .lb-mini .lb-w, .lb-mini .lb-l { font-size: .95rem; }
 
@@ -500,7 +500,7 @@ const MAX_VISIBLE_WAITING = 9;
     .team-block .player-row { min-height: 43px; justify-content: center; text-align: center; }
     .team-block .player-row.is-serving { background: rgba(245,223,24,.16); }
     .team-block .serving-badge { color: var(--accent); }
-    .team-block .pname { font-size: .85rem; text-transform: uppercase; }
+    .team-block .pname { font-size: 1.3rem; text-transform: uppercase; }
     .team-block .walk-tag { display: none; }
     .court-dupr { display: block; text-transform: none; font-size: .6rem; font-weight: 700; color: #60a5fa; margin-top: .1rem; }
     .score-block { z-index: 1; align-self: center; padding: 0 .35rem; }
@@ -510,7 +510,7 @@ const MAX_VISIBLE_WAITING = 9;
     .queue-row { padding: .55rem; border-radius: 8px; background: rgba(20,65,138,.35); border-color: rgba(77,140,255,.25); }
     .queue-row:first-child { border-color: rgba(245,223,24,.65); background: rgba(245,223,24,.09); }
     .queue-row .avatar { width: 34px; height: 34px; flex-basis: 34px; font-size: .72rem; }
-    .queue-row .pname { font-size: .86rem; }
+    .queue-row .pname { font-size: 1.3rem; }
     .queue-row .pname small { display: block; margin-top: .12rem; color: #86a6d8; font-size: .58rem; font-weight: 700; }
     .queue-row:first-child .pname small { color: var(--accent); }
     .qnum { width: 24px; height: 24px; flex-basis: 24px; font-size: .7rem; }
