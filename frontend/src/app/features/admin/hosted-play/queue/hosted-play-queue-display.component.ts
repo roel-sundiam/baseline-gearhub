@@ -2,11 +2,12 @@ import { Component, OnDestroy, OnInit, AfterViewInit, ChangeDetectorRef, Element
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
-import { HostedPlayService, QueueBoard, QueueCourt, QueuePlayer, splitCourtTeams } from '../../../../core/services/hosted-play.service';
+import { HostedPlayService, QueueBoard, QueueCourt, QueuePlayer, HostedPlayMatch, MatchPlayer, splitCourtTeams } from '../../../../core/services/hosted-play.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { ClubService, Court } from '../../../../core/services/club.service';
 
 const MAX_VISIBLE_WAITING = 9;
+const MAX_VISIBLE_RECORDED_GAMES = 4;
 
 @Component({
   selector: 'app-admin-hosted-play-queue-display',
@@ -104,6 +105,7 @@ const MAX_VISIBLE_WAITING = 9;
           <div class="tv-columns">
             <section class="tv-courts">
               <div class="section-heading"><h2 class="tv-section-title"><i class="fas fa-table-tennis-paddle-ball"></i> Courts</h2><span>{{ board.counts.activeGames }} active</span></div>
+
               <div class="courts-grid" [class.dense]="board.courts.length > 4">
                 @for (c of board.courts; track c.courtNumber) {
                   @let teams = teamsFor(c);
@@ -163,6 +165,25 @@ const MAX_VISIBLE_WAITING = 9;
                   </article>
                 }
               </div>
+
+              @if (visibleRecordedGames().length > 0) {
+                <div class="section-heading recorded-games-heading"><h2 class="tv-section-title"><i class="fas fa-clipboard-list"></i> Recorded Games</h2><span>{{ recordedGames().length }} played</span></div>
+                <div class="recorded-games-list">
+                  @for (m of visibleRecordedGames(); track m._id) {
+                    <div class="recorded-game-row">
+                      <span class="rg-court">C{{ m.courtNumber }}</span>
+                      <span class="rg-teams">
+                        <span class="rg-team" [class.rg-winner]="m.winnerTeam === 1">{{ teamNames(m.team1) }}</span>
+                        <span class="rg-vs">vs</span>
+                        <span class="rg-team" [class.rg-winner]="m.winnerTeam === 2">{{ teamNames(m.team2) }}</span>
+                      </span>
+                      @if (m.team1Score !== null) {
+                        <span class="rg-score">{{ m.team1Score }}–{{ m.team2Score }}</span>
+                      }
+                    </div>
+                  }
+                </div>
+              }
             </section>
 
             <section class="tv-queue">
@@ -431,6 +452,22 @@ const MAX_VISIBLE_WAITING = 9;
     .paused-note i { color: var(--amber); }
 
     .standings-heading { margin-top: 1.1rem; padding-top: .9rem; border-top: 1px solid var(--border); }
+    .recorded-games-heading { margin-top: 1.1rem; padding-top: .9rem; border-top: 1px solid var(--border); }
+    .recorded-games-list { display: flex; flex-direction: column; gap: .45rem; }
+    .recorded-game-row {
+      display: flex; align-items: center; gap: .55rem; padding: .5rem .65rem;
+      background: rgba(255,255,255,.035); border: 1px solid var(--border); border-radius: 10px;
+      font-size: .85rem;
+    }
+    .rg-court {
+      flex: 0 0 auto; font-weight: 950; font-size: .7rem; color: var(--muted);
+      background: rgba(255,255,255,.07); border-radius: 999px; padding: .18rem .5rem;
+    }
+    .rg-teams { flex: 1; min-width: 0; display: flex; align-items: center; gap: .4rem; overflow: hidden; }
+    .rg-team { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.15rem; font-weight: 700; color: var(--muted); }
+    .rg-team.rg-winner { color: var(--text); font-weight: 900; }
+    .rg-vs { flex-shrink: 0; font-size: .68rem; font-weight: 800; color: var(--muted); opacity: .7; }
+    .rg-score { flex-shrink: 0; font-weight: 950; font-variant-numeric: tabular-nums; color: var(--text); background: rgba(255,255,255,.07); border-radius: 999px; padding: .2rem .55rem; }
 
     /* Compact leaderboard-card variant for the narrow stacked panel */
     .lb-mini { display: flex; flex-direction: column; flex: 1 1 0; min-height: 40px; overflow: hidden; }
@@ -527,10 +564,12 @@ export class AdminHostedPlayQueueDisplayComponent implements OnInit, AfterViewIn
   today = '';
   clubCourts: Court[] = [];
   maxVisible = MAX_VISIBLE_WAITING;
+  matches: HostedPlayMatch[] = [];
 
   @ViewChild('shell') private shellRef?: ElementRef<HTMLElement>;
 
   private pollSub?: Subscription;
+  private matchesPollSub?: Subscription;
   private clockTimer?: ReturnType<typeof setInterval>;
   private resizeObserver?: ResizeObserver;
   private orientationTimer?: ReturnType<typeof setTimeout>;
@@ -562,6 +601,10 @@ export class AdminHostedPlayQueueDisplayComponent implements OnInit, AfterViewIn
 
     this.hp.getQueue(this.id).subscribe({ next: onBoard, error: onError });
     this.pollSub = this.hp.pollQueue(this.id, 6000).subscribe({ next: onBoard, error: onError });
+
+    const onMatches = (list: HostedPlayMatch[]) => { this.matches = list; this.cdr.detectChanges(); };
+    this.hp.listMatches(this.id).subscribe({ next: onMatches, error: () => {} });
+    this.matchesPollSub = this.hp.pollMatches(this.id, 8000).subscribe({ next: onMatches, error: () => {} });
   }
 
   ngAfterViewInit() {
@@ -575,6 +618,7 @@ export class AdminHostedPlayQueueDisplayComponent implements OnInit, AfterViewIn
 
   ngOnDestroy() {
     this.pollSub?.unsubscribe();
+    this.matchesPollSub?.unsubscribe();
     if (this.clockTimer) clearInterval(this.clockTimer);
     if (this.orientationTimer) clearTimeout(this.orientationTimer);
     this.resizeObserver?.disconnect();
@@ -619,6 +663,18 @@ export class AdminHostedPlayQueueDisplayComponent implements OnInit, AfterViewIn
 
   visibleWaiting() {
     return (this.board?.waiting ?? []).slice(0, this.maxVisible);
+  }
+
+  recordedGames(): HostedPlayMatch[] {
+    return this.matches;
+  }
+
+  visibleRecordedGames(): HostedPlayMatch[] {
+    return this.matches.slice(0, MAX_VISIBLE_RECORDED_GAMES);
+  }
+
+  teamNames(t: MatchPlayer[]): string {
+    return t.map((p) => p.memberName || 'Player').join(' & ');
   }
 
   hasStandings(): boolean {

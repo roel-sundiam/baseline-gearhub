@@ -596,6 +596,11 @@ export class HostedPlayService {
     return this.http.get<HostedPlayMatch[]>(`${this.base}/sessions/${id}/matches`);
   }
 
+  /** Poll recorded games every `ms` while subscribed. */
+  pollMatches(id: string, ms = 8000) {
+    return interval(ms).pipe(switchMap(() => this.listMatches(id)));
+  }
+
   updateMatchScore(matchId: string, team1Score: number, team2Score: number) {
     return this.http.patch<HostedPlayMatch>(`${this.base}/matches/${matchId}/score`, { team1Score, team2Score });
   }
