@@ -38,7 +38,7 @@ const hostedPlaySchema = new mongoose.Schema(
     playersPerCourt: { type: Number, default: 4, min: 1 }, // future-proof; V1 keeps 4
     queueMode: {
       type: String,
-      enum: ["fcfs", "winner_stays", "king_of_court", "skill_rotation", "fixed_doubles_rotation"],
+      enum: ["fcfs", "winner_stays", "winner_priority", "king_of_court", "skill_rotation", "fixed_doubles_rotation"],
       default: "fcfs",
     },
     queueStatus: {

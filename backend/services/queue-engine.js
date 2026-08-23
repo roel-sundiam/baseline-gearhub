@@ -52,6 +52,21 @@ const strategies = {
     },
   },
 
+  // Winner priority: everyone rotates off the court after each game (like fcfs),
+  // but winners are requeued ahead of the losers they just played — so they get
+  // back on a court sooner without holding one indefinitely like winner_stays.
+  winner_priority: {
+    needsWinner: true,
+    pickGroup(waiting, size) {
+      return waiting.slice(0, size);
+    },
+    onFinish(courtPlayers, session, winnerSet) {
+      const winners = courtPlayers.filter((p) => winnerSet.has(String(p._id)));
+      const losers = courtPlayers.filter((p) => !winnerSet.has(String(p._id)));
+      return { requeue: [...winners, ...losers], keepOnCourt: [] };
+    },
+  },
+
   // King of the court: winners defend the court, but must abdicate after a capped
   // streak of consecutive holds so no group dominates all night.
   king_of_court: {
@@ -273,7 +288,6 @@ function finishGame(session, participants, courtNumber, winnerIds = []) {
   const dirty = new Set();
   const now = new Date();
   const { requeue, keepOnCourt = [] } = strat.onFinish(players, session, winnerSet);
-  const requeueSet = new Set(requeue.map((p) => String(p._id)));
 
   for (const p of players) {
     p.gamesPlayed = (p.gamesPlayed || 0) + 1;
@@ -289,11 +303,16 @@ function finishGame(session, participants, courtNumber, winnerIds = []) {
       }
     }
     dirty.add(p);
-    if (requeueSet.has(String(p._id))) {
-      p.courtStreak = 0; // streak resets when a player leaves the court
-      enqueueToEnd(p, participants, dirty);
-    }
     // keepOnCourt players retain their courtNumber (winner_stays / king_of_court)
+  }
+
+  // Requeue in the order the strategy returned `requeue` (not court order) —
+  // enqueueToEnd() appends each player behind whoever was just enqueued, so
+  // this order controls their position in the new back-of-queue batch (e.g.
+  // winner_priority puts winners ahead of losers here).
+  for (const p of requeue) {
+    p.courtStreak = 0; // streak resets when a player leaves the court
+    enqueueToEnd(p, participants, dirty);
   }
 
   // Top up courts where winners stayed, then fill any fully-empty courts.

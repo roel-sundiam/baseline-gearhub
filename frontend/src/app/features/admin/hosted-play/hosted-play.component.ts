@@ -340,6 +340,7 @@ type FormModel = HostedPlayInput;
                     <select [ngModel]="form.queueMode" (ngModelChange)="onQueueModeChange($event)">
                       <option value="fcfs">First come, first served</option>
                       <option value="winner_stays">Winner stays (challenge court)</option>
+                      <option value="winner_priority">Winner priority (merit queue)</option>
                       <option value="king_of_court">King of the court</option>
                       <option value="fixed_doubles_rotation">Fixed doubles rotation (round robin)</option>
                     </select>

@@ -337,6 +337,7 @@ export interface HostedPlayInput {
 export const HOSTED_PLAY_FORMAT_KIND: Record<string, 'live-queue' | 'fixed-schedule'> = {
   fcfs: 'live-queue',
   winner_stays: 'live-queue',
+  winner_priority: 'live-queue',
   king_of_court: 'live-queue',
   skill_rotation: 'live-queue',
   fixed_doubles_rotation: 'fixed-schedule',

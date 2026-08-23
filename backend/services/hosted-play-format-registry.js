@@ -19,6 +19,7 @@
 const FORMATS = {
   fcfs: { engine: "live-queue" },
   winner_stays: { engine: "live-queue" },
+  winner_priority: { engine: "live-queue" },
   king_of_court: { engine: "live-queue" },
   skill_rotation: { engine: "live-queue", implemented: false }, // reserved, falls back to fcfs
   fixed_doubles_rotation: { engine: "fixed-schedule" },

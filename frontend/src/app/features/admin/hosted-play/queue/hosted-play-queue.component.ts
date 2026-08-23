@@ -1691,7 +1691,7 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
   memberSearch = signal('');
   selectedWalkInMember = signal<MemberBalance | null>(null);
   confirmingFinishCourt: number | null = null;
-  selectingWinnerCourt: number | null = null; // winner_stays / king_of_court: pick the winning side
+  selectingWinnerCourt: number | null = null; // winner_stays / winner_priority / king_of_court: pick the winning side
   winnerIds = new Set<string>();
   private finishConfirmTimer: ReturnType<typeof setTimeout> | null = null;
   lastUpdated = '';
@@ -1945,7 +1945,7 @@ export class AdminHostedPlayQueueComponent implements OnInit, OnDestroy {
   // Winner-based modes ask the admin to tap the winning side before finishing.
   needsWinner(): boolean {
     const m = this.board?.session?.queueMode;
-    return m === 'winner_stays' || m === 'king_of_court';
+    return m === 'winner_stays' || m === 'winner_priority' || m === 'king_of_court';
   }
 
   requestFinish(court: number) {
