@@ -4172,6 +4172,9 @@ interface AdminUser {
       .hero-primary-actions { width: 100%; justify-content: flex-start; flex-wrap: nowrap; }
       .hero-new-club { width: auto; margin-left: auto; }
       .hero-footer { padding: 0.7rem 1.2rem; }
+      /* Wrap instead of horizontally scrolling with a hidden scrollbar — that left
+         Dev Finance (the last link) scrolled off-screen with no hint it existed. */
+      .hero-actions { flex-wrap: wrap; overflow-x: visible; gap: 0.35rem; row-gap: 0.4rem; }
     }
 
     @media (max-width: 520px) {
