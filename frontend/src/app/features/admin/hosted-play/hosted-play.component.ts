@@ -336,7 +336,13 @@ type FormModel = HostedPlayInput;
                       <div class="field-hint">Fixed Doubles Rotation is always 2v2.</div>
                     }
                   </label>
-                  <label class="field"><span>Rotation Format</span>
+                  <label class="field">
+                    <span class="field-label-row">
+                      Rotation Format
+                      <button type="button" class="field-info-btn" (click)="showFormatInfoModal = true" aria-label="What do the rotation formats mean?" title="What do these formats mean?">
+                        <i class="fas fa-circle-info"></i>
+                      </button>
+                    </span>
                     <select [ngModel]="form.queueMode" (ngModelChange)="onQueueModeChange($event)">
                       <option value="fcfs">First come, first served</option>
                       <option value="winner_stays">Winner stays (challenge court)</option>
@@ -469,6 +475,47 @@ type FormModel = HostedPlayInput;
               @if (enablingQueue) { <i class="fas fa-circle-notch fa-spin"></i> Enabling }
               @else { <i class="fas fa-check"></i> Enable Queue }
             </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (showFormatInfoModal) {
+      <div class="modal-backdrop" (click)="showFormatInfoModal = false">
+        <div class="modal session-modal format-info-modal" style="max-width:560px" (click)="$event.stopPropagation()">
+          <div class="modal-head">
+            <div>
+              <span class="modal-kicker">Rotation formats</span>
+              <h3>How court rotation works</h3>
+            </div>
+            <button class="x" (click)="showFormatInfoModal = false" aria-label="Close"><i class="fas fa-xmark"></i></button>
+          </div>
+          <div class="modal-body">
+            <div class="format-info-list">
+              <div class="format-info-item">
+                <strong>First come, first served</strong>
+                <span>Everyone rotates off the court after each game — win or lose — so games played stay even for everyone.</span>
+              </div>
+              <div class="format-info-item">
+                <strong>Winner stays (challenge court)</strong>
+                <span>The winning side stays on the court to face the next challengers; the losing side goes to the back of the queue.</span>
+              </div>
+              <div class="format-info-item">
+                <strong>Winner priority (merit queue)</strong>
+                <span>Everyone rotates off the court after each game, but winners requeue ahead of the losers they just played — so they get back on a court sooner without holding it indefinitely.</span>
+              </div>
+              <div class="format-info-item">
+                <strong>King of the court</strong>
+                <span>Like Winner stays, but winners must give up the court after a capped streak of consecutive wins (default 3), so no group dominates all night.</span>
+              </div>
+              <div class="format-info-item">
+                <strong>Fixed doubles rotation (round robin)</strong>
+                <span>Players register as permanent pairs; a full round-robin schedule is generated once upfront, with match duration auto-calculated to fit the session's start/end time. No dynamic queue — partners and matchups are fixed.</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="primary-action" (click)="showFormatInfoModal = false">Got it</button>
           </div>
         </div>
       </div>
@@ -1038,6 +1085,17 @@ type FormModel = HostedPlayInput;
     .field-hint { color: var(--muted); font-size: .76rem; line-height: 1.4; margin-top: -.4rem; }
     .field { display: flex; flex-direction: column; gap: .35rem; }
     .field span { color: var(--muted); font-size: .78rem; font-weight: 850; }
+    .field-label-row { display: flex; align-items: center; gap: .35rem; }
+    .field-info-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 16px; height: 16px; padding: 0; border: none; background: none;
+      color: var(--muted); cursor: pointer; font-size: .82rem; line-height: 1;
+    }
+    .field-info-btn:hover, .field-info-btn:focus-visible { color: var(--accent); }
+    .format-info-list { display: flex; flex-direction: column; gap: .9rem; }
+    .format-info-item { display: flex; flex-direction: column; gap: .2rem; }
+    .format-info-item strong { font-size: .86rem; color: var(--text); }
+    .format-info-item span { color: var(--muted); font-size: .8rem; font-weight: 500; line-height: 1.5; }
     .field.toggle-field { flex-direction: row; align-items: center; justify-content: space-between; gap: .75rem; padding: .5rem 0; }
     .field input, .field select, .field textarea {
       width: 100%;
@@ -1200,6 +1258,8 @@ export class AdminHostedPlayComponent implements OnInit {
   showDeleteConfirm = false;
   deletingSession: HostedPlaySession | null = null;
   deleting = false;
+
+  showFormatInfoModal = false;
 
   cancelModalSession = signal<HostedPlaySession | null>(null);
   cancelRefundRows = signal<(HostedPlayRefundRow & { refundAmount: number })[]>([]);
