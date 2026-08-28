@@ -229,6 +229,12 @@ type FilterTab = 'all' | 'unpaid' | 'paid';
                           <span>{{ charge.breakdown.coachingFee | currency:'PHP':'symbol' }}</span>
                         </div>
                       }
+                      @if ((charge.breakdown.supportAmount ?? 0) > 0) {
+                        <div class="dm-bk-row">
+                          <span>Support CourtGo</span>
+                          <span>{{ charge.breakdown.supportAmount | currency:'PHP':'symbol' }}</span>
+                        </div>
+                      }
                       <div class="dm-bk-total">
                         <span>Total</span>
                         <span>{{ charge.amount | currency:'PHP':'symbol' }}</span>

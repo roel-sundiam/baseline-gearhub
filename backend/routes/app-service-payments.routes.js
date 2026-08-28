@@ -188,6 +188,7 @@ router.get("/summary", auth, superadmin, async (req, res) => {
             _id: "$clubId",
             totalCourtFees: { $sum: "$amount" },
             totalConvenienceFees: { $sum: "$breakdown.convenienceFee" },
+            totalSupportAmount: { $sum: "$breakdown.supportAmount" },
           },
         },
       ]),
@@ -266,7 +267,7 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       getEffectiveAdvancedAnalyticsFee(null),
     ]);
 
-    const chargeMap = Object.fromEntries(chargeAgg.map((r) => [r._id.toString(), { totalCourtFees: r.totalCourtFees, totalConvenienceFees: r.totalConvenienceFees }]));
+    const chargeMap = Object.fromEntries(chargeAgg.map((r) => [r._id.toString(), { totalCourtFees: r.totalCourtFees, totalConvenienceFees: r.totalConvenienceFees, totalSupportAmount: r.totalSupportAmount }]));
     const openPlayMap = Object.fromEntries(openPlayAgg.map((r) => [r._id.toString(), r.totalOpenPlayFees]));
     const perGameMap = Object.fromEntries(perGameAgg.map((r) => [r._id.toString(), r.totalPerGameFees]));
     const hostedPlayMap = Object.fromEntries(hostedPlayAgg.map((r) => [r._id.toString(), { convFee: r.totalHostedPlayFees, sessionFees: r.totalHostedPlaySessionFees }]));
@@ -279,8 +280,11 @@ router.get("/summary", auth, superadmin, async (req, res) => {
 
     const clubData = clubs.map((club) => {
       const id = club._id.toString();
-      const chargeData = chargeMap[id] || { totalCourtFees: 0, totalConvenienceFees: 0 };
+      const chargeData = chargeMap[id] || { totalCourtFees: 0, totalConvenienceFees: 0, totalSupportAmount: 0 };
       const totalCourtFees = chargeData.totalCourtFees;
+      // Support CourtGo contributions are voluntary tips remitted to the Developer, like the
+      // convenience fee — owed regardless of the club's convenience-fee plan/mode.
+      const supportFeesOwed = parseFloat((chargeData.totalSupportAmount ?? 0).toFixed(2));
       const convenienceFeeRate = typeof club.convenienceFeeRate === 'number' ? club.convenienceFeeRate : 0.10;
       const convenienceFeeMode = club.convenienceFeeMode ?? 'per_hour';
       const convenienceFeeMonthlyAmount = club.convenienceFeeMonthlyAmount ?? 0;
@@ -288,8 +292,8 @@ router.get("/summary", auth, superadmin, async (req, res) => {
       // monthly_flat clubs also owe their billing entries (queue management, finance report add-on)
       // plus Hosted Play convenience fees, which are billed per transaction independently of the plan
       const feesOwed = convenienceFeeMode === 'monthly_flat'
-        ? parseFloat((convenienceFeeMonthlyAmount + hostedPlayData.convFee + (billingMap[id] ?? 0)).toFixed(2))
-        : parseFloat((chargeData.totalConvenienceFees + (openPlayMap[id] ?? 0) + (perGameMap[id] ?? 0) + hostedPlayData.convFee + (billingMap[id] ?? 0)).toFixed(2));
+        ? parseFloat((convenienceFeeMonthlyAmount + hostedPlayData.convFee + (billingMap[id] ?? 0) + supportFeesOwed).toFixed(2))
+        : parseFloat((chargeData.totalConvenienceFees + (openPlayMap[id] ?? 0) + (perGameMap[id] ?? 0) + hostedPlayData.convFee + (billingMap[id] ?? 0) + supportFeesOwed).toFixed(2));
       const totalPaid = paymentMap[id] || 0;
       const totalWaived = waiverMap[id] || 0;
       const totalHostedPlaySessionFees = parseFloat((hostedPlayData.sessionFees ?? 0).toFixed(2));
@@ -307,15 +311,15 @@ router.get("/summary", auth, superadmin, async (req, res) => {
         : defaultAdvancedAnalyticsFee;
       // feesOwed/balance stay the grand total (what the club must actually settle); this is just
       // the true convenience-fee portion, with the add-on billing (Finance Report, Email Confirmations,
-      // Advanced Analytics) pulled out.
+      // Advanced Analytics) and Support CourtGo contributions pulled out.
       const financeReportFeesBilled = parseFloat((financeReportBilledMap[id] ?? 0).toFixed(2));
       const emailConfirmationsFeesBilled = parseFloat((emailConfirmationsBilledMap[id] ?? 0).toFixed(2));
       const advancedAnalyticsFeesBilled = parseFloat((advancedAnalyticsBilledMap[id] ?? 0).toFixed(2));
-      const convenienceFeesOwed = parseFloat((feesOwed - financeReportFeesBilled - emailConfirmationsFeesBilled - advancedAnalyticsFeesBilled).toFixed(2));
+      const convenienceFeesOwed = parseFloat((feesOwed - financeReportFeesBilled - emailConfirmationsFeesBilled - advancedAnalyticsFeesBilled - supportFeesOwed).toFixed(2));
       return {
         clubId: id, clubName: club.name, convenienceFeeRate, convenienceFeeMode, convenienceFeeMonthlyAmount,
         totalCourtFees, totalHostedPlaySessionFees, feesOwed, totalPaid, totalWaived, balance,
-        convenienceFeesOwed, financeReportFeesBilled,
+        convenienceFeesOwed, supportFeesOwed, financeReportFeesBilled,
         financeReportEnabled: !!club.financeReportEnabled,
         financeReportSubscribedAt: club.financeReportSubscribedAt ?? null,
         financeReportFeeOverride: club.financeReportFeeOverride ?? null,
@@ -342,12 +346,13 @@ router.get("/summary", auth, superadmin, async (req, res) => {
         acc.totalWaived = parseFloat((acc.totalWaived + c.totalWaived).toFixed(2));
         acc.outstanding = parseFloat((acc.outstanding + Math.max(0, c.balance)).toFixed(2));
         acc.convenienceFeesOwed = parseFloat((acc.convenienceFeesOwed + c.convenienceFeesOwed).toFixed(2));
+        acc.supportFeesOwed = parseFloat((acc.supportFeesOwed + c.supportFeesOwed).toFixed(2));
         acc.financeReportFeesBilled = parseFloat((acc.financeReportFeesBilled + c.financeReportFeesBilled).toFixed(2));
         acc.emailConfirmationsFeesBilled = parseFloat((acc.emailConfirmationsFeesBilled + c.emailConfirmationsFeesBilled).toFixed(2));
         acc.advancedAnalyticsFeesBilled = parseFloat((acc.advancedAnalyticsFeesBilled + c.advancedAnalyticsFeesBilled).toFixed(2));
         return acc;
       },
-      { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0, convenienceFeesOwed: 0, financeReportFeesBilled: 0, emailConfirmationsFeesBilled: 0, advancedAnalyticsFeesBilled: 0 },
+      { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0, convenienceFeesOwed: 0, supportFeesOwed: 0, financeReportFeesBilled: 0, emailConfirmationsFeesBilled: 0, advancedAnalyticsFeesBilled: 0 },
     );
 
     res.json({ clubs: clubData, totals });

@@ -42,6 +42,12 @@ import {
               <span class="summary-icon summary-icon--blue"><i class="fas fa-file-invoice-dollar"></i></span>
               <div class="summary-content"><div class="summary-label">Total fees owed</div><div class="summary-value">{{ totals.feesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</div></div>
             </div>
+            @if (totals.supportFeesOwed > 0) {
+              <div class="summary-item">
+                <span class="summary-icon summary-icon--blue"><i class="fas fa-heart"></i></span>
+                <div class="summary-content"><div class="summary-label">Support CourtGo owed</div><div class="summary-value">{{ totals.supportFeesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</div></div>
+              </div>
+            }
             <div class="summary-item highlight-green">
               <span class="summary-icon summary-icon--green"><i class="fas fa-circle-check"></i></span>
               <div class="summary-content"><div class="summary-label">Total paid</div><div class="summary-value">{{ totals.totalPaid | currency: 'PHP' : 'symbol' : '1.2-2' }}</div></div>
@@ -93,7 +99,7 @@ import {
                     <th>Club</th>
                     <th class="col-center">Fee Rate</th>
                     <th>Source Collections</th>
-                    <th class="col-right" title="Convenience fees only — add-on billing is shown separately below">Platform Fee Owed</th>
+                    <th title="Convenience fees only — add-on billing is shown separately below; Support = optional Support CourtGo contributions, also remitted to the Developer">Platform Fee Owed</th>
                     <th>Settled</th>
                     <th class="col-right">Balance</th>
                     <th class="col-center">Status &amp; Action</th>
@@ -133,7 +139,14 @@ import {
                           <span><small>Hosted</small><strong class="col-orange">{{ club.totalHostedPlaySessionFees | currency: 'PHP' : 'symbol' : '1.2-2' }}</strong></span>
                         </div>
                       </td>
-                      <td class="col-right col-blue" data-label="Platform fee owed">{{ club.convenienceFeesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                      <td data-label="Platform fee owed">
+                        <div class="metric-stack">
+                          <span><small>Conv.</small><strong class="col-blue">{{ club.convenienceFeesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</strong></span>
+                          @if (club.supportFeesOwed > 0) {
+                            <span><small>Support</small><strong class="col-blue">{{ club.supportFeesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</strong></span>
+                          }
+                        </div>
+                      </td>
                       <td data-label="Settled">
                         <div class="metric-stack">
                           <span><small>Paid</small><strong class="col-green">{{ club.totalPaid | currency: 'PHP' : 'symbol' : '1.2-2' }}</strong></span>
@@ -163,7 +176,7 @@ import {
                     <td class="foot-label">Total ({{ clubs.length }} clubs)</td>
                     <td></td>
                     <td class="foot-muted">Court — · Hosted {{ totalHostedPlaySessionFees | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
-                    <td class="col-right foot-blue">{{ totals.convenienceFeesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                    <td class="foot-muted">Conv. {{ totals.convenienceFeesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }} · Support {{ totals.supportFeesOwed | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     <td class="foot-label">Paid {{ totals.totalPaid | currency: 'PHP' : 'symbol' : '1.2-2' }} · Waived {{ totals.totalWaived | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     <td class="col-right foot-red">{{ totals.outstanding | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     <td></td>
@@ -1135,7 +1148,7 @@ import {
 })
 export class DevFinanceComponent implements OnInit {
   clubs: ClubServiceSummary[] = [];
-  totals: ServiceSummaryTotals = { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0, convenienceFeesOwed: 0, financeReportFeesBilled: 0, emailConfirmationsFeesBilled: 0, advancedAnalyticsFeesBilled: 0 };
+  totals: ServiceSummaryTotals = { feesOwed: 0, totalPaid: 0, totalWaived: 0, outstanding: 0, convenienceFeesOwed: 0, supportFeesOwed: 0, financeReportFeesBilled: 0, emailConfirmationsFeesBilled: 0, advancedAnalyticsFeesBilled: 0 };
   payments: AppServicePayment[] = [];
   loading = true;
 

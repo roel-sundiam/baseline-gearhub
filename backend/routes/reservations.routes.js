@@ -6,7 +6,7 @@ const Charge = require("../models/Charge");
 const Rates = require("../models/Rates");
 const Club = require("../models/Club");
 const User = require("../models/User");
-const { sendPushToClubAdmins } = require("../utils/push");
+const { sendPushToClubAdmins, sendPushToSuperadmins } = require("../utils/push");
 const { sendReservationConfirmationEmail } = require("../utils/email");
 const { ownsClub } = require("../utils/scope");
 const OpenPlaySession = require("../models/OpenPlaySession");
@@ -265,6 +265,7 @@ router.post("/", auth, async (req, res) => {
       coachingPax = 0,
     } = req.body;
     const durationHours = Math.max(1, Math.min(12, Math.floor(Number(req.body.durationHours) || 1)));
+    const supportAmount = Math.min(500, Math.max(0, Number(req.body.supportAmount) || 0));
     if (!court || !date || !timeSlot) {
       return res.status(400).json({ error: "court, date, and timeSlot are required" });
     }
@@ -404,9 +405,9 @@ router.post("/", auth, async (req, res) => {
       : 0;
 
     // club_absorbs: player pays court fee only; convenience fee is recorded but not added to totalAmount
-    const totalAmount = feeMode === 'club_absorbs'
+    const totalAmount = (feeMode === 'club_absorbs'
       ? courtFee + extraFeeTotal + coachingFee
-      : courtFee + convenienceFee + extraFeeTotal + coachingFee;
+      : courtFee + convenienceFee + extraFeeTotal + coachingFee) + supportAmount;
 
     const reservation = await Reservation.create({
       clubId,
@@ -426,6 +427,7 @@ router.post("/", auth, async (req, res) => {
       courtFee,
       convenienceFee,
       convenienceFeeRate: feeRate,
+      supportAmount,
       ratesUsed,
     });
 
@@ -444,6 +446,7 @@ router.post("/", auth, async (req, res) => {
         extraFees: appliedExtraFees,
         extraFeeTotal,
         coachingFee,
+        supportAmount,
       },
       chargeType: "reservation",
     });
@@ -455,6 +458,15 @@ router.post("/", auth, async (req, res) => {
       url: '/admin/reservations',
       tag: 'new-reservation',
     }, { clubName: clubDoc?.name }).catch(() => {});
+
+    if (supportAmount > 0) {
+      sendPushToSuperadmins({
+        title: '❤️ Support CourtGo Contribution',
+        body: `${clubDoc?.name ?? 'A club'} — ₱${supportAmount} contributed on a court reservation`,
+        url: '/admin/dev-finance',
+        tag: 'support-courtgo',
+      }).catch(() => {});
+    }
 
     if (clubDoc?.emailConfirmationsEnabled) {
       User.find({ _id: { $in: [req.user.userId, ...additionalPlayers] } }).select('email').lean()
@@ -597,9 +609,12 @@ router.patch("/:id", auth, async (req, res) => {
     } else if (editFeeMode === 'club_absorbs') {
       editConvenienceFee = parseFloat((courtFee * editFeeRate).toFixed(2));
     }
-    const editTotalAmount = editFeeMode === 'club_absorbs'
+    // Preserve the existing contribution across edits — editing date/court/etc. shouldn't
+    // silently discard a support amount that was chosen at checkout.
+    const supportAmount = reservation.supportAmount || 0;
+    const editTotalAmount = (editFeeMode === 'club_absorbs'
       ? courtFee
-      : courtFee + editConvenienceFee;
+      : courtFee + editConvenienceFee) + supportAmount;
 
     const additionalPlayers = [...new Set(
       (Array.isArray(players) ? players : []).map(String)
@@ -631,7 +646,7 @@ router.patch("/:id", auth, async (req, res) => {
     const charge = await Charge.findOne({ reservationId: reservation._id });
     if (charge) {
       charge.amount = editTotalAmount;
-      charge.breakdown = { withoutLightFee: baseCourtFee, lightFee: lightsFee, ballBoyFee, guestFee: guestTotalFee, rentalFee, convenienceFee: editConvenienceFee };
+      charge.breakdown = { withoutLightFee: baseCourtFee, lightFee: lightsFee, ballBoyFee, guestFee: guestTotalFee, rentalFee, convenienceFee: editConvenienceFee, supportAmount };
       await charge.save();
     }
 

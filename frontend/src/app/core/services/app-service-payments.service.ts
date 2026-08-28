@@ -85,6 +85,9 @@ export interface ClubServiceSummary {
   // convenienceFeesOwed is that same total with the Finance Report add-on billing pulled out,
   // since the add-on fee isn't actually a convenience fee.
   convenienceFeesOwed: number;
+  // Support CourtGo contributions — voluntary tips remitted to the Developer, like the
+  // convenience fee, kept separate from convenienceFeesOwed since it isn't actually one.
+  supportFeesOwed: number;
   financeReportFeesBilled: number;
   financeReportEnabled: boolean;
   financeReportSubscribedAt?: string | null;
@@ -131,6 +134,7 @@ export interface ServiceSummaryTotals {
   totalWaived: number;
   outstanding: number;
   convenienceFeesOwed: number;
+  supportFeesOwed: number;
   financeReportFeesBilled: number;
   emailConfirmationsFeesBilled: number;
   advancedAnalyticsFeesBilled: number;

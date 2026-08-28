@@ -219,6 +219,12 @@ type ApprovalFilter = 'pending' | 'approved' | 'rejected' | 'all';
                             <span>{{ charge.breakdown.coachingFee | currency:'PHP':'symbol' }}</span>
                           </div>
                         }
+                        @if ((charge.breakdown.supportAmount ?? 0) > 0) {
+                          <div class="pa-bk-row">
+                            <span>Support CourtGo</span>
+                            <span>{{ charge.breakdown.supportAmount | currency:'PHP':'symbol' }}</span>
+                          </div>
+                        }
                         <div class="pa-bk-total">
                           <span>Total</span>
                           <span>{{ charge.amount | currency:'PHP':'symbol' }}</span>

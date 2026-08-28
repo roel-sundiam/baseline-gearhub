@@ -45,4 +45,14 @@ async function sendPushToClubAdmins(clubId, payload, { clubName } = {}) {
   }
 }
 
-module.exports = { sendPushToUser, sendPushToClubAdmins };
+async function sendPushToSuperadmins(payload) {
+  if (!webpush || !process.env.VAPID_PUBLIC_KEY) return;
+  try {
+    const superAdmins = await User.find({ role: 'superadmin' }, '_id').lean();
+    await Promise.all(superAdmins.map(a => sendPushToUser(a._id, payload)));
+  } catch (err) {
+    console.error('sendPushToSuperadmins error:', err.message);
+  }
+}
+
+module.exports = { sendPushToUser, sendPushToClubAdmins, sendPushToSuperadmins };

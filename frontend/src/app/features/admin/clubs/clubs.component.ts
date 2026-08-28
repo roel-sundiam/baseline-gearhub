@@ -840,8 +840,14 @@ interface AdminUser {
                     </div>
                     <div class="asp-stat asp-stat-due">
                       <span class="asp-lbl">Conv. Fees Due</span>
-                      <span class="asp-val">₱{{ appServiceDue | number:'1.2-2' }}</span>
+                      <span class="asp-val">₱{{ convenienceFeesDue | number:'1.2-2' }}</span>
                     </div>
+                    @if (reservationSupportFee > 0) {
+                      <div class="asp-stat asp-stat-due">
+                        <span class="asp-lbl">Support CourtGo Due</span>
+                        <span class="asp-val">₱{{ reservationSupportFee | number:'1.2-2' }}</span>
+                      </div>
+                    }
                     <div class="asp-stat asp-stat-paid">
                       <span class="asp-lbl">Paid to Dev</span>
                       <span class="asp-val">₱{{ aspTotalPaid | number:'1.2-2' }}</span>
@@ -874,6 +880,9 @@ interface AdminUser {
                             <span class="asp-date">{{ formatDate(c.createdAt) }}</span>
                             <span class="asp-amount-val">₱{{ c.amount | number:'1.2-2' }}</span>
                             <span class="asp-fee-chip">Conv. Fee = ₱{{ (c.breakdown?.convenienceFee ?? 0) | number:'1.2-2' }}</span>
+                            @if ((c.breakdown?.supportAmount ?? 0) > 0) {
+                              <span class="asp-fee-chip">Support = ₱{{ c.breakdown!.supportAmount | number:'1.2-2' }}</span>
+                            }
                           </div>
                         }
                       </div>
@@ -4345,18 +4354,28 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   get reservationTotal(): number {
     return this.reservationCharges.reduce((sum, c) => sum + c.amount, 0);
   }
+  // Support CourtGo contributions are voluntary tips remitted to the Developer, like the
+  // convenience fee — owed regardless of the club's convenience-fee plan/mode.
+  get reservationSupportFee(): number {
+    return this.reservationCharges.reduce((sum, c) => sum + (c.breakdown?.supportAmount ?? 0), 0);
+  }
   get appServiceDue(): number {
     const hostedPlayFees = this.hostedPlayCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0);
     const billingFees = this.aspPayments.filter(p => p.type === 'billing').reduce((sum, p) => sum + p.amount, 0);
     // Monthly flat replaces reservation/open-play per-transaction fees, but Hosted Play convenience
     // fees are billed independently of the plan, on top of the flat amount — mirrors backend /fee-info.
     if (this.selectedClub?.convenienceFeeMode === 'monthly_flat') {
-      return (this.selectedClub.convenienceFeeMonthlyAmount ?? 0) + hostedPlayFees + billingFees;
+      return (this.selectedClub.convenienceFeeMonthlyAmount ?? 0) + hostedPlayFees + billingFees + this.reservationSupportFee;
     }
     const chargeFees = this.reservationCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0)
       + this.openPlayCharges.reduce((sum, c) => sum + (c.breakdown?.convenienceFee ?? 0), 0)
       + hostedPlayFees;
-    return chargeFees + billingFees;
+    return chargeFees + billingFees + this.reservationSupportFee;
+  }
+  // Isolated convenience-fee-only portion, for the "Conv. Fees Due" tile — appServiceDue stays
+  // the grand total (what's actually owed) that feeds aspBalance.
+  get convenienceFeesDue(): number {
+    return this.appServiceDue - this.reservationSupportFee;
   }
   get aspTotalPaid(): number {
     return this.aspPayments.filter(p => p.type === 'payment').reduce((sum, p) => sum + p.amount, 0);

@@ -308,6 +308,12 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                 <div class="summary-value">{{ convenienceFeesOwedTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
                 <div class="summary-label" title="Convenience fees only — Finance Report add-on billing is shown separately">Conv. Fees Owed</div>
               </div>
+              @if (reservationSupportFee > 0) {
+                <div class="summary-item highlight-blue">
+                  <div class="summary-value">{{ reservationSupportFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
+                  <div class="summary-label" title="Optional Support CourtGo contributions from checkout — remitted to the Developer, like the convenience fee">Support CourtGo Owed</div>
+                </div>
+              }
               @if (financeReportBillingTotal > 0) {
                 <div class="summary-item highlight-gold">
                   <div class="summary-value">{{ financeReportBillingTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</div>
@@ -395,6 +401,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                       <th>Method</th>
                       <th class="col-amount">Court Fee</th>
                       <th class="col-amount">Conv. Fee</th>
+                      <th class="col-amount">Support</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -424,6 +431,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                         </td>
                         <td class="col-amount" data-label="Court Fee">{{ charge.amount | currency: 'PHP' : 'symbol' }}</td>
                         <td class="col-amount col-service" data-label="Conv. Fee">{{ (charge.breakdown?.convenienceFee ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                        <td class="col-amount col-service" data-label="Support">{{ (charge.breakdown?.supportAmount ?? 0) | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       </tr>
                     }
                   </tbody>
@@ -432,6 +440,7 @@ import { CloudinaryService } from '../../../core/services/cloudinary.service';
                       <td colspan="5" class="foot-label">Total ({{ reservationCharges.length }} reservations)</td>
                       <td class="col-amount foot-total">{{ reservationTotal | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                       <td class="col-amount foot-total col-service">{{ reservationServiceFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
+                      <td class="col-amount foot-total col-service">{{ reservationSupportFee | currency: 'PHP' : 'symbol' : '1.2-2' }}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -2135,6 +2144,9 @@ export class FinanceComponent implements OnInit {
   get reservationCharges() { return this.allReservationCharges; }
   get reservationTotal() { return this.reservationCharges.reduce((s, c) => s + c.amount, 0); }
   get reservationServiceFee() { return this.reservationCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
+  // Support CourtGo contributions are voluntary tips remitted to the Developer, like the
+  // convenience fee — owed regardless of the club's convenience-fee plan/mode.
+  get reservationSupportFee() { return this.reservationCharges.reduce((s, c) => s + (c.breakdown?.supportAmount ?? 0), 0); }
   get openPlayServiceFee() { return this.allOpenPlayCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
   get perGameServiceFee() { return this.allPerGameCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
   get hostedPlayServiceFee() { return this.allHostedPlayCharges.reduce((s, c) => s + (c.breakdown?.convenienceFee ?? 0), 0); }
@@ -2165,13 +2177,13 @@ export class FinanceComponent implements OnInit {
     // are billed per transaction independently of the plan, and billed entries (queue management,
     // Finance Report add-on, monthly billings) are always owed — mirrors backend /fee-info.
     return this.isMonthlyFlat
-      ? this.convenienceFeeMonthlyAmount + this.hostedPlayServiceFee + this.billingTotal
-      : this.reservationServiceFee + this.openPlayServiceFee + this.perGameServiceFee + this.hostedPlayServiceFee + this.billingTotal;
+      ? this.convenienceFeeMonthlyAmount + this.hostedPlayServiceFee + this.billingTotal + this.reservationSupportFee
+      : this.reservationServiceFee + this.openPlayServiceFee + this.perGameServiceFee + this.hostedPlayServiceFee + this.billingTotal + this.reservationSupportFee;
   }
   // appServiceTotal/balance stay the grand total (what's actually owed to CourtGo); this is just
-  // the true convenience-fee portion, with the Finance Report add-on and member activation
-  // fee billing pulled out.
-  get convenienceFeesOwedTotal() { return this.appServiceTotal - this.financeReportBillingTotal - this.memberActivationBillingTotal - this.emailConfirmationsBillingTotal; }
+  // the true convenience-fee portion, with the Finance Report add-on, member activation fee
+  // billing, and Support CourtGo contributions pulled out (each shown in their own tile).
+  get convenienceFeesOwedTotal() { return this.appServiceTotal - this.financeReportBillingTotal - this.memberActivationBillingTotal - this.emailConfirmationsBillingTotal - this.reservationSupportFee; }
   get totalPaid() { return this.appServicePayments.filter(p => p.type === 'payment').reduce((s, p) => s + p.amount, 0); }
   get totalWaived() { return this.appServicePayments.filter(p => p.type === 'waiver').reduce((s, p) => s + p.amount, 0); }
   get balance() {

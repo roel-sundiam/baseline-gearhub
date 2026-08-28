@@ -13,7 +13,7 @@ const HostedPlayParticipant = require("../models/HostedPlayParticipant");
 const AppReview = require("../models/AppReview");
 const Sponsor = require("../models/Sponsor");
 const SponsorInquiry = require("../models/SponsorInquiry");
-const { sendPushToClubAdmins } = require("../utils/push");
+const { sendPushToClubAdmins, sendPushToSuperadmins } = require("../utils/push");
 const { notifySuperadmins } = require("../utils/notify");
 const { sendReservationConfirmationEmail } = require("../utils/email");
 const { computePlayerFees } = require("../utils/fees");
@@ -651,6 +651,7 @@ router.post("/:clubId/reserve", async (req, res) => {
       paymentScreenshot = null,
     } = req.body;
     const durationHours = Math.max(1, Math.min(12, Math.floor(Number(req.body.durationHours) || 1)));
+    const supportAmount = Math.min(500, Math.max(0, Number(req.body.supportAmount) || 0));
 
     if (!guestInfo.name || !guestInfo.email) {
       return res.status(400).json({ error: "guestInfo.name and guestInfo.email are required" });
@@ -814,9 +815,9 @@ router.post("/:clubId/reserve", async (req, res) => {
       : 0;
 
     // club_absorbs: player pays court fee only; convenience fee is recorded but not added to totalAmount
-    const totalAmount = feeMode === 'club_absorbs'
+    const totalAmount = (feeMode === 'club_absorbs'
       ? courtFee + extraFeeTotal + coachingFee
-      : courtFee + convenienceFee + extraFeeTotal + coachingFee;
+      : courtFee + convenienceFee + extraFeeTotal + coachingFee) + supportAmount;
 
     const reservation = await Reservation.create({
       clubId: resolvedClubId,
@@ -842,6 +843,7 @@ router.post("/:clubId/reserve", async (req, res) => {
       courtFee,
       convenienceFee,
       convenienceFeeRate: feeRate,
+      supportAmount,
       ratesUsed,
       status: "pending_payment",
     });
@@ -862,6 +864,7 @@ router.post("/:clubId/reserve", async (req, res) => {
         extraFees: appliedExtraFees,
         extraFeeTotal,
         coachingFee,
+        supportAmount,
       },
       chargeType: "reservation",
       approvalStatus: "pending",
@@ -878,6 +881,15 @@ router.post("/:clubId/reserve", async (req, res) => {
       url: '/admin/reservations',
       tag: 'new-guest-booking',
     }, { clubName: club.name }).catch(() => {});
+
+    if (supportAmount > 0) {
+      sendPushToSuperadmins({
+        title: '❤️ Support CourtGo Contribution',
+        body: `${club.name} — ₱${supportAmount} contributed on a guest booking`,
+        url: '/admin/dev-finance',
+        tag: 'support-courtgo',
+      }).catch(() => {});
+    }
 
     if (club.emailConfirmationsEnabled) {
       sendReservationConfirmationEmail(reservation, charge, {

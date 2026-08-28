@@ -45,6 +45,7 @@ const reservationSchema = new mongoose.Schema(
     courtFee: { type: Number, required: true, min: 0, default: 0 },
     convenienceFee: { type: Number, default: 0, min: 0 },
     convenienceFeeRate: { type: Number, default: 0.10, min: 0 },
+    supportAmount: { type: Number, default: 0, min: 0, max: 500 },
     ratesUsed: {
       pricingModel: { type: String, enum: ["flat", "tiered"], default: "flat" },
       weekdayRate: { type: Number, required: true, default: 0 },

@@ -29,6 +29,7 @@ export interface Reservation {
   coachingPax?: number;
   rentals?: { balls50: number; balls100: number; ballMachine: boolean; rackets: number };
   courtFee?: number;
+  supportAmount?: number;
   adminNote?: string;
   clubId?: { _id: string; name: string } | string;
 }
@@ -56,6 +57,7 @@ export class ReservationService {
     selectedExtraFeeNames?: string[];
     coachingRequested?: boolean;
     coachingPax?: number;
+    supportAmount?: number;
   }) {
     return this.http.post<Reservation>(this.base, payload);
   }

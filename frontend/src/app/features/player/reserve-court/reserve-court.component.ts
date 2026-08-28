@@ -465,6 +465,33 @@ interface ActivePlayer { _id: string; name: string; email: string; }
 
             <div class="dm-summary-divider"></div>
 
+            <div class="dm-support-card">
+              <div class="dm-summary-title">❤️ Support CourtGo</div>
+              <div class="dm-support-desc">Support CourtGo's continued improvement with an optional contribution.</div>
+              <div class="dm-duration-row">
+                <button type="button" class="dm-duration-btn" [class.active]="supportChoice === 'none'" (click)="setSupportAmount('none')">No Thanks</button>
+                <button type="button" class="dm-duration-btn" [class.active]="supportChoice === 10" (click)="setSupportAmount(10)">₱10</button>
+                <button type="button" class="dm-duration-btn" [class.active]="supportChoice === 20" (click)="setSupportAmount(20)">₱20</button>
+                <button type="button" class="dm-duration-btn" [class.active]="supportChoice === 50" (click)="setSupportAmount(50)">₱50</button>
+                <button type="button" class="dm-duration-btn" [class.active]="supportChoice === 'custom'" (click)="setSupportAmount('custom')">Custom</button>
+              </div>
+              @if (supportChoice === 'custom') {
+                <div class="dm-support-custom-row">
+                  <span>₱</span>
+                  <input type="number" min="1" max="500" step="1" class="dm-support-custom-input"
+                    [ngModel]="supportCustomAmount" (ngModelChange)="onSupportCustomChange($event)" placeholder="Amount" />
+                </div>
+              }
+              @if (supportAmount > 0) {
+                <div class="dm-summary-row">
+                  <span>Support CourtGo</span>
+                  <strong>{{ supportAmount | currency: 'PHP' : 'symbol' }}</strong>
+                </div>
+              }
+            </div>
+
+            <div class="dm-summary-divider"></div>
+
             <div class="dm-summary-row dm-summary-total">
               <span>Total</span>
               <strong class="dm-total-amount">
@@ -1014,6 +1041,15 @@ interface ActivePlayer { _id: string; name: string; email: string; }
     .dm-addon-required { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; }
     .dm-addon-req-badge { font-size: 0.65rem; background: rgba(163,230,53,0.12); color: #a3e635; border-radius: 4px; padding: 1px 5px; font-weight: 700; }
 
+    .dm-support-card { padding-bottom: 0.25rem; }
+    .dm-support-desc { font-size: 0.78rem; color: rgba(255,255,255,0.45); margin-bottom: 0.6rem; }
+    .dm-support-custom-row { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.5rem; color: rgba(255,255,255,0.6); font-size: 0.85rem; }
+    .dm-support-custom-input {
+      flex: 1; min-width: 0; padding: 0.5rem 0.7rem; border-radius: 8px; border: 1.5px solid rgba(255,255,255,0.15);
+      background: #1b3028; color: #fff; font-size: 0.9rem; font-family: inherit;
+    }
+    .dm-support-custom-input:focus { outline: none; border-color: #a3e635; }
+
     /* Confirm button */
     .dm-confirm-btn {
       width: 100%;
@@ -1143,6 +1179,8 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   coachingRate3to6Pax = 0;
   coachingRequested = false;
   coachingPax = 1;
+  supportChoice: 'none' | 10 | 20 | 50 | 'custom' = 'none';
+  supportCustomAmount: number | null = null;
   loadingRates = true;
 
   private readonly WEEKEND_DAYS = new Set([0, 5, 6]);
@@ -1274,7 +1312,23 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
   decCoachingPax() { if (this.coachingPax > 1) this.coachingPax--; }
 
   get computedFee(): number {
-    return this.subtotal + this.convenienceFee + this.extraFeeTotal + this.coachingFee;
+    return this.subtotal + this.convenienceFee + this.extraFeeTotal + this.coachingFee + this.supportAmount;
+  }
+
+  get supportAmount(): number {
+    if (this.supportChoice === 'none') return 0;
+    if (this.supportChoice === 'custom') return Math.min(500, Math.max(0, Math.floor(this.supportCustomAmount || 0)));
+    return this.supportChoice;
+  }
+
+  setSupportAmount(choice: 'none' | 10 | 20 | 50 | 'custom') {
+    this.supportChoice = choice;
+    if (choice !== 'custom') this.supportCustomAmount = null;
+    this.cdr.detectChanges();
+  }
+
+  onSupportCustomChange(value: number | null) {
+    this.supportCustomAmount = value == null || isNaN(value) ? null : Math.min(500, Math.max(1, Math.floor(value)));
   }
 
   toggleExtraFee(fee: AdditionalFee) {
@@ -1527,6 +1581,7 @@ export class ReserveCourtComponent implements OnInit, OnDestroy {
       selectedExtraFeeNames: [...this.selectedExtraFeeNames],
       coachingRequested: this.coachingRequested,
       coachingPax: this.coachingPax,
+      supportAmount: this.supportAmount,
     }).subscribe({
       next: () => {
         this.booking = false;

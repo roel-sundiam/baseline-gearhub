@@ -88,6 +88,9 @@ function localDateStr(): string {
                 <div class="gr-confirm-row"><span>Court</span><strong>Court {{ confirmationData!.reservation.court }}</strong></div>
                 <div class="gr-confirm-row"><span>Date</span><strong>{{ confirmationData!.reservation.date | date: 'EEE, MMM d, y' : 'UTC' }}</strong></div>
                 <div class="gr-confirm-row"><span>Time</span><strong class="gr-green">{{ confirmTimeLabel }}</strong></div>
+                @if ((confirmationData!.charge.breakdown?.supportAmount ?? 0) > 0) {
+                  <div class="gr-confirm-row"><span>Support CourtGo</span><strong>{{ confirmationData!.charge.breakdown!.supportAmount | currency: 'PHP' : 'symbol' }}</strong></div>
+                }
                 <div class="gr-confirm-row"><span>Total Fee</span><strong class="gr-green">{{ confirmationData!.charge.amount | currency: 'PHP' : 'symbol' }}</strong></div>
               </div>
               @if (paymentMethods.length > 0) {
@@ -520,6 +523,28 @@ function localDateStr(): string {
                           <strong>{{ coachingFee | currency: 'PHP' : 'symbol' }}</strong>
                         </div>
                       }
+                      <div class="gr-sum-divider"></div>
+
+                      <div class="gr-sum-label">&#10084;&#65039; Support CourtGo</div>
+                      <div class="gr-support-desc">Support CourtGo's continued improvement with an optional contribution.</div>
+                      <div class="gr-dur-row">
+                        <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 'none'" (click)="setSupportAmount('none')">No Thanks</button>
+                        <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 10" (click)="setSupportAmount(10)">₱10</button>
+                        <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 20" (click)="setSupportAmount(20)">₱20</button>
+                        <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 50" (click)="setSupportAmount(50)">₱50</button>
+                        <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 'custom'" (click)="setSupportAmount('custom')">Custom</button>
+                      </div>
+                      @if (supportChoice === 'custom') {
+                        <input type="number" min="1" max="500" step="1" class="gr-input gr-support-custom-input"
+                          [ngModel]="supportCustomAmount" (ngModelChange)="onSupportCustomChange($event)" placeholder="Amount (₱1–₱500)" />
+                      }
+                      @if (supportAmount > 0) {
+                        <div class="gr-sum-row">
+                          <span>Support CourtGo</span>
+                          <strong>{{ supportAmount | currency: 'PHP' : 'symbol' }}</strong>
+                        </div>
+                      }
+
                       <div class="gr-sum-divider"></div>
                       <div class="gr-sum-total-row">
                         <span>Total due</span>
@@ -1181,6 +1206,9 @@ function localDateStr(): string {
     }
     .gr-dur-btn.active, .gr-dur-btn:hover { border-color: #a3e635; background: rgba(163,230,53,0.1); color: #a3e635; }
 
+    .gr-support-desc { font-size: 0.78rem; color: rgba(255,255,255,0.45); margin: 0.2rem 0 0.6rem; }
+    .gr-support-custom-input { margin-top: 0.5rem; width: 100%; }
+
     /* iOS toggle switches */
     .gr-toggles-col { display: flex; flex-direction: column; gap: 0; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; overflow: hidden; }
     .gr-sw-row {
@@ -1802,6 +1830,8 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   coachingRate3to6Pax = 0;
   coachingRequested = false;
   coachingPax = 1;
+  supportChoice: 'none' | 10 | 20 | 50 | 'custom' = 'none';
+  supportCustomAmount: number | null = null;
   rentalBalls50Rate = 0;
   rentalBalls100Rate = 0;
   rentalBallMachineRate = 0;
@@ -1970,7 +2000,23 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   incCoachingPax() { if (this.coachingPax < this.coachingMaxPax) this.coachingPax++; }
   decCoachingPax() { if (this.coachingPax > 1) this.coachingPax--; }
 
-  get computedFee(): number { return this.subtotal + this.convenienceFee + this.extraFeeTotal + this.coachingFee; }
+  get computedFee(): number { return this.subtotal + this.convenienceFee + this.extraFeeTotal + this.coachingFee + this.supportAmount; }
+
+  get supportAmount(): number {
+    if (this.supportChoice === 'none') return 0;
+    if (this.supportChoice === 'custom') return Math.min(500, Math.max(0, Math.floor(this.supportCustomAmount || 0)));
+    return this.supportChoice;
+  }
+
+  setSupportAmount(choice: 'none' | 10 | 20 | 50 | 'custom') {
+    this.supportChoice = choice;
+    if (choice !== 'custom') this.supportCustomAmount = null;
+    this.cdr.detectChanges();
+  }
+
+  onSupportCustomChange(value: number | null) {
+    this.supportCustomAmount = value == null || isNaN(value) ? null : Math.min(500, Math.max(1, Math.floor(value)));
+  }
 
   setBookingType(type: 'standard' | 'exclusive_event') {
     this.bookingType = type;
@@ -2423,6 +2469,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
       coachingRequested: this.bookingType === 'exclusive_event' ? false : this.coachingRequested,
       coachingPax: this.coachingPax,
       paymentScreenshot: paymentScreenshotUrl,
+      supportAmount: this.supportAmount,
     };
     console.log('[GuestReserve] submit payload:', payload);
 

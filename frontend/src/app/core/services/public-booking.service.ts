@@ -56,6 +56,7 @@ export interface GuestBookingPayload {
   coachingRequested?: boolean;
   coachingPax?: number;
   paymentScreenshot?: string;
+  supportAmount?: number;
 }
 
 export interface GuestBookingResult {
@@ -69,7 +70,7 @@ export interface GuestBookingResult {
     status: string;
     guestInfo: GuestInfo;
   };
-  charge: { _id: string; amount: number };
+  charge: { _id: string; amount: number; breakdown?: { supportAmount?: number } };
 }
 
 @Injectable({ providedIn: 'root' })
