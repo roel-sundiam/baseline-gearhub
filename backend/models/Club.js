@@ -27,6 +27,7 @@ const clubSchema = new mongoose.Schema(
     bookingProcess: { type: String, enum: ['reservation', 'per_game', 'hosted_play'], default: 'reservation' },
     hostedPlayEnabled: { type: Boolean, default: false },
     hostedPlayQueueEnabled: { type: Boolean, default: false },
+    courtGoSupportModalEnabled: { type: Boolean, default: false },
     // Whether Hosted Play join payments/cancellation refunds can use the app credit
     // ledger for this club. Defaults true to preserve existing behavior.
     hostedPlayCreditsEnabled: { type: Boolean, default: true },

@@ -523,24 +523,10 @@ function localDateStr(): string {
                           <strong>{{ coachingFee | currency: 'PHP' : 'symbol' }}</strong>
                         </div>
                       }
-                      <div class="gr-sum-divider"></div>
-
-                      <div class="gr-sum-label">&#10084;&#65039; Support CourtGo</div>
-                      <div class="gr-support-desc">Support CourtGo's continued improvement with an optional contribution.</div>
-                      <div class="gr-dur-row">
-                        <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 'none'" (click)="setSupportAmount('none')">No Thanks</button>
-                        <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 10" (click)="setSupportAmount(10)">₱10</button>
-                        <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 20" (click)="setSupportAmount(20)">₱20</button>
-                        <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 50" (click)="setSupportAmount(50)">₱50</button>
-                        <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 'custom'" (click)="setSupportAmount('custom')">Custom</button>
-                      </div>
-                      @if (supportChoice === 'custom') {
-                        <input type="number" min="1" max="500" step="1" class="gr-input gr-support-custom-input"
-                          [ngModel]="supportCustomAmount" (ngModelChange)="onSupportCustomChange($event)" placeholder="Amount (₱1–₱500)" />
-                      }
                       @if (supportAmount > 0) {
+                        <div class="gr-sum-divider"></div>
                         <div class="gr-sum-row">
-                          <span>Support CourtGo</span>
+                          <span>&#10084;&#65039; Support CourtGo</span>
                           <strong>{{ supportAmount | currency: 'PHP' : 'symbol' }}</strong>
                         </div>
                       }
@@ -786,6 +772,40 @@ function localDateStr(): string {
             <div class="gr-terms-modal-footer">
               <p>Acceptance is required to submit this booking.</p>
               <button class="gr-submit-btn" (click)="agreeAndClose()"><i class="fas fa-check"></i> I Agree</button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- ── Support CourtGo modal ── -->
+      @if (showSupportModal) {
+        <div class="gr-modal-overlay" (click)="showSupportModal = false">
+          <div class="gr-terms-modal" (click)="$event.stopPropagation()">
+            <div class="gr-terms-modal-header">
+              <div class="gr-terms-heading">
+                <span class="gr-terms-heading-icon"><i class="fas fa-heart"></i></span>
+                <div>
+                  <div class="gr-terms-modal-title">Add a little love for CourtGo?</div>
+                  <p>An optional contribution to support CourtGo's continued improvement.</p>
+                </div>
+              </div>
+              <button class="gr-modal-close" (click)="showSupportModal = false" aria-label="Close"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="gr-terms-modal-body">
+              <div class="gr-dur-row">
+                <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 'none'" (click)="setSupportAmount('none')">No Thanks</button>
+                <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 10" (click)="setSupportAmount(10)">₱10</button>
+                <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 20" (click)="setSupportAmount(20)">₱20</button>
+                <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 50" (click)="setSupportAmount(50)">₱50</button>
+                <button type="button" class="gr-dur-btn" [class.active]="supportChoice === 'custom'" (click)="setSupportAmount('custom')">Custom</button>
+              </div>
+              @if (supportChoice === 'custom') {
+                <input type="number" min="1" max="500" step="1" class="gr-input gr-support-custom-input"
+                  [ngModel]="supportCustomAmount" (ngModelChange)="onSupportCustomChange($event)" placeholder="Amount (₱1–₱500)" />
+              }
+            </div>
+            <div class="gr-terms-modal-footer">
+              <button class="gr-submit-btn" style="grid-column: 1 / -1; width: 100%;" (click)="confirmSupportModal()"><i class="fas fa-check"></i> Continue to booking</button>
             </div>
           </div>
         </div>
@@ -1206,7 +1226,6 @@ function localDateStr(): string {
     }
     .gr-dur-btn.active, .gr-dur-btn:hover { border-color: #a3e635; background: rgba(163,230,53,0.1); color: #a3e635; }
 
-    .gr-support-desc { font-size: 0.78rem; color: rgba(255,255,255,0.45); margin: 0.2rem 0 0.6rem; }
     .gr-support-custom-input { margin-top: 0.5rem; width: 100%; }
 
     /* iOS toggle switches */
@@ -1832,6 +1851,9 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
   coachingPax = 1;
   supportChoice: 'none' | 10 | 20 | 50 | 'custom' = 'none';
   supportCustomAmount: number | null = null;
+  courtGoSupportModalEnabled = false;
+  showSupportModal = false;
+  supportModalHandled = false;
   rentalBalls50Rate = 0;
   rentalBalls100Rate = 0;
   rentalBallMachineRate = 0;
@@ -2100,6 +2122,7 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
             this.availableExtraFees.filter(f => !f.isOptional).map(f => f.name)
           );
           this.requirePaymentScreenshot = club.requirePaymentScreenshot ?? false;
+          this.courtGoSupportModalEnabled = club.courtGoSupportModalEnabled ?? false;
           this.clubPhotos.set(club.photos ?? []);
           if (club.guestTermsText) {
             const html = marked.parse(club.guestTermsText) as string;
@@ -2428,6 +2451,22 @@ export class GuestReserveComponent implements OnInit, OnDestroy {
       this.errorMsg = 'Please acknowledge the event policies before confirming.';
       return;
     }
+    if (this.courtGoSupportModalEnabled && !this.supportModalHandled) {
+      this.guestSubmitted = false;
+      this.showSupportModal = true;
+      this.cdr.detectChanges();
+      return;
+    }
+    await this.finalizeBooking();
+  }
+
+  confirmSupportModal() {
+    this.supportModalHandled = true;
+    this.showSupportModal = false;
+    this.finalizeBooking();
+  }
+
+  private async finalizeBooking() {
     this.guestSubmitted = false;
     this.booking = true;
     this.errorMsg = '';

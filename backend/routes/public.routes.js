@@ -458,6 +458,7 @@ router.get("/:clubId", async (req, res) => {
       totalBookings: club.totalBookings ?? 0,
       bookingProcess: club.bookingProcess ?? 'reservation',
       hostedPlayEnabled: club.hostedPlayEnabled ?? false,
+      courtGoSupportModalEnabled: club.courtGoSupportModalEnabled ?? false,
       guestTermsText,
       guestTermsNotification: club.guestTermsNotification ?? null,
     });

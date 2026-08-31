@@ -1049,6 +1049,38 @@ interface AdminUser {
                   <div class="cfs-card xfee-setting-card">
                     <div class="cfs-header">
                       <div class="cfs-header-left">
+                        <span class="cfs-icon"><i class="fas fa-heart"></i></span>
+                        <div>
+                          <div class="cfs-title">Support CourtGo Modal</div>
+                          <div class="cfs-subtitle">Guest checkout only</div>
+                        </div>
+                      </div>
+                      <span class="xfee-status-pill" [class.xfee-status-off]="!courtGoSupportModalEnabled">
+                        {{ courtGoSupportModalEnabled ? 'On' : 'Off' }}
+                      </span>
+                    </div>
+                    <div class="cfs-body xfee-setting-body">
+                      <label class="xfee-switch-row">
+                        <input type="checkbox" [(ngModel)]="courtGoSupportModalEnabled" />
+                        <span class="xfee-switch-copy">
+                          <span class="xfee-switch-title">Show support contribution popup at guest checkout</span>
+                          <span class="xfee-switch-note">Prompts guests to add an optional contribution before their booking is confirmed. Off by default.</span>
+                        </span>
+                      </label>
+                      <div class="cfs-actions xfee-actions">
+                        <button type="button" class="cfs-save-btn" (click)="saveCourtGoSupportModal()" [disabled]="savingCourtGoSupportModal">
+                          @if (savingCourtGoSupportModal) { <i class="fas fa-circle-notch fa-spin"></i> } Save
+                        </button>
+                        @if (courtGoSupportModalSaveMsg) {
+                          <span class="cfs-save-msg"><i class="fas fa-check-circle"></i> {{ courtGoSupportModalSaveMsg }}</span>
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="cfs-card xfee-setting-card">
+                    <div class="cfs-header">
+                      <div class="cfs-header-left">
                         <span class="cfs-icon"><i class="fas fa-calendar-check"></i></span>
                         <div>
                           <div class="cfs-title">Booking Process</div>
@@ -4309,6 +4341,9 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
   balanceAlertEnabled = false;
   savingBalanceAlert = false;
   balanceAlertSaveMsg = '';
+  courtGoSupportModalEnabled = false;
+  savingCourtGoSupportModal = false;
+  courtGoSupportModalSaveMsg = '';
   bookingProcess: 'reservation' | 'per_game' | 'hosted_play' = 'reservation';
   savingBookingProcess = false;
   bookingProcessSaveMsg = '';
@@ -4614,6 +4649,8 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
     this.screenshotSettingSaveMsg = '';
     this.balanceAlertEnabled = club.balanceAlertEnabled ?? false;
     this.balanceAlertSaveMsg = '';
+    this.courtGoSupportModalEnabled = club.courtGoSupportModalEnabled ?? false;
+    this.courtGoSupportModalSaveMsg = '';
     this.bookingProcess = club.bookingProcess ?? 'reservation';
     this.bookingProcessSaveMsg = '';
     this.hostedPlayAddonEnabled = club.hostedPlayEnabled ?? false;
@@ -4922,6 +4959,23 @@ export class AdminClubsComponent implements OnInit, OnDestroy {
         setTimeout(() => { this.balanceAlertSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
       },
       error: () => { this.savingBalanceAlert = false; this.balanceAlertSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
+    });
+  }
+
+  saveCourtGoSupportModal() {
+    if (!this.selectedClub?._id) return;
+    this.savingCourtGoSupportModal = true;
+    this.courtGoSupportModalSaveMsg = '';
+    this.clubService.patchCourtGoSupportModal(this.selectedClub._id, this.courtGoSupportModalEnabled).subscribe({
+      next: (updated) => {
+        this.clubs = this.clubs.map(c => c._id === updated._id ? { ...c, courtGoSupportModalEnabled: updated.courtGoSupportModalEnabled } : c);
+        if (this.selectedClub) this.selectedClub = { ...this.selectedClub, courtGoSupportModalEnabled: updated.courtGoSupportModalEnabled };
+        this.savingCourtGoSupportModal = false;
+        this.courtGoSupportModalSaveMsg = 'Saved!';
+        this.cdr.detectChanges();
+        setTimeout(() => { this.courtGoSupportModalSaveMsg = ''; this.cdr.detectChanges(); }, 2500);
+      },
+      error: () => { this.savingCourtGoSupportModal = false; this.courtGoSupportModalSaveMsg = 'Failed to save.'; this.cdr.detectChanges(); },
     });
   }
 

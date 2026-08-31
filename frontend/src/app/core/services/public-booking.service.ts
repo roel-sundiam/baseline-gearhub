@@ -99,6 +99,7 @@ export class PublicBookingService {
       rating?: number; reviewCount?: number; totalBookings?: number;
       bookingProcess?: 'reservation' | 'per_game' | 'hosted_play';
       hostedPlayEnabled?: boolean;
+      courtGoSupportModalEnabled?: boolean;
       guestTermsText?: string;
       guestTermsNotification?: string;
     }>(`${this.base}/${clubId}`);

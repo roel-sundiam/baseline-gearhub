@@ -52,6 +52,7 @@ export interface Club {
   bookingProcess?: 'reservation' | 'per_game' | 'hosted_play';
   hostedPlayEnabled?: boolean;
   hostedPlayQueueEnabled?: boolean;
+  courtGoSupportModalEnabled?: boolean;
   hostedPlayCreditsEnabled?: boolean;
   queueManagementFeePerPlayer?: number;
   hostedPlayFeeSplitMode?: 'per_player' | 'split_total';
@@ -147,6 +148,10 @@ export class ClubService {
 
   patchMyHostedPlayAddon(enabled: boolean) {
     return this.http.patch<Club>(`${environment.apiUrl}/clubs/me/hosted-play-addon`, { enabled });
+  }
+
+  patchCourtGoSupportModal(id: string, enabled: boolean) {
+    return this.http.patch<Club>(`${environment.apiUrl}/clubs/${id}/courtgo-support-modal`, { enabled });
   }
 
   patchMyFinanceReportAddon(enabled: boolean) {

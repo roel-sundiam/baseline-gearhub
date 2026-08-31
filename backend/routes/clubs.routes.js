@@ -299,6 +299,20 @@ router.patch("/:id/hosted-play-addon", auth, superadmin, async (req, res) => {
   }
 });
 
+// PATCH /api/clubs/:id/courtgo-support-modal — enable/disable the guest-checkout Support CourtGo modal (superadmin only)
+router.patch("/:id/courtgo-support-modal", auth, superadmin, async (req, res) => {
+  try {
+    const club = await Club.findById(req.params.id);
+    if (!club) return res.status(404).json({ error: "Club not found" });
+    club.courtGoSupportModalEnabled = !!req.body.enabled;
+    await club.save();
+    res.json(club.toObject());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // PATCH /api/clubs/me/finance-report-addon — club admin self-subscribe/cancel the Finance Report add-on
 router.patch("/me/finance-report-addon", auth, admin, async (req, res) => {
   try {
